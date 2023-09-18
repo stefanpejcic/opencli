@@ -13,6 +13,29 @@ email="$3"
 plan="$4"
 
 
+# List of usernames that are not allowed
+forbidden_usernames=("test" "root" "admin" "other_username")
+
+# Function to check if a username is in the forbidden list
+is_username_forbidden() {
+    local check_username="$1"
+    for forbidden_username in "${forbidden_usernames[@]}"; do
+        if [ "$check_username" == "$forbidden_username" ]; then
+            return 0 # Username is forbidden
+        fi
+    done
+    return 1 # Username is not forbidden
+}
+
+
+# Check if the username is forbidden
+if is_username_forbidden "$username"; then
+    echo "Error: Username is not allowed."
+    exit 1
+fi
+
+
+
 
 
 #1. Run docker container for user
