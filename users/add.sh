@@ -14,7 +14,7 @@ plan="$4"
 
 
 # List of usernames that are not allowed
-forbidden_usernames=("test" "root" "admin" "other_username")
+forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld")
 
 # Function to check if a username is in the forbidden list
 is_username_forbidden() {
