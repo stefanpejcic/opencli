@@ -148,7 +148,7 @@ for port in "${container_ports[@]}"; do
         # Open the port in CSF
         echo "Opening port ${host_port} for port ${port} in CSF"
         #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-        ufw allow ${host_port}/tcp  comment "${host_port}"
+        ufw allow ${host_port}/tcp  comment "${username}"
         ports_opened=1
     else
         echo "Port ${port} not found in container ${container_name}"
