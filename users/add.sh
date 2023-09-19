@@ -140,14 +140,15 @@ container_ports=("21" "22" "80" "3306" "8080")
 # Variable to track whether any ports were opened
 ports_opened=0
 
-# Loop through the container_ports array and open the ports in CSF if not already open
+# Loop through the container_ports array and open the ports in UFW if not already open
 for port in "${container_ports[@]}"; do
     host_port=$(extract_host_port "$port")
 
     if [ -n "$host_port" ]; then
         # Open the port in CSF
         echo "Opening port ${host_port} for port ${port} in CSF"
-        csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+        #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+        ufw allow ${host_port}/tcp  comment "${host_port}"
         ports_opened=1
     else
         echo "Port ${port} not found in container ${container_name}"
