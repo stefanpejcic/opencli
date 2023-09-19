@@ -135,7 +135,7 @@ extract_host_port() {
 }
 
 # Define the list of container ports to check and open
-container_ports=("21" "22" "80" "3306" "8080")
+container_ports=("21" "22" "3306" "8080")
 
 # Variable to track whether any ports were opened
 ports_opened=0
@@ -157,8 +157,8 @@ done
 
 # Restart CSF if ports were opened
 if [ $ports_opened -eq 1 ]; then
-    echo "Restarting CSF"
-    csf -r
+    echo "Restarting UFW"
+    ufw reload
 fi
 
 
