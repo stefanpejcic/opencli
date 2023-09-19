@@ -99,7 +99,9 @@ echo "DOCKER_IMAGE: $docker_image"
 #echo "DISK: $disk_limit"
 echo "CPU: $cpu"
 echo "RAM: $ram"
+echo "RAM: $ram"
 #echo "RAM Soft Limit: $ram_soft_limit MB"
+
 
 
 # Check if the Docker image exists locally
@@ -117,31 +119,10 @@ fi
 docker volume create mysql-$username
 
 # then create a container
-docker run -d --name $username -P --cpus="$cpu" --memory="$ram"  -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
+docker run -d --name $username -P --cpus="$cpu" --memory="$ram" -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
 
 # --memory-reservation="$ram_soft_limit"
 # dd $disk_limit
-
-#Insert data into the database
-
-# Generate a random password if the second argument is "generate"
-if [ "$password" == "generate" ]; then
-    password=$(openssl rand -base64 12)
-fi
-
-# Insert data into MySQL database
-mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$password', '$email', '$plan_id');"
-
-mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$mysql_query"
-
-if [ $? -eq 0 ]; then
-    echo "Data added to MySQL database successfully."
-else
-    echo "Error: Data insertion failed."
-fi
-
-
-
 
 # Open ports on firewall
 
@@ -179,4 +160,25 @@ if [ $ports_opened -eq 1 ]; then
     csf -r
 fi
 
-echo "Script completed"
+
+#Insert data into the database
+
+# Generate a random password if the second argument is "generate"
+if [ "$password" == "generate" ]; then
+    password=$(openssl rand -base64 12)
+fi
+
+# Hash password
+hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+
+# Insert data into MySQL database
+mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
+
+mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$mysql_query"
+
+if [ $? -eq 0 ]; then
+    echo "Successfully added user $username password: $password"
+else
+    echo "Error: Data insertion failed."
+    exit 1
+fi
