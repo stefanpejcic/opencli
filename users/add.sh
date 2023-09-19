@@ -2,21 +2,19 @@
 
 # Check if the correct number of command-line arguments is provided
 if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <username> <password|generate> <email> <plan>"
+    echo "Usage: $0 <username> <password|generate> <email> <plan_id>"
     exit 1
 fi
 
-# Get data from command-line arguments
 username="$1"
 password="$2"
 email="$3"
-plan="$4"
+plan_id="$4"
 
 
-# List of usernames that are not allowed
+#1. check for forbidden usernames
 forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld")
 
-# Function to check if a username is in the forbidden list
 is_username_forbidden() {
     local check_username="$1"
     for forbidden_username in "${forbidden_usernames[@]}"; do
@@ -24,36 +22,18 @@ is_username_forbidden() {
             return 0 # Username is forbidden
         fi
     done
-    return 1 # Username is not forbidden
+    return 1 # not forbidden
 }
 
-
-# Check if the username is forbidden
 if is_username_forbidden "$username"; then
     echo "Error: Username is not allowed."
     exit 1
 fi
 
 
-
-
-
-#1. Run docker container for user
-
-docker volume create mysql-$username
-
-docker run xxxxxxxxxxxx with volume
-
-
-
-
-
-#2. Insert data to database
-
 # MySQL database configuration
-config_file="config.json"
+config_file="/usr/local/admin/config.json"
 
-# Check if the config file exists
 if [ ! -f "$config_file" ]; then
     echo "Config file $config_file not found."
     exit 1
@@ -64,6 +44,85 @@ mysql_user=$(jq -r .mysql_user "$config_file")
 mysql_password=$(jq -r .mysql_password "$config_file")
 mysql_database=$(jq -r .mysql_database "$config_file")
 
+# Check if the username already exists in the users table
+username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
+username_exists_count=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$username_exists_query" -sN)
+
+# Check if successful
+if [ $? -ne 0 ]; then
+    echo "Error: Unable to check username existence in the database."
+    exit 1
+fi
+
+# count > 0) show error and exit
+if [ "$username_exists_count" -gt 0 ]; then
+    echo "Error: Username '$username' already exists."
+    exit 1
+fi
+
+
+#Get CPU, DISK and RAM limits for the plan
+
+# Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
+query="SELECT cpu, ram, docker_image FROM plans WHERE id = '$plan_id'"
+
+# add disk_limit later on..
+
+# Execute the MySQL query and store the results in variables
+cpu_ram_info=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$query" -sN)
+
+# Check if the query was successful
+if [ $? -ne 0 ]; then
+    echo "Error: Unable to fetch plan information from the database."
+    exit 1
+fi
+
+# Check if any results were returned
+if [ -z "$cpu_ram_info" ]; then
+    echo "Error: Plan with ID $plan_id not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
+    exit 1
+fi
+
+# Extract DOCKER_IMAGE, DISK, CPU, and RAM values from the query result
+#disk_limit=$(echo "$cpu_ram_info" | awk '{print $1}')
+cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
+ram=$(echo "$cpu_ram_info" | awk '{print $2}')
+
+# RAM memory reservation = 90% of RAM allocated
+#ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
+#ram_mb=$((ram_no_suffix * 1024))  # Convert GB to MB (1 GB = 1024 MB)
+#ram_soft_limit=$((ram_mb * 90 / 100))
+
+docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
+
+echo "DOCKER_IMAGE: $docker_image"
+#echo "DISK: $disk_limit"
+echo "CPU: $cpu"
+echo "RAM: $ram"
+#echo "RAM Soft Limit: $ram_soft_limit MB"
+
+
+# Check if the Docker image exists locally
+if docker images -q "$docker_image" 2>/dev/null; then
+    echo "Docker image '$docker_image' exists locally."
+else
+    echo "Docker image '$docker_image' does not exist locally."
+    exit 1
+fi
+
+
+# Run a docker container for the user with those limits
+
+# create MySQL volume first
+docker volume create mysql-$username
+
+# then create a container
+docker run -d --name $username -P --cpus="$cpu" --memory="$ram"  -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
+
+# --memory-reservation="$ram_soft_limit"
+# dd $disk_limit
+
+#Insert data into the database
 
 # Generate a random password if the second argument is "generate"
 if [ "$password" == "generate" ]; then
@@ -71,7 +130,7 @@ if [ "$password" == "generate" ]; then
 fi
 
 # Insert data into MySQL database
-mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$password', '$email', '$plan');"
+mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$password', '$email', '$plan_id');"
 
 mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$mysql_query"
 
@@ -84,7 +143,7 @@ fi
 
 
 
-#3. Open ports on firewall
+# Open ports on firewall
 
 # Function to extract the host port from 'docker port' output
 extract_host_port() {
