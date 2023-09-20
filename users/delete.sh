@@ -32,17 +32,18 @@ confirm_action() {
     fi
 }
 
-# Function to remove Docker container and volume
+# Function to remove Docker container, mysql volume and all user files
 remove_docker_container_and_volume() {
     docker stop "$username"
     docker rm "$username"
     docker volume rm "mysql-$username"
+    rm -rf /home/$username
 }
 
 # Function to delete user from the database
 delete_user_from_database() {
     # MySQL database configuration (same as in your original script)
-    config_file="config.json"
+    config_file="/usr/local/admin/config.json"
 
     # Check if the config file exists
     if [ ! -f "$config_file" ]; then
@@ -67,7 +68,7 @@ delete_user_from_database() {
     fi
 }
 
-# Function to disable ports in CSF
+# Function to disable ports in ufw
 disable_ports_in_csf() {
     # Function to extract the host port from 'docker port' output
     extract_host_port() {
@@ -78,7 +79,7 @@ disable_ports_in_csf() {
     }
 
     # Define the list of container ports to check and disable in CSF
-    container_ports=("21" "22" "80" "3306" "8080")
+    container_ports=("21" "22" "3306" "8080")
 
     # Disable the ports in CSF
     for port in "${container_ports[@]}"; do
