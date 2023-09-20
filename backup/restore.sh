@@ -41,6 +41,9 @@ if [ ! "$(docker ps -a -q -f name=${container_name})" ] && [ ! "$(docker volume 
     
     # run your container
     $$$$$$$$docker run -d --name <name> my-docker-image
+else
+  echo "${RED}ERROR${ENDCOLOR}: CONTAINER OR VOLUME NAME ALREADY IN USE."
+  exit 1
 fi
 
 
