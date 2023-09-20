@@ -31,12 +31,22 @@ if [ ! -f "$backup_file" ] || [ ! -f "$sql_dump_file" ]; then
 fi
 
 echo "Restoring Docker container $container_name..."
-docker import "$backup_file" "$container_name-image" || { echo "${RED}ERROR${ENDCOLOR}: Failed to restore Docker container $container_name"; exit 1; }
-#docker import /path/to/exampleimage.tgz
-docker volume create --name "$volume_name"
+if [ ! "$(docker ps -a -q -f name=${container_name})" ] && [ ! "$(docker volume ls -q -f name=${container_name})" ]; then
+    docker import "$backup_file" "$container_name-image" || { echo "${RED}ERROR${ENDCOLOR}: Failed to restore Docker container $container_name"; exit 1; }
 
-# Copy data to the volume
-rsync -avR $backup_dir/mysql-volume/ /var/lib/docker/volumes/$volume_name/_data/
+    docker volume create --name "$volume_name"
+
+    # Copy data to the volume
+    rsync -avR $backup_dir/mysql-volume/ /var/lib/docker/volumes/$volume_name/_data/
+    
+    # run your container
+    $$$$$$$$docker run -d --name <name> my-docker-image
+fi
+
+
+
+
+
 
 RUN KOMANDA
 
