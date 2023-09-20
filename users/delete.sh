@@ -68,43 +68,29 @@ delete_user_from_database() {
     fi
 }
 
-# Function to disable ports in ufw
-disable_ports_in_csf() {
-    # Function to extract the host port from 'docker port' output
-    extract_host_port() {
-        local port_number="$1"
-        local host_port
-        host_port=$(docker port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
-        echo "$host_port"
-    }
 
-    # Define the list of container ports to check and disable in CSF
-    container_ports=("21" "22" "3306" "8080")
+# Function to disable UFW rules for ports containing the username
+disable_ports_in_ufw() {
+  # Get the line numbers to delete
+  line_numbers=$(ufw status numbered | awk -v keyword="$username" '$NF ~ keyword' | awk -F '[][]' '/\[/{print $2}')
+                #ufw status numbered | awk '$NF ~ /stefan/' | awk -F '[][]' '/\[/{print "[" $2 "]"}' | sed 's/[][]//g'
 
-    # Disable the ports in CSF
-    for port in "${container_ports[@]}"; do
-        host_port=$(extract_host_port "$port")
-
-        if [ -n "$host_port" ]; then
-            # Disable the port in CSF
-            echo "Disabling port ${host_port} for port ${port} in CSF"
-            csf -x "$host_port"
-        else
-            echo "Port ${port} not found in container ${username}"
-        fi
-    done
-
-    # Restart CSF after disabling ports
-    echo "Restarting CSF"
-    csf -r
+  # Loop through each line number and delete the corresponding rule
+  for line_number in $line_numbers; do
+    ufw delete $line_number
+  done
 }
 
 # Confirm actions
 confirm_action
 
-# Disable ports in CSF, remove Docker container and volume, and delete user from the database
-disable_ports_in_csf
+# Disable ports in UFW, remove Docker container, user data and volume, and delete user from the database
+disable_ports_in_ufw
+
+ufw reload
+
 remove_docker_container_and_volume
+
 delete_user_from_database
 
-echo "Script completed"
+echo "User $username deleted."
