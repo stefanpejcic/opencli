@@ -124,12 +124,13 @@ delete_user_from_database() {
 # Function to disable UFW rules for ports containing the username
 disable_ports_in_ufw() {
   # Get the line numbers to delete
-  line_numbers=$(ufw status numbered | awk -v keyword="$username" '$NF ~ keyword' | awk -F '[][]' '/\[/{print $2}')
+  line_numbers=$(ufw status numbered | awk -v keyword="stefan" '$NF ~ keyword' | awk -F '[][]' '/\[/{print $2}')
                 #ufw status numbered | awk '$NF ~ /stefan/' | awk -F '[][]' '/\[/{print "[" $2 "]"}' | sed 's/[][]//g'
 
   # Loop through each line number and delete the corresponding rule
   for line_number in $line_numbers; do
     ufw --force delete $line_number
+    echo "Deleted rule #$line_number"
   done
 }
 
