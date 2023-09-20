@@ -31,22 +31,25 @@ if is_username_forbidden "$username"; then
 fi
 
 
-# MySQL database configuration
-config_file="/usr/local/admin/config.json"
+#########################################################################
+############################### DB LOGIN ################################ 
+#########################################################################
+    # MySQL database configuration
+    config_file="/usr/local/admin/db.cnf"
 
-if [ ! -f "$config_file" ]; then
-    echo "Config file $config_file not found."
-    exit 1
-fi
+    # Check if the config file exists
+    if [ ! -f "$config_file" ]; then
+        echo "Config file $config_file not found."
+        exit 1
+    fi
 
-# Read MySQL login credentials from the JSON configuration file
-mysql_user=$(jq -r .mysql_user "$config_file")
-mysql_password=$(jq -r .mysql_password "$config_file")
-mysql_database=$(jq -r .mysql_database "$config_file")
+    mysql_database="panel"
+
+#########################################################################
 
 # Check if the username already exists in the users table
 username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
-username_exists_count=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$username_exists_query" -sN)
+username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
 
 # Check if successful
 if [ $? -ne 0 ]; then
@@ -69,7 +72,7 @@ query="SELECT cpu, ram, docker_image FROM plans WHERE id = '$plan_id'"
 # add disk_limit later on..
 
 # Execute the MySQL query and store the results in variables
-cpu_ram_info=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$query" -sN)
+cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
 
 # Check if the query was successful
 if [ $? -ne 0 ]; then
@@ -175,7 +178,7 @@ hashed_password=$(python3 -c "from werkzeug.security import generate_password_ha
 # Insert data into MySQL database
 mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
 
-mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "$mysql_query"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
 if [ $? -eq 0 ]; then
     echo "Successfully added user $username password: $password"
