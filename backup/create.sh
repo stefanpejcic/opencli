@@ -1,8 +1,8 @@
 #!/bin/bash
 
 RED="\e[31m"
-GREEN="${GREEN}"
-ENDCOLOR="${END}"
+GREEN="\e[32m"
+ENDCOLOR="\e[0m"
 
 
 # Get the container name from the first argument
