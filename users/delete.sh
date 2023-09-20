@@ -6,7 +6,7 @@ if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
     exit 1
 fi
 
-# Get username from command-line argument
+# Get username from a command-line argument
 username="$1"
 
 # Check if the -y flag is provided to skip confirmation
@@ -35,8 +35,8 @@ confirm_action() {
 #########################################################################
 ############################### DB LOGIN ################################ 
 #########################################################################
-    # MySQL database configuration (same as in your original script)
-    config_file="/usr/local/admin/config.json"
+    # MySQL database configuration
+    config_file="/usr/local/admin/db.cnf"
 
     # Check if the config file exists
     if [ ! -f "$config_file" ]; then
@@ -44,10 +44,7 @@ confirm_action() {
         exit 1
     fi
 
-    # Read MySQL login credentials from the JSON configuration file
-    mysql_user=$(jq -r .mysql_user "$config_file")
-    mysql_password=$(jq -r .mysql_password "$config_file")
-    mysql_database=$(jq -r .mysql_database "$config_file")
+    mysql_database="panel"
 
 #########################################################################
 
@@ -65,7 +62,7 @@ remove_docker_container_and_volume() {
 # Delete all users domains vhosts files from Apache
 delete_vhosts_files() {
     # Get the user_id from the 'users' table
-    user_id=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
+    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
 
     if [ -z "$user_id" ]; then
         echo "Error: User '$username' not found in the database."
@@ -73,7 +70,7 @@ delete_vhosts_files() {
     fi
 
     # Get all domain_names associated with the user_id from the 'domains' table
-    domain_names=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
+    domain_names=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
 
     # Disable Apache virtual hosts, delete SSL and configuration files for each domain
     for domain_name in $domain_names; do
@@ -97,7 +94,7 @@ delete_vhosts_files() {
 delete_user_from_database() {
 
     # Step 1: Get the user_id from the 'users' table
-    user_id=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
+    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
     
     if [ -z "$user_id" ]; then
         echo "Error: User '$username' not found in the database."
@@ -105,18 +102,18 @@ delete_user_from_database() {
     fi
 
     # Step 2: Get all domain_ids associated with the user_id from the 'domains' table
-    domain_ids=$(mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N)
+    domain_ids=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N)
 
     # Step 3: Delete rows from the 'sites' table based on the domain_ids
     for domain_id in $domain_ids; do
-        mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "DELETE FROM sites WHERE domain_id='$domain_id';"
+        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM sites WHERE domain_id='$domain_id';"
     done
 
     # Step 4: Delete rows from the 'domains' table based on the user_id
-    mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "DELETE FROM domains WHERE user_id='$user_id';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM domains WHERE user_id='$user_id';"
 
     # Step 5: Delete the user from the 'users' table
-    mysql -u "$mysql_user" -p"$mysql_password" -D "$mysql_database" -e "DELETE FROM users WHERE username='$username';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$username';"
 
     echo "User '$username' and associated data deleted from MySQL database successfully."
 }
@@ -132,7 +129,7 @@ disable_ports_in_ufw() {
 
   # Loop through each line number and delete the corresponding rule
   for line_number in $line_numbers; do
-    ufw delete $line_number
+    ufw --force delete $line_number
   done
 }
 
