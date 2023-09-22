@@ -148,4 +148,6 @@ remove_docker_container_and_volume
 
 delete_user_from_database
 
+rm -rf /usr/local/panel/core/stats/$username
+
 echo "User $username deleted."
