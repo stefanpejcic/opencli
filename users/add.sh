@@ -186,3 +186,6 @@ else
     echo "Error: Data insertion failed."
     exit 1
 fi
+
+
+mkdir -p /usr/local/panel/core/stats/$username
