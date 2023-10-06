@@ -67,7 +67,7 @@ fi
 #Get CPU, DISK and RAM limits for the plan
 
 # Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit FROM plans WHERE id = '$plan_id'"
 
 # add disk_limit later on..
 
@@ -87,7 +87,8 @@ if [ -z "$cpu_ram_info" ]; then
 fi
 
 # Extract DOCKER_IMAGE, DISK, CPU, and RAM values from the query result
-#disk_limit=$(echo "$cpu_ram_info" | awk '{print $1}')
+#disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}')
+disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
 cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
 ram=$(echo "$cpu_ram_info" | awk '{print $2}')
 
@@ -120,6 +121,26 @@ fi
 
 # create MySQL volume first
 docker volume create mysql-$username
+
+# create file, convert it to storage and mount to user to set the disk usage limits
+# allocate disk space (size specified by $disk_limit) for the storage file
+#echo "fallocate -l ${disk_limit}g /storage_file_$username"
+fallocate -l ${disk_limit}g /storage_file_$username
+
+# Create an ext4 filesystem on the storage file
+#echo "mkfs.ext4 /storage_file_$username"
+mkfs.ext4 /storage_file_$username
+
+# Create a directory with the user's username under /home/
+#echo "mkdir /home/$username"
+mkdir /home/$username
+
+# Mount the storage file as a loopback device to the /home/$username directory
+#echo "mount -o loop /storage_file_$username /home/$username"
+mount -o loop /storage_file_$username /home/$username
+
+
+
 
 # then create a container
 docker run -d --name $username -P --cpus="$cpu" --memory="$ram" -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
