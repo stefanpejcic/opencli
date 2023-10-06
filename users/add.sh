@@ -67,9 +67,7 @@ fi
 #Get CPU, DISK and RAM limits for the plan
 
 # Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit FROM plans WHERE id = '$plan_id'"
-
-# add disk_limit later on..
+query="SELECT cpu, ram, docker_image, disk_limit, bandwidth FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -100,8 +98,9 @@ ram=$(echo "$cpu_ram_info" | awk '{print $2}')
 docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 
 echo "DOCKER_IMAGE: $docker_image"
-#echo "DISK: $disk_limit"
+echo "DISK: $disk_limit"
 echo "CPU: $cpu"
+echo "RAM: $ram"
 echo "RAM: $ram"
 echo "RAM: $ram"
 #echo "RAM Soft Limit: $ram_soft_limit MB"
@@ -148,6 +147,17 @@ docker run -d --name $username -P --cpus="$cpu" --memory="$ram" -v /home/$userna
 # --memory-reservation="$ram_soft_limit"
 # dd $disk_limit
 
+
+ip_address=$(docker container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
+
+echo "IP ADDRESS: $ip_address"
+# SET BANDWIDTH LIMITS
+
+tc qdisc add dev docker0 root handle 1: htb default 10
+tc class add dev docker0 parent 1: classid 1:1 htb rate 20mbit
+tc filter add dev docker0 parent 1: protocol ip prio 16 u32 match ip dst ${ip_address} flowid 1:1
+
+
 # Open ports on firewall
 
 # Function to extract the host port from 'docker port' output
@@ -179,7 +189,7 @@ for port in "${container_ports[@]}"; do
     fi
 done
 
-# Restart CSF if ports were opened
+# Restart UFW if ports were opened
 if [ $ports_opened -eq 1 ]; then
     echo "Restarting UFW"
     ufw reload
@@ -190,7 +200,7 @@ fi
 
 # Generate a random password if the second argument is "generate"
 if [ "$password" == "generate" ]; then
-    password=$(openssl rand -base64 12)
+    password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
 fi
 
 # Hash password
