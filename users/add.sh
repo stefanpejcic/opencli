@@ -187,7 +187,7 @@ extract_host_port() {
 }
 
 # Define the list of container ports to check and open
-container_ports=("21" "22" "3306" "8080")
+container_ports=("21" "22" "3306" "7681" "8080")
 
 # Variable to track whether any ports were opened
 ports_opened=0
