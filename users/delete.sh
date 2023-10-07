@@ -168,5 +168,7 @@ rm -rf /storage_file_$username
 
 
 rm -rf /usr/local/panel/core/stats/$username
+rm /usr/local/panel/core/users/$username/server_config.yml
+
 
 echo "User $username deleted."
