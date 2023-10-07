@@ -59,7 +59,7 @@ remove_docker_container_and_volume() {
     rm -rf /home/$username
 }
 
-# Delete all users domains vhosts files from Apache
+# Delete all users domains vhosts files from Nginx
 delete_vhosts_files() {
     # Get the user_id from the 'users' table
     user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
@@ -72,23 +72,23 @@ delete_vhosts_files() {
     # Get all domain_names associated with the user_id from the 'domains' table
     domain_names=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
 
-    # Disable Apache virtual hosts, delete SSL and configuration files for each domain
+    # Disable Nginx virtual hosts, delete SSL and configuration files for each domain
     for domain_name in $domain_names; do
         # Revoke SSL and delete associated $domain_name-le-ssl.conf file
         certbot revoke -n --cert-name $domain_name
         # Delete the SSLs for that domain
         certbot delete -n --cert-name $domain_name
         # Disable the virtual host file
-        sudo a2dissite "$domain_name"
+        #sudo a2dissite "$domain_name"
         # Delete the configuration file
         sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
         sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
     done
 
-    # Reload Apache to apply changes
+    # Reload Nginx to apply changes
     systemctl reload nginx
 
-    echo "SSL Certificates, Apache Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
+    echo "SSL Certificates, Nginx Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
 }
 
 # Function to delete user from the database
