@@ -236,5 +236,5 @@ else
     exit 1
 fi
 
-
 mkdir -p /usr/local/panel/core/stats/$username
+echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
