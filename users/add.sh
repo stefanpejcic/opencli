@@ -67,7 +67,7 @@ fi
 #Get CPU, DISK and RAM limits for the plan
 
 # Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, bandwidth FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
