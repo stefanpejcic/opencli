@@ -81,11 +81,12 @@ delete_vhosts_files() {
         # Disable the virtual host file
         sudo a2dissite "$domain_name"
         # Delete the configuration file
-        sudo rm -f "/etc/apache2/sites-available/$domain_name.conf"
+        sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
+        sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
     done
 
     # Reload Apache to apply changes
-    systemctl reload apache2
+    systemctl reload nginx
 
     echo "SSL Certificates, Apache Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
 }
@@ -137,6 +138,18 @@ disable_ports_in_ufw() {
 # Confirm actions
 confirm_action
 
+
+# Function to delete bandwidth limit settings for a user
+delete_bandwidth_limits() {
+  tc qdisc del dev docker0 root 2>/dev/null
+  tc class del dev docker0 parent 1: classid 1:1 2>/dev/null
+  tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst "$ip_address" 2>/dev/null
+}
+
+# Delete bandwidth limit settings for the user
+ip_address=$(docker container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
+delete_bandwidth_limits "$ip_address"
+
 # Disable ports in UFW, remove Docker container, user data and volume, and delete user from the database
 disable_ports_in_ufw
 
@@ -147,6 +160,12 @@ delete_vhosts_files
 remove_docker_container_and_volume
 
 delete_user_from_database
+
+umount /home/$username
+rm -rf /home/$username
+rm -rf /storage_file_$username
+
+
 
 rm -rf /usr/local/panel/core/stats/$username
 
