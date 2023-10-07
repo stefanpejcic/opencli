@@ -140,9 +140,27 @@ mount -o loop /storage_file_$username /home/$username
 
 
 
+# Determine the web server based on the Docker image
+if [[ "$docker_image" == *"nginx"* ]]; then
+  web_server="nginx"
+elif [[ "$docker_image" == *"apache"* ]]; then
+  web_server="apache2"
+else
+  web_server="nginx"
+fi
 
 # then create a container
-docker run -d --name $username -P --cpus="$cpu" --memory="$ram" -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
+docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
+  -v /home/$username/var/crons:/var/spool/cron/crontabs \
+  -v /home/$username/etc/$web_server/sites-available:/etc/$web_server/sites-available \
+  -v mysql-$username:/var/lib/mysql \
+  -v /home/$username:/home/$username \
+  --restart unless-stopped \
+  --hostname $username $docker_image
+
+
+#old command before nginx and apache2 support
+#docker run -d --name $username -P --cpus="$cpu" --memory="$ram" -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/nginx/sites-available:/etc/nginx/sites-available   -v mysql-$username:/var/lib/mysql -v /home/$username:/home/$username --restart unless-stopped  --hostname $username $docker_image
 
 # --memory-reservation="$ram_soft_limit"
 # dd $disk_limit
