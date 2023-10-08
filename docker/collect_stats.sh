@@ -54,7 +54,7 @@ docker stats --no-stream --format '{{json .}}' | while read -r container_stats; 
   mkdir -p "$(dirname "$output_file")"
 
   # Create the JSON data and write it to the output file
-  json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": $net_io, \"block_io\": $block_io}"
+  json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": \"$net_io\", \"block_io\": \"$block_io\"}"
   echo "$json_data" > "$output_file"
 
   echo "Data for $username written to $output_file"
