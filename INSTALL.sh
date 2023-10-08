@@ -29,7 +29,7 @@
 ################################################################################
 
 # Collect docker stats for all users every 60 minutes
-echo "0 * * * * /usr/local/admin/scripts/docker/collect_stats.sh" | sudo tee -a /var/spool/cron/crontabs/root
+echo "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh" | sudo tee -a /var/spool/cron/crontabs/root
 
 # Make all bash scripts in this directory executable for root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
