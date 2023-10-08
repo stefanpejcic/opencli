@@ -142,17 +142,20 @@ mount -o loop /storage_file_$username /home/$username
 
 # Determine the web server based on the Docker image
 if [[ "$docker_image" == *"nginx"* ]]; then
+  path="nginx"
   web_server="nginx"
 elif [[ "$docker_image" == *"apache"* ]]; then
-  web_server="apache2"
+  path="apache2"
+  web_server="apache"
 else
+  path="nginx"
   web_server="nginx"
 fi
 
 # then create a container
 docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
   -v /home/$username/var/crons:/var/spool/cron/crontabs \
-  -v /home/$username/etc/$web_server/sites-available:/etc/$web_server/sites-available \
+  -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
   -v mysql-$username:/var/lib/mysql \
   -v /home/$username:/home/$username \
   --restart unless-stopped \
