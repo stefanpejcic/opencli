@@ -1,10 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: your_script_name.sh
-# Description: Description of your script goes here.
-# Author: Your Name
-# Created: Date
-# Last Modified: Date
+# Script Name: collect_stats.sh
+# Description: Collect docker usage information using docker stats command and store in json files per user.
+#              Used with cron: 0 * * * * /usr/local/admin/scripts/docker/collect_stats.sh
+# Author: Petar Curic
+# Created: 07.10.2023
+# Last Modified: 10.10.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -26,9 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-
-# Rest of your script goes here...
-
 
 # Define the output directory
 output_dir="/usr/local/panel/core/stats"
@@ -55,6 +53,7 @@ docker stats --no-stream --format '{{json .}}' | while read -r container_stats; 
 
   # Create the JSON data and write it to the output file
   json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": \"$net_io\", \"block_io\": \"$block_io\"}"
+  # NOTE: net_io and block_io also contain the unit so should be used as strings.
   echo "$json_data" > "$output_file"
 
   echo "Data for $username written to $output_file"
