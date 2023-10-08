@@ -3,7 +3,7 @@
 # Initialize a flag to determine whether to show file content
 show_content=false
 
-# Check for optional flag "-show"
+# Check for optional flag "--show"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --show)
@@ -19,7 +19,7 @@ done
 
 # Check if a username is provided as an argument
 if [ -z "$username" ]; then
-    echo "Usage: $0 [-show] <username>"
+    echo "Usage: $0 [--show] <username>"
     exit 1
 fi
 
@@ -33,9 +33,9 @@ if ! mkdir -p "$directory"; then
     exit 1
 fi
 
-# Run the command to fetch PHP versions in the background
+# Run the command to fetch PHP versions and store them in a JSON file
 if (docker exec "$username" apt-get update > /dev/null 2>&1 && \
-    docker exec "$username" apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print $1}' > "$file_path") & then
+    docker exec "$username" apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print $1}' | jq -R -s 'split("\n")[:-1] | {available_for_install: .}' > "$file_path") & then
     # Display dots while the process is running
     while true; do
         echo -n "."
@@ -50,7 +50,7 @@ if (docker exec "$username" apt-get update > /dev/null 2>&1 && \
     if wait $!; then
         if [ "$show_content" = true ]; then
             echo "Available PHP versions for user $username:"
-            cat "$file_path"
+            jq -r '.available_for_install[]' "$file_path"
         else
             echo "PHP versions for user $username have been updated and stored in $file_path."
         fi
