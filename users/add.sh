@@ -267,7 +267,19 @@ else
     exit 1
 fi
 
-default_php_version="php8.2"
+
+# Define the path to the main configuration file
+config_file="/usr/local/panel/conf/panel.config"
+
+# Use grep and awk to extract the value of default_php_version
+default_php_version=$(grep -E "^default_php_version=" "$config_file" | awk -F= '{print $2}')
+
+# Check if default_php_version is empty (in case the configuration line doesn't exist)
+if [ -z "$default_php_version" ]; then
+  echo "Default PHP version not found in $config_file using the fallback default version.."
+  default_php_version="php8.2"
+fi
+
 
 mkdir -p /usr/local/panel/core/stats/$username
 echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
