@@ -191,7 +191,7 @@ delete_user_from_database
 
 umount /home/$username
 rm -rf /home/$username
-rm -rf /storage_file_$username
+rm -rf /home/storage_file_$username
 
 
 
