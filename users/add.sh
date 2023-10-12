@@ -151,20 +151,20 @@ docker volume create mysql-$username
 
 # create file, convert it to storage and mount to user to set the disk usage limits
 # allocate disk space (size specified by $disk_limit) for the storage file
-#echo "fallocate -l ${disk_limit}g /storage_file_$username"
-fallocate -l ${disk_limit}g /storage_file_$username
+#echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
+fallocate -l ${disk_limit}g /home/storage_file_$username
 
 # Create an ext4 filesystem on the storage file
-#echo "mkfs.ext4 /storage_file_$username"
-mkfs.ext4 /storage_file_$username
+#echo "mkfs.ext4 /home/storage_file_$username"
+mkfs.ext4 /home/storage_file_$username
 
 # Create a directory with the user's username under /home/
 #echo "mkdir /home/$username"
 mkdir /home/$username
 
 # Mount the storage file as a loopback device to the /home/$username directory
-#echo "mount -o loop /storage_file_$username /home/$username"
-mount -o loop /storage_file_$username /home/$username
+#echo "mount -o loop /home/storage_file_$username /home/$username"
+mount -o loop /home/storage_file_$username /home/$username
 
 
 
