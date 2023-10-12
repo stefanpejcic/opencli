@@ -56,3 +56,4 @@ case "$command" in
         echo "Invalid command. Usage: $0 [get|update] <parameter_name> [new_value]"
         exit 1
         ;;
+esac
