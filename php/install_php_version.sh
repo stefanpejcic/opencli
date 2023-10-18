@@ -18,6 +18,7 @@ fi
 # Define the list of extensions to install
 extensions_to_install=(
   php$php_version-fpm
+  php$php_version-imagick
   php$php_version-mysql
   php$php_version-curl
   php$php_version-gd
