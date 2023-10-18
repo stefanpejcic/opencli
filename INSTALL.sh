@@ -34,5 +34,8 @@ echo "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh" | sudo te
 # Check and renew SSL every 3 hours, then reload nginx when needed
 echo '0 */3 * * * certbot renew --post-hook "systemctl reload nginx"' | sudo tee -a /var/spool/cron/crontabs/root
 
+# Everyday at 1AM backup all active users files and databases
+echo '0 1 * * * /usr/local/admin/scripts/backup/create.sh' | sudo tee -a /var/spool/cron/crontabs/root
+
 # Make all bash scripts in this directory executable for root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
