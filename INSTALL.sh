@@ -5,7 +5,7 @@
 #              Use: bash /usr/local/admin/scripts/INSTALL.sh
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 08.10.2023
+# Last Modified: 18.10.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
