@@ -17,7 +17,7 @@ fi
 volume_name="mysql-$container_name"
 timestamp=$(date +"%Y%m%d%H%M%S")
 backup_dir="/backup/$container_name/$timestamp"
-backup_file="/backup/$container_name/$timestamp/docker_${container_name}_${timestamp}.tar"
+backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
 
 #########################################################################
 ############################### DB LOGIN ################################ 
@@ -40,41 +40,35 @@ backup_file="/backup/$container_name/$timestamp/docker_${container_name}_${times
 # Create the backup directory
 mkdir -p "$backup_dir"
 
-echo "Creating a backup of user container.."
+tar -czvf "$backup_file" "/home/$container_name"
 
+#echo "Creating a backup of user container.."
 # Export the Docker container to a tar file
-docker export "$container_name" > "$backup_file"
+#docker export "$container_name" > "$backup_file"
+
 
 # Check if the export was successful
-if [ $? -eq 0 ]; then
-  echo "${GREEN}[ ✓ ]${END} Exported $container_name to $backup_file"
-else
-  echo "${RED}ERROR${ENDCOLOR}: exporting $container_name"
-fi
+#if [ $? -eq 0 ]; then
+#  echo "${GREEN}[ ✓ ]${END} Exported $container_name to $backup_file"
+#else
+#  echo "${RED}ERROR${ENDCOLOR}: exporting $container_name"
+#fi
 
 backup_mysql_data() {
-  # Get the volume name associated with the container
-  local volume_name=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Source}}{{end}}{{end}}' "$container_name")
 
-  # Check if a volume is found
-  if [ -z "$volume_name" ]; then
-    echo "No volume found for container $container_name"
-    return 1
-  fi
+mkdir -p "$backup_dir/mysql"
 
-  # Create the backup directory
-  mkdir -p "$backup_dir/mysql-volume"
-  
-  # Copy data from the volume to the backup directory
-  rsync -avR $volume_name $backup_dir/mysql-volume/
-  
-  # Check if the copy operation was successful
-  if [ $? -eq 0 ]; then
-    echo "${GREEN}[ ✓ ]${END} Copied data from volume $volume_name to $backup_dir/mysql-volume/"
-  else
-    echo "${RED}ERROR${ENDCOLOR}: copying data from volume $volume_name"
-    return 1
-  fi
+# Get a list of databases with the specified prefix
+databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1')
+
+# Iterate through the list of databases and export each one
+for db in $databases
+do
+  echo "Exporting database: $db"
+  docker exec "$container_name" mysqldump -u root "$db" > "$backup_dir/mysql/$db.sql"
+done
+
+echo "All MySQL databases have been exported to '$backup_dir/mysql/'."
 }
 
 
