@@ -4,11 +4,6 @@ RED="\e[31m"
 GREEN="\e[32m"
 ENDCOLOR="\e[0m"
 
-volume_name="mysql-$container_name"
-timestamp=$(date +"%Y%m%d%H%M%S")
-backup_dir="/backup/$container_name/$timestamp"
-backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-
 # Function to log messages to the user-specific log file
 log_user() {
     local user_log_file="/usr/local/panel/core/users/$1/backup.log"
@@ -148,6 +143,11 @@ if [ -z "$1" ]; then
   # No container name provided, so loop through all running containers
   for container_name in $(docker ps --format '{{.Names}}'); do
     echo "Running backup for user: $container_name"
+    volume_name="mysql-$container_name"
+    timestamp=$(date +"%Y%m%d%H%M%S")
+    backup_dir="/backup/$container_name/$timestamp"
+    backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
+    
     log_user "$container_name" "Scheduled backup job started."
     backup_files "$container_name"
     backup_mysql_data "$container_name"
@@ -158,6 +158,10 @@ if [ -z "$1" ]; then
 else
   # Container name is provided as an argument, backup only that user files..
   container_name="$1"
+  volume_name="mysql-$container_name"
+  timestamp=$(date +"%Y%m%d%H%M%S")
+  backup_dir="/backup/$container_name/$timestamp"
+  backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
   echo "Running backup for user: $container_name"
   log_user "$container_name" "Backup on demand started."
   backup_files "$container_name"
