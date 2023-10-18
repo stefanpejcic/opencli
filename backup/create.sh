@@ -4,16 +4,6 @@ RED="\e[31m"
 GREEN="\e[32m"
 ENDCOLOR="\e[0m"
 
-
-# Get the container name from the first argument
-container_name="$1"
-
-# Check if a container name is provided
-if [ -z "$container_name" ]; then
-  echo "Usage: $0 <username>"
-  exit 1
-fi
-
 volume_name="mysql-$container_name"
 timestamp=$(date +"%Y%m%d%H%M%S")
 backup_dir="/backup/$container_name/$timestamp"
@@ -36,11 +26,11 @@ backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timest
 #########################################################################
 
 
-
+backup_files() {
 # Create the backup directory
 mkdir -p "$backup_dir"
-
 tar -czvf "$backup_file" "/home/$container_name"
+}
 
 #echo "Creating a backup of user container.."
 # Export the Docker container to a tar file
@@ -141,6 +131,24 @@ backup_apache_conf_and_ssl() {
 
 
 
-backup_mysql_data
-export_user_data_from_database
-backup_apache_conf_and_ssl
+
+
+# Check if a container name is provided as an argument
+if [ -z "$1" ]; then
+  # No container name provided, so loop through all running containers
+  for container_name in $(docker ps --format '{{.Names}}'); do
+    echo "Running backup for user: $container_name"
+    backup_files "$container_name"
+    backup_mysql_data "$container_name"
+    export_user_data_from_database "$container_name"
+    backup_apache_conf_and_ssl "$container_name"
+  done
+else
+  # Container name is provided as an argument, backup only that user files..
+  container_name="$1"
+  echo "Running backup for user: $container_name"
+  backup_files "$container_name"
+  backup_mysql_data "$container_name"
+  export_user_data_from_database "$container_name"
+  backup_apache_conf_and_ssl "$container_name"
+fi
