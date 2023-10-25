@@ -37,5 +37,8 @@ echo '0 */3 * * * certbot renew --post-hook "systemctl reload nginx"' | sudo tee
 # Everyday at 1AM backup all active users files and databases
 echo '0 1 * * * /usr/local/admin/scripts/backup/create.sh' | sudo tee -a /var/spool/cron/crontabs/root
 
+# Everyday at 12:15 AM check user update settings and perform update
+echo '15 0 * * * /usr/local/admin/scripts/update.sh' | sudo tee -a /var/spool/cron/crontabs/root
+
 # Make all bash scripts in this directory executable for root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
