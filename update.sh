@@ -31,7 +31,7 @@ check_update() {
                 # 
                 #  Run the update process
                 #
-                wget -O - https://update.openpanel.co/versions/$remote_version | bash
+                wget -q -O - https://update.openpanel.co/versions/$remote_version | bash
             else
                 echo "No update required: $local_version -> $remote_version"
             fi
@@ -42,7 +42,7 @@ check_update() {
                 # 
                 # Run the update process
                 # 
-                wget -O - https://update.openpanel.co/versions/$remote_version | bash
+                wget -q -O - https://update.openpanel.co/versions/$remote_version | bash
             else
                 echo "No update available."
             fi
