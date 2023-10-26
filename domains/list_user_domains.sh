@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: list_domains.sh
+# Script Name: list_user_domains.sh
 # Description: Lists all domain names owned by a user
-#              Use: bash /usr/local/admin/scripts/domains/list_domains.sh <USERNAME>
+#              Use: bash /usr/local/admin/scripts/domains/list_user_domains.sh.sh <USERNAME>
 # Author: Stefan Pejcic
 # Created: 26.10.2023
 # Last Modified: 26.10.2023
