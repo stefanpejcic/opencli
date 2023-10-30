@@ -28,17 +28,30 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Collect docker stats for all users every 60 minutes
-echo "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh" | sudo tee -a /var/spool/cron/crontabs/root
+# Define the custom cron file path
+custom_cron_dir="/etc/cron.d"
+custom_cron_file="$custom_cron_dir/openpanel_cron"
 
-# Check and renew SSL every 3 hours, then reload nginx when needed
-echo '0 */3 * * * certbot renew --post-hook "systemctl reload nginx"' | sudo tee -a /var/spool/cron/crontabs/root
+# Create the custom cron directory if it doesn't exist
+if [ ! -d "$custom_cron_dir" ]; then
+    mkdir -p "$custom_cron_dir"
+fi
 
-# Everyday at 1AM backup all active users files and databases
-echo '0 1 * * * /usr/local/admin/scripts/backup/create.sh' | sudo tee -a /var/spool/cron/crontabs/root
+# Define your cron job entries
+cron_jobs=(
+  "0 * * * * root bash /usr/local/admin/scripts/docker/collect_stats.sh"
+  "0 */3 * * * root certbot renew --post-hook 'systemctl reload nginx'"
+  "0 1 * * * root /usr/local/admin/scripts/backup/create.sh"
+  "15 0 * * * root /usr/local/admin/scripts/update.sh"
+)
 
-# Everyday at 12:15 AM check user update settings and perform update
-echo '15 0 * * * /usr/local/admin/scripts/update.sh' | sudo tee -a /var/spool/cron/crontabs/root
+# Create the custom cron file and add the cron jobs
+for job in "${cron_jobs[@]}"; do
+    echo "$job" >> "$custom_cron_file"
+done
+
+# Set the appropriate permissions on the custom cron file
+chmod 644 "$custom_cron_file"
 
 # Make all bash scripts in this directory executable for root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
