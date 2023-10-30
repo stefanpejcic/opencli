@@ -28,30 +28,27 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Define the custom cron file path
-custom_cron_dir="/etc/cron.d"
-custom_cron_file="$custom_cron_dir/openpanel_cron"
-
-# Create the custom cron directory if it doesn't exist
-if [ ! -d "$custom_cron_dir" ]; then
-    mkdir -p "$custom_cron_dir"
-fi
-
 # Define your cron job entries
 cron_jobs=(
-  "0 * * * * root bash /usr/local/admin/scripts/docker/collect_stats.sh"
-  "0 */3 * * * root certbot renew --post-hook 'systemctl reload nginx'"
-  "0 1 * * * root /usr/local/admin/scripts/backup/create.sh"
-  "15 0 * * * root /usr/local/admin/scripts/update.sh"
+  "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh"
+  "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
+  "0 1 * * * /usr/local/admin/scripts/backup/create.sh"
+  "15 0 * * * /usr/local/admin/scripts/update.sh"
 )
 
-# Create the custom cron file and add the cron jobs
+# Create a temporary file to store the cron job entries
+cron_temp_file=$(mktemp)
+
+# Add the cron jobs to the temporary file
 for job in "${cron_jobs[@]}"; do
-    echo "$job" >> "$custom_cron_file"
+    echo "$job" >> "$cron_temp_file"
 done
 
-# Set the appropriate permissions on the custom cron file
-chmod 644 "$custom_cron_file"
+# Install the crontab for the root user from the temporary file
+crontab "$cron_temp_file"
+
+# Remove the temporary file
+rm "$cron_temp_file"
 
 # Make all bash scripts in this directory executable for root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
