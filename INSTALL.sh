@@ -50,5 +50,6 @@ crontab "$cron_temp_file"
 # Remove the temporary file
 rm "$cron_temp_file"
 
-# Make all bash scripts in this directory executable for root only
+# Make all bash scripts in this directory executable for our user and root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
+chown www-data:www-data /usr/local/admin/scripts/*.sh
