@@ -162,6 +162,9 @@ mkfs.ext4 /home/storage_file_$username
 #echo "mkdir /home/$username"
 mkdir /home/$username
 
+# chown to user that runs the app
+chown www-data:www-data /home/$username -R
+
 # Mount the storage file as a loopback device to the /home/$username directory
 #echo "mount -o loop /home/storage_file_$username /home/$username"
 mount -o loop /home/storage_file_$username /home/$username
