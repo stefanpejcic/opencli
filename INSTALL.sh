@@ -45,7 +45,8 @@ for job in "${cron_jobs[@]}"; do
 done
 
 # Install the crontab for the root user from the temporary file
-crontab "$cron_temp_file"
+sudo -u www-data crontab "$cron_temp_file"
+
 
 # Remove the temporary file
 rm "$cron_temp_file"
