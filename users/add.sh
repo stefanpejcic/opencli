@@ -149,6 +149,10 @@ fi
 # create MySQL volume first
 docker volume create mysql-$username
 
+# CREATE VOL WITH LIMITS
+#docker volume create --driver local --opt type=tmpfs --opt device=tmpfs --opt o=size=${disk_limit}G files-$username
+
+
 # create file, convert it to storage and mount to user to set the disk usage limits
 # allocate disk space (size specified by $disk_limit) for the storage file
 #echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
@@ -182,6 +186,7 @@ else
   path="nginx"
   web_server="nginx"
 fi
+
 
 # then create a container
 docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
