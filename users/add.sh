@@ -150,28 +150,25 @@ fi
 docker volume create mysql-$username
 
 # CREATE VOL WITH LIMITS
-#docker volume create --driver local --opt type=tmpfs --opt device=tmpfs --opt o=size=${disk_limit}G files-$username
+docker volume create --driver local --opt type=tmpfs --opt device=tmpfs --opt o=size=${disk_limit}G files-$username
 
 
 # create file, convert it to storage and mount to user to set the disk usage limits
 # allocate disk space (size specified by $disk_limit) for the storage file
-#echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
-fallocate -l ${disk_limit}g /home/storage_file_$username
-
+#fallocate -l ${disk_limit}g /home/storage_file_$username
 # Create an ext4 filesystem on the storage file
-#echo "mkfs.ext4 /home/storage_file_$username"
-mkfs.ext4 /home/storage_file_$username
+#mkfs.ext4 /home/storage_file_$username
 
 # Create a directory with the user's username under /home/
 #echo "mkdir /home/$username"
-mkdir /home/$username
+#mkdir /home/$username
 
 # chown to user that runs the app
-chown www-data:www-data /home/$username -R
+#chown www-data:www-data /home/$username -R
 
 # Mount the storage file as a loopback device to the /home/$username directory
 #echo "mount -o loop /home/storage_file_$username /home/$username"
-mount -o loop /home/storage_file_$username /home/$username
+#mount -o loop /home/storage_file_$username /home/$username
 
 
 
@@ -193,7 +190,7 @@ docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
   -v /home/$username/var/crons:/var/spool/cron/crontabs \
   -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
   -v mysql-$username:/var/lib/mysql \
-  -v /home/$username:/home/$username \
+  -v files-$username:/home/$username \
   --restart unless-stopped \
   --hostname $username $docker_image
 
