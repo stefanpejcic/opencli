@@ -5,7 +5,7 @@
 #              Use: bash /usr/local/admin/scripts/INSTALL.sh
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 18.10.2023
+# Last Modified: 01.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -45,12 +45,11 @@ for job in "${cron_jobs[@]}"; do
 done
 
 # Install the crontab for the root user from the temporary file
-sudo -u www-data crontab "$cron_temp_file"
-
+crontab "$cron_temp_file"
 
 # Remove the temporary file
 rm "$cron_temp_file"
 
 # Make all bash scripts in this directory executable for our user and root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
-chown www-data:www-data /usr/local/admin/scripts/*.sh
+chown root:root /usr/local/admin/scripts/*.sh
