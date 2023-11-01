@@ -34,6 +34,7 @@ cron_jobs=(
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * /usr/local/admin/scripts/backup/create.sh"
   "15 0 * * * /usr/local/admin/scripts/update.sh"
+  "@reboot /usr/local/admin/scripts/webserver/after_reboot.sh"
 )
 
 # Create a temporary file to store the cron job entries
