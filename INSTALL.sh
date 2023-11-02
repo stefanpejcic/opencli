@@ -31,6 +31,7 @@
 # Define your cron job entries
 cron_jobs=(
   "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh"
+  "* 2 * * * bash /usr/local/admin/scripts/docker/usage_stats_cleanup.sh"
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * /usr/local/admin/scripts/backup/create.sh"
   "15 0 * * * /usr/local/admin/scripts/update.sh"
