@@ -41,7 +41,7 @@ plan_id="$4"
 
 
 #1. check for forbidden usernames
-forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld")
+forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data")
 
 is_username_forbidden() {
     local check_username="$1"
@@ -92,10 +92,10 @@ if [ "$username_exists_count" -gt 0 ]; then
 fi
 
 
-#Get CPU, DISK and RAM limits for the plan
+#Get CPU, DISK, INODES and RAM limits for the plan
 
 # Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -117,6 +117,7 @@ fi
 disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
 cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
 ram=$(echo "$cpu_ram_info" | awk '{print $2}')
+inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 
 # RAM memory reservation = 90% of RAM allocated
 #ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
@@ -131,6 +132,7 @@ echo "CPU: $cpu"
 echo "RAM: $ram"
 echo "RAM: $ram"
 echo "RAM: $ram"
+echo "INODES: $inodes"
 #echo "RAM Soft Limit: $ram_soft_limit MB"
 
 
@@ -156,7 +158,7 @@ fallocate -l ${disk_limit}g /home/storage_file_$username
 
 # Create an ext4 filesystem on the storage file
 #echo "mkfs.ext4 /home/storage_file_$username"
-mkfs.ext4 /home/storage_file_$username
+mkfs.ext4 -N $inodes /home/storage_file_$username
 
 # Create a directory with the user's username under /home/
 #echo "mkdir /home/$username"
