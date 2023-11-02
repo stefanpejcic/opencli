@@ -18,7 +18,7 @@ systemctl start docker
 # Loop kroz Docker usere i pokreni skript
 for USERNAME in $DOCKER_USERS; do
     # Run the user-specific script
-    bash /usr/local/admin/scripts/domains/change_ip_in_vhosts_files.sh $USERNAME
+    bash /usr/local/admin/scripts/webserver/change_ip_in_vhosts_files.sh $USERNAME
 
 done
 
