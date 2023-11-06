@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: add.sh
+# Script Name: create_plan.sh
 # Description: Add a new user to openpanel
-#              Use: bash /usr/local/admin/scripts/users/add.sh <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
-# Author: Stefan Pejcic
-# Created: 01.10.2023
-# Last Modified: 01.11.2023
+#              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# Author: Radovan Jecmenica
+# Created: 06.11.2023
+# Last Modified: 06.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -141,8 +141,8 @@ else
   docker_image="dev_plan_apache"
 fi
 
-# Call the insert_plan function with the provided values
-insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
-
 # Call the create_docker_network function to create the Docker network
 create_docker_network "$name" "$bandwidth"
+
+# Call the insert_plan function with the provided values
+insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
