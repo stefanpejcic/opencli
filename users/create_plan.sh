@@ -3,17 +3,17 @@
 # Script Name: create_plan.sh
 # Description: Add a new user to openpanel
 #              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
-#name= Name of the plan
-#description= Plan description
-#domains_limit= How many domains will the plan have (0 is unlimited).
-#websites_limit= How many websites will the plan have (0 is unlimited).
-#disk_limit=Disk space limit, is calculated  in GB.
-#inodes_limit= inodes limit, it will be automatically set to 500000 if the value is less than 500000.
-#db_limit=Database number limit
-#cpu= number of cores limit
-#ram=Ram space limit, is calculated in GB
-#docker_image=can be only apache/nginx
-#bandwidth=bandwidth limit, calculated in mbit/s
+# name= Name of the plan
+# description= Plan description, multiple words allowed inside ""
+# domains_limit= How many domains will the plan have (0 is unlimited).
+# websites_limit= How many websites will the plan have (0 is unlimited).
+# disk_limit=Disk space limit in GB.
+# inodes_limit= inodes limit, it will be automatically set to 500000 if the value is less than 500000.
+# db_limit= Database number limit (0 is unlimited).
+# cpu= number of cores limit
+# ram= Ram space limit in GB.
+# docker_image=can be either apache/nginx
+# bandwidth=bandwidth limit, expressed in mbit/s
 # Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
