@@ -5,7 +5,7 @@
 #              Use: bash /usr/local/admin/scripts/users/add.sh <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 01.11.2023
+# Last Modified: 07.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -94,8 +94,8 @@ fi
 
 #Get CPU, DISK, INODES and RAM limits for the plan
 
-# Fetch disk_limit, CPU, RAM, and Docker image for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit FROM plans WHERE id = '$plan_id'"
+# Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -112,12 +112,14 @@ if [ -z "$cpu_ram_info" ]; then
     exit 1
 fi
 
-# Extract DOCKER_IMAGE, DISK, CPU, and RAM values from the query result
+# Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
 #disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}')
 disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
 cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
 ram=$(echo "$cpu_ram_info" | awk '{print $2}')
 inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
+bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
+name=$(echo "$cpu_ram_info" | awk '{print $8}')
 
 # RAM memory reservation = 90% of RAM allocated
 #ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
@@ -133,6 +135,8 @@ echo "RAM: $ram"
 echo "RAM: $ram"
 echo "RAM: $ram"
 echo "INODES: $inodes"
+echo "BANDWIDTH: $bandwidth"
+echo "NAME: $name"
 #echo "RAM Soft Limit: $ram_soft_limit MB"
 
 
@@ -186,7 +190,7 @@ else
 fi
 
 # then create a container
-docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
+docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
   -v /home/$username/var/crons:/var/spool/cron/crontabs \
   -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
   -v mysql-$username:/var/lib/mysql \
@@ -202,14 +206,10 @@ docker run -d --name $username -P --cpus="$cpu" --memory="$ram" \
 # dd $disk_limit
 
 
-ip_address=$(docker container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
+ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
 
 echo "IP ADDRESS: $ip_address"
-# SET BANDWIDTH LIMITS
 
-tc qdisc add dev docker0 root handle 1: htb default 10
-tc class add dev docker0 parent 1: classid 1:1 htb rate 20mbit
-tc filter add dev docker0 parent 1: protocol ip prio 16 u32 match ip dst ${ip_address} flowid 1:1
 
 
 # Open ports on firewall
