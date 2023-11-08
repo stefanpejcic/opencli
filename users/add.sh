@@ -169,7 +169,11 @@ mkfs.ext4 -N $inodes /home/storage_file_$username
 mkdir /home/$username
 
 # chown to user that runs the app
-chown www-data:www-data /home/$username -R
+#chown www-data:www-data /home/$username -R
+chown 1000:33 /home/$username
+chmod 755 /home/$username
+chmod g+s /home/$username
+
 
 # Mount the storage file as a loopback device to the /home/$username directory
 #echo "mount -o loop /home/storage_file_$username /home/$username"
