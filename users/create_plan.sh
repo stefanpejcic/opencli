@@ -66,7 +66,6 @@ insert_plan() {
   local bandwidth="${11}"
   
 # Format disk_limit with 'GB' and make it 1.024 times bigger
-disk_limit=$((disk_limit * 1024 / 1000))  # Multiply by 1024 and divide by 1000 to make it 1.024 times bigger
 disk_limit="${disk_limit} GB"
 
   # Ensure inodes_limit is not less than 500000
