@@ -65,7 +65,7 @@ insert_plan() {
   local docker_image="${10}"
   local bandwidth="${11}"
   
-# Format disk_limit with 'GB' and make it 1.024 times bigger
+# Format disk_limit with 'GB' 
 disk_limit="${disk_limit} GB"
 
   # Ensure inodes_limit is not less than 500000
