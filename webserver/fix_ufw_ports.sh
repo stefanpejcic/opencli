@@ -36,15 +36,16 @@ for container_name in $container_names; do
                 fi
             done
 
-            # Open the port in UFW
-            echo "Opening port ${host_port} for port ${port} in UFW"
-            ufw allow ${host_port}/tcp comment "${container_names}"
+            # Open the port in UFW with a comment containing the container name
+            echo "Opening port ${host_port} for port ${port} in UFW for container ${container_name}"
+            ufw allow ${host_port}/tcp comment "${container_name}"
             ports_opened=1
         else
             echo "Port ${port} not found in container ${container_name}"
         fi
     done
 done
+
 
 # Restart UFW if ports were opened
 if [ $ports_opened -eq 1 ]; then
