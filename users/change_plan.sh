@@ -78,12 +78,12 @@ while read -r line; do
             "cpu")
                 echo "Difference in CPU: $current_value to $new_value"
                 # Execute command for CPU difference
-                # Example: command_for_cpu_difference
+                docker update --cpus="$new_value" "$container_name"
                 ;;
             "ram")
                 echo "Difference in RAM: $current_value to $new_value"
                 # Execute command for RAM difference
-                # Example: command_for_ram_difference
+                docker update --memory="$new_value" "$container_name"
                 ;;
             "docker_image")
                 echo "Difference in Docker Image: $current_value to $new_value"
