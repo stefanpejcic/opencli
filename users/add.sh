@@ -5,7 +5,7 @@
 #              Use: bash /usr/local/admin/scripts/users/add.sh <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 07.11.2023
+# Last Modified: 13.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -95,7 +95,7 @@ fi
 #Get CPU, DISK, INODES and RAM limits for the plan
 
 # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, mysql_size FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -120,7 +120,7 @@ ram=$(echo "$cpu_ram_info" | awk '{print $2}')
 inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
 name=$(echo "$cpu_ram_info" | awk '{print $8}')
-
+mysql_size=$(echo "$cpu_ram_info" | awk '{print $9}')
 # RAM memory reservation = 90% of RAM allocated
 #ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
 #ram_mb=$((ram_no_suffix * 1024))  # Convert GB to MB (1 GB = 1024 MB)
@@ -137,6 +137,7 @@ echo "RAM: $ram"
 echo "INODES: $inodes"
 echo "BANDWIDTH: $bandwidth"
 echo "NAME: $name"
+echo "Mysql disk size: $mysql_size"
 #echo "RAM Soft Limit: $ram_soft_limit MB"
 
 
@@ -153,12 +154,14 @@ fi
 # Run a docker container for the user with those limits
 
 # create MySQL volume first
-docker volume create mysql-$username
+docker volume create --opt type=tmpfs --opt device=tmpfs --opt o=size=${mysql_size}g mysql-$username
 
 # create file, convert it to storage and mount to user to set the disk usage limits
 # allocate disk space (size specified by $disk_limit) for the storage file
 #echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
-fallocate -l ${disk_limit}g /home/storage_file_$username
+adjusted_disk_limit=$((disk_limit - mysql_size))
+fallocate -l ${adjusted_disk_limit}g /home/storage_file_$username
+
 
 # Create an ext4 filesystem on the storage file
 #echo "mkfs.ext4 /home/storage_file_$username"
