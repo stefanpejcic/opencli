@@ -160,6 +160,10 @@ docker volume create --opt type=tmpfs --opt device=tmpfs --opt o=size=${mysql_si
 # allocate disk space (size specified by $disk_limit) for the storage file
 #echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
 adjusted_disk_limit=$((disk_limit - mysql_size))
+# Check if adjusted_disk_limit is zero and set it to 0.005
+if [ "$adjusted_disk_limit" -eq 0 ]; then
+    adjusted_disk_limit=0.005
+fi
 fallocate -l ${adjusted_disk_limit}g /home/storage_file_$username
 
 
