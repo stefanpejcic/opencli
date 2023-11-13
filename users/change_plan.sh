@@ -61,6 +61,22 @@ if [ -z "$new_plan_limits" ]; then
     exit 1
 fi
 
+
+# Fetch bandwidth for the new plan
+new_bandwidth=$(echo "$new_plan_limits" | awk '/name/ {print $2}')
+
+ovde ime starog plana skinuti pa dd network sa imenom novog
+
+# Remove the current Docker network from the container
+docker network disconnect "$current_plan_name" "$container_name"
+
+
+# Connect the container to the new Docker network
+docker network connect "$new_plan_name" "$container_name"
+
+
+ovde run skriptu za rewrite nginx vhosts za tog usera!
+
 # Compare limits and list the differences
 diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
 
