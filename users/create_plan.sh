@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: create_plan.sh
-# Description: Add a new user to openpanel
+# Description: Add a new plan to openpanel
 #              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth mysql_size
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
