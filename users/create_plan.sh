@@ -17,7 +17,7 @@
 # Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 06.11.2023
+# Last Modified: 13.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -146,11 +146,26 @@ if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ]; then
   exit 1
 fi
 
+# Function to check if the plan name already exists in the database
+check_plan_exists() {
+  local name="$1"
+  local sql="SELECT name FROM plans WHERE name='$name';"
+  local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
+  echo "$result"
+}
+
 # Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
   docker_image="dev_plan_nginx"
 else
   docker_image="dev_plan_apache"
+fi
+
+# Check if the plan name already exists in the database
+existing_plan=$(check_plan_exists "$name")
+if [ -n "$existing_plan" ]; then
+  echo "Plan name '$name' already exists. Please choose another name."
+  exit 1
 fi
 
 # Call the create_docker_network function to create the Docker network
