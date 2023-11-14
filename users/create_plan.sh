@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: create_plan.sh
-# Description: Add a new plan to openpanel
-#              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth mysql_size
+# Description: Add a new user to openpanel
+#              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # domains_limit= How many domains will the plan have (0 is unlimited).
@@ -14,8 +14,7 @@
 # ram= Ram space limit in GB.
 # docker_image=can be either apache/nginx
 # bandwidth=bandwidth limit, expressed in mbit/s
-# mysql_size=max size of mysql databases
-# Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500 3
+# Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
 # Last Modified: 13.11.2023
@@ -65,7 +64,6 @@ insert_plan() {
   local ram="$9"
   local docker_image="${10}"
   local bandwidth="${11}"
-  local mysql_size="${12}"
   
 # Format disk_limit with 'GB' 
 disk_limit="${disk_limit} GB"
@@ -79,7 +77,7 @@ disk_limit="${disk_limit} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, mysql_size) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, $mysql_size);"
+  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth);"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -124,8 +122,8 @@ create_docker_network() {
 }
 
 # Check for command-line arguments
-if [ "$#" -ne 12 ]; then
-  echo "Usage: $0 name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth mysql_size"
+if [ "$#" -ne 11 ]; then
+  echo "Usage: $0 name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
   exit 1
 fi
 
@@ -141,7 +139,6 @@ cpu="$8"
 ram="$9"
 docker_image="${10}"
 bandwidth="${11}"
-mysql_size="${12}"
 
 # Check if docker_image is either "nginx" or "apache"
 if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ]; then
@@ -174,11 +171,5 @@ fi
 # Call the create_docker_network function to create the Docker network
 create_docker_network "$name" "$bandwidth"
 
-# Check if disk_limit is less than mysql_size
-if [ "$disk_limit" -lt "$mysql_size" ]; then
-  echo "Error: Disk limit cannot be less than MySQL size."
-  exit 1
-fi
-
 # Call the insert_plan function with the provided values
-insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$mysql_size"
+insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
