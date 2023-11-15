@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: /usr/local/bin/opencli
 # Description: Makes all OpenCLI commands available on the terminal.
-# Usage: opencli <COMMMAND-NAME>
+# Usage: opencli <COMMAND-NAME>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
 # Last Modified: 15.11.2023
