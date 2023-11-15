@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: update.sh
-# Description: View / change configuration for users and set defaults for new accounts.
-# Usage: opencli get <setting_name> 
-#        opencli update <setting_name> <new_value>
+# Description: Checks the current settings if updates are enabled and then if an update is available.
+# Usage: opencli update
+#        opencli update --force
 # Author: Stefan Pejcic
-# Created: 01.11.2023
+# Created: 10.10.2023
 # Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
