@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: list_all_domains.sh
-# Description: Lists all domain names hosted on the server
-#              Use: bash /usr/local/admin/scripts/domains/list_all_domains.sh
+# Script Name: all.sh
+# Description: Lists all domain names currently hosted on the server.
+# Usage: opencli domains-all
 # Author: Stefan Pejcic
 # Created: 26.10.2023
-# Last Modified: 26.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
