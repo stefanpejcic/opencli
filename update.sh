@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: update.sh
-# Description: Checks the current settings if updates are enabled and then if an update is available.
+# Description: Checks if updates are enabled and then if an update is available.
 # Usage: opencli update
 #        opencli update --force
 # Author: Stefan Pejcic
