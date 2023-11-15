@@ -35,7 +35,7 @@ cron_jobs=(
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * opencli backup-create"
   "15 0 * * * opencli update"
-  "@reboot opencli webserver-after_reboot"
+  "@reboot opencli server-on_startup"
 )
 
 # Create a temporary file to store the cron job entries
