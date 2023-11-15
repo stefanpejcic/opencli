@@ -46,9 +46,16 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.s
 
         # Get the directory name without the full path
         dir_name=$(dirname "$script" | sed 's:.*/::')
+        
+        if [ "$dir_name" = "scripts" ]; then
+            dir_name=""
+        else
+        dir_name="${dir_name}-"
+        fi
+
 
         # Combine directory name and script name for the alias
-        alias_name="${dir_name}-${script_name}"
+        alias_name="${dir_name}${script_name}"
 
         # Add the "opencli " prefix to the alias
         full_alias="opencli $alias_name"
