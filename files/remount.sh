@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: login.sh
-# Description: Login as root user inside a users container.
-#              Use: bash /usr/local/admin/scripts/webserver/mount_folders_for_all_users.sh
+# Script Name: files/remount.sh
+# Description: Remount storage files for all users to limit their disk usage.
+# Usage: opencli files-remount
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 01.11.2023
