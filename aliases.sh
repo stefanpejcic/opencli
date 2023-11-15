@@ -50,9 +50,8 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.s
         if [ "$dir_name" = "scripts" ]; then
             dir_name=""
         else
-        dir_name="${dir_name}-"
+            dir_name="${dir_name}-"
         fi
-
 
         # Combine directory name and script name for the alias
         alias_name="${dir_name}${script_name}"
@@ -67,3 +66,7 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.s
         echo "Alias created: $full_alias for $script"
     fi
 done
+
+# Sort the aliases in the file by names
+sort -o "$ALIAS_FILE" "$ALIAS_FILE"
+
