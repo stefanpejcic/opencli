@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: create_plan.sh
-# Description: Add a new user to openpanel
-#              Use: bash /usr/local/admin/scripts/users/create_plan.sh name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# Script Name: user/create_plan.sh
+# Description: Create a new hosting plan (Package) and set its limits.
+# Usage: opencli user-create_plan name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # domains_limit= How many domains will the plan have (0 is unlimited).
@@ -17,7 +17,7 @@
 # Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 13.11.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
