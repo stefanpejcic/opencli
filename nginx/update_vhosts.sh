@@ -2,8 +2,7 @@
 ################################################################################
 # Script Name: nginx/update_vhosts.sh
 # Description: Update private IP address in all nginx configuration files (domains) for the user.
-# Usage: opencli nginx-update_vhosts <username>
-# Usage: opencli nginx-update_vhosts <username> --nginx-reload
+# Usage: opencli nginx-update_vhosts <username> [-nginx-reload]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 15.11.2023
