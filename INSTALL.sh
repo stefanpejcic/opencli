@@ -31,11 +31,11 @@
 # Define your cron job entries
 cron_jobs=(
   "0 * * * * opencli docker-collect_stats.sh"
-  "* 2 * * * bash /usr/local/admin/scripts/docker/usage_stats_cleanup.sh"
+  "* 2 * * * opencli docker-usage_stats_cleanup"
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
-  "0 1 * * * /usr/local/admin/scripts/backup/create.sh"
-  "15 0 * * * /usr/local/admin/scripts/update.sh"
-  "@reboot /usr/local/admin/scripts/webserver/after_reboot.sh"
+  "0 1 * * * opencli backup-create"
+  "15 0 * * * opencli update"
+  "@reboot opencli webserver-after_reboot"
 )
 
 # Create a temporary file to store the cron job entries
@@ -59,5 +59,5 @@ chown root:root /usr/local/admin/scripts/*.sh
 cp /usr/local/admin/scripts/opencli.sh /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
-bash /usr/local/admin/scripts/aliases.sh
+bash /usr/local/admin/scripts/commands.sh
 
