@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: all.sh
+# Script Name: domains/all.sh
 # Description: Lists all domain names currently hosted on the server.
 # Usage: opencli domains-all
 # Author: Stefan Pejcic
