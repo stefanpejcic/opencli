@@ -1,11 +1,12 @@
 #!/bin/bash
 ################################################################################
-# Script Name: delete.sh
-# Description: Delete a user from openpanel
-#              Use: bash /usr/local/admin/scripts/users/delete.sh <USERNAME> -y
+# Script Name: user/delete.sh
+# Description: Delete user account and permanently remove all their data.
+# Usage: opencli user-delete <USERNAME>
+# Usage: opencli user-delete <USERNAME> -y
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 08.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
