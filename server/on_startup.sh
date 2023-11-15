@@ -46,7 +46,7 @@ systemctl start docker
 # Loop kroz Docker usere i pokreni skript
 for USERNAME in $DOCKER_USERS; do
     # Run the user-specific script
-    bash /usr/local/admin/scripts/nginx/update_all_vhosts.sh $USERNAME
+    bash /usr/local/admin/scripts/nginx/update_vhosts.sh $USERNAME
 
 done
 
