@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/whoowns.sh
-# Description: Check which username owns a domain name
+# Description: Check which username owns a certain domain name.
 # Usage: opencli domains-whoowns <DOMAIN-NAME>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
