@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: add.sh
+# Script Name: user/add.sh
 # Description: Create a new user with the provided plan_id.
-# Usage: opencli users-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 15.11.2023
