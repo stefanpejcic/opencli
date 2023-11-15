@@ -68,16 +68,22 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "opencli.sh" ! -name "commands_
 	# Extract the description from the script if available
 	description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //')
 
+	# Extract the usage from the script if available
+	usage=$(grep -E "^# Usage:" "$script" | sed 's/^# Usage: //')
+ 
 	# Print a message indicating the alias creation
-	echo -e "Command: ${GREEN}$full_alias${RESET} for $script"
+	echo -e "${GREEN}$full_alias${RESET}` #for $script`"
 
 	# Display the description only if it is found
 	if [ -n "$description" ]; then
 	echo "Description: $description"
 	fi
-	echo ""
+	if [ -n "$usage" ]; then
+	echo "Usage: $usage"
+	fi
+	#echo ""
 	echo "------------------------"
-	echo ""
+	#echo ""
 
 	# Add the alias and description to the alias file
 	echo "command: $full_alias | description: $description" >> "$ALIAS_FILE"
