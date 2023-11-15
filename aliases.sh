@@ -37,6 +37,12 @@ ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
 # Ensure the alias file is empty before appending
 > "$ALIAS_FILE"
 
+# ANSI escape code for green color
+GREEN='\033[0;32m'
+# ANSI escape code to reset color
+RESET='\033[0m'
+
+
 # Loop through all scripts in the directory and its subdirectories
 find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.sh" ! -name "aliases.sh" | while read -r script; do
     # Check if the script is executable
@@ -46,7 +52,7 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.s
 
         # Get the directory name without the full path
         dir_name=$(dirname "$script" | sed 's:.*/::')
-        
+
         if [ "$dir_name" = "scripts" ]; then
             dir_name=""
         else
@@ -59,14 +65,24 @@ find "$SCRIPTS_DIR" -type f -name "*.sh" ! -name "INSTALL.sh" ! -name "opencli.s
         # Add the "opencli " prefix to the alias
         full_alias="opencli $alias_name"
 
-        # Append the alias to the file
-        echo "$full_alias" >> "$ALIAS_FILE"
+	# Extract the description from the script if available
+	description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //')
 
-        # Print a message indicating the alias creation
-        echo "Alias created: $full_alias for $script"
+	# Print a message indicating the alias creation
+	echo -e "Command: ${GREEN}$full_alias${RESET} for $script"
+
+	# Display the description only if it is found
+	if [ -n "$description" ]; then
+	echo "Description: $description"
+	fi
+	echo ""
+	echo "------------------------"
+	echo ""
+
+	# Add the alias and description to the alias file
+	echo "command: $full_alias | description: $description" >> "$ALIAS_FILE"
     fi
 done
 
 # Sort the aliases in the file by names
 sort -o "$ALIAS_FILE" "$ALIAS_FILE"
-
