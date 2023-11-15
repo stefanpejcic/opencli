@@ -30,7 +30,7 @@
 
 # Define your cron job entries
 cron_jobs=(
-  "0 * * * * bash /usr/local/admin/scripts/docker/collect_stats.sh"
+  "0 * * * * opencli docker-collect_stats.sh"
   "* 2 * * * bash /usr/local/admin/scripts/docker/usage_stats_cleanup.sh"
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * /usr/local/admin/scripts/backup/create.sh"
@@ -55,3 +55,9 @@ rm "$cron_temp_file"
 # Make all bash scripts in this directory executable for our user and root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
 chown root:root /usr/local/admin/scripts/*.sh
+
+cp /usr/local/admin/scripts/opencli.sh /usr/local/bin/opencli
+chmod +x /usr/local/bin/opencli
+
+bash /usr/local/admin/scripts/aliases.sh
+
