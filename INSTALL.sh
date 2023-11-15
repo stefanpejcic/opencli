@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: INSTALL.sh
-# Description: Create crons and folders needed for various openpanel cli scripts
-#              Use: bash /usr/local/admin/scripts/INSTALL.sh
+# Description: Create crons and folders needed for various openpanel cli scripts.
+# Usage: bash /usr/local/admin/scripts/INSTALL.sh
 # Author: Stefan Pejcic
 # Created: 08.10.2023
 # Last Modified: 01.11.2023
@@ -52,6 +52,9 @@ crontab "$cron_temp_file"
 # Remove the temporary file
 rm "$cron_temp_file"
 
+# aliases
+ln -s /usr/local/admin/scripts/version.sh /usr/local/admin/scripts/v.sh
+
 # Make all bash scripts in this directory executable for our user and root only
 find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
 chown root:root /usr/local/admin/scripts/*.sh
@@ -59,5 +62,7 @@ chown root:root /usr/local/admin/scripts/*.sh
 cp /usr/local/admin/scripts/opencli.sh /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
+# Generate a list of commands for the admin panel
 bash /usr/local/admin/scripts/commands.sh
+
 
