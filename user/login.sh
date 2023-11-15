@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: login.sh
-# Description: Login as root user inside a users container.
-#              Use: bash /usr/local/admin/scripts/users/login.sh <USERNAME>
+# Script Name: user/login.sh
+# Description: Login as the root user inside a users docker container.
+# Usage: opencli user-login <USERNAME>
 # Author: Stefan Pejcic
 # Created: 21.10.2023
-# Last Modified: 21.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
