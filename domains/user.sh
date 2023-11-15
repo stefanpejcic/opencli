@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: list_user_domains.sh
-# Description: Lists all domain names owned by a user
-#              Use: bash /usr/local/admin/scripts/domains/list_user_domains.sh.sh <USERNAME>
+# Script Name: domains/user.sh
+# Description: Lists all domain names currently owned by a specific user.
+# Usage: opencli domains-user <USERNAME>
 # Author: Stefan Pejcic
 # Created: 26.10.2023
-# Last Modified: 26.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
