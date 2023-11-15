@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: add.sh
-# Description: Add a new user to openpanel
-#              Use: bash /usr/local/admin/scripts/users/add.sh <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Description: Create a new user with the provided plan_id.
+# Usage: opencli users-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 07.11.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
