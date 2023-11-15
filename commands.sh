@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: aliases.sh
+# Script Name: commands.sh
 # Description: Creates a list of all available cli commands
-#              Use: bash /usr/local/admin/scripts/aliases.sh
+#              Use: bash /usr/local/admin/scripts/commands.sh
 # Author: Stefan Pejcic
 # Created: 15.11.2023
 # Last Modified: 15.11.2023
