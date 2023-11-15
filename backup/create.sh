@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: create.sh
-# Description: Generate a full backup for all users
+# Description: Generate a full backup for all active users.
 # Use: opencli backup-create
 # Author: Stefan Pejcic
 # Created: 08.10.2023
