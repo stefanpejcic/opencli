@@ -1,9 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: /usr/local/bin/opencli
-# Description: Makes all OpenCLI commands available on the terminal
-#              Use: opencli <COMMMAND-NAME>
-#              For a list of all available commands view alaises.txt file
+# Description: Makes all OpenCLI commands available on the terminal.
+# Usage: opencli <COMMMAND-NAME>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
 # Last Modified: 15.11.2023
