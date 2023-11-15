@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: collect_stats.sh
-# Description: Collect docker usage information using docker stats command and store in json files per user.
-#              Used with cron: 0 * * * * /usr/local/admin/scripts/docker/collect_stats.sh
-# Author: Petar Curic
+# Description: Collect docker usage information for all users.
+# Usage: opencli docker-collect_stats
+# Author: Petar Curic, Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 10.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
