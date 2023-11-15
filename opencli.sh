@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: aliases.sh
+# Script Name: /usr/local/bin/opencli
 # Description: Makes all OpenCLI commands available on the terminal
 #              Use: opencli <COMMMAND-NAME>
 #              For a list of all available commands view alaises.txt file
