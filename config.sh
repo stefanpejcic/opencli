@@ -2,8 +2,8 @@
 ################################################################################
 # Script Name: config.sh
 # Description: View / change configuration for users and set defaults for new accounts.
-# Usage: opencli get <setting_name> 
-#        opencli update <setting_name> <new_value>
+# Usage: opencli config get <setting_name> 
+#        opencli config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 15.11.2023
