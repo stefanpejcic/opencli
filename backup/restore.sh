@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: restore.sh
-# Description: Restore a full backup for a user
+# Description: Restore a full backup for a single user.
 # Use: opencli backup-restore <backup_directory>
 # Author: Stefan Pejcic
 # Created: 08.10.2023
