@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: INSTALL.sh
-# Description: Create crons and folders needed for various openpanel cli scripts.
-# Usage: bash /usr/local/admin/scripts/INSTALL.sh
+# Script Name: install.sh
+# Description: Create cronjobs and configuration files needed for openpanel.
+# Usage: opencli install
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 01.11.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -63,6 +63,4 @@ cp /usr/local/admin/scripts/opencli.sh /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
 # Generate a list of commands for the admin panel
-bash /usr/local/admin/scripts/commands.sh
-
-
+#bash /usr/local/admin/scripts/commands.sh
