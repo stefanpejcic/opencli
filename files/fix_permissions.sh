@@ -2,8 +2,7 @@
 ################################################################################
 # Script Name: files/fix_permissions.sh
 # Description: Fix permissions for users files in their docker container.
-# Usage: opencli files-fix_permissions
-# Usage: opencli files-fix_permissions --all
+# Usage: opencli files-fix_permissions [--all]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
 # Last Modified: 15.11.2023
