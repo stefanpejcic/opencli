@@ -1,10 +1,22 @@
 #!/bin/bash
 ################################################################################
-# Script Name: user/add.sh
-# Description: Create a new user with the provided plan_id.
-# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
-# Author: Stefan Pejcic
-# Created: 01.10.2023
+# Script Name: user/create_plan.sh
+# Description: Create a new hosting plan (Package) and set its limits.
+# Usage: opencli user-create_plan name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# name= Name of the plan
+# description= Plan description, multiple words allowed inside ""
+# domains_limit= How many domains will the plan have (0 is unlimited).
+# websites_limit= How many websites will the plan have (0 is unlimited).
+# disk_limit=Disk space limit in GB.
+# inodes_limit= inodes limit, it will be automatically set to 500000 if the value is less than 500000.
+# db_limit= Database number limit (0 is unlimited).
+# cpu= number of cores limit
+# ram= Ram space limit in GB.
+# docker_image=can be either apache/nginx
+# bandwidth=bandwidth limit, expressed in mbit/s
+# Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
+# Author: Radovan Jecmenica
+# Created: 06.11.2023
 # Last Modified: 16.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
@@ -27,286 +39,164 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
+#!/bin/bash
 
-# Check if the correct number of command-line arguments is provided
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <username> <password|generate> <email> <plan_id>"
+# MySQL database configuration
+config_file="/usr/local/admin/db.cnf"
+mysql_database="panel"
+
+# Check if the config file exists
+if [ ! -f "$config_file" ]; then
+    echo "Config file $config_file not found."
     exit 1
 fi
 
-username="$1"
-password="$2"
-email="$3"
-plan_id="$4"
+# Function to insert values into the database
+insert_plan() {
+  local name="$1"
+  local description="$2"
+  local domains_limit="$3"
+  local websites_limit="$4"
+  local disk_limit="$5"
+  local inodes_limit="$6"
+  local db_limit="$7"
+  local cpu="$8"
+  local ram="$9"
+  local docker_image="${10}"
+  local bandwidth="${11}"
+  
+# Format disk_limit with 'GB' 
+disk_limit="${disk_limit} GB"
 
+  # Ensure inodes_limit is not less than 500000
+  if [ "$inodes_limit" -lt 500000 ]; then
+    inodes_limit=500000
+  fi
 
-#1. check for forbidden usernames
-forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data")
+  # Format ram with 'g' at the end
+  ram="${ram}g"
 
-is_username_forbidden() {
-    local check_username="$1"
-    for forbidden_username in "${forbidden_usernames[@]}"; do
-        if [ "$check_username" == "$forbidden_username" ]; then
-            return 0 # Username is forbidden
-        fi
-    done
-    return 1 # not forbidden
+  # Insert the plan into the 'plans' table
+  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth);"
+
+  mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
+  if [ $? -eq 0 ]; then
+    echo "Inserted: $name into plans"
+  else
+    echo "Failed to insert: $name into plans"
+  fi
 }
 
-if is_username_forbidden "$username"; then
-    echo "Error: Username is not allowed."
-    exit 1
-fi
+## Function to create a Docker network with bandwidth limiting
+create_docker_network() {
+  local name="$1"
+  local bandwidth="$2"
 
+  for ((i = 18; i < 255; i++)); do
+    subnet="172.$i.0.0/16"
+    gateway="172.$i.0.1"
 
-#########################################################################
-############################### DB LOGIN ################################ 
-#########################################################################
-    # MySQL database configuration
-    config_file="/usr/local/admin/db.cnf"
+    # Check if the subnet is already in use
+    used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
+      docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
+    done)
 
-    # Check if the config file exists
-    if [ ! -f "$config_file" ]; then
-        echo "Config file $config_file not found."
-        exit 1
+    if [[ $used_subnets =~ $subnet ]]; then
+      continue  # Skip if the subnet is already in use
     fi
+    # Create the Docker network
+    docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
 
-    mysql_database="panel"
+    # Extract the network interface name for the gateway IP
+    gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
 
-#########################################################################
+    # Limit the gateway bandwidth
+    sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
 
-# Check if the username already exists in the users table
-username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
-username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
-
-# Check if successful
-if [ $? -ne 0 ]; then
-    echo "Error: Unable to check username existence in the database."
-    exit 1
-fi
-
-# count > 0) show error and exit
-if [ "$username_exists_count" -gt 0 ]; then
-    echo "Error: Username '$username' already exists."
-    exit 1
-fi
-
-
-#Get CPU, DISK, INODES and RAM limits for the plan
-
-# Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name FROM plans WHERE id = '$plan_id'"
-
-# Execute the MySQL query and store the results in variables
-cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
-
-# Check if the query was successful
-if [ $? -ne 0 ]; then
-    echo "Error: Unable to fetch plan information from the database."
-    exit 1
-fi
-
-# Check if any results were returned
-if [ -z "$cpu_ram_info" ]; then
-    echo "Error: Plan with ID $plan_id not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
-    exit 1
-fi
-
-# Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
-#disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}')
-disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
-cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
-ram=$(echo "$cpu_ram_info" | awk '{print $2}')
-inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
-bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
-name=$(echo "$cpu_ram_info" | awk '{print $8}')
-
-
-# Get the available free space on the disk
-current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-
-# Compare the available free space with the disk limit of the plan
-if [ "$current_free_space" -lt "$disk_limit" ]; then
-    echo "Error: Insufficient disk space. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
-    exit 1
-fi
-
-# Get the maximum available CPU cores on the server
-max_available_cores=$(nproc)
-
-# Compare the specified CPU cores with the maximum available cores
-if [ "$cpu" -gt "$max_available_cores" ]; then
-    echo "Error: Requested CPU cores ($cpu) exceed the maximum available cores on the server ($max_available_cores). Cannot create user."
-    exit 1
-fi
-
-# Get the maximum available RAM on the server in GB
-max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-
-# Compare the specified RAM with the maximum available RAM
-if [ "$ram" -gt "$max_available_ram_gb" ]; then
-    echo "Error: Requested RAM ($ram GB) exceeds the maximum available RAM on the server ($max_available_ram_gb GB). Cannot create user."
-    exit 1
-fi
-
-# RAM memory reservation = 90% of RAM allocated
-#ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
-#ram_mb=$((ram_no_suffix * 1024))  # Convert GB to MB (1 GB = 1024 MB)
-#ram_soft_limit=$((ram_mb * 90 / 100))
-
-docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
-
-echo "DOCKER_IMAGE: $docker_image"
-echo "DISK: $disk_limit"
-echo "CPU: $cpu"
-echo "RAM: $ram"
-echo "RAM: $ram"
-echo "RAM: $ram"
-echo "INODES: $inodes"
-echo "BANDWIDTH: $bandwidth"
-echo "NAME: $name"
-#echo "RAM Soft Limit: $ram_soft_limit MB"
-
-
-
-# Check if the Docker image exists locally
-if docker images -q "$docker_image" 2>/dev/null; then
-    echo "Docker image '$docker_image' exists locally."
-else
-    echo "Docker image '$docker_image' does not exist locally."
-    exit 1
-fi
-
-# Run a docker container for the user with those limits
-
-# create file, convert it to storage and mount to user to set the disk usage limits
-# allocate disk space (size specified by $disk_limit) for the storage file
-#echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
-fallocate -l ${disk_limit}g /home/storage_file_$username
-
-# Create an ext4 filesystem on the storage file
-#echo "mkfs.ext4 /home/storage_file_$username"
-mkfs.ext4 -N $inodes /home/storage_file_$username
-
-# Create a directory with the user's username under /home/
-#echo "mkdir /home/$username"
-mkdir /home/$username
-
-# chown to user that runs the app
-#chown www-data:www-data /home/$username -R
-chown 1000:33 /home/$username
-chmod 755 /home/$username
-chmod g+s /home/$username
-
-
-# Mount the storage file as a loopback device to the /home/$username directory
-#echo "mount -o loop /home/storage_file_$username /home/$username"
-mount -o loop /home/storage_file_$username /home/$username
-
-
-
-# Determine the web server based on the Docker image
-if [[ "$docker_image" == *"nginx"* ]]; then
-  path="nginx"
-  web_server="nginx"
-elif [[ "$docker_image" == *"apache"* ]]; then
-  path="apache2"
-  web_server="apache"
-else
-  path="nginx"
-  web_server="nginx"
-fi
-
-# then create a container
-docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
-  -v /home/$username/var/crons:/var/spool/cron/crontabs \
-  -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-  -v /home/$username:/home/$username \
-  --restart unless-stopped \
-  --hostname $username $docker_image
-
-
-ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
-
-echo "IP ADDRESS: $ip_address"
-
-
-
-# Open ports on firewall
-
-# Function to extract the host port from 'docker port' output
-extract_host_port() {
-    local port_number="$1"
-    local host_port
-    host_port=$(docker port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
-    echo "$host_port"
+    found_subnet=1  # Set the flag to indicate success
+    break
+  done
+  if [ $found_subnet -eq 0 ]; then
+    echo "No available subnet found. Exiting."
+    exit 1  # Exit with an error code
+  fi
 }
 
-# Define the list of container ports to check and open
-container_ports=("21" "22" "3306" "7681" "8080")
-
-# Variable to track whether any ports were opened
-ports_opened=0
-
-# Loop through the container_ports array and open the ports in UFW if not already open
-for port in "${container_ports[@]}"; do
-    host_port=$(extract_host_port "$port")
-
-    if [ -n "$host_port" ]; then
-        # Open the port in CSF
-        echo "Opening port ${host_port} for port ${port} in CSF"
-        #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-        ufw allow ${host_port}/tcp  comment "${username}"
-        ports_opened=1
-    else
-        echo "Port ${port} not found in container ${container_name}"
-    fi
-done
-
-# Restart UFW if ports were opened
-if [ $ports_opened -eq 1 ]; then
-    echo "Restarting UFW"
-    ufw reload
-fi
-
-
-#Insert data into the database
-
-# Generate a random password if the second argument is "generate"
-if [ "$password" == "generate" ]; then
-    password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
-fi
-
-# Hash password
-hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
-
-# Insert data into MySQL database
-mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
-
-mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
-
-if [ $? -eq 0 ]; then
-    echo "Successfully added user $username password: $password"
-else
-    echo "Error: Data insertion failed."
+# Function to check available CPU cores
+check_cpu_cores() {
+  local available_cores=$(nproc)
+  
+  if [ "$cpu" -gt "$available_cores" ]; then
+    echo "Error: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
     exit 1
+  fi
+}
+
+# Function to check available RAM
+check_available_ram() {
+  local available_ram=$(free -g | awk '/^Mem:/{print $2}')
+  
+  if [ "$ram" -gt "$available_ram" ]; then
+    echo "Error: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
+    exit 1
+  fi
+}
+
+# Check for command-line arguments
+if [ "$#" -ne 11 ]; then
+  echo "Usage: $0 name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+  exit 1
 fi
 
+# Capture command-line arguments
+name="$1"
+description="$2"
+domains_limit="$3"
+websites_limit="$4"
+disk_limit="$5"
+inodes_limit="$6"
+db_limit="$7"
+cpu="$8"
+ram="$9"
+docker_image="${10}"
+bandwidth="${11}"
 
-# Define the path to the main configuration file
-config_file="/usr/local/panel/conf/panel.config"
+# Check available CPU cores before creating the plan
+check_cpu_cores "$cpu"
 
-# Use grep and awk to extract the value of default_php_version
-default_php_version=$(grep -E "^default_php_version=" "$config_file" | awk -F= '{print $2}')
+# Check available RAM before creating the plan
+check_available_ram "$ram"
 
-# Check if default_php_version is empty (in case the configuration line doesn't exist)
-if [ -z "$default_php_version" ]; then
-  echo "Default PHP version not found in $config_file using the fallback default version.."
-  default_php_version="php8.2"
+# Check if docker_image is either "nginx" or "apache"
+if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ]; then
+  echo "docker_image must be 'nginx' or 'apache'"
+  exit 1
 fi
 
+# Function to check if the plan name already exists in the database
+check_plan_exists() {
+  local name="$1"
+  local sql="SELECT name FROM plans WHERE name='$name';"
+  local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
+  echo "$result"
+}
 
-mkdir -p /usr/local/panel/core/stats/$username
-mkdir -p /usr/local/panel/core/users/$username
-echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
-echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+# Determine the appropriate table name based on the docker_image value
+if [ "$docker_image" == "nginx" ]; then
+  docker_image="dev_plan_nginx"
+else
+  docker_image="dev_plan_apache"
+fi
+
+# Check if the plan name already exists in the database
+existing_plan=$(check_plan_exists "$name")
+if [ -n "$existing_plan" ]; then
+  echo "Plan name '$name' already exists. Please choose another name."
+  exit 1
+fi
+
+# Call the create_docker_network function to create the Docker network
+create_docker_network "$name" "$bandwidth"
+
+# Call the insert_plan function with the provided values
+insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
