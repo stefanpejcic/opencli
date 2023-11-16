@@ -1,0 +1,39 @@
+#!/bin/bash
+
+
+  TREBA NGINX EDIT CONF
+
+action=$1
+domain=$2
+
+case $action in
+    "view")
+        if certbot certificates | grep -q $domain; then
+            echo "SSL keys for domain $domain:"
+            certbot certificates --domain $domain
+        else
+            echo "No SSL found for domain $domain."
+        fi
+        ;;
+    "generate")
+        certbot --nginx --non-interactive --domain $domain
+        ;;
+    "delete")
+        if [ "$3" == "-y" ]; then
+            confirmation="y"
+        else
+            read -p "Are you sure you want to delete SSL for domain $domain? (y/n): " confirmation
+        fi
+
+        if [ "$confirmation" == "y" ]; then
+            certbot delete --cert-name $domain
+            echo "SSL for domain $domain deleted."
+        else
+            echo "SSL deletion for domain $domain cancelled."
+        fi
+        ;;
+    *)
+        echo "Invalid action. Please use 'view', 'generate', or 'delete'."
+        ;;
+esac
+  
