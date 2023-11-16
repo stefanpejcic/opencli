@@ -1,5 +1,24 @@
 #!/bin/bash
 
+# Function to print usage
+print_usage() {
+    echo "Usage: $0 [--json]"
+    exit 1
+}
+
+# Parse command-line options
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --json)
+            json_output=true
+            shift
+            ;;
+        *)
+            print_usage
+            ;;
+    esac
+done
+
 # MySQL database configuration
 config_file="/usr/local/admin/db.cnf"
 mysql_database="panel"
@@ -15,7 +34,15 @@ users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SEL
 
 # Check if any data is retrieved
 if [ -n "$users_data" ]; then
-    echo "$users_data"
+    if [ "$json_output" ]; then
+        # Format data as JSON
+        json_data=$(echo "$users_data" | awk 'BEGIN {print "["} {if(NR>1)print ","; print "{\n\t\"id\": "$1",\n\t\"username\": \""$2"\",\n\t\"email\": \""$3"\",\n\t\"twofa\": "$4"\n}"} END {print "\n]"}')
+        echo -e "$json_data" | jq .
+    else
+        # Display data in tabular format
+        echo "List of users data:"
+        echo "$users_data"
+    fi
 else
     echo "No users."
 fi
