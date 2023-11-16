@@ -120,7 +120,7 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         else
             # If certbot command fails
             service nginx restart
-            echo -e "${RED}ERROR: Failed to generate SSL certificate. Check Certbot logs for more details.${RESET}"
+            echo -e "${RED}ERROR: Failed to generate SSL certificate. Check Certbot logs in '/var/log/letsencrypt/' for more details.${RESET}"
             echo -e  "Is ${YELLOW}A${RESET} record for domain ${YELLOW}$hostname${RESET} pointed to the IP address of this server: ${YELLOW}$ip_address${RESET} ?"
         fi
     fi
