@@ -5,7 +5,7 @@
 # Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 16.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -121,6 +121,16 @@ inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
 name=$(echo "$cpu_ram_info" | awk '{print $8}')
 
+
+# Get the available free space on the disk
+current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+
+# Compare the available free space with the disk limit of the plan
+if [ "$current_free_space" -lt "$disk_limit" ]; then
+    echo "Error: Insufficient disk space. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
+    exit 1
+fi
+
 # RAM memory reservation = 90% of RAM allocated
 #ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
 #ram_mb=$((ram_no_suffix * 1024))  # Convert GB to MB (1 GB = 1024 MB)
@@ -148,7 +158,6 @@ else
     echo "Docker image '$docker_image' does not exist locally."
     exit 1
 fi
-
 
 # Run a docker container for the user with those limits
 
