@@ -55,7 +55,7 @@ check_update() {
     # Only proceed if autopatch or autoupdate is set to "yes"
     if [ "$autopatch" = "yes" ] || [ "$autoupdate" = "yes" ] || [ "$force_update" = true ]; then
         # Run the update_check.sh script to get the update status
-        local update_status=$(./update_check.sh)
+        local update_status=$(opencli update_check)
 
         # Extract the local and remote version from the update status
         local local_version=$(echo "$update_status" | jq -r '.installed_version')
