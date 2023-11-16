@@ -28,15 +28,41 @@
 # THE SOFTWARE.
 ################################################################################
 
-echo "Downloading Nginx and Apache docker images.."
+echo "Downloading Nginx and Apache Docker images.."
 
-mkdir -p /usr/local/panel/DOCKER/images/
+# Set the directory for storing images
+image_dir="/usr/local/panel/DOCKER/images/"
+mkdir -p "$image_dir"
 
-# download
-wget https://hub.openpanel.co/_/ubuntu_22.04/apache.tar.gz -P /usr/local/panel/DOCKER/images/
-wget https://hub.openpanel.co/_/ubuntu_22.04/nginx.tar.gz -P /usr/local/panel/DOCKER/images/
+# URLs for Docker images
+apache_url="https://hub.openpanel.co/_/ubuntu_22.04/apache.tar.gz"
+nginx_url="https://hub.openpanel.co/_/ubuntu_22.04/nginx.tar.gz"
 
-# import
-docker load < /usr/local/panel/DOCKER/images/apache.tar.gz
-docker load < /usr/local/panel/DOCKER/images/nginx.tar.gz
-fi
+# Function to download and import Docker image
+download_and_import() {
+    local url=$1
+    local image_file="$image_dir/$(basename $url)"
+
+    # Download the image with timestamping
+    wget -N "$url" -P "$image_dir"
+
+    # Check if the download was successful
+    if [ $? -eq 0 ]; then
+        echo "Newer image is available od: $url"
+        # Import the Docker image
+        docker load < "$image_file"
+        if [ $? -eq 0 ]; then
+            echo "Successfully imported $image_file"
+        else
+            echo "Failed to import $image_file"
+        fi
+    else
+        echo "No newer docker image is available on: $url"
+    fi
+}
+
+# Download and import Apache image
+download_and_import "$apache_url"
+
+# Download and import Nginx image
+download_and_import "$nginx_url"
