@@ -5,7 +5,7 @@
 # Usage: opencli user-delete <USERNAME> [-y]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 16.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -79,11 +79,10 @@ confirm_action() {
 
 
 
-# Function to remove Docker container, mysql volume and all user files
+# Function to remove Docker container, storage file and all user files
 remove_docker_container_and_volume() {
     docker stop "$username"
     docker rm "$username"
-    docker volume rm "mysql-$username"
     rm -rf /home/$username
 }
 
@@ -197,5 +196,6 @@ rm -rf /home/storage_file_$username
 
 rm -rf /usr/local/panel/core/stats/$username
 rm -rf  /usr/local/panel/core/users/$username
+rm -rf  /backup/$username
 
 echo "User $username deleted."
