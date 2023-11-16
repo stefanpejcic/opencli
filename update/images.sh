@@ -28,61 +28,15 @@
 # THE SOFTWARE.
 ################################################################################
 
-download_image() {
-    local image_url=$1
-    local local_path=$2
-    
-    # Clean up newly downloaded files
-    rm -f "$local_path/new_image.tar.gz"
+echo "Downloading Nginx and Apache docker images.."
 
-    # Download image
-    wget -q "$image_url" -O "$local_path/new_image.tar.gz"
-}
+mkdir -p /usr/local/panel/DOCKER/images/
 
-generate_checksum() {
-    local image_url=$1
+# download
+wget https://hub.openpanel.co/_/ubuntu_22.04/apache.tar.gz -P /usr/local/panel/DOCKER/images/
+wget https://hub.openpanel.co/_/ubuntu_22.04/nginx.tar.gz -P /usr/local/panel/DOCKER/images/
 
-    # Download image and generate checksum
-    wget -q "$image_url" -O - | sha256sum | awk '{print $1}'
-}
-
-compare_checksum() {
-    local local_checksum=$1
-    local downloaded_checksum=$2
-
-    # Compare checksums
-    if [ "$local_checksum" != "$downloaded_checksum" ]; then
-        return 1  # Checksums are different
-    else
-        return 0  # Checksums are the same
-    fi
-}
-
-echo "Checking if newer docker images are available.."
-
-# Generate checksums for the images
-local_apache_checksum=$(generate_checksum "https://hub.openpanel.co/_/ubuntu_22.04/apache.tar.gz")
-local_nginx_checksum=$(generate_checksum "https://hub.openpanel.co/_/ubuntu_22.04/nginx.tar.gz")
-
-# Download images
-download_image "https://hub.openpanel.co/_/ubuntu_22.04/apache.tar.gz" "/usr/local/panel/DOCKER/images/"
-download_image "https://hub.openpanel.co/_/ubuntu_22.04/nginx.tar.gz" "/usr/local/panel/DOCKER/images/"
-
-echo "Comparing checksums of local and downloaded images.."
-
-# Compare and update images
-if compare_checksum "$local_apache_checksum" "$(generate_checksum "/usr/local/panel/DOCKER/images/apache.tar.gz")"; then
-    echo "Apache image is up to date, no need to update."
-else
-    echo "Newer Apache image is available, updating.."
-    docker load < "/usr/local/panel/DOCKER/images/apache.tar.gz"
-    echo "Apache Docker image is updated"
-fi
-
-if compare_checksum "$local_nginx_checksum" "$(generate_checksum "/usr/local/panel/DOCKER/images/nginx.tar.gz")"; then
-    echo "Nginx image is up to date, no need to update."
-else
-    echo "Newer Nginx image is available, updating.."
-    docker load < "/usr/local/panel/DOCKER/images/nginx.tar.gz"
-    echo "Nginx Docker image is updated"
+# import
+docker load < /usr/local/panel/DOCKER/images/apache.tar.gz
+docker load < /usr/local/panel/DOCKER/images/nginx.tar.gz
 fi
