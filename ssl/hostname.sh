@@ -111,8 +111,8 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         service nginx stop
 
         # Run certbot command to obtain a new certificate
-        if certbot certonly --standalone --non-interactive --agree-tos -m admin@openpanel.co -d "$hostname"; then
-            # Restart Nginx
+        if certbot certonly --standalone --non-interactive --agree-tos -m admin@$hostname -d "$hostname"; then
+            # Restart Nginx as soon as the ssl is generated
             service nginx restart
 
             # Update OpenPanel configuration to use the new ssl
