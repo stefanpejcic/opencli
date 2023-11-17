@@ -75,6 +75,12 @@ fi
 
 #########################################################################
 
+# Check if Docker container with the same username exists
+if docker inspect "$username" >/dev/null 2>&1; then
+    echo "Error: Docker container with the same username '$username' already exists. Aborting."
+    exit 1
+fi
+
 # Check if the username already exists in the users table
 username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
 username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
@@ -204,6 +210,46 @@ chmod g+s /home/$username
 mount -o loop /home/storage_file_$username /home/$username
 
 
+## Function to create a Docker network with bandwidth limiting
+create_docker_network() {
+
+  for ((i = 18; i < 255; i++)); do
+    subnet="172.$i.0.0/16"
+    gateway="172.$i.0.1"
+
+    # Check if the subnet is already in use
+    used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
+      docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
+    done)
+
+    if [[ $used_subnets =~ $subnet ]]; then
+      continue  # Skip if the subnet is already in use
+    fi
+    # Create the Docker network
+    docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
+
+    # Extract the network interface name for the gateway IP
+    gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
+
+    # Limit the gateway bandwidth
+    sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+
+    found_subnet=1  # Set the flag to indicate success
+    break
+  done
+  if [ $found_subnet -eq 0 ]; then
+    echo "No available subnet found. Exiting."
+    exit 1  # Exit with an error code
+  fi
+}
+
+# Check if the Docker network exists
+if docker network inspect "$name" >/dev/null 2>&1; then
+    echo "Docker network '$name' already exists."
+else
+    echo "Docker network '$name' does not exist. Creating..."
+    create_docker_network "$name" "$bandwidth"
+fi
 
 # Determine the web server based on the Docker image
 if [[ "$docker_image" == *"nginx"* ]]; then
@@ -225,6 +271,27 @@ docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" 
   --restart unless-stopped \
   --hostname $username $docker_image
 
+
+# Check the status of the created container
+container_status=$(docker inspect -f '{{.State.Status}}' "$username")
+
+if [ "$container_status" != "running" ]; then
+    echo "Error: Container status is not 'running'. Cleaning up..."
+    
+    # Remove Docker container
+    docker rm -f "$username"
+    
+    # Unmount storage file
+    umount /home/$username
+    
+    # Remove home directory
+    rm -rf /home/$username
+    
+    # Remove storage file
+    rm -f /home/storage_file_$username
+    
+    exit 1
+fi
 
 ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
 
