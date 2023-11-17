@@ -3,6 +3,7 @@
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_id.
 # Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 16.11.2023
