@@ -61,13 +61,13 @@ fi
 # Fetch all user data from the users table
 if [ "$json_output" ]; then
     # For JSON output without --table option
-    users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT users.id, users.username, users.email, users.registered_date, plans.name AS plan_name FROM users INNER JOIN plans ON users.plan_id = plans.id;" | tail -n +2)
-    json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], registered_date: .[3], plan_name: .[4]})' )
+    users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;" | tail -n +2)
+    json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]})' )
     echo "Users:"
     echo "$json_output"
 else
     # For Terminal output with --table option
-    users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT users.id, users.username, users.email, users.registered_date, plans.name AS plan_name FROM users INNER JOIN plans ON users.plan_id = plans.id;")
+    users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;")
     # Check if any data is retrieved
     if [ -n "$users_data" ]; then
         # Display data in tabular format
