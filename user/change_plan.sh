@@ -242,7 +242,8 @@ query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 
 
-#ovde run skriptu za rewrite nginx vhosts za tog usera!
+#skripta za rewrite nginx vhosts za tog usera!
+opencli nginx-update_vhosts $container_name -nginx-reload
 
 # Compare limits and list the differences
 #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
