@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#list-users
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 17.11.2023
+# Last Modified: 19.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,13 +29,13 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Function to print usage
+# this should be edited to not print full sh file path..
 print_usage() {
     echo "Usage: $0 [--json]"
     exit 1
 }
 
-# Parse command-line options
+# if --json flag is provided then we use different mysql query and format as json
 while [[ $# -gt 0 ]]; do
     case $1 in
         --json)
@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# MySQL database configuration
+############### database
 config_file="/usr/local/admin/db.cnf"
 mysql_database="panel"
 
