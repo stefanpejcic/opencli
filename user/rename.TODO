@@ -1,8 +1,11 @@
 
 rename container
 
-unmount
-rename
+unmount storage file
+rename storage file
+
+stop container
+
 
 change hostname
 
