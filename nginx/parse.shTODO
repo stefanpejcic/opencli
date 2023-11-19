@@ -8,6 +8,7 @@ fi
 
 domain_name="$1"
 log_file="/var/log/nginx/domlogs/${domain_name}.log"
+output_dir="/var/log/nginx/domlogs/parsed/$domain_name"
 
 # Check if the log file exists
 if [ ! -f "$log_file" ]; then
@@ -15,9 +16,12 @@ if [ ! -f "$log_file" ]; then
     exit 1
 fi
 
+# Create the output directory if it doesn't exist
+mkdir -p "$output_dir"
+
 # Function to extract user agents and their counts
 generate_browser_json() {
-    awk -F'"' '/\"-\"$/ {print "{\"user_agent\": \"-\", \"count\": 1},"; next} {print "{\"user_agent\": \""$NF"\", \"count\": 1},"}' "$log_file" | sort | uniq -c | awk '{print "{\"user_agent\": \""$2"\", \"count\": "$1"},"}' > browser.json
+    awk -F'"' '/\"-\"$/ {print "{\"user_agent\": \"-\", \"count\": 1},"; next} {print "{\"user_agent\": \""$NF"\", \"count\": 1},"}' "$log_file" | sort | uniq -c | awk '{print "{\"user_agent\": \""$2"\", \"count\": "$1"},"}' > "$output_dir/browser.json"
 }
 
 # Function to extract IPs, get their country codes, and count them
@@ -26,17 +30,17 @@ generate_ip_json() {
         api_response=$(curl -s "https://api.country.is/${ip}")
         country_code=$(echo "$api_response" | jq -r '.country')
         echo "{\"ip\": \"$ip\", \"count\": $count, \"country_code\": \"$country_code\"},"
-    done > ip.json
+    done > "$output_dir/ip.json"
 }
 
 # Function to extract request types and their counts
 generate_type_json() {
-    awk '{print $6}' "$log_file" | sort | uniq -c | awk '{print "{\"request_type\": \""$2"\", \"count\": "$1"},"}' > type.json
+    awk '{print $6}' "$log_file" | sort | uniq -c | awk '{print "{\"request_type\": \""$2"\", \"count\": "$1"},"}' > "$output_dir/type.json"
 }
 
 # Function to extract URL parts and their counts
 generate_link_json() {
-    awk '{gsub(/\"/, "", $7); gsub(/GET|POST|PUT|DELETE/, "", $7); print $7}' "$log_file" | sort | uniq -c | awk '{print "{\"link\": \""$2"\", \"count\": "$1"},"}' > link.json
+    awk '{gsub(/\"/, "", $7); gsub(/GET|POST|PUT|DELETE/, "", $7); print $7}' "$log_file" | sort | uniq -c | awk '{print "{\"link\": \""$2"\", \"count\": "$1"},"}' > "$output_dir/link.json"
 }
 
 # Execute the functions
@@ -46,6 +50,6 @@ generate_type_json
 generate_link_json
 
 # Remove trailing commas from the generated JSON files
-sed -i 's/,$//' browser.json ip.json type.json link.json
+sed -i 's/,$//' "$output_dir/browser.json" "$output_dir/ip.json" "$output_dir/type.json" "$output_dir/link.json"
 
-echo "JSON files generated successfully."
+echo "JSON files generated successfully in $output_dir."
