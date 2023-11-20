@@ -186,17 +186,7 @@ fi
 
 # Run a docker container for the user with those limits
 
-# create file, convert it to storage and mount to user to set the disk usage limits
-# allocate disk space (size specified by $disk_limit) for the storage file
-#echo "fallocate -l ${disk_limit}g /home/storage_file_$username"
-fallocate -l ${disk_limit}g /home/storage_file_$username
-
-# Create an ext4 filesystem on the storage file
-#echo "mkfs.ext4 /home/storage_file_$username"
-mkfs.ext4 -N $inodes /home/storage_file_$username
-
 # Create a directory with the user's username under /home/
-#echo "mkdir /home/$username"
 mkdir /home/$username
 
 # chown to user that runs the app
@@ -204,12 +194,6 @@ mkdir /home/$username
 chown 1000:33 /home/$username
 chmod 755 /home/$username
 chmod g+s /home/$username
-
-
-# Mount the storage file as a loopback device to the /home/$username directory
-#echo "mount -o loop /home/storage_file_$username /home/$username"
-mount -o loop /home/storage_file_$username /home/$username
-
 
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
@@ -265,7 +249,7 @@ else
 fi
 
 # then create a container
-docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
+docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
   -v /home/$username/var/crons:/var/spool/cron/crontabs \
   -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
   -v /home/$username:/home/$username \
@@ -281,15 +265,9 @@ if [ "$container_status" != "running" ]; then
     
     # Remove Docker container
     docker rm -f "$username"
-    
-    # Unmount storage file
-    umount /home/$username
-    
+   
     # Remove home directory
     rm -rf /home/$username
-    
-    # Remove storage file
-    rm -f /home/storage_file_$username
     
     exit 1
 fi
