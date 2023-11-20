@@ -31,22 +31,10 @@
 # Korisnici
 DOCKER_USERS=$(docker ps -a --format '{{.Names}}')
 
-# Start mount skriptu
-bash /usr/local/admin/scripts/files/remount_all.sh
-
-# Stop servisa
-systemctl stop docker
-systemctl stop docker.socket
-systemctl stop containerd
-systemctl stop panel
-
-#Start Docker
-systemctl start docker
-
 # Loop kroz Docker usere i pokreni skript
 for USERNAME in $DOCKER_USERS; do
     # Run the user-specific script
-    bash /usr/local/admin/scripts/nginx/update_vhosts.sh $USERNAME
+    opencli nginx-update_vhosts $USERNAME
 
 done
 
@@ -55,4 +43,4 @@ service nginx reload
 service panel restart
 
 # Fix ports
-bash /usr/local/admin/scripts/firewall/reset.sh
+opencli firewall-reset
