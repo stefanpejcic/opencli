@@ -30,9 +30,14 @@
 
 # Check if the correct number of command-line arguments is provided
 if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <username> [-y]"
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name <username> [-y]"
     exit 1
 fi
+
+
 
 # Get username from a command-line argument
 username="$1"
