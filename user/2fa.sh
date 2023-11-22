@@ -5,7 +5,7 @@
 # Usage: opencli user-2fa <username> [disable]
 # Author: Stefan Pejcic
 # Created: 16.11.2023
-# Last Modified: 17.11.2023
+# Last Modified: 22.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -35,9 +35,13 @@ RESET='\033[0m'
 
 # Check if username is provided as an argument
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <username> [disable]"
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name <username> [disable]"
     exit 1
 fi
+
 
 
 #########################################################################
