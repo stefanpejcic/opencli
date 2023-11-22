@@ -37,7 +37,6 @@ if [ "$#" -ne 4 ]; then
     exit 1
 fi
 
-
 username="$1"
 password="$2"
 email="$3"
@@ -153,8 +152,9 @@ fi
 # Get the maximum available RAM on the server in GB
 max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
 
+numram="${ram%"g"}"
 # Compare the specified RAM with the maximum available RAM
-if [ "$ram" -gt "$max_available_ram_gb" ]; then
+if [ "$numram" -gt "$max_available_ram_gb" ]; then
     echo "Error: Requested RAM ($ram GB) exceeds the maximum available RAM on the server ($max_available_ram_gb GB). Cannot create user."
     exit 1
 fi
