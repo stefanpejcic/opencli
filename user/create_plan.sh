@@ -144,9 +144,13 @@ check_available_ram() {
 
 # Check for command-line arguments
 if [ "$#" -ne 11 ]; then
-  echo "Usage: $0 name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
-  exit 1
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+    exit 1
 fi
+
 
 # Capture command-line arguments
 name="$1"
