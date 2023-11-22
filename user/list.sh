@@ -31,9 +31,14 @@
 
 # this should be edited to not print full sh file path..
 print_usage() {
-    echo "Usage: $0 [--json]"
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name [--json]"
     exit 1
 }
+
+
 
 # if --json flag is provided then we use different mysql query and format as json
 while [[ $# -gt 0 ]]; do
