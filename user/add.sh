@@ -29,11 +29,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the correct number of command-line arguments is provided
 if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <username> <password|generate> <email> <plan_id>"
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name <username> <password|generate> <email> <plan_id>"
     exit 1
 fi
+
 
 username="$1"
 password="$2"
