@@ -30,7 +30,10 @@
 
 # Check if the correct number of parameters is provided
 if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <container_name> <new_plan_id>"
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name <username> <new_plan_id>"
     exit 1
 fi
 
