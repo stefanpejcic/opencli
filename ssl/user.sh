@@ -40,7 +40,7 @@ fi
 
 # Set the username and file path
 username="$1"
-file_path="/home/$username/ssl/.domain_status"
+file_path="/usr/local/panel/core/users/$username/.ssl"
 mkdir -p "$(dirname "$file_path")"
 
 # Get list of user domains
