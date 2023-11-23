@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+##### TODO: testirati samo sa --nginx umesto standalone i izbaciit ngins stop, restart
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
