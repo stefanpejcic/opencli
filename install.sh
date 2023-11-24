@@ -30,7 +30,7 @@
 
 # Define your cron job entries
 cron_jobs=(
-  "0 * * * * opencli docker-collect_stats.sh"
+  "0 * * * * opencli docker-collect_stats"
   "* 2 * * * opencli docker-usage_stats_cleanup"
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * opencli backup-create"
