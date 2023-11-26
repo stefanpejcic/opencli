@@ -41,7 +41,8 @@ COMMAND_WITH_SLASHES=$(echo "$1" | tr '-' '/')
 SCRIPTS_DIR="/usr/local/admin/scripts"
 
 # Build the full path to the script
-SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES.sh"
+# ovo za ne enkodirano samo SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES.sh"
+SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES"
 
 # Check if the script exists
 if [ -e "$SCRIPT_PATH" ]; then
