@@ -53,13 +53,13 @@ crontab "$cron_temp_file"
 rm "$cron_temp_file"
 
 # aliases
-ln -s /usr/local/admin/scripts/version.sh /usr/local/admin/scripts/v.sh
+ln -s /usr/local/admin/scripts/version /usr/local/admin/scripts/v
 
 # Make all bash scripts in this directory executable for our user and root only
-find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
-chown root:root /usr/local/admin/scripts/*.sh
+#find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
+chown root:root /usr/local/admin/scripts/*
 
-cp /usr/local/admin/scripts/opencli.sh /usr/local/bin/opencli
+cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
 # Generate a list of commands for the admin panel
