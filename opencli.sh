@@ -48,7 +48,7 @@ SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES"
 if [ -e "$SCRIPT_PATH" ]; then
     # Execute the script with the provided arguments
     shift # remove the first argument (the script name)
-    bash "$SCRIPT_PATH" "$@"
+    ./"$SCRIPT_PATH" "$@"
 else
     echo "Error: Command not found"
     exit 1
