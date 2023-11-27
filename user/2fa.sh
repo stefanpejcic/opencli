@@ -48,16 +48,18 @@ fi
 ############################### DB LOGIN ################################ 
 #########################################################################
     # MySQL database configuration
-    config_file="/usr/local/admin/db.cnf"
+   # config_file="/usr/local/admin/db.cnf"
 
     # Check if the config file exists
-    if [ ! -f "$config_file" ]; then
-        echo "Config file $config_file not found."
-        exit 1
-    fi
+   # if [ ! -f "$config_file" ]; then
+      #  echo "Config file $config_file not found."
+      #  exit 1
+  #  fi
 
-    mysql_database="panel"
+   # mysql_database="panel"
 
+#NOVO
+source ../db.sh
 #########################################################################
 
 # Get the username and optional action (disable)
