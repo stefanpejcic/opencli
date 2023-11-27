@@ -61,7 +61,7 @@ fi
 
 # Determine the owner of the domain
 #echo "Determining the owner of the domain..."
-whoowns_output=$(bash /usr/local/admin/scripts/domains/whoowns.sh "$domain")
+whoowns_output=$(opencli domains-whoowns "$domain")
 owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
 if [ -n "$owner" ]; then
@@ -69,7 +69,7 @@ if [ -n "$owner" ]; then
 
     # Determine the web server type for the user
     #echo "Determining the web server type for user: $owner..."
-    web_server_info=$(bash /usr/local/admin/scripts/webserver/get_webserver_for_user.sh "$owner")
+    web_server_info=$(opencliwebserver-get_webserver_for_user "$owner")
     web_server_type=$(echo "$web_server_info" | awk '{print $NF}')
     #echo "Web server info: $web_server_info"
     #echo "Web server type: $web_server_type"
