@@ -85,7 +85,7 @@ fi
 echo "Container '$container_name' IP Address: $container_ip"
 
 # Run the command to get the list of domains
-domains=$(bash /usr/local/admin/scripts/domains/list_user_domains.sh "$container_name")
+domains=$(opencli domains-user "$container_name")
 
 # Check if the command was successful
 if [ $? -ne 0 ]; then
