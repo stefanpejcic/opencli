@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: user/domain.sh
+# Script Name: ssl/domain.sh
 # Description: Create a new user with the provided plan_id.
-# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Usage: opencli ssl-domain [-d] <domain_url>
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
 # Last Modified: 27.11.2023
@@ -49,12 +49,39 @@ generate_ssl() {
 
     # Run Certbot command
     "${certbot_command[@]}"
-
-    # Add your logic for modifying Nginx configuration here
-    # ...
-
     echo "SSL generation completed successfully"
 }
+
+# Function to modify Nginx configuration
+modify_nginx_conf() {
+    domain_url=$1
+
+    # Nginx configuration path
+    nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
+
+    echo "Modifying Nginx configuration for domain: $domain_url"
+
+    # Nginx configuration content to be added
+    nginx_config_content="
+    if (\$scheme != \"https\"){
+        #return 301 https://\$host\$request_uri;
+    } #forceHTTPS
+
+    listen 185.119.90.240:443 ssl http2;
+    server_name $domain_url;
+    ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    "
+
+    # Use awk to append content after the specified line
+    awk -v content="$nginx_config_content" '/location \// {print; print content; next}1' "$nginx_conf_path" > temp_conf_file
+    mv temp_conf_file "$nginx_conf_path"
+
+    echo "Nginx configuration modification completed successfully"
+}
+
 
 # Function to delete SSL
 delete_ssl() {
@@ -72,6 +99,20 @@ delete_ssl() {
     # ...
 
     echo "SSL deletion completed successfully"
+}
+# Function to revert Nginx configuration
+revert_nginx_conf() {
+    domain_url=$1
+
+    # Nginx configuration path
+    nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
+
+    echo "Reverting Nginx configuration for domain: $domain_url"
+
+    # Use sed to remove the added content from the Nginx configuration file
+    sed -i '/if (\$scheme != "https"){/,/ssl_dhparam \/etc\/letsencrypt\/ssl-dhparams.pem;/d' "$nginx_conf_path"
+
+    echo "Nginx configuration reversion completed successfully"
 }
 
 # Main script
@@ -112,6 +153,8 @@ fi
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
     delete_ssl "$domain_url"
+    revert_nginx_conf "$domain_url"
 else
     generate_ssl "$domain_url"
+    modify_nginx_conf "$domain_url"
 fi
