@@ -29,9 +29,8 @@
 ################################################################################
 
 
-# MySQL database configuration
-config_file="/usr/local/admin/db.cnf"
-mysql_database="panel"
+# DB
+source /usr/local/admin/scripts/db.sh
 
 get_all_domains() {
     
