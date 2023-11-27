@@ -41,15 +41,8 @@
 ################################################################################
 #!/bin/bash
 
-# MySQL database configuration
-config_file="/usr/local/admin/db.cnf"
-mysql_database="panel"
-
-# Check if the config file exists
-if [ ! -f "$config_file" ]; then
-    echo "Config file $config_file not found."
-    exit 1
-fi
+# DB
+source /usr/local/admin/scripts/db.sh
 
 # Function to insert values into the database
 insert_plan() {
