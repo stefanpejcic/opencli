@@ -28,28 +28,29 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if a command is provided
-if [ -z "$1" ]; then
-    echo "Usage: opencli <command>"
-    exit 1
+# Check if the correct number of arguments is provided
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <command>"
+  exit 1
 fi
 
-# Replace dashes with slashes
-COMMAND_WITH_SLASHES=$(echo "$1" | tr '-' '/')
+# Define the directory containing the binaries
+script_dir="/usr/local/admin/scripts"
 
-# Define the scripts directory
-SCRIPTS_DIR="/usr/local/admin/scripts"
+# Get the command from the argument
+command="$1"
 
-# Build the full path to the script
-# ovo za ne enkodirano samo SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES.sh"
-SCRIPT_PATH="$SCRIPTS_DIR/$COMMAND_WITH_SLASHES"
+# Replace '-' with '/' in the command
+binary_command="${command//-//}"
 
-# Check if the script exists
-if [ -e "$SCRIPT_PATH" ]; then
-    # Execute the script with the provided arguments
-    shift # remove the first argument (the script name)
-    ./"$SCRIPT_PATH" "$@"
+# Build the full path to the binary
+binary_path="$script_dir/$binary_command"
+
+# Check if the binary exists and is executable
+if [ -x "$binary_path" ]; then
+  # Execute the binary
+  "$binary_path"
 else
-    echo "Error: Command not found"
-    exit 1
+  echo "Error: Binary '$binary_command' not found or not executable in '$script_dir'"
+  exit 1
 fi
