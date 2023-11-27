@@ -29,27 +29,29 @@
 ################################################################################
 
 # Check if the correct number of arguments is provided
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <command>"
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 <binary_name> <additional_arguments>"
   exit 1
 fi
 
 # Define the directory containing the binaries
 script_dir="/usr/local/admin/scripts"
 
-# Get the command from the argument
-command="$1"
+# Get the binary name from the first argument
+binary_name="$1"
 
-# Replace '-' with '/' in the command
-binary_command="${command//-//}"
+# Replace '-' with '/' in the binary name
+binary_command="${binary_name//-//}"
 
 # Build the full path to the binary
 binary_path="$script_dir/$binary_command"
 
 # Check if the binary exists and is executable
 if [ -x "$binary_path" ]; then
-  # Execute the binary
-  "$binary_path"
+  # Shift to remove the binary name from the arguments
+  shift
+  # Execute the binary with additional arguments
+  "$binary_path" "$@"
 else
   echo "Error: Binary '$binary_command' not found or not executable in '$script_dir'"
   exit 1
