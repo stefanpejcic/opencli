@@ -29,8 +29,8 @@
 ################################################################################
 
 # Check if the correct number of arguments is provided
-if [ "$#" -lt 2 ]; then
-  echo "Usage: $0 <binary_name> <additional_arguments>"
+if [ "$#" -lt 1 ]; then
+  echo "Usage: $0 <binary_name> [additional_arguments]"
   exit 1
 fi
 
@@ -50,8 +50,13 @@ binary_path="$script_dir/$binary_command"
 if [ -x "$binary_path" ]; then
   # Shift to remove the binary name from the arguments
   shift
-  # Execute the binary with additional arguments
-  "$binary_path" "$@"
+
+  # Execute the binary with additional arguments if provided
+  if [ "$#" -gt 0 ]; then
+    "$binary_path" "$@"
+  else
+    "$binary_path"
+  fi
 else
   echo "Error: Binary '$binary_command' not found or not executable in '$script_dir'"
   exit 1
