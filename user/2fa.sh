@@ -59,7 +59,7 @@ fi
    # mysql_database="panel"
 
 #NOVO
-./db
+source ./usr/local/admin/scripts/db.sh
 #########################################################################
 
 # Get the username and optional action (disable)
