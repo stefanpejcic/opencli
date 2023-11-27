@@ -3,7 +3,7 @@
 # Script Name: ssl/domain.sh
 # Description: Create a new user with the provided plan_id.
 # Usage: opencli ssl-domain [-d] <domain_url>
-# Author: Radovan Jecmenica
+# Author: Radovan Ječmenica
 # Created: 27.11.2023
 # Last Modified: 27.11.2023
 # Company: openpanel.co
@@ -29,7 +29,6 @@
 ################################################################################
 
 #!/bin/bash
-
 # Function to print usage information
 print_usage() {
     echo "Usage: $0 [-d] <domain_url>"
@@ -38,6 +37,31 @@ print_usage() {
     echo "  <domain_url>   Domain URL for SSL operations"
 }
 
+get_server_ip() {
+    # Your command
+    domain_url=$1
+    result=$(opencli domains-whoowns $domain_url)
+
+    # Extracting the $username value using text manipulation
+    username=$(echo "$result" | awk -F"Owner of "\$domain": " '{print $2}')
+
+    # Print the result
+    echo "Username: $username"
+
+    current_username=$username
+    dedicated_ip_file_path="/usr/local/panel/core/users/${current_username}/ip.json"
+
+    if [ -e "$dedicated_ip_file_path" ]; then
+        # If the file exists, read the IP from it
+        ip=$(jq -r '.ip' "$dedicated_ip_file_path" 2>/dev/null)
+        echo "${ip:-Unknown}"
+    else
+        # Try to get the server's IP using the hostname -I command
+        output=$(hostname -I 2>/dev/null)
+        ips=($output)
+        echo "${ips[0]:-Unknown}"
+    fi
+}
 # Function to generate SSL
 generate_ssl() {
     domain_url=$1
@@ -55,7 +79,6 @@ generate_ssl() {
 # Function to modify Nginx configuration
 modify_nginx_conf() {
     domain_url=$1
-
     # Nginx configuration path
     nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
 
@@ -67,7 +90,7 @@ modify_nginx_conf() {
         #return 301 https://\$host\$request_uri;
     } #forceHTTPS
 
-    listen 185.119.90.240:443 ssl http2;
+    listen $server_ip:443 ssl http2;
     server_name $domain_url;
     ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
@@ -75,9 +98,12 @@ modify_nginx_conf() {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     "
 
-    # Use awk to append content after the specified line
-    awk -v content="$nginx_config_content" '/location \// {print; print content; next}1' "$nginx_conf_path" > temp_conf_file
-    mv temp_conf_file "$nginx_conf_path"
+    # Find the position of the last closing brace
+    last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
+
+    # Insert the Nginx configuration content before the last closing brace
+    awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
+    mv temp_file "$nginx_conf_path"
 
     echo "Nginx configuration modification completed successfully"
 }
@@ -111,9 +137,6 @@ delete_ssl() {
 
     # Run Certbot delete command
     "${delete_command[@]}"
-
-    # Add your logic for modifying Nginx configuration here
-    # ...
 
     echo "SSL deletion completed successfully"
 }
@@ -167,13 +190,14 @@ if [ -z "$domain_url" ]; then
     exit 1
 fi
 
+
+
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
 else
     # Generate SSL only if the check passed
-    # Check SSL validity before generation
     check_ssl_validity "$domain_url"
     generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
