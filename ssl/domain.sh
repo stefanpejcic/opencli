@@ -3,7 +3,7 @@
 # Script Name: ssl/domain.sh
 # Description: Create a new user with the provided plan_id.
 # Usage: opencli ssl-domain [-d] <domain_url>
-# Author: Radovan Ječmenica
+# Author: Radovan Jecmenica
 # Created: 27.11.2023
 # Last Modified: 27.11.2023
 # Company: openpanel.co
@@ -82,6 +82,23 @@ modify_nginx_conf() {
     echo "Nginx configuration modification completed successfully"
 }
 
+# Function to check if SSL is valid
+check_ssl_validity() {
+    domain_url=$1
+
+    echo "Checking SSL validity for domain: $domain_url"
+
+    # Certbot command to check SSL validity
+    certbot_check_command=("python3" "/usr/bin/certbot" "certificates" "--non-interactive" "--cert-name" "$domain_url")
+
+    # Run Certbot command to check SSL validity
+    if "${certbot_check_command[@]}" | grep -q "Expiry Date:.*VALID"; then
+        echo "SSL is valid. Exiting script."
+        exit 0
+    else
+        echo "SSL is not valid. Proceeding with SSL generation."
+    fi
+}
 
 # Function to delete SSL
 delete_ssl() {
@@ -150,11 +167,15 @@ if [ -z "$domain_url" ]; then
     exit 1
 fi
 
+# Check SSL validity before generation
+check_ssl_validity "$domain_url"
+
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
 else
-    generate_ssl "$domain_url"
+    # Generate SSL only if the check passed
+    generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
 fi
