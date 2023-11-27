@@ -1,39 +1,117 @@
 #!/bin/bash
+################################################################################
+# Script Name: user/domain.sh
+# Description: Create a new user with the provided plan_id.
+# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Author: Radovan Ječmenica
+# Created: 27.11.2023
+# Last Modified: 27.11.2023
+# Company: openpanel.co
+# Copyright (c) openpanel.co
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+################################################################################
 
+#!/bin/bash
 
-  TREBA NGINX EDIT CONF
+# Function to print usage information
+print_usage() {
+    echo "Usage: $0 [-d] <domain_url>"
+    echo "Options:"
+    echo "  -d     Delete SSL for the specified domain"
+    echo "  <domain_url>   Domain URL for SSL operations"
+}
 
-action=$1
-domain=$2
+# Function to generate SSL
+generate_ssl() {
+    domain_url=$1
 
-case $action in
-    "view")
-        if certbot certificates | grep -q $domain; then
-            echo "SSL keys for domain $domain:"
-            certbot certificates --domain $domain
-        else
-            echo "No SSL found for domain $domain."
-        fi
-        ;;
-    "generate")
-        certbot --nginx --non-interactive --domain $domain
-        ;;
-    "delete")
-        if [ "$3" == "-y" ]; then
-            confirmation="y"
-        else
-            read -p "Are you sure you want to delete SSL for domain $domain? (y/n): " confirmation
-        fi
+    echo "Generating SSL for domain: $domain_url"
+    
+    # Certbot command for SSL generation
+    certbot_command=("python3" "/usr/bin/certbot" "certonly" "--nginx" "--non-interactive" "--agree-tos" "-m" "webmaster@$domain_url" "-d" "$domain_url")
 
-        if [ "$confirmation" == "y" ]; then
-            certbot delete --cert-name $domain
-            echo "SSL for domain $domain deleted."
-        else
-            echo "SSL deletion for domain $domain cancelled."
-        fi
-        ;;
-    *)
-        echo "Invalid action. Please use 'view', 'generate', or 'delete'."
-        ;;
-esac
-  
+    # Run Certbot command
+    "${certbot_command[@]}"
+
+    # Add your logic for modifying Nginx configuration here
+    # ...
+
+    echo "SSL generation completed successfully"
+}
+
+# Function to delete SSL
+delete_ssl() {
+    domain_url=$1
+
+    echo "Deleting SSL for domain: $domain_url"
+
+    # Certbot delete command
+    delete_command=("python3" "/usr/bin/certbot" "delete" "--cert-name" "$domain_url" "--non-interactive")
+
+    # Run Certbot delete command
+    "${delete_command[@]}"
+
+    # Add your logic for modifying Nginx configuration here
+    # ...
+
+    echo "SSL deletion completed successfully"
+}
+
+# Main script
+
+# Check the number of arguments
+if [ "$#" -lt 1 ]; then
+    print_usage
+    exit 1
+fi
+
+# Parse options
+while getopts ":d" opt; do
+    case $opt in
+        d)
+            delete_flag=true
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG"
+            print_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Remove options from the argument list
+shift "$((OPTIND-1))"
+
+# Get the domain URL
+domain_url=$1
+
+# Check if domain URL is provided
+if [ -z "$domain_url" ]; then
+    echo "Error: Domain URL is missing"
+    print_usage
+    exit 1
+fi
+
+# Perform actions based on options
+if [ "$delete_flag" = true ]; then
+    delete_ssl "$domain_url"
+else
+    generate_ssl "$domain_url"
+fi
