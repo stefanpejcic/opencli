@@ -42,8 +42,12 @@ get_server_ip() {
     domain_url=$1
     result=$(opencli domains-whoowns $domain_url)
 
-    # Extracting the $username value using text manipulation
-    username=$(echo "$result" | awk -F"Owner of "\$domain": " '{print $2}')
+    if [[ $result == *"Owner of"* ]]; then
+        username=$(echo $result | awk '{print $NF}')
+    else
+        echo "rezultat: $result"
+        exit 1
+    fi
 
     # Print the result
     echo "Username: $username"
@@ -53,15 +57,15 @@ get_server_ip() {
 
     if [ -e "$dedicated_ip_file_path" ]; then
         # If the file exists, read the IP from it
-        ip=$(jq -r '.ip' "$dedicated_ip_file_path" 2>/dev/null)
-        echo "${ip:-Unknown}"
+        server_ip=$(jq -r '.ip' "$dedicated_ip_file_path" 2>/dev/null)
+        echo $server_ip
     else
         # Try to get the server's IP using the hostname -I command
-        output=$(hostname -I 2>/dev/null)
-        ips=($output)
-        echo "${ips[0]:-Unknown}"
+        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        echo $server_ip
     fi
 }
+
 # Function to generate SSL
 generate_ssl() {
     domain_url=$1
@@ -199,6 +203,7 @@ if [ "$delete_flag" = true ]; then
 else
     # Generate SSL only if the check passed
     check_ssl_validity "$domain_url"
+    get_server_ip "$domain_url"
     generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
 fi
