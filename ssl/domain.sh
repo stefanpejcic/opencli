@@ -167,15 +167,14 @@ if [ -z "$domain_url" ]; then
     exit 1
 fi
 
-# Check SSL validity before generation
-check_ssl_validity "$domain_url"
-
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
 else
     # Generate SSL only if the check passed
+    # Check SSL validity before generation
+    check_ssl_validity "$domain_url"
     generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
 fi
