@@ -80,6 +80,7 @@ for extension in "${extensions_to_install[@]}"; do
   else
     # Install the extension
     docker exec -it "$container_name" bash -c "apt-get update && apt-get install -y $extension"
+    wait $!
     echo "$extension has been installed in the Docker container '$container_name'."
   fi
 done
