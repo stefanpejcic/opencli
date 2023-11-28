@@ -78,8 +78,8 @@ if (docker exec "$username" apt-get update > /dev/null 2>&1 && \
     # Check if the background process was completed successfully
     if wait $!; then
         if [ "$show_content" = true ]; then
-            cat "$file_path"
             jq -r '.available_for_install[]' "$file_path"
+            cat "$file_path"
         else
             echo "PHP versions for user $username have been updated and stored in $file_path."
         fi
