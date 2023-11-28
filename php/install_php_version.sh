@@ -73,25 +73,48 @@ extensions_to_install=(
   php$php_version-memcached
 )
 
+
+echo "## Started installation for PHP version $php_version"
+
+# Check if each extension is already installed
+if docker exec "$container_name" dpkg -l | grep -q "ii  php$php_version-fpm"; then
+  echo "## ERROR: PHP $php_version is already installed."
+else
+  # Install the extension
+  docker exec "$container_name" bash -c "apt-get update && apt-get install -y $php_version"
+  wait $!
+  echo "## PHP version $php_version is now installed, setting recommended extensions.."
+fi
+
+
 # Check if each extension is already installed
 for extension in "${extensions_to_install[@]}"; do
   if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
-    echo "$extension is already installed in the Docker container '$container_name'."
+    echo "## $extension is already installed."
   else
     # Install the extension
     docker exec "$container_name" bash -c "apt-get update && apt-get install -y $extension"
     wait $!
-    echo "$extension has been installed in the Docker container '$container_name'."
+    echo "## PHP extension $extension is now successfully installed."
   fi
 done
 
- docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
+
+echo "## Setting default PHP limits:"
+
+docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
- docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
+echo "upload_max_filesize = 1024M"
+docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
  wait $!
- docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
+echo "max_input_time = -1"
+docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
  wait $!
- docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
+echo "post_max_size = 1024M"
+docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
- docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
+echo "max_execution_time = 600"
+docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
+
+echo "## PHP version $php_version is successfully installed."
 
