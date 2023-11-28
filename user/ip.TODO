@@ -5,7 +5,7 @@
 # Usage: opencli user-ip <USERNAME> <IP> [DELETE] [-y]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 23.11.2023
+# Last Modified: 28.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,35 +28,13 @@
 # THE SOFTWARE.
 ################################################################################
 
-# DB
-source /usr/local/admin/scripts/db.sh
-
 USERNAME=$1
 IP=$2
 CONFIRM_FLAG=$3
-
-
-# Function to execute MySQL queries
-execute_query() {
-    QUERY="$1"
-    mysql --defaults-extra-file="$CONFIG_FILE" --database="$MYSQL_DATABASE" --execute="$QUERY" --silent
-}
-
-# Function to get user ID by username
-get_user_id() {
-    USERNAME=$1
-    QUERY="SELECT id FROM users WHERE username = '$USERNAME';"
-    USER_ID=$(execute_query "$QUERY")
-    echo "$USER_ID"
-}
-
-
-# Function to list domains by user ID
-list_domains_by_user_id() {
-    USER_ID=$1
-    QUERY="SELECT domain_name FROM domains WHERE user_id = '$USER_ID';"
-    execute_query "$QUERY"
-}
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+ALL_DOMAINS=$(opencli domains-user $USERNAME)
+NGINX_CONF_PATH="/etc/nginx/sites-available/"
+JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
 
 # Check if username and IP are provided
 if [ -z "$USERNAME" ] || [ -z "$IP" ]; then
@@ -64,27 +42,35 @@ if [ -z "$USERNAME" ] || [ -z "$IP" ]; then
     exit 1
 fi
 
+update_nginx_conf() {
+    USERNAME=$1
+    IP=$2
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    NGINX_CONF_PATH="/etc/nginx/sites-available"
+    ALL_DOMAINS=$(opencli domains-user $USERNAME)
 
-# Path to JSON file
-JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
-
-# Check if the JSON file for the user exists
-if [ -e "$JSON_FILE" ]; then
-    # Check if the IP is already in use by another user
-    EXISTING_USER=$(grep -l "\"ip\": \"$IP\"" /usr/local/panel/core/users/*/ip.json | grep -v "$USERNAME" | awk -F'/' '{print $NF}')
-    
-    if [ -n "$EXISTING_USER" ]; then
-        if [ "$CONFIRM_FLAG" != "-y" ]; then
-            read -p "Warning: IP $IP is already in use by user $EXISTING_USER. Are you sure you want to use it? (y/n): " CONFIRM
-            if [ "$CONFIRM" != "y" ]; then
-                echo "Operation canceled."
-                exit 1
-            fi
-        fi
+    # Check if the JSON file for the user exists
+    if [ -e "$JSON_FILE" ]; then
+        IP_TO_CHANGE=$(jq -r '.ip' "$JSON_FILE")
+    else
+        IP_TO_CHANGE="$SERVER_IP"
     fi
-fi
 
+    # Loop through Nginx configuration files for the user
+    for domain in $ALL_DOMAINS; do
+        DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
+        if [ -f "$DOMAIN_CONF" ]; then
+            # Update the server IP using sed
+            sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
+            echo "Server IP updated for $DOMAIN_CONF to $IP_TO_CHANGE."
+        fi
+    done
+
+    # Restart Nginx to apply changes
+    systemctl restart nginx
+}
+# Call the function to update Nginx configuration
+update_nginx_conf "$USERNAME" "$IP"
 # Create or overwrite the JSON file
 echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
-
 echo "IP file created/updated for user $USERNAME with IP $IP."
