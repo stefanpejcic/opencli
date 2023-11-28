@@ -63,9 +63,17 @@ if ! mkdir -p "$directory"; then
 fi
 
 # Run the command to fetch PHP versions and store them in a JSON file
-if (docker exec "$username" apt-get update > /dev/null 2>&1 && \
-    docker exec "$username" bash -c "apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print \$1}' | grep -vFf <(dpkg -l | awk '/^ii/ {print \$2}')" | jq -R -s -c '.' > "$file_path") & then
-    
+
+if docker exec "$username" apt-get update > /dev/null 2>&1 && \
+    available_versions=$(docker exec "$username" bash -c "apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print \$1}' | grep -vFf <(dpkg -l | awk '/^ii/ {print \$2}')"
+    ); then
+
+    # Format the versions into JSON
+    json_data="{ \"available_for_install\": [ $(echo "$available_versions" | sed 's/^/\"/; s/$/\",/' | tr '\n' ' ' | sed 's/,$//') ] }"
+
+    # Save JSON data to the specified file
+    echo "$json_data" > "$file_path"
+
     # Display dots while the process is running
     while true; do
         echo -n "."
