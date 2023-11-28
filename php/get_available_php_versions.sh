@@ -69,10 +69,11 @@ if docker exec "$username" apt-get update > /dev/null 2>&1 && \
     ); then
 
     # Format the versions into JSON
-    json_data="{ \"available_for_install\": [ $(echo "$available_versions" | sed 's/^/\"/; s/$/\",/' | tr '\n' ' ' | sed 's/,$//') ] }"
+    json_data="{ \"available_for_install\": [ $(echo "$available_versions" | sed 's/^/\"/; s/$/\"/' | tr '\n' ',' | sed 's/,$//') ] }"
 
     # Save JSON data to the specified file
     echo "$json_data" > "$file_path"
+
 
     # Display dots while the process is running
     while true; do
