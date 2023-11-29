@@ -5,7 +5,7 @@
 # Usage: opencli user-ip <USERNAME> <IP> [DELETE] [-y]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 28.11.2023
+# Last Modified: 29.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,24 +29,77 @@
 ################################################################################
 
 USERNAME=$1
-IP=$2
+ACTION=$2
 CONFIRM_FLAG=$3
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 ALL_DOMAINS=$(opencli domains-user $USERNAME)
 NGINX_CONF_PATH="/etc/nginx/sites-available/"
 JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
 
-# Check if username and IP are provided
-if [ -z "$USERNAME" ] || [ -z "$IP" ]; then
-    echo "Usage: $0 <USERNAME> <IP> [ -y ]"
+# Check if username is provided
+if [ -z "$USERNAME" ]; then
+    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
     exit 1
 fi
+
+# Function to check if the IP is used by another user
+check_ip_usage() {
+    CHECK_IP=$1
+    ALL_USERS=$(ls /usr/local/panel/core/users)
+    for USER in $ALL_USERS; do
+        if [ "$USER" != "$USERNAME" ]; then
+            USER_JSON="/usr/local/panel/core/users/$USER/ip.json"
+            if [ -e "$USER_JSON" ]; then
+                USER_IP=$(jq -r '.ip' "$USER_JSON")
+                if [ "$USER_IP" = "$CHECK_IP" ]; then
+                    echo "Error: The IP address is already associated with user $USER."
+                    read -p "Are you sure you want to continue? (y/n): " CONFIRM
+                    if [ "$CONFIRM" != "y" ]; then
+                        echo "Script aborted."
+                        exit 1
+                    fi
+                fi
+            fi
+        fi
+    done
+}
+
+#Function to delete user's IP configuration
+delete_ip_config() {
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    if [ -e "$JSON_FILE" ]; then
+        rm -f "$JSON_FILE"
+        echo "IP configuration deleted for user $USERNAME."
+    else
+        echo "No IP configuration found for user $USERNAME."
+    fi
+}
+
+# Check if the action is 'delete'
+if [ "$ACTION" = "delete" ]; then
+    delete_ip_config
+    update_nginx_conf "$USERNAME" "$IP"
+    exit 0
+fi
+
+# If the action is not 'delete', continue with IP update
+IP=$2
+
+# Check if IP is provided
+if [ -z "$IP" ]; then
+    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
+    exit 1
+fi
+
+# Check if the IP is already used by another user
+check_ip_usage "$IP"
 
 update_nginx_conf() {
     USERNAME=$1
     IP=$2
     JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
     NGINX_CONF_PATH="/etc/nginx/sites-available"
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     ALL_DOMAINS=$(opencli domains-user $USERNAME)
 
     # Check if the JSON file for the user exists
@@ -67,10 +120,50 @@ update_nginx_conf() {
     done
 
     # Restart Nginx to apply changes
-    systemctl restart nginx
+    systemctl reload nginx
 }
-# Call the function to update Nginx configuration
-update_nginx_conf "$USERNAME" "$IP"
 # Create or overwrite the JSON file
-echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
-echo "IP file created/updated for user $USERNAME with IP $IP."
+create_ip_file() {
+    USERNAME=$1
+    IP=$2
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
+    echo "IP file created/updated for user $USERNAME with IP $IP."
+    exit 0
+}
+
+update_firewall_rules() {
+    USERNAME=$1
+    ACTION=$2
+    PORT=$3
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Delete existing rules for the specified user
+    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$0 ~ user {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | \
+    while read -r rule_number; do
+        ufw delete "$rule_number"
+    done
+
+    
+
+    if [ "$ACTION" = "delete" ]; then
+        ufw allow to $SERVER_IP port "$PORT" proto tcp comment "$USERNAME"
+    else
+        IP=$2 # Assuming the IP should be the second argument
+        ufw allow to "$IP" port "$PORT" proto tcp comment "$USERNAME"
+    fi
+}
+
+
+# For updating rules allowing traffic to a specific IP and port
+#update_firewall_rules_ip "$USERNAME" "$IP" "$PORT"
+
+# For updating rules allowing traffic to any IP on a specific port
+#update_firewall_rules_any "$USERNAME" "$PORT"
+
+
+
+# Call the function to update Nginx configuration
+create_ip_file "$IP"
+update_nginx_conf "$USERNAME" "$IP"
+
+
