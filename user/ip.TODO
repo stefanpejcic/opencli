@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/ip.sh
 # Description: Create a new user with the provided plan_id.
-# Usage: opencli user-ip <USERNAME> <IP> [DELETE] [-y]
+# Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
 # Last Modified: 29.11.2023
@@ -75,28 +75,9 @@ delete_ip_config() {
     fi
 }
 
-# Check if the action is 'delete'
-if [ "$ACTION" = "delete" ]; then
-    delete_ip_config
-    update_nginx_conf "$USERNAME" "$IP"
-    exit 0
-fi
-
-# If the action is not 'delete', continue with IP update
-IP=$2
-
-# Check if IP is provided
-if [ -z "$IP" ]; then
-    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
-    exit 1
-fi
-
-# Check if the IP is already used by another user
-check_ip_usage "$IP"
 
 update_nginx_conf() {
     USERNAME=$1
-    IP=$2
     JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
     NGINX_CONF_PATH="/etc/nginx/sites-available"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -129,41 +110,89 @@ create_ip_file() {
     JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
     echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
     echo "IP file created/updated for user $USERNAME with IP $IP."
-    exit 0
 }
 
 update_firewall_rules() {
     USERNAME=$1
-    ACTION=$2
-    PORT=$3
-    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     # Delete existing rules for the specified user
-    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$0 ~ user {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | \
+    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$0 ~ user {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn | \
     while read -r rule_number; do
-        ufw delete "$rule_number"
+        yes | ufw delete "$rule_number"
     done
 
-    
-
-    if [ "$ACTION" = "delete" ]; then
-        ufw allow to $SERVER_IP port "$PORT" proto tcp comment "$USERNAME"
-    else
-        IP=$2 # Assuming the IP should be the second argument
-        ufw allow to "$IP" port "$PORT" proto tcp comment "$USERNAME"
-    fi
 }
 
-
-# For updating rules allowing traffic to a specific IP and port
-#update_firewall_rules_ip "$USERNAME" "$IP" "$PORT"
-
-# For updating rules allowing traffic to any IP on a specific port
-#update_firewall_rules_any "$USERNAME" "$PORT"
-
-
-
+# Check if the action is 'delete'
+if [ "$ACTION" = "delete" ]; then
+    delete_ip_config
+    update_nginx_conf "$USERNAME" 
+    update_firewall_rules "$USERNAME"
+else
+# If the action is not 'delete', continue with IP update
+IP=$2
+# Check if IP is provided
+if [ -z "$IP" ]; then
+    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
+    exit 1
+fi
+# Check if the IP is already used by another user
+check_ip_usage "$IP"
 # Call the function to update Nginx configuration
-create_ip_file "$IP"
+create_ip_file "$USERNAME" "$IP"
 update_nginx_conf "$USERNAME" "$IP"
+update_firewall_rules "$USERNAME"
+fi
+
+
+extract_host_port() {
+    local port_number="$1"
+    local host_port
+    host_port=$(docker port "$USERNAME" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+    echo "$host_port"
+}
+
+# Define the list of container ports to check and open
+container_ports=("21" "22" "3306" "7681" "8080")
+
+# Variable to track whether any ports were opened
+ports_opened=0
+
+
+
+
+# Loop through the container_ports array and open the ports in UFW if not already open
+for port in "${container_ports[@]}"; do
+    host_port=$(extract_host_port "$port")
+
+    if [ -n "$host_port" ]; then
+        # Open the port in CSF
+        echo "Opening port ${host_port} for port ${port} in CSF"
+        #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+        #ufw allow ${host_port}/tcp  comment "${username}"
+
+            if [ "$ACTION" = "delete" ]; then
+                ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME"
+            else
+                IP=$2 # Assuming the IP should be the second argument
+                ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME"
+            fi
+
+        ports_opened=1
+    else
+        echo "Port ${port} not found in container"
+    fi
+done
+
+# Restart UFW if ports were opened
+if [ $ports_opened -eq 1 ]; then
+    echo "Restarting UFW"
+    ufw reload
+fi
+
+
+
+
+
+
 
 
