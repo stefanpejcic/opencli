@@ -137,11 +137,55 @@ update_firewall_rules() {
 
 }
 
+current_ip () {
+    USERNAME=$1
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Check if the JSON file for the user exists
+    if [ -e "$JSON_FILE" ]; then
+        CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
+        echo "$CURRENT_IP"
+    else
+        CURRENT_IP="$SERVER_IP"
+        echo "$CURRENT_IP"
+    fi
+}
+
+update_dns_zone_file() {
+    USERNAME=$1
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    ALL_DOMAINS=$(opencli domains-user $USERNAME)
+    ZONE_FILE="/etc/bind/zones"
+
+    # Check if the JSON file for the user exists
+    if [ -e "$JSON_FILE" ]; then
+        IP_TO_CHANGE=$(jq -r '.ip' "$JSON_FILE")
+    else
+        IP_TO_CHANGE="$SERVER_IP"
+    fi
+
+    # Loop through Nginx configuration files for the user
+    for domain in $ALL_DOMAINS; do
+        ZONE_CONF="$ZONE_FILE/$domain.zone"
+        if [ -f "$DOMAIN_CONF" ]; then
+            # Update the server IP using sed
+            sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"
+            echo "Server IP updated for $ZONE_CONF to $IP_TO_CHANGE."
+        fi
+    done
+}
+
+
+
+
 # Check if the action is 'delete'
 if [ "$ACTION" = "delete" ]; then
+    current_ip "$USERNAME" 
     delete_ip_config
     update_nginx_conf "$USERNAME" 
     update_firewall_rules "$USERNAME"
+    update_dns_zone_file "$USERNAME"
 else
 # If the action is not 'delete', continue with IP update
 IP=$2
@@ -151,12 +195,14 @@ if [ -z "$IP" ]; then
     exit 1
 fi
 # Check if the IP is already used by another user
+current_ip "$USERNAME" 
 check_ip_validity "$IP"
 check_ip_usage "$IP" "$CONFIRM_FLAG"
 # Call the function to update Nginx configuration
 create_ip_file "$USERNAME" "$IP"
 update_nginx_conf "$USERNAME" "$IP"
 update_firewall_rules "$USERNAME"
+update_dns_zone_file "$USERNAME"
 fi
 
 
