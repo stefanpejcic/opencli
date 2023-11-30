@@ -130,7 +130,7 @@ create_ip_file() {
 update_firewall_rules() {
     USERNAME=$1
     # Delete existing rules for the specified user
-    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$0 ~ user {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn | \
+    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
     while read -r rule_number; do
         yes | ufw delete "$rule_number"
     done
