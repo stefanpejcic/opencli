@@ -1,0 +1,74 @@
+#!/bin/bash
+################################################################################
+# Script Name: plans.sh
+# Description: Display all plans: id, name, description, limits..
+# Usage: opencli plan-list [--json]
+# Docs: https://docs.openpanel.co/docs/admin/scripts/plans#list-plans
+# Author: Stefan Pejcic
+# Created: 30.11.2023
+# Last Modified: 30.11.2023
+# Company: openpanel.co
+# Copyright (c) openpanel.co
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+################################################################################
+
+# Usage function
+print_usage() {
+    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name="${script_name//\//-}"  # Replace / with -
+    script_name="${script_name%.sh}"     # Remove the .sh extension
+    echo "Usage: opencli $script_name [--json]"
+    exit 1
+}
+
+# Command line argument handling
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --json)
+            json_output=true
+            shift
+            ;;
+        *)
+            print_usage
+            ;;
+    esac
+done
+
+# DB
+source /usr/local/admin/scripts/db.sh
+
+# Fetch all plan data from the plans table
+if [ "$json_output" ]; then
+    # For JSON output without --table option
+    plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT * FROM plans;" | tail -n +2)
+    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], domains_limit: .[3], websites_limit: .[4], disk_limit: .[5], inodes_limit: .[6], db_limit: .[7], cpu: .[8], ram: .[9], docker_image: .[10], bandwidcth: .[11]})')
+    echo "Plans:"
+    echo "$json_output"
+else
+    # For Terminal output with --table option
+    plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT * FROM plans;")
+    # Check if any data is retrieved
+    if [ -n "$plans_data" ]; then
+        # Display data in tabular format
+        echo "$plans_data"
+    else
+        echo "No plans."
+    fi
+fi
