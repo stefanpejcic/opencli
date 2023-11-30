@@ -52,11 +52,16 @@ check_ip_usage() {
             if [ -e "$USER_JSON" ]; then
                 USER_IP=$(jq -r '.ip' "$USER_JSON")
                 if [ "$USER_IP" = "$CHECK_IP" ]; then
+                    if [ "$CONFIRM_FLAG" != "-y" ]; then
                     echo "Error: The IP address is already associated with user $USER."
+
                     read -p "Are you sure you want to continue? (y/n): " CONFIRM
                     if [ "$CONFIRM" != "y" ]; then
                         echo "Script aborted."
                         exit 1
+                    fi
+                    else
+                    echo "The IP address is already associated with user $USER, but proceeding because of the -y flag."
                     fi
                 fi
             fi
@@ -136,7 +141,7 @@ if [ -z "$IP" ]; then
     exit 1
 fi
 # Check if the IP is already used by another user
-check_ip_usage "$IP"
+check_ip_usage "$IP" "$CONFIRM_FLAG"
 # Call the function to update Nginx configuration
 create_ip_file "$USERNAME" "$IP"
 update_nginx_conf "$USERNAME" "$IP"
