@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/ip.sh
-# Description: Create a new user with the provided plan_id.
+# Description: Assing or remove dedicated IP to a user.
 # Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 29.11.2023
+# Last Modified: 30.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
