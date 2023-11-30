@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: user/create_plan.sh
+# Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli user-create_plan name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# Usage: opencli plan-create plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # domains_limit= How many domains will the plan have (0 is unlimited).
@@ -13,11 +13,11 @@
 # cpu= number of cores limit
 # ram= Ram space limit in GB.
 # docker_image=can be either apache/nginx
-# bandwidth=bandwidth limit, expressed in mbit/s
-# Exsample: bash /usr/local/admin/scripts/users/create_plan.sh plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
+# bandwidth=port speed, expressed in mbit/s
+# Exsample: ./usr/local/admin/scripts/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 16.11.2023
+# Last Modified: 30.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
