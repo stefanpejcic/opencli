@@ -58,7 +58,7 @@ source /usr/local/admin/scripts/db.sh
 if [ "$json_output" ]; then
     # For JSON output without --table option
     plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT * FROM plans;" | tail -n +2)
-    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], domains_limit: .[3], websites_limit: .[4], disk_limit: .[5], inodes_limit: .[6], db_limit: .[7], cpu: .[8], ram: .[9], docker_image: .[10], bandwidcth: .[11]})')
+    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], domains_limit: .[3], websites_limit: .[4], disk_limit: .[5], inodes_limit: .[6], db_limit: .[7], cpu: .[8], ram: .[9], docker_image: .[10], bandwidth: .[11]})')
     echo "Plans:"
     echo "$json_output"
 else
