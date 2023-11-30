@@ -76,12 +76,17 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
         #### ZA HOSTNAME TREBA OVO INTEGRISATI
         #### https://github.com/moby/moby/issues/8902#issuecomment-241129543
         #################
+
+
+# ove treba za nginx 1 za apache 2 da se radi!!!
         
     # Execute commands inside the container
     docker exec "$old_username" \
         bash -c "usermod -l $new_username $old_username && \
+        sed -i 's#/home/$old_username#/home/$new_username#g' /etc/apache2/sites-available/* && \
         sed -i 's#/home/$old_username#/home/$new_username#g' /etc/nginx/sites-available/* && \
-        service nginx reload"
+        service nginx reload && \
+        service apache2 reload"
     
     docker rename "$old_username" "$new_username"
     # Rename the folder outside the container
@@ -93,6 +98,7 @@ else
 fi
 
 mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username"
+rm /usr/local/panel/core/users/$new_username/data.json
 
 server_shared_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 json_file="/usr/local/panel/core/users/$new_username/ip.json"
