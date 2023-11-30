@@ -41,7 +41,17 @@ if [ -z "$USERNAME" ]; then
     echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
     exit 1
 fi
+# Print only the allowed IP addresses
+ALLOWED_IP_ADDRESSES=$(hostname -I | tr ' ' '\n' | grep -v '^172\.' | tr '\n' ' '  )
 
+# Function to check if the IP is allowed
+check_ip_validity() {
+    CHECK_IP=$1
+    if ! echo "$ALLOWED_IP_ADDRESSES" | grep -q "$CHECK_IP"; then
+        echo "Error: The provided IP address is not allowed. It must be one of the addresses $ALLOWED_IP_ADDRESSES"
+        exit 1
+    fi
+}
 # Function to check if the IP is used by another user
 check_ip_usage() {
     CHECK_IP=$1
@@ -141,6 +151,7 @@ if [ -z "$IP" ]; then
     exit 1
 fi
 # Check if the IP is already used by another user
+check_ip_validity "$IP"
 check_ip_usage "$IP" "$CONFIRM_FLAG"
 # Call the function to update Nginx configuration
 create_ip_file "$USERNAME" "$IP"
