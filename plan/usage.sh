@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: usage.sh
 # Description: Display all users that are currently using the plan.
-# Usage: opencli plan-usage [--json]
+# Usage: opencli plan-usage <PLAN_NAME> [--json]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/plans#list-users-on-plan
 # Author: Stefan Pejcic
 # Created: 30.11.2023
