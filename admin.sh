@@ -112,6 +112,12 @@ update_password() {
 }
 
 
+
+list_current_users() {
+echo -e "${RED}Error${RESET}: not implemented."
+}
+
+
 delete_existing_users() {
     local username="$1"
     if grep -q "'$username': {'password':" "$logins_file_path"; then
@@ -168,6 +174,10 @@ case "$1" in
         new_username="$3"
         update_username "$old_username" "$new_username"
         echo "Changing username from $old_username to $new_username"
+        ;;
+    "list")
+        # List users
+        list_current_users
         ;;
     "new")
         # Add a new user
