@@ -52,16 +52,22 @@ add_new_user() {
     local username="$1"
     local password="$2"
 
-    # Remove the last line from the file
-    sed -i '$d' "$logins_file_path"
+    local user_exists=$(grep -c "'$username':" "$logins_file_path")
 
-    # Add the new user to the config file
-    echo "        '$username': {'password': '$password', 'roles': ['user']}," >> "$logins_file_path"
-
-    # Add the closing bracket '}' on a new line
-    echo "}" >> "$logins_file_path"
-
-    echo "User '$username' added to $logins_file_path"
+    if [ "$user_exists" -gt 0 ]; then
+        echo -e "${RED}Error${RESET}: Username '$username' already exists."
+    else
+        # Remove the last line from the file
+        sed -i '$d' "$logins_file_path"
+    
+        # Add the new user to the config file
+        echo "        '$username': {'password': '$password', 'roles': ['user']}," >> "$logins_file_path"
+    
+        # Add the closing bracket '}' on a new line
+        echo "}" >> "$logins_file_path"
+    
+        echo "User '$username' added to $logins_file_path"
+        fi
 }
 
 
@@ -106,16 +112,13 @@ update_password() {
 }
 
 
-# Function to delete the provided user from config.py file
 delete_existing_users() {
     local username="$1"
-
     if grep -q "'$username': {'password':" "$logins_file_path"; then
-        # Check if the line contains roles ': ['admin']
-        if grep -q "'$username': {'password':.*'roles': \['admin'\]," "$logins_file_path"; then
+
+        if grep -q "'$username': {'password': '.*', 'roles': \['admin'\]}," "$logins_file_path"; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
-            # Delete the entire line containing the specified user
             sed -i "/'$username': {'password'/d" "$logins_file_path"
             echo "User '$username' deleted successfully."
         fi
@@ -123,6 +126,9 @@ delete_existing_users() {
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
     fi
 }
+
+
+
 
 case "$1" in
     "on")
