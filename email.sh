@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/change_email.sh
 # Description: Change email for user
-# Usage: opencli user-change_email <USERNAME> <NEW_EMAIL>
+# Usage: opencli user-email <USERNAME> <NEW_EMAIL>
 # Docs: https://docs.openpanel.co/docs/admin/scripts/
 # Author: Radovan Jecmenica
 # Created: 06.12.2023
