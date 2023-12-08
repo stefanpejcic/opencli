@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 16.11.2023
+# Last Modified: 08.05.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -322,13 +322,11 @@ hashed_password=$(python3 -c "from werkzeug.security import generate_password_ha
 echo "Creating SSH user $username inside the docker container..."
 
 docker exec $username useradd -m -s /bin/bash -d /home/$username $username
-echo '$username:$password' | docker exec -i $username chpasswd
+echo '${username}:${password}' | docker exec -i $username chpasswd
 usermod -aG www-data $username
-chmod -R g+w  /home/$username
+chmod -R g+w /home/$username
 
 echo "SSH user $username created with password: $password"
-
-
 
 # Insert data into MySQL database
 mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
