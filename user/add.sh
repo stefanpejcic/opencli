@@ -322,7 +322,8 @@ hashed_password=$(python3 -c "from werkzeug.security import generate_password_ha
 echo "Creating SSH user $username inside the docker container..."
 
 docker exec $username useradd -m -s /bin/bash -d /home/$username $username
-echo '$username:$password' | docker exec -i $username chpasswd usermod -aG www-data $username
+echo '$username:$password' | docker exec -i $username chpasswd
+usermod -aG www-data $username
 chmod -R g+w  /home/$username
 
 echo "SSH user $username created with password: $password"
