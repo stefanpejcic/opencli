@@ -41,7 +41,7 @@ username="$1"
 password="$2"
 email="$3"
 plan_id="$4"
-
+hostname="srv.openpanel.co"
 
 #1. check for forbidden usernames
 forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data")
@@ -246,7 +246,7 @@ docker run --network $name -d --name $username -P --storage-opt size=${disk_limi
   -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
   -v /home/$username:/home/$username \
   --restart unless-stopped \
-  --hostname $username $docker_image
+  --hostname $hostname $docker_image
 
 
 # Check the status of the created container
@@ -308,8 +308,6 @@ if [ $ports_opened -eq 1 ]; then
 fi
 
 
-#Insert data into the database
-
 # Generate a random password if the second argument is "generate"
 if [ "$password" == "generate" ]; then
     password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
@@ -317,6 +315,19 @@ fi
 
 # Hash password
 hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+
+
+
+#Create ssh user inside the contianer
+echo "Creating SSH user $username inside the docker container..."
+
+docker exec $username useradd -m -s /bin/bash -d /home/$username $username
+echo '$username:$password' | docker exec -i $username chpasswd usermod -aG www-data $username
+chmod -R g+w  /home/$username
+
+echo "SSH user $username created with password: $password"
+
+
 
 # Insert data into MySQL database
 mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
