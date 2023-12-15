@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: domain/stats.sh
-# Description: Collects all stats for all domains
-# Usage: opencli domain-stats
+# Script Name: domains/stats.sh
+# Description: Parse nginx access logs for users domains and generate static html
+# Usage: opencli domains-stats
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 14.12.2023
+# Last Modified: 15.12.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,12 +29,18 @@
 ################################################################################
 
 
-usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+if [ -z "$1" ]; then
+    # If no username provided, process logs for all active users
+    usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+else
+    # If username provided, process logs only for that user
+    usernames=("$1")
+fi
 
-# Iterate through each username
-for username in $usernames; do
+# Iterate through users
+for username in "${usernames[@]}"; do
     echo "Processing user: $username"
-    
+
     # Get the domains for the current user
     domains=$(opencli domains-user "$username")
 
