@@ -51,7 +51,7 @@ for username in "${usernames[@]}"; do
         # Iterate through each domain and run goaccess command
         for domain in $domains; do
             log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/etc/nginx/stats/${username}/"
+            output_dir="/var/log/nginx/stats/${username}/"
             html_output="${output_dir}/${domain}.html"
 
             # Ensure the output directory exists
