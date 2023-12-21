@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/stats.sh
 # Description: Parse nginx access logs for users domains and generate static html
-# Usage: opencli domains-stats
+# Usage: opencli domains-stats <USERNAME>
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 15.12.2023
+# Last Modified: 21.12.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -51,7 +51,7 @@ for username in "${usernames[@]}"; do
         # Iterate through each domain and run goaccess command
         for domain in $domains; do
             log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/home/${username}/stats"
+            output_dir="/etc/nginx/stats/${username}/"
             html_output="${output_dir}/${domain}.html"
 
             # Ensure the output directory exists
