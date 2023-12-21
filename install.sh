@@ -35,6 +35,7 @@ cron_jobs=(
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "0 1 * * * opencli backup-create"
   "15 0 * * * opencli update"
+  "30 2 * * * opencli domain-stats"
   "@reboot opencli server-on_startup"
 )
 
