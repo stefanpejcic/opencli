@@ -38,7 +38,8 @@ else
 fi
 
 # Iterate through users
-for username in "${usernames[@]}"; do
+#for username in "${usernames[@]}"; do
+for username in $usernames; do
     echo "Processing user: $username"
 
     # Get the domains for the current user
