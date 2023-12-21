@@ -61,6 +61,9 @@ for username in $usernames; do
             # Run goaccess command
             goaccess "$log_file" -a -o "$html_output"
 
+            # Replace "Dashboard" with the domain name in the HTML file
+            sed -i "s/Dashboard/$domain/g" "$html_output"
+
             echo "Processed domain $domain for user $username"
         done
     fi
