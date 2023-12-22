@@ -93,4 +93,4 @@ sudo nginx -s reload
 
 
 sudo mv coreruleset-3.3.5 /usr/local
-sudo cp /usr/local/coreruleset-3.3.2/crs-setup.conf.example /usr/local/coreruleset-3.3.5/crs-setup.conf
+sudo cp /usr/local/coreruleset-3.3.5/crs-setup.conf.example /usr/local/coreruleset-3.3.5/crs-setup.conf
