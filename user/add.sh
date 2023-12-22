@@ -359,3 +359,4 @@ mkdir -p /usr/local/panel/core/stats/$username
 mkdir -p /usr/local/panel/core/users/$username
 echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
 echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+opencli php-get_available_php_versions $username
