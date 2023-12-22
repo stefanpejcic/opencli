@@ -79,7 +79,7 @@ if docker exec "$username" apt-get update > /dev/null 2>&1 && \
     while true; do
         echo -n "."
         sleep 1
-        if ! ps -p $! > /dev/null; then
+        if ! kill -0 "$!" 2>/dev/null; then
             break
         fi
     done
