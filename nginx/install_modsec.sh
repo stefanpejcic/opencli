@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# https://www.faqforge.com/linux/fixed-ubuntu-apt-get-upgrade-auto-restart-services/
+sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/g' /etc/needrestart/needrestart.conf
+
 sudo apt-get update
 sudo apt-get install g++ flex bison curl doxygen libyajl-dev libgeoip-dev libtool dh-autoreconf libcurl4-gnutls-dev libxml2 libpcre++-dev libxml2-dev make -y
 
@@ -88,6 +91,8 @@ echo "Include /etc/nginx/modsec/modsecurity.conf" | sudo tee -a /etc/nginx/modse
 echo "Include /usr/local/coreruleset-3.3.5/crs-setup.conf" | sudo tee -a /etc/nginx/modsec/main.conf
 echo "Include /usr/local/coreruleset-3.3.5/rules/*.conf" | sudo tee -a /etc/nginx/modsec/main.conf
 
+# https://www.faqforge.com/linux/fixed-ubuntu-apt-get-upgrade-auto-restart-services/
+sed -i 's/$nrconf{restart} = '"'"'a'"'"';/#$nrconf{restart} = '"'"'i'"'"';/g' /etc/needrestart/needrestart.conf
 
 sudo nginx -s reload
 
