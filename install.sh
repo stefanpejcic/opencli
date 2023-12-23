@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Define your cron job entries
+# Cron job entries
 cron_jobs=(
   "0 * * * * opencli docker-collect_stats"
   "* 2 * * * opencli docker-usage_stats_cleanup"
@@ -53,20 +53,20 @@ crontab "$cron_temp_file"
 # Remove the temporary file
 rm "$cron_temp_file"
 
-# aliases
+# set aliases
 ln -s /usr/local/admin/scripts/version /usr/local/admin/scripts/v
 
-# Make all bash scripts in this directory executable for our user and root only
-#find /usr/local/admin/scripts -type f -name "*.sh" -exec chmod 700 {} \;
+# Make all bash scripts in this directory executable for root only
 chown root:root /usr/local/admin/scripts/*
 
+# Only opencli binary is added to path and is used to call all other scripts
 cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
 # Generate a list of commands for the opencli
 opencli commands
 
-# Set autocomplete for the opencli command
+# Set autocomplete for all available opencli commands
 echo "# opencli aliases
 ALIASES_FILE=\"/usr/local/admin/scripts/aliases.txt\"
 generate_autocomplete() {
