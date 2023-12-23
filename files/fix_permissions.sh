@@ -5,7 +5,7 @@
 # Usage: opencli files-fix_permissions [--all]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 23.12.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -34,7 +34,7 @@ apply_permissions_in_container() {
   
   # Check if the container exists
   if docker inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
-    docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chown $container_name:$container_name {} \; && find /home/$container_name -type f \( -name '*.php' -o -name '*.cgi' -o -name '*.pl' \) -exec chmod 755 {} \; && find /home/$container_name -type f -name '*.log' -exec chmod 640 {} \; && find /home/$container_name -type d -exec chown $container_name:$container_name {} \; && find /home/$container_name -type d -exec chmod 755 {} \;"
+    docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chown $container_name:www-data {} \; && find /home/$container_name -type f \( -name '*.php' -o -name '*.cgi' -o -name '*.pl' \) -exec chmod 755 {} \; && find /home/$container_name -type f -name '*.log' -exec chmod 640 {} \; && find /home/$container_name -type d -exec chown $container_name:www-data {} \; && find /home/$container_name -type d -exec chmod 755 {} \;"
   else
     echo "Container $container_name not found or is not running."
   fi
