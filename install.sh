@@ -63,5 +63,15 @@ chown root:root /usr/local/admin/scripts/*
 cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
-# Generate a list of commands for the admin panel
-#bash /usr/local/admin/scripts/commands.sh
+# Generate a list of commands for the opencli
+opencli commands
+
+# Set autocomplete for the opencli command
+echo "# opencli aliases
+ALIASES_FILE=\"/usr/local/admin/scripts/aliases.txt\"
+generate_autocomplete() {
+    awk '{print \$NF}' \"\$ALIASES_FILE\"
+}
+complete -W \"\$(generate_autocomplete)\" opencli" >> ~/.bashrc
+
+source ~/.bashrc
