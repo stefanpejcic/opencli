@@ -37,15 +37,24 @@ apply_permissions_in_container() {
   if docker inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
     if [ -n "$path" ]; then
       # Apply changes only to the specified path within the container
-      docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chown $container_name:www-data {} \; && find $path -type f \( -name '*.php' -o -name '*.cgi' -o -name '*.pl' \) -exec chmod 755 {} \; && find $path -type f -name '*.log' -exec chmod 640 {} \; && find $path -type d -exec chown $container_name:www-data {} \; && find $path -type d -exec chmod 755 {} \;"
+      if docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chmod 644 {} \;"; then
+        echo "Permissions applied successfully."
+      else
+        echo "Error applying permissions to $path."
+      fi
     else
       # Apply changes to the entire home directory within the container
-      docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chown $container_name:www-data {} \; && find /home/$container_name -type f \( -name '*.php' -o -name '*.cgi' -o -name '*.pl' \) -exec chmod 755 {} \; && find /home/$container_name -type f -name '*.log' -exec chmod 640 {} \; && find /home/$container_name -type d -exec chown $container_name:www-data {} \; && find /home/$container_name -type d -exec chmod 755 {} \;"
+      if docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chmod 644 {} \;"; then
+        echo "Permissions applied successfully."
+      else
+        echo "Error applying permissions to /home/$container_name."
+      fi
     fi
   else
     echo "Container $container_name not found or is not running."
   fi
 }
+
 
 # Check if the --all flag is provided
 if [ "$1" == "--all" ]; then
