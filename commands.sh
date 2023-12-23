@@ -86,7 +86,7 @@ find "$SCRIPTS_DIR" -type f -executable ! -name "opencli.sh" ! -name "commands_O
 	#echo ""
 
 	# Add the alias and description to the alias file
-	echo "command: $full_alias | description: $description" >> "$ALIAS_FILE"
+	echo "$full_alias" >> "$ALIAS_FILE"
     fi
 done
 
