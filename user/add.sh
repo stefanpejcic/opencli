@@ -358,7 +358,7 @@ fi
 mkdir -p /usr/local/panel/core/stats/$username
 mkdir -p /usr/local/panel/core/users/$username
 mkdir -p /usr/local/panel/core/users/$username/domains
-touch /usr/local/panel/core/users/$username}/elastic.lock #elasticsearch is not installed
+touch /usr/local/panel/core/users/$username/elastic.lock #elasticsearch is not installed
 echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
 echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
 opencli php-get_available_php_versions $username
