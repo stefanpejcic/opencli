@@ -44,13 +44,33 @@ fi
 USERNAME="$1"
 PORT="$2"
 
+
+
+
+source /usr/local/admin/scripts/db.sh
+ports_in_use=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT DISTINCT s.site_name, s.ports
+FROM sites s
+JOIN domains d ON s.domain_id = d.domain_id
+JOIN users u ON d.user_id = u.id
+WHERE u.username = '$USERNAME' AND s.ports = $PORT;")
+
 # Use `docker exec` to run the lsof command inside the existing container
 #docker exec "$USERNAME" apt-get install lsof -qq -y
+docker exec filip bash -c "command -v lsof"
+  if [ "$?" -eq 1 ]; then
+    docker exec "$USERNAME" apt-get install lsof -qq -y
+  fi
+
 docker exec "$USERNAME" lsof -i :"$PORT"
+
 
 # Check the exit code to determine if the port is in use or not
 if [ "$?" -eq 0 ]; then
   echo "Port $PORT is in use in the container $USERNAME."
 else
-  echo "Port $PORT is not in use in the container $USERNAME."
+  if echo "$ports_in_use" | grep -q "\<$PORT\>"; then
+     echo "Port $PORT is in use in the container $USERNAME."
+  else 
+    echo "Port $PORT is not in use in the container $USERNAME."
+  fi
 fi
