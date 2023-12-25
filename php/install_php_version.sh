@@ -86,6 +86,22 @@ else
   echo "## PHP version $php_version is now installed, setting default PHP limits.."
 fi
 
+
+echo "## Setting recommended extensions.."
+
+# Check if each extension is already installed
+for extension in "${extensions_to_install[@]}"; do
+  if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
+    echo "## $extension is already installed."
+  else
+    # Install the extension
+    docker exec "$container_name" bash -c "apt-get update && apt-get install -y $extension"
+    wait $!
+    echo "## PHP extension $extension is now successfully installed."
+  fi
+done
+
+
 docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
 docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
@@ -102,18 +118,5 @@ docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_si
 echo "max_execution_time = 600"
 docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
 
-echo "## Setting recommended extensions.."
-
-# Check if each extension is already installed
-for extension in "${extensions_to_install[@]}"; do
-  if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
-    echo "## $extension is already installed."
-  else
-    # Install the extension
-    docker exec "$container_name" bash -c "apt-get update && apt-get install -y $extension"
-    wait $!
-    echo "## PHP extension $extension is now successfully installed."
-  fi
-done
 
 echo "## PHP version $php_version is successfully installed."
