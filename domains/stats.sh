@@ -37,12 +37,41 @@ else
     usernames=("$1")
 fi
 
+
 # Iterate through users
-#for username in "${usernames[@]}"; do
 for username in $usernames; do
     echo "Processing user: $username"
 
-    # Get the domains for the current user
+    # Check if the excluded IPs file exists for the current user
+    excluded_ips_file="/usr/local/panel/core/users/$username/domains/excluded_ips_for_goaccess"
+    
+    if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
+        echo "Excluded IPs file found for user $username"
+        excluded_ips=$(cat "$excluded_ips_file")
+
+        # Get the domains for the current user
+        domains=$(opencli domains-user "$username")
+
+        for domain in $domains; do
+            log_file="/var/log/nginx/domlogs/${domain}.log"
+            output_dir="/var/log/nginx/stats/${username}/"
+            html_output="${output_dir}/${domain}.html"
+
+            # Ensure the output directory exists
+            mkdir -p "$output_dir"
+
+            # Run goaccess command with exclusion flags
+            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips"
+
+            # Replace "Dashboard" with the domain name in the HTML file
+            sed -i "s/Dashboard/$domain/g" "$html_output"
+
+            echo "Processed domain $domain for user $username with IP exclusions"
+        done
+    else
+        echo "No excluded IPs file found for user $username. Proceeding without IP exclusions."
+
+            # Get the domains for the current user
     domains=$(opencli domains-user "$username")
 
     # Check if the result contains "No domains found for user '$username'"
