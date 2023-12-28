@@ -5,7 +5,7 @@
 # Usage: opencli domains-stats <USERNAME>
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 21.12.2023
+# Last Modified: 28.12.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -71,15 +71,15 @@ for username in $usernames; do
     else
         echo "No excluded IPs file found for user $username. Proceeding without IP exclusions."
 
-            # Get the domains for the current user
-    domains=$(opencli domains-user "$username")
+        # Get the domains for the current user
+        domains=$(opencli domains-user "$username")
 
-    # Check if the result contains "No domains found for user '$username'"
-    if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
-        echo "No domains found for user $username. Skipping."
-    else
-        # Iterate through each domain and run goaccess command
-        for domain in $domains; do
+        # Check if the result contains "No domains found for user '$username'"
+        if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
+            echo "No domains found for user $username. Skipping."
+        else
+            # Iterate through each domain and run goaccess command
+            for domain in $domains; do
             log_file="/var/log/nginx/domlogs/${domain}.log"
             output_dir="/var/log/nginx/stats/${username}/"
             html_output="${output_dir}/${domain}.html"
@@ -94,6 +94,7 @@ for username in $usernames; do
             sed -i "s/Dashboard/$domain/g" "$html_output"
 
             echo "Processed domain $domain for user $username"
-        done
+            done
+        fi
     fi
 done
