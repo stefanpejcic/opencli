@@ -29,11 +29,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-if [ "$#" -ne 4 ]; then
+if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
     script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username> <password|generate> <email> <plan_id>"
+    echo "Usage: opencli $script_name <username> <password|generate> <email> <plan_id> [--debug]"
     exit 1
 fi
 
@@ -41,7 +41,32 @@ username="$1"
 password="$2"
 email="$3"
 plan_id="$4"
-hostname="srv.openpanel.co"
+DEBUG=false  # Default value for DEBUG
+hostname=$(hostname) # Get the hostname dynamically
+
+
+
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
+
+
+
+
+
+
+
+
+
+
 
 #1. check for forbidden usernames
 forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data")
@@ -155,28 +180,33 @@ fi
 
 docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 
-echo "DOCKER_IMAGE: $docker_image"
-echo "DISK: $disk_limit"
-echo "CPU: $cpu"
-echo "RAM: $ram"
-echo "RAM: $ram"
-echo "RAM: $ram"
-echo "INODES: $inodes"
-echo "BANDWIDTH: $bandwidth"
-echo "NAME: $name"
-#echo "RAM Soft Limit: $ram_soft_limit MB"
+# Check if DEBUG is true before printing debug messages
+if [ "$DEBUG" = true ]; then
+    echo "DOCKER_IMAGE: $docker_image"
+    echo "DISK: $disk_limit"
+    echo "CPU: $cpu"
+    echo "RAM: $ram"
+    echo "INODES: $inodes"
+    echo "BANDWIDTH: $bandwidth"
+    echo "NAME: $name"
+    #echo "RAM Soft Limit: $ram_soft_limit MB"
+fi
 
-
-
-# Check if the Docker image exists locally
-if docker images -q "$docker_image" 2>/dev/null; then
+# Check if the Docker image exists locally, if not we can not create a user on that plan..
+if [ "$DEBUG" = true ] && docker images -q "$docker_image" > /dev/null 2>&1; then
+    # Docker image exists locally, and debug is true
     echo "Docker image '$docker_image' exists locally."
+elif [ "$DEBUG" != true ] && docker images -q "$docker_image" > /dev/null 2>&1; then
+    # Docker image exists locally, but DEBUG is not true so dont print anything
+    :
 else
+    # Docker image does not exist locally and debug is true, we print error
     echo "Docker image '$docker_image' does not exist locally."
     exit 1
 fi
 
-# Run a docker container for the user with those limits
+
+# Run a docker container for the user with plan limits
 
 # Create a directory with the user's username under /home/
 mkdir /home/$username
@@ -220,10 +250,15 @@ create_docker_network() {
   fi
 }
 
-# Check if the Docker network exists
-if docker network inspect "$name" >/dev/null 2>&1; then
+# Check if DEBUG is true and the Docker network exists
+if [ "$DEBUG" = true ] && docker network inspect "$name" >/dev/null 2>&1; then
+    # Docker network exists, DEBUG is true so show message
     echo "Docker network '$name' already exists."
+elif [ "$DEBUG" != true ] && docker network inspect "$name" >/dev/null 2>&1; then
+    # Docker network exists, but DEBUG is not true so we dont show anything
+    :
 else
+    # Docker network does not exist, we need to create it..
     echo "Docker network '$name' does not exist. Creating..."
     create_docker_network "$name" "$bandwidth"
 fi
@@ -241,12 +276,26 @@ else
 fi
 
 # then create a container
-docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
-  -v /home/$username/var/crons:/var/spool/cron/crontabs \
-  -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-  -v /home/$username:/home/$username \
-  --restart unless-stopped \
-  --hostname $hostname $docker_image
+
+
+
+# Create the docker container
+if [ "$DEBUG" = true ]; then
+    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+      -v /home/$username/var/crons:/var/spool/cron/crontabs \
+      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+      -v /home/$username:/home/$username \
+      --restart unless-stopped \
+      --hostname $hostname $docker_image
+else
+    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+      -v /home/$username/var/crons:/var/spool/cron/crontabs \
+      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+      -v /home/$username:/home/$username \
+      --restart unless-stopped \
+      --hostname $hostname $docker_image > /dev/null 2>&1
+fi
+
 
 
 # Check the status of the created container
@@ -266,9 +315,12 @@ fi
 
 ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
 
-echo "IP ADDRESS: $ip_address"
 
 
+# Check if DEBUG is true before printing private ip
+if [ "$DEBUG" = true ]; then
+    echo "IP ADDRESS: $ip_address"
+fi
 
 # Open ports on firewall
 
@@ -290,23 +342,36 @@ ports_opened=0
 for port in "${container_ports[@]}"; do
     host_port=$(extract_host_port "$port")
 
-    if [ -n "$host_port" ]; then
-        # Open the port in CSF
-        echo "Opening port ${host_port} for port ${port} in CSF"
-        #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-        ufw allow ${host_port}/tcp  comment "${username}"
-        ports_opened=1
+    if [ "$DEBUG" = true ]; then
+        if [ -n "$host_port" ]; then
+            # Debug mode: Print debug message
+            echo "Opening port ${host_port} for port ${port} in UFW"
+            # Open the port in UFW for debug mode (without redirecting output to /dev/null)
+            ufw allow ${host_port}/tcp  comment "${username}"
+        else
+            # Debug mode: Print debug message
+            echo "Port ${port} not found in container ${container_name}"
+        fi
     else
-        echo "Port ${port} not found in container ${container_name}"
+        if [ -n "$host_port" ]; then
+            # Open the port in UFW (redirect all output to /dev/null)
+            ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
+            ports_opened=1
+        fi
     fi
 done
 
 # Restart UFW if ports were opened
 if [ $ports_opened -eq 1 ]; then
-    echo "Restarting UFW"
-    ufw reload
+    if [ "$DEBUG" = true ]; then
+        # Debug mode: Print debug message
+        echo "Restarting UFW"
+        ufw reload
+    else
+        # Not in debug mode: Reload UFW with output redirection to /dev/null
+        ufw reload >/dev/null 2>&1
+    fi
 fi
-
 
 # Generate a random password if the second argument is "generate"
 if [ "$password" == "generate" ]; then
@@ -316,18 +381,54 @@ fi
 # Hash password
 hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
 
+if [ "$DEBUG" = true ]; then
+  echo "Creating SSH user $username inside the docker container..."
+  docker exec $username useradd -m -s /bin/bash -d /home/$username $username
+  echo "$username:$password" | docker exec -i "$username" chpasswd
+  usermod -aG www-data $username
+  chmod -R g+w /home/$username
+  echo "SSH user $username created with password: $password"
+else
+  docker exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
+  echo "$username:$password" | docker exec -i "$username" chpasswd > /dev/null 2>&1
+  usermod -aG www-data $username > /dev/null 2>&1
+  chmod -R g+w /home/$username > /dev/null 2>&1
+fi
+
+# Define the path to the main configuration file
+config_file="/usr/local/panel/conf/panel.config"
+
+# Use grep and awk to extract the value of default_php_version
+default_php_version=$(grep -E "^default_php_version=" "$config_file" | awk -F= '{print $2}')
+
+# Check if default_php_version is empty (in case the panel.config file doesn't exist)
+if [ -z "$default_php_version" ]; then
+  if [ "$DEBUG" = true ]; then
+    echo "Default PHP version not found in $config_file using the fallback default version.."
+  fi
+  default_php_version="php8.2"
+fi
+
+# Create files and folders needed for the user account
+if [ "$DEBUG" = true ]; then
+    mkdir -p /usr/local/panel/core/stats/$username
+    mkdir -p /usr/local/panel/core/users/$username
+    mkdir -p /usr/local/panel/core/users/$username/domains
+    touch /usr/local/panel/core/users/$username/elastic.lock #elasticsearch is not installed
+    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
+    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+    opencli php-get_available_php_versions $username
+else
+    mkdir -p /usr/local/panel/core/stats/$username  > /dev/null 2>&1
+    mkdir -p /usr/local/panel/core/users/$username  > /dev/null 2>&1
+    mkdir -p /usr/local/panel/core/users/$username/domains  > /dev/null 2>&1
+    touch /usr/local/panel/core/users/$username/elastic.lock  > /dev/null 2>&1 #elasticsearch is not installed
+    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
+    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+    opencli php-get_available_php_versions $username  > /dev/null 2>&1
+fi
 
 
-#Create ssh user inside the container
-echo "Creating SSH user $username inside the docker container..."
-
-docker exec $username useradd -m -s /bin/bash -d /home/$username $username
-echo "$username:$password" | docker exec -i "$username" chpasswd
-
-usermod -aG www-data $username
-chmod -R g+w /home/$username
-
-echo "SSH user $username created with password: $password"
 
 # Insert data into MySQL database
 mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
@@ -340,25 +441,3 @@ else
     echo "Error: Data insertion failed."
     exit 1
 fi
-
-
-# Define the path to the main configuration file
-config_file="/usr/local/panel/conf/panel.config"
-
-# Use grep and awk to extract the value of default_php_version
-default_php_version=$(grep -E "^default_php_version=" "$config_file" | awk -F= '{print $2}')
-
-# Check if default_php_version is empty (in case the configuration line doesn't exist)
-if [ -z "$default_php_version" ]; then
-  echo "Default PHP version not found in $config_file using the fallback default version.."
-  default_php_version="php8.2"
-fi
-
-
-mkdir -p /usr/local/panel/core/stats/$username
-mkdir -p /usr/local/panel/core/users/$username
-mkdir -p /usr/local/panel/core/users/$username/domains
-touch /usr/local/panel/core/users/$username/elastic.lock #elasticsearch is not installed
-echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
-echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
-opencli php-get_available_php_versions $username
