@@ -126,6 +126,7 @@ BRISU SE>
   --network-alias "7bcd7327c9b8" \ \
 
 SED U  --network "cloud_4_nginx" \ \
+SED U   --hostname "server2.openpanel.co" \ \
 
 
   
