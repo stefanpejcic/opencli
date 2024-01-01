@@ -5,7 +5,7 @@
 # Usage: opencli user-unsuspend <USERNAME>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 01.01.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,7 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the correct number of command-line arguments is provided
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <username>"
     exit 1
@@ -37,15 +36,13 @@ fi
 # Get username from command-line argument
 username="$1"
 
-
 # DB
 source /usr/local/admin/scripts/db.sh
-
 
 # Function to unpause (unsuspend) a user
 unpause_user() {
     # Query the database to get the suspended username
-    suspended_username=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -s -N -e "SELECT username FROM users WHERE username LIKE 'SUSPENDED_%stefan';")
+    suspended_username=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -s -N -e "SELECT username FROM users WHERE username LIKE 'SUSPENDED\_%$username';")
 
     if [ -n "$suspended_username" ]; then
         # Remove the suspended timestamp prefix from the username
@@ -56,7 +53,7 @@ unpause_user() {
 
         # Update the username in the database without the suspended prefix
         mysql_query="UPDATE users SET username='$unsuspended_username' WHERE username='$suspended_username';"
-    
+
         mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
         if [ $? -eq 0 ]; then
@@ -71,5 +68,3 @@ unpause_user() {
 
 # Unpause (unsuspend) the user
 unpause_user
-
-echo "Script completed"
