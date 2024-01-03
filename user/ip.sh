@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/ip.sh
 # Description: Assing or remove dedicated IP to a user.
-# Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y]
+# Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y] [--debug]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 30.11.2023
+# Last Modified: 03.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -35,14 +35,27 @@ SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 ALL_DOMAINS=$(opencli domains-user $USERNAME)
 NGINX_CONF_PATH="/etc/nginx/sites-available/"
 JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+DEBUG=false  # Default value for DEBUG
+
+# Check if DEBUG flag is set
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
 
 # Check if username is provided
 if [ -z "$USERNAME" ]; then
-    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
+    echo "Usage: $0 <USERNAME> <ACTION> [ -y ] [--debug]"
     exit 1
 fi
 # Print only the allowed IP addresses
 ALLOWED_IP_ADDRESSES=$(hostname -I | tr ' ' '\n' | grep -v '^172\.' | tr '\n' ' '  )
+
 
 # Function to check if the IP is allowed
 check_ip_validity() {
@@ -63,15 +76,13 @@ check_ip_usage() {
                 USER_IP=$(jq -r '.ip' "$USER_JSON")
                 if [ "$USER_IP" = "$CHECK_IP" ]; then
                     if [ "$CONFIRM_FLAG" != "-y" ]; then
-                    echo "Error: The IP address is already associated with user $USER."
+                        echo "Error: The IP address is already associated with user $USER."
 
-                    read -p "Are you sure you want to continue? (y/n): " CONFIRM
-                    if [ "$CONFIRM" != "y" ]; then
-                        echo "Script aborted."
-                        exit 1
-                    fi
-                    else
-                    echo "The IP address is already associated with user $USER, but proceeding because of the -y flag."
+                        read -p "Are you sure you want to continue? (y/n): " CONFIRM
+                        if [ "$CONFIRM" != "y" ]; then
+                            echo "Script aborted."
+                            exit 1
+                        fi
                     fi
                 fi
             fi
@@ -106,34 +117,56 @@ update_nginx_conf() {
     fi
 
     # Loop through Nginx configuration files for the user
-    for domain in $ALL_DOMAINS; do
-        DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
-        if [ -f "$DOMAIN_CONF" ]; then
-            # Update the server IP using sed
-            sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
-            echo "Server IP updated for $DOMAIN_CONF to $IP_TO_CHANGE."
-        fi
-    done
+    if [ "$DEBUG" = true ]; then
+        for domain in $ALL_DOMAINS; do
+            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
+            if [ -f "$DOMAIN_CONF" ]; then
+                # Update the server IP using sed
+                sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
+                echo "Server IP updated for $DOMAIN_CONF to $IP_TO_CHANGE."
+            fi
+        done
+    else
+        for domain in $ALL_DOMAINS; do
+            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
+            if [ -f "$DOMAIN_CONF" ]; then
+                # Update the server IP using sed
+                sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
+            fi
+        done
+    fi
+    
 
     # Restart Nginx to apply changes
     systemctl reload nginx
 }
+
 # Create or overwrite the JSON file
 create_ip_file() {
     USERNAME=$1
     IP=$2
     JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
     echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
-    echo "IP file created/updated for user $USERNAME with IP $IP."
+    if [ "$DEBUG" = true ]; then
+        echo "IP file created/updated for user $USERNAME with IP $IP."
+    fi
 }
 
 update_firewall_rules() {
     USERNAME=$1
     # Delete existing rules for the specified user
-    ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
-    while read -r rule_number; do
-        yes | ufw delete "$rule_number"
-    done
+    if [ "$DEBUG" = true ];then
+        ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
+        while read -r rule_number; do
+            yes | ufw delete "$rule_number"
+        done
+    else
+        ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
+        while read -r rule_number; do
+            yes | ufw delete "$rule_number"  >/dev/null 2>&1
+        done
+    fi
+
 
 }
 
@@ -142,12 +175,20 @@ current_ip () {
     JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     # Check if the JSON file for the user exists
-    if [ -e "$JSON_FILE" ]; then
-        CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
-        echo "$CURRENT_IP"
+    if [ "$DEBUG" = true ]; then
+        if [ -e "$JSON_FILE" ]; then
+            CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
+            echo "$CURRENT_IP"
+        else
+            CURRENT_IP="$SERVER_IP"
+            echo "$CURRENT_IP"
+        fi
     else
-        CURRENT_IP="$SERVER_IP"
-        echo "$CURRENT_IP"
+        if [ -e "$JSON_FILE" ]; then
+            CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
+        else
+            CURRENT_IP="$SERVER_IP"
+        fi
     fi
 }
 
@@ -166,14 +207,24 @@ update_dns_zone_file() {
     fi
 
     # Loop through Nginx configuration files for the user
-    for domain in $ALL_DOMAINS; do
-        ZONE_CONF="$ZONE_FILE/$domain.zone"
-        if [ -f "$DOMAIN_CONF" ]; then
-            # Update the server IP using sed
-            sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"
-            echo "Server IP updated for $ZONE_CONF to $IP_TO_CHANGE."
-        fi
-    done
+    if [ "$DEBUG" = true ]; then
+        for domain in $ALL_DOMAINS; do
+            ZONE_CONF="$ZONE_FILE/$domain.zone"
+            if [ -f "$DOMAIN_CONF" ]; then
+                # Update the server IP using sed
+                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"
+                echo "Server IP updated for $ZONE_CONF to $IP_TO_CHANGE."
+            fi
+        done
+    else
+        for domain in $ALL_DOMAINS; do
+            ZONE_CONF="$ZONE_FILE/$domain.zone"
+            if [ -f "$DOMAIN_CONF" ]; then
+                # Update the server IP using sed
+                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"        
+            fi
+        done
+    fi
 }
 
 
@@ -226,35 +277,58 @@ ports_opened=0
 for port in "${container_ports[@]}"; do
     host_port=$(extract_host_port "$port")
 
-    if [ -n "$host_port" ]; then
-        # Open the port in CSF
-        echo "Opening port ${host_port} for port ${port} in CSF"
-        #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-        #ufw allow ${host_port}/tcp  comment "${username}"
+    if [ "$DEBUG" = true ]; then
+        if [ -n "$host_port" ]; then
+            # Open the port in CSF
+            echo "Opening port ${host_port} for port ${port} in CSF"
+            #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+            #ufw allow ${host_port}/tcp  comment "${username}"
 
-            if [ "$ACTION" = "delete" ]; then
-                ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME"
-            else
-                IP=$2 # Assuming the IP should be the second argument
-                ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME"
-            fi
+                if [ "$ACTION" = "delete" ]; then
+                    ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME"
+                else
+                    IP=$2 # Assuming the IP should be the second argument
+                    ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME"
+                fi
 
-        ports_opened=1
+            ports_opened=1
+        else
+            echo "Port ${port} not found in container"
+        fi
     else
-        echo "Port ${port} not found in container"
-    fi
+            if [ -n "$host_port" ]; then
+            # Open the port in CSF
+            echo "Opening port ${host_port} for port ${port} in CSF" >/dev/null 2>&1
+            #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+            #ufw allow ${host_port}/tcp  comment "${username}"
+
+                if [ "$ACTION" = "delete" ]; then
+                    ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
+                else
+                    IP=$2 # Assuming the IP should be the second argument
+                    ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
+                fi
+
+            ports_opened=1
+            fi
+        fi
 done
 
 # Restart UFW if ports were opened
-if [ $ports_opened -eq 1 ]; then
-    echo "Restarting UFW"
-    ufw reload
+if [ "$DEBUG" = true ]; then
+    if [ $ports_opened -eq 1 ]; then
+        echo "Restarting UFW"
+        ufw reload
+    fi
+else
+    if [ $ports_opened -eq 1 ]; then
+        ufw reload >/dev/null 2>&1
+    fi
 fi
 
-
-
-
-
-
-
-
+if [ $? -eq 0 ]; then
+    echo "IP successfully changed for user $USERNAME to: $IP_TO_CHANGE"
+else
+    echo "Error: Data insertion failed."
+    exit 1
+fi
