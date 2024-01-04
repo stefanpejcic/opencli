@@ -5,7 +5,7 @@
 # Usage: opencli user-suspend <USERNAME>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 04.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,13 +29,25 @@
 ################################################################################
 
 # Check if the correct number of command-line arguments is provided
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     echo "Usage: $0 <username>"
     exit 1
 fi
 
 # Get username from command-line argument
 username="$1"
+DEBUG=false  # Default value for DEBUG
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
 
 # DB
 source /usr/local/admin/scripts/db.sh
@@ -43,8 +55,12 @@ source /usr/local/admin/scripts/db.sh
 
 # Function to pause (suspend) a user
 pause_user() {
+    if [ "$DEBUG" = true ]; then
     # Pause the Docker container
     docker stop "$username"
+    else
+    docker stop "$username" > /dev/null 2>&1
+    fi
 
     # Add a suspended timestamp prefix to the username in the database
     suspended_username="SUSPENDED_$(date +"%Y%m%d%H%M%S")_$username"
