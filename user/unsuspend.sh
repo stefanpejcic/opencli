@@ -28,13 +28,26 @@
 # THE SOFTWARE.
 ################################################################################
 
-if [ "$#" -ne 1 ]; then
+# Check if the correct number of command-line arguments is provided
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     echo "Usage: $0 <username>"
     exit 1
 fi
 
 # Get username from command-line argument
 username="$1"
+DEBUG=false  # Default value for DEBUG
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
 
 # DB
 source /usr/local/admin/scripts/db.sh
@@ -47,9 +60,13 @@ unpause_user() {
     if [ -n "$suspended_username" ]; then
         # Remove the suspended timestamp prefix from the username
         unsuspended_username=$(echo "$suspended_username" | sed 's/^SUSPENDED_[0-9]\{14\}_//')
-
-        # Start the Docker container
-        docker start "$unsuspended_username"
+        if [ "$DEBUG" = true ]; then
+            # Start the Docker container
+            docker start "$unsuspended_username"
+        else
+            # Start the Docker container
+            docker start "$unsuspended_username" > /dev/null 2>&1
+        fi   
 
         # Update the username in the database without the suspended prefix
         mysql_query="UPDATE users SET username='$unsuspended_username' WHERE username='$suspended_username';"
