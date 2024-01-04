@@ -50,6 +50,18 @@ username=$1
 new_password=$2
 ssh_flag=false
 random_flag=false  # Flag to check if the new password is initially set as "random"
+DEBUG=false  # Default value for DEBUG
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
 
 for arg in "$@"; do
     case $arg in
@@ -97,12 +109,17 @@ fi
 
 # Check if --ssh flag is provided
 if [ "$ssh_flag" = true ]; then
-    # Change the user password in the Docker container
-    echo "$username:$new_password" | docker exec -i "$username" chpasswd
-    if [ "$random_flag" = true ]; then
-        echo "SSH user $username in Docker container now also have password: $new_password"
+    if [ "$DEBUG" = true ]; then
+        # Change the user password in the Docker container
+        echo "$username:$new_password" | docker exec -i "$username" chpasswd
+        if [ "$random_flag" = true ]; then
+            echo "SSH user $username in Docker container now also have password: $new_password"
+        else
+            echo "SSH user $username password changed."
+        fi
     else
-        echo "SSH user $username password changed."
+        # Change the user password in the Docker container
+        echo "$username:$new_password" | docker exec -i "$username" chpasswd
     fi
     
 fi
