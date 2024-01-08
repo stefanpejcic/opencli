@@ -119,7 +119,8 @@ update_password() {
 
 
 list_current_users() {
-echo -e "${RED}Error${RESET}: not implemented."
+users=$(grep -E "^\s+'[^']+': {'password':" "$logins_file_path" | awk -F"'" '{print $2}')
+echo "$users"
 }
 
 
