@@ -32,6 +32,55 @@
 
 config_file="/usr/local/panel/conf/panel.config"
 
+
+########################## UPDATE NGINX PROXY FILE FOR DOMAINS ##########################
+proxy_conf_file="/usr/local/panel/templates/vhosts/openpanel_proxy.conf"
+
+# Function to update SSL configuration in proxy_conf_file
+update_ssl_config() {
+    ssl_value="$1"
+
+    if [ "$ssl_value" = "yes" ]; then
+        # Update https to http in the proxy_conf_file if it's not already present
+        if grep -q 'proxy_pass[[:space:]]\+http://' "$proxy_conf_file"; then
+            sed -i 's|proxy_pass[[:space:]]\+http:|proxy_pass https:|' "$proxy_conf_file"
+        else
+            echo "SSL is already configured as 'https' in $proxy_conf_file"
+        fi
+    elif [ "$ssl_value" = "no" ]; then
+        # Update http to https in the proxy_conf_file if it's not already present
+        if grep -q 'proxy_pass[[:space:]]\+https://' "$proxy_conf_file"; then
+            sed -i 's|proxy_pass[[:space:]]\+https:|proxy_pass http:|' "$proxy_conf_file"
+        else
+            echo "SSL is already configured as 'http' in $proxy_conf_file"
+        fi
+    fi
+
+    echo "Updated SSL configuration in $proxy_conf_file"
+}
+
+
+# Function to update port configuration in proxy_conf_file
+update_port_config() {
+    new_port="$1"
+    sed -Ei "s|(proxy_pass https://[^:]+:)([0-9]+;)|\1$new_port;|;s|(proxy_pass http://[^:]+:)([0-9]+;)|\1$new_port;|" "$proxy_conf_file"
+    echo "Updated port configuration in $proxy_conf_file to $new_port"
+}
+
+# Function to update openpanel_proxy configuration in proxy_conf_file
+update_openpanel_proxy_config() {
+    new_value="$1"
+
+    # Update the value in the 2nd line after "location /$$$$ {"
+    sed -i "0,/location \/openpanel/{n;s|/[^[:space:]]*|/$new_value|}" "$proxy_conf_file"
+
+    echo "Updated openpanel_proxy configuration in $proxy_conf_file to $new_value"
+}
+
+##############################################################################
+
+
+
 # Function to get the current configuration value for a parameter
 get_config() {
     param_name="$1"
@@ -42,7 +91,7 @@ get_config() {
     elif grep -q "^$param_name=" "$config_file"; then
         echo "Parameter $param_name has no value."
     else
-        echo "Parameter $param_name does not exist."
+        echo "Parameter $param_name does not exist. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#get"
     fi
 }
 
@@ -60,14 +109,12 @@ update_config() {
         # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
             service panel restart
-            #echo "Panel service restarted."
             # Remove data.json files for all users
             rm -rf /usr/local/panel/core/users/*/data.json
-            #echo "Removed data.json files for all users."
         fi
         
     else
-        echo "Parameter $param_name not found in the configuration file."
+        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#update"
     fi
 }
 
@@ -91,6 +138,19 @@ case "$command" in
         fi
         new_value="$3"
         update_config "$param_name" "$new_value"
+        
+        case "$param_name" in
+            ssl)
+                update_ssl_config "$new_value"
+                ;;
+            port)
+                update_port_config "$new_value"
+                ;;
+            openpanel_proxy)
+                update_openpanel_proxy_config "$new_value"
+                service nginx reload
+                ;;
+        esac
         ;;
     *)
         echo "Invalid command. Usage: $0 [get|update] <parameter_name> [new_value]"
