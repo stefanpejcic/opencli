@@ -24,6 +24,11 @@ get_ssl_status() {
 get_force_domain() {
     config=$(read_config)
     force_domain=$(echo "$config" | grep -i 'force_domain' | cut -d'=' -f2)
+
+    if [ -z "$force_domain" ]; then
+        ip=$(get_public_ip)
+        force_domain="$ip"
+    fi
     echo "$force_domain"
 }
 
