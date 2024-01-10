@@ -70,8 +70,10 @@ add_new_user() {
     
         # Add the closing bracket '}' on a new line
         echo "}" >> "$logins_file_path"
-    
-        echo "User '$username' added to $logins_file_path"
+        
+        service admin reload
+        
+        echo "User '$username' created.
         fi
 }
 
@@ -89,6 +91,7 @@ update_username() {
         echo -e "${RED}Error${RESET}: Username '$username' already taken."
     else
         sed -i "s/'$old_username': {/'$new_username': {/; s/: '$old_username'/: '$new_username'/" "$logins_file_path"
+        service admin reload
         echo "User '$old_username' renamed to '$new_username'."
     fi
 }
@@ -100,6 +103,7 @@ update_password() {
 
     if [ "$user_exists" -gt 0 ]; then
         sed -i "s/\('$username': {'password': '\).*\(', 'roles': \['.*'\]}\)/\1$new_password\2/" "$logins_file_path"
+        service admin reload
         echo "Password for user '$username' changed."
         echo ""
         printf "=%.0s"  $(seq 1 63)
@@ -132,6 +136,7 @@ delete_existing_users() {
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
             sed -i "/'$username': {'password'/d" "$logins_file_path"
+            service admin reload
             echo "User '$username' deleted successfully."
         fi
     else
