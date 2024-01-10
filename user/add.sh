@@ -69,20 +69,44 @@ done
 
 
 #1. check for forbidden usernames
-forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data")
+forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data" "openpanel")
 
 is_username_forbidden() {
     local check_username="$1"
+
+    # Check if the username is a single word
+    if [[ "$check_username" =~ [[:space:]] ]]; then
+        return 0 # Username contains spaces, forbidden
+    fi
+
+    # Check if the username contains hyphens or underscores
+    if [[ "$check_username" =~ [-_] ]]; then
+        return 0 # Username contains hyphens or underscores, forbidden
+    fi
+
+    # Check if the username contains only letters and numbers
+    if [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]]; then
+        return 0 # Username contains characters other than letters and numbers, forbidden
+    fi
+
+    # Check if the username length is within the allowed range
+    local username_length=${#check_username}
+    if ((username_length < 3 || username_length > 20)); then
+        return 0 # Username length is outside the allowed range, forbidden
+    fi
+
+    # Check against the forbidden usernames
     for forbidden_username in "${forbidden_usernames[@]}"; do
-        if [ "$check_username" == "$forbidden_username" ]; then
+        if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
             return 0 # Username is forbidden
         fi
     done
-    return 1 # not forbidden
+
+    return 1 # Not forbidden
 }
 
 if is_username_forbidden "$username"; then
-    echo "Error: Username is not allowed."
+    echo "Error: The username '$username' is not allowed. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
     exit 1
 fi
 
