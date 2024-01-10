@@ -108,7 +108,7 @@ update_config() {
 
         # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
-            service panel restart
+            service panel reload
             # Remove data.json files for all users
             rm -rf /usr/local/panel/core/users/*/data.json
         fi
