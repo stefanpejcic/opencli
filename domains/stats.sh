@@ -44,14 +44,16 @@ for username in $usernames; do
 
     # Check if the excluded IPs file exists for the current user
     excluded_ips_file="/usr/local/panel/core/users/$username/domains/excluded_ips_for_goaccess"
+    # exclude docker container private ip also
+    container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
     
     if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
-        echo "Excluded IPs file found for user $username"
+        echo "Excluded IPs file found for user $username, excluding them along with private IP $container_ip"
         excluded_ips=$(cat "$excluded_ips_file")
 
         # Get the domains for the current user
         domains=$(opencli domains-user "$username")
-
+        
         for domain in $domains; do
             log_file="/var/log/nginx/domlogs/${domain}.log"
             output_dir="/var/log/nginx/stats/${username}/"
@@ -61,7 +63,7 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command with exclusion flags
-            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips"
+            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips" -e "$container_ip"
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
@@ -69,7 +71,7 @@ for username in $usernames; do
             echo "Processed domain $domain for user $username with IP exclusions"
         done
     else
-        echo "No excluded IPs file found for user $username. Proceeding without IP exclusions."
+        echo "No excluded IPs file found for user $username. Only private IP $container_ip will be excluded from report."
 
         # Get the domains for the current user
         domains=$(opencli domains-user "$username")
@@ -88,7 +90,7 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command
-            goaccess "$log_file" -a -o "$html_output"
+            goaccess "$log_file" -a -o "$html_output" -e "$container_ip"
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
