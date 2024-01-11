@@ -63,7 +63,7 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command with exclusion flags
-            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips" -e "$container_ip"
+            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
@@ -90,7 +90,7 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command
-            goaccess "$log_file" -a -o "$html_output" -e "$container_ip"
+            goaccess "$log_file" -a -o "$html_output" -e "$container_ip" --ignore-panel=KEYPHRASES
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
