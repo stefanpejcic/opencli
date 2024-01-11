@@ -34,6 +34,10 @@ output_dir="/usr/local/panel/core/stats"
 # Get the current date and time in the desired format
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
+# fix bug with high ram usage reported for containers
+sync
+echo 1 > /proc/sys/vm/drop_caches
+
 # Loop through the Docker containers and extract data
 docker stats --no-stream --format '{{json .}}' | while read -r container_stats; do
   # Extract relevant data from the JSON
