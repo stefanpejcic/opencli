@@ -5,7 +5,7 @@
 # Usage: opencli domains-stats <USERNAME>
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 28.12.2023
+# Last Modified: 11.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
