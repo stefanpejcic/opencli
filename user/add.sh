@@ -409,14 +409,16 @@ if [ "$DEBUG" = true ]; then
   echo "Creating SSH user $username inside the docker container..."
   docker exec $username useradd -m -s /bin/bash -d /home/$username $username
   echo "$username:$password" | docker exec -i "$username" chpasswd
-  usermod -aG www-data $username
+  docker exec $username usermod -aG www-data $username
   chmod -R g+w /home/$username
+  docker exec $username chmod -R g+w /home/$username
   echo "SSH user $username created with password: $password"
 else
   docker exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
   echo "$username:$password" | docker exec -i "$username" chpasswd > /dev/null 2>&1
-  usermod -aG www-data $username > /dev/null 2>&1
+  docker exec $username usermod -aG www-data $username > /dev/null 2>&1
   chmod -R g+w /home/$username > /dev/null 2>&1
+  docker exec $username chmod -R g+w /home/$username > /dev/null 2>&1
 fi
 
 # Define the path to the main configuration file
