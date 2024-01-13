@@ -165,7 +165,7 @@ check_cpu_cores "$cpu"
 check_available_ram "$ram"
 
 # Check if docker_image is either "nginx" or "apache"
-if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ]; then
+if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ] && [ "$docker_image" != "litespeed" ]; then
   echo "docker_image must be 'nginx' or 'apache'"
   exit 1
 fi
@@ -181,6 +181,8 @@ check_plan_exists() {
 # Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
   docker_image="dev_plan_nginx"
+elif [ "$docker_image" == "litespeed" ]; then
+  docker_image="dev_plan_litespeed"
 else
   docker_image="dev_plan_apache"
 fi
