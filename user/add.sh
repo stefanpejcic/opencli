@@ -69,7 +69,7 @@ done
 
 
 #1. check for forbidden usernames
-forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data" "openpanel")
+forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "lsws" "litespeed" "1000" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data" "openpanel")
 
 is_username_forbidden() {
     local check_username="$1"
@@ -291,6 +291,9 @@ fi
 if [[ "$docker_image" == *"nginx"* ]]; then
   path="nginx"
   web_server="nginx"
+elif [[ "$docker_image" == *"litespeed"* ]]; then
+  path="litespeed"
+  web_server="litespeed"
 elif [[ "$docker_image" == *"apache"* ]]; then
   path="apache2"
   web_server="apache"
