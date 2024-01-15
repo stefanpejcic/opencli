@@ -230,16 +230,15 @@ else
 fi
 
 
-# Run a docker container for the user with plan limits
-
 # Create a directory with the user's username under /home/
-mkdir /home/$username
 
-# chown to user that runs the app
-#chown www-data:www-data /home/$username -R
+#fallocate -l ${disk_limit}g /home/storage_file_$username
+#mkfs.ext4 -N $inodes /home/storage_file_$username
+mkdir /home/$username
 chown 1000:33 /home/$username
 chmod 755 /home/$username
 chmod g+s /home/$username
+#mount -o loop /home/storage_file_$username /home/$username
 
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
