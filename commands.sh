@@ -44,7 +44,7 @@ RESET='\033[0m'
 
 
 # Loop through all scripts in the directory and its subdirectories
-find "$SCRIPTS_DIR" -type f -executable ! -name "opencli.sh" ! -name "opencli" ! -name "commands_OLD.sh" | while read -r script; do
+find "$SCRIPTS_DIR" -type f -executable ! -name "opencli.sh" ! -name "install" ! -name "opencli" | while read -r script; do
     # Check if the script is executable
     if [ -x "$script" ]; then
         # Get the script name without the directory and extension
