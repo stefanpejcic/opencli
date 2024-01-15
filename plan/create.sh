@@ -180,11 +180,11 @@ check_plan_exists() {
 
 # Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
-  docker_image="dev_plan_nginx"
+  docker_image="openpanel_nginx"
 elif [ "$docker_image" == "litespeed" ]; then
-  docker_image="dev_plan_litespeed"
+  docker_image="openpanel_litespeed"
 else
-  docker_image="dev_plan_apache"
+  docker_image="openpanel_apache"
 fi
 
 # Check if the plan name already exists in the database
