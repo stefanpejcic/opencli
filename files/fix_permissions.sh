@@ -5,7 +5,7 @@
 # Usage: opencli files-fix_permissions [USERNAME] [PATH]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 23.12.2023
+# Last Modified: 15.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -42,6 +42,8 @@ apply_permissions_in_container() {
       else
         echo "Error applying permissions to $path."
       fi
+      # i grupa
+      chmod -R g+w $path
     else
       # Apply changes to the entire home directory within the container
       if docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chmod 644 {} \;"; then
@@ -49,6 +51,8 @@ apply_permissions_in_container() {
       else
         echo "Error applying permissions to /home/$container_name."
       fi
+      # i grupa
+      chmod -R g+w /home/$container_name
     fi
   else
     echo "Container $container_name not found or is not running."
