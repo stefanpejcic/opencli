@@ -73,9 +73,10 @@ add_new_user() {
         
         service admin reload
         
-        echo "User '$username' created.
-        fi
+        echo "User '$username' created."
+    fi
 }
+
 
 
 
