@@ -30,6 +30,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+
+# Create directory if it doesn't exist
+output_dir="/usr/local/admin/static/reports"
+mkdir -p "$output_dir"
+
 # Collect system information
 echo "=== System Information ==="
 os_info=$(awk -F= '/^(NAME|VERSION_ID)/{gsub(/"/, "", $2); printf("%s ", $2)}' /etc/os-release)
@@ -54,10 +59,9 @@ echo "=== Number of Docker Containers ==="
 echo "Running Containers: $docker_container_count"
 
 # Save the information to a file
-output_file="system_info_$(date +'%Y%m%d%H%M%S').txt"
+output_file="$output_dir/system_info_$(date +'%Y%m%d%H%M%S').txt"
 exec > >(tee -a "$output_file") 2>&1
 
 # Print a message about the output file
-echo
-echo "Information collected successfully. Please provide the following file to the support team:"
+echo -e "\nInformation collected successfully. Please provide the following file to the support team:"
 echo "$output_file"
