@@ -473,3 +473,5 @@ else
     echo "Error: Data insertion failed."
     exit 1
 fi
+
+exit 0
