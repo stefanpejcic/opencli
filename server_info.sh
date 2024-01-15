@@ -65,3 +65,5 @@ exec > >(tee -a "$output_file") 2>&1
 # Print a message about the output file
 echo -e "\nInformation collected successfully. Please provide the following file to the support team:"
 echo "$output_file"
+
+exit 0
