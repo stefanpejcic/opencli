@@ -36,8 +36,8 @@ else
     usernames=("$1")
 fi
 
-#current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
-current_server_main_ip="11.22.33.44"
+current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
+
 # Create or overwrite the JSON file for user
 create_ip_file() {
     USERNAME=$1
