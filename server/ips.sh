@@ -36,10 +36,15 @@ else
     usernames=("$1")
 fi
 
-current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
-
-touch /usr/local/panel/core/dedi_ips.json
-echo "[" > /usr/local/panel/core/dedi_ips.json
+#current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
+current_server_main_ip="11.22.33.44"
+# Create or overwrite the JSON file for user
+create_ip_file() {
+    USERNAME=$1
+    IP=$2
+    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
+}
 
 for username in $usernames; do
     # Get the IP from inside the container
@@ -50,10 +55,6 @@ for username in $usernames; do
     
     # Save in json file to be used in openadmin
     if [[ "$user_ip" != "$current_server_main_ip" ]]; then
-        # Append to JSON file
-        echo "{ \"username\": \"$username\", \"user_ip\": \"$user_ip\" }," >> /usr/local/panel/core/dedi_ips.json
+        create_ip_file "$username" "$user_ip"
     fi
 done
-
-
-echo "]" >> /usr/local/panel/core/dedi_ips.json
