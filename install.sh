@@ -5,7 +5,7 @@
 # Usage: opencli install
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 23.12.2023
+# Last Modified: 16.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -36,6 +36,7 @@ cron_jobs=(
   "0 1 * * * opencli backup-create"
   "15 0 * * * opencli update"
   "30 2 * * * opencli domains-stats"
+  "0 0 12 * * opencli server-ips "
   "@reboot opencli server-on_startup"
 )
 
