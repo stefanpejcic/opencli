@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli plan-create plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# Usage: opencli plan-create plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # domains_limit= How many domains will the plan have (0 is unlimited).
@@ -14,10 +14,11 @@
 # ram= Ram space limit in GB.
 # docker_image=can be either apache/nginx
 # bandwidth=port speed, expressed in mbit/s
-# Exsample: ./usr/local/admin/scripts/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
+# storage_file=disk usage in GB for storage file *(size for /home/$username)
+# Exsample: ./usr/local/admin/scripts/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500 10
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 30.11.2023
+# Last Modified: 17.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -57,9 +58,11 @@ insert_plan() {
   local ram="$9"
   local docker_image="${10}"
   local bandwidth="${11}"
+  local storage_file="${12}"
   
-# Format disk_limit with 'GB' 
+# Format disk_limit and storage_file with 'GB' 
 disk_limit="${disk_limit} GB"
+storage_file="${storage_file} GB"
 
   # Ensure inodes_limit is not less than 500000
   if [ "$inodes_limit" -lt 500000 ]; then
@@ -70,7 +73,7 @@ disk_limit="${disk_limit} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth);"
+  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, storage_file) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, $storage_file);"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -140,7 +143,7 @@ if [ "$#" -ne 11 ]; then
     script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+    echo "Usage: opencli $script_name name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
 
@@ -157,6 +160,7 @@ cpu="$8"
 ram="$9"
 docker_image="${10}"
 bandwidth="${11}"
+storage_file="${12}"
 
 # Check available CPU cores before creating the plan
 check_cpu_cores "$cpu"
@@ -198,4 +202,4 @@ fi
 create_docker_network "$name" "$bandwidth"
 
 # Call the insert_plan function with the provided values
-insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
+insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
