@@ -73,7 +73,7 @@ storage_file="${storage_file} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, storage_file) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, $storage_file);"
+  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, storage_file) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, '$storage_file');"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
