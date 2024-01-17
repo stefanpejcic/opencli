@@ -79,7 +79,7 @@ is_username_forbidden() {
         return 0 # Username contains spaces, forbidden
     fi
 
-    # Check if the username contains hyphens or underscores
+    # Check if the username contains hyphens or underscores also dont allow usernames that start with storage_file_
     if [[ "$check_username" =~ [-_] ]]; then
         return 0 # Username contains hyphens or underscores, forbidden
     fi
@@ -142,7 +142,7 @@ fi
 #Get CPU, DISK, INODES and RAM limits for the plan
 
 # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, storage_file name FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -167,14 +167,15 @@ ram=$(echo "$cpu_ram_info" | awk '{print $2}')
 inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
 name=$(echo "$cpu_ram_info" | awk '{print $8}')
-
+storage_file=$(echo "$cpu_ram_info" | awk '{print $9}' | sed 's/ //;s/B//')
+disk_size_needed_for_docker_and_storage= $disk_limit + $storage_file
 
 # Get the available free space on the disk
 current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
 
 # Compare the available free space with the disk limit of the plan
-if [ "$current_free_space" -lt "$disk_limit" ]; then
-    echo "Error: Insufficient disk space. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
+if [ "$current_free_space" -lt "$disk_size_needed_for_docker_and_storage" ]; then
+    echo "Error: Insufficient disk space. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
     exit 1
 fi
 
@@ -211,6 +212,7 @@ if [ "$DEBUG" = true ]; then
     echo "CPU: $cpu"
     echo "RAM: $ram"
     echo "INODES: $inodes"
+    echo "STORAGE FILE: $storage_file"
     echo "BANDWIDTH: $bandwidth"
     echo "NAME: $name"
     #echo "RAM Soft Limit: $ram_soft_limit MB"
@@ -232,13 +234,13 @@ fi
 
 # Create a directory with the user's username under /home/
 
-#fallocate -l ${disk_limit}g /home/storage_file_$username
-#mkfs.ext4 -N $inodes /home/storage_file_$username
+fallocate -l ${storage_file}g /home/storage_file_$username
+mkfs.ext4 -N $inodes /home/storage_file_$username
 mkdir /home/$username
 chown 1000:33 /home/$username
 chmod 755 /home/$username
 chmod g+s /home/$username
-#mount -o loop /home/storage_file_$username /home/$username
+mount -o loop /home/storage_file_$username /home/$username
 
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
