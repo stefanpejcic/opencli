@@ -139,7 +139,7 @@ check_available_ram() {
 }
 
 # Check for command-line arguments
-if [ "$#" -ne 11 ]; then
+if [ "$#" -ne 12 ]; then
     script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
