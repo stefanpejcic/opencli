@@ -76,7 +76,11 @@ fi
 
 ########### KRAJ PROVERA, RA PROMENU
 
+umount /home/storage_file_$old_username
+mv /home/storage_file_$old_username /home/storage_file_$new_username
 mv /home/$old_username /home/$new_username
+mount -o loop /home/storage_file_$new_username /home/$new_username
+
 
 # Check if the container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
