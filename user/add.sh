@@ -142,7 +142,7 @@ fi
 #Get CPU, DISK, INODES and RAM limits for the plan
 
 # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, storage_file name FROM plans WHERE id = '$plan_id'"
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file FROM plans WHERE id = '$plan_id'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
