@@ -28,6 +28,42 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+LOG_FILE="/usr/local/admin/logs/notifications.log"
+
+# Function to get the last message content from the log file
+get_last_message_content() {
+  tail -n 1 "$LOG_FILE" 2>/dev/null
+}
+
+# Function to check if an unread message with the same content exists in the log file
+is_unread_message_present() {
+  local unread_message_content="$1"
+  grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
+}
+# Function to write notification to log file if it's different from the last message content
+write_notification() {
+  local title="$1"
+  local message="$2"
+  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+  local last_message_content=$(get_last_message_content)
+
+  # Check if the current message content is the same as the last one and has "UNREAD" status
+  if [ "$message" != "$last_message_content" ] && ! is_unread_message_present "$title"; then
+    echo "$current_message" >> "$LOG_FILE"
+  fi
+}
+
+
+
+
+
+
+
+
+
+
+
 # Define the route to check for updates
 update_check() {
     # Read the local version from /usr/local/panel/version
@@ -43,6 +79,7 @@ update_check() {
 
     if [ -z "$remote_version" ]; then
         echo '{"error": "Error fetching remote version"}' >&2
+        write_notification "Update check failed" "Failed connecting to https://update.openpanel.co/"
         exit 1
     fi
 
@@ -50,8 +87,10 @@ update_check() {
     if [ "$local_version" == "$remote_version" ]; then
         echo '{"status": "Up to date", "installed_version": "'"$local_version"'"}'
     elif [ "$local_version" \> "$remote_version" ]; then
+        write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
         echo '{"status": "Local version is greater", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     else
+        write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
         echo '{"status": "Update available", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     fi
 }
