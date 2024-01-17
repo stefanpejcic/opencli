@@ -65,8 +65,8 @@ disk_limit="${disk_limit} GB"
 storage_file="${storage_file} GB"
 
   # Ensure inodes_limit is not less than 500000
-  if [ "$inodes_limit" -lt 500000 ]; then
-    inodes_limit=500000
+  if [ "$inodes_limit" -lt 250000 ]; then
+    inodes_limit=250000
   fi
 
   # Format ram with 'g' at the end
