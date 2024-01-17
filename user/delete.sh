@@ -178,13 +178,13 @@ delete_vhosts_files
 remove_docker_container_and_volume
 
 delete_user_from_database
-
+umount /home/storage_file_$username
 rm -rf /home/$username
-
+rm -rf /home/storage_file_$username
 
 
 rm -rf /usr/local/panel/core/stats/$username
-rm -rf  /usr/local/panel/core/users/$username
-rm -rf  /backup/$username
+rm -rf /usr/local/panel/core/users/$username
+rm -rf /home/$username/home/$username/backup/$username
 
 echo "User $username deleted."
