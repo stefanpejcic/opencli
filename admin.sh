@@ -147,6 +147,38 @@ delete_existing_users() {
 
 
 
+config_file="/usr/local/admin/service/notifications.ini"
+
+# Function to get the current configuration value for a parameter
+get_config() {
+    param_name="$1"
+    param_value=$(grep "^$param_name=" "$config_file" | cut -d= -f2-)
+    
+    if [ -n "$param_value" ]; then
+        echo "$param_value"
+    elif grep -q "^$param_name=" "$config_file"; then
+        echo "Parameter $param_name has no value."
+    else
+        echo "Parameter $param_name does not exist. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#get"
+    fi
+}
+
+# Function to update a configuration value
+update_config() {
+    param_name="$1"
+    new_value="$2"
+
+    # Check if the parameter exists in the config file
+    if grep -q "^$param_name=" "$config_file"; then
+        # Update the parameter with the new value
+        sed -i "s/^$param_name=.*/$param_name=$new_value/" "$config_file"
+        echo "Updated $param_name to $new_value"
+        
+    else
+        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#update"
+    fi
+}
+
 
 case "$1" in
     "on")
@@ -197,6 +229,49 @@ case "$1" in
         new_password="$3"
         add_new_user "$new_username" "$new_password"
         ;;
+    "notifications")
+        # COntrol notification preferences
+        command="$2"
+        param_name="$3"
+
+
+case "$command" in
+    get)
+        get_config "$param_name"
+        ;;
+    update)
+        if [ "$#" -ne 4 ]; then
+            echo "Usage: $0 notifications update <parameter_name> <new_value>"
+            exit 1
+        fi
+        new_value="$4"
+        update_config "$param_name" "$new_value"
+        
+        case "$param_name" in
+            ssl)
+                update_ssl_config "$new_value"
+                ;;
+            port)
+                update_port_config "$new_value"
+                ;;
+            openpanel_proxy)
+                update_openpanel_proxy_config "$new_value"
+                service nginx reload
+                ;;
+        esac
+        ;;
+    *)
+        echo "Invalid command. Usage: $0 [get|update] <parameter_name> [new_value]"
+        exit 1
+        ;;
+esac
+
+
+
+
+        
+        ;;
+        
     "delete")
         # Add a new user
         username="$2"
