@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/memcached.sh
 # Description: Check and enable/disable Memcached for user.
-# Usage: opencli memcached [check|enable|disable] <USERNAME>
+# Usage: opencli user-memcached [check|enable|disable] <USERNAME>
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#memcached
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -31,7 +31,7 @@
 
 # Function to print usage
 print_usage() {
-    echo "Usage: $0 <check|enable|disable> <user>"
+    echo "Usage: opencli user-memcached <check|enable|disable> <user>"
     exit 1
 }
 
