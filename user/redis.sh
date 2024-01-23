@@ -58,9 +58,9 @@ case $action in
             echo "REDIS is running in container $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "REDIS is not installed in container $container_name."
+                echo "REDIS is not installed for user $container_name."
             else
-                echo "Failed to check REDIS status in container $container_name. Response: $response"
+                echo "Failed to check REDIS status for user $container_name. Response: $response"
             fi
         fi
         ;;
@@ -68,12 +68,12 @@ case $action in
         response=$(docker exec "$container_name" service redis-server start 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
-            echo "REDIS enabled successfully in container $container_name."
+            echo "REDIS enabled successfully for user $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "REDIS is not installed in container $container_name."
+                echo "REDIS is not installed for user $container_name."
             else
-                echo "Failed to enable REDIS in container $container_name. Response: $response"
+                echo "Failed to enable REDIS for user $container_name. Response: $response"
             fi
         fi
         ;;
@@ -81,12 +81,12 @@ case $action in
         response=$(docker exec "$container_name" service redis-server stop 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
-            echo "REDIS disabled successfully in container $container_name."
+            echo "REDIS disabled successfully for user $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "REDIS is not installed in container $container_name."
+                echo "REDIS is not installed for user $container_name."
             else
-                echo "Failed to disable REDIS in container $container_name. Response: $response"
+                echo "Failed to disable REDIS for user $container_name. Response: $response"
             fi
         fi
         ;;
