@@ -68,7 +68,7 @@ case $action in
         response=$(docker exec "$container_name" service memcached start 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
-            echo "Memcached enabled successfully in container $container_name."
+            echo "Memcached enabled successfully for user $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
                 echo "Memcached is not installed for user $container_name."
