@@ -183,31 +183,27 @@ echo "Difference in docker_image: $Odocker_image to $Ndocker_image"
 echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
 echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
 
-if (( $addSize > 0 )); then
+if (( $addSize != 0 )); then
+docker stop $container_name
     if mount | grep "/home/$container_name" > /dev/null; then
         umount /home/$container_name
     fi
 
-echo "falokejt parametar ${numNdisk}g"
-fallocate -l ${numNdisk}g /home/storage_file_$container_name
-mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
-#fix+resize FSystem
-e2fsck -f -y /home/storage_file_$container_name
-resize2fs /home/storage_file_$container_name
-
-mount -o loop /home/storage_file_$container_name /home/$container_name
-elif (( $addSize < 0 )); then
-    if mount | grep "/home/$container_name" > /dev/null; then
-        umount /home/$container_name
-    fi
-
+if (( $addSize<0)); then
 truncate -s ${numNdisk}g /home/storage_file_$container_name
-mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
+fi
+
+#echo "falokejt parametar ${numNdisk}g"
+fallocate -l ${numNdisk}g /home/storage_file_$container_name
+
+#mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
 #fix+resize FSystem
 e2fsck -f -y /home/storage_file_$container_name
 resize2fs /home/storage_file_$container_name
-
 mount -o loop /home/storage_file_$container_name /home/$container_name
+docker start $container_name
+
+
 else
 echo "No change in disk size."
 fi
@@ -238,7 +234,7 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 
 
 #skripta za rewrite nginx vhosts za tog usera!
-opencli nginx-update_vhosts $container_name -nginx-reload
+opencli nginx-update_vhosts $container_name --nginx-reload
 
 # Compare limits and list the differences
 #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
