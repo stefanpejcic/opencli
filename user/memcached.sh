@@ -58,9 +58,9 @@ case $action in
             echo "Memcached is running in container $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "Memcached is not installed in container $container_name."
+                echo "Memcached is not installed for user $container_name."
             else
-                echo "Failed to check Memcached status in container $container_name. Response: $response"
+                echo "Failed to check Memcached status for user $container_name. Response: $response"
             fi
         fi
         ;;
@@ -71,9 +71,9 @@ case $action in
             echo "Memcached enabled successfully in container $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "Memcached is not installed in container $container_name."
+                echo "Memcached is not installed for user $container_name."
             else
-                echo "Failed to enable Memcached in container $container_name. Response: $response"
+                echo "Failed to enable Memcached for user $container_name. Response: $response"
             fi
         fi
         ;;
@@ -81,12 +81,12 @@ case $action in
         response=$(docker exec "$container_name" service memcached stop 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
-            echo "Memcached disabled successfully in container $container_name."
+            echo "Memcached disabled successfully for user $container_name."
         else
             if [[ $response == *"unrecognized service"* ]]; then
-                echo "Memcached is not installed in container $container_name."
+                echo "Memcached is not installed for user $container_name."
             else
-                echo "Failed to disable Memcached in container $container_name. Response: $response"
+                echo "Failed to disable Memcached for user $container_name. Response: $response"
             fi
         fi
         ;;
