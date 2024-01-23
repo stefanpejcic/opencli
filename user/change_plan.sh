@@ -109,33 +109,6 @@ fi
 
 
 
-
-
-: '
-container_name=$1
-
-docker inspect \
-  --format "$(curl -s https://gist.githubusercontent.com/efrecon/8ce9c75d518b6eb863f667442d7bc679/raw/run.tpl)" \
-  $container_name \
-  | awk '/--detach/ {print "    --storage-opt size=100G \\"; print "    --cpus=\"10\" \\"; print "    --memory=\"10\" \\"} {print $0}' \
-
-
-BRISU SE>
-  --network-alias "685ba2ca7fa2" \ \
-  --network-alias "server2.openpanel.co" \ \
-  --network-alias "7bcd7327c9b8" \ \
-
-SED U  --network "cloud_4_nginx" \ \
-SED U   --hostname "server2.openpanel.co" \ \
-
-
-  
-  | sed 's/docker run/docker run \\/' \
-  | sed -e '$!s/$/ \\/' \
-  | sed -e '$s/$/ \\/'
-'
-
-
 #Limiti stari i novi cpu, ram, docker_image, storage_file, inodes_limit, bandwidth
 echo "New plan ID:$new_plan_id"
 Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
@@ -146,7 +119,7 @@ Ndocker_image=$(get_plan_limit "$new_plan_id" "docker_image")
 Odocker_image=$(get_plan_limit "$current_plan_id" "docker_image")
 Ndisk_limit=$(get_plan_limit "$new_plan_id" "storage_file")
 Odisk_limit=$(get_plan_limit "$current_plan_id" "storage_file")
-#Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
+Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
 Oinodes_limit=$(get_plan_limit "$current_plan_id" "inodes_limit")
 Nbandwidth=$(get_plan_limit "$new_plan_id" "bandwidth")
 Obandwidth=$(get_plan_limit "$current_plan_id" "bandwidth")
