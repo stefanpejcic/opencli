@@ -168,7 +168,7 @@ inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
 name=$(echo "$cpu_ram_info" | awk '{print $8}')
 storage_file=$(echo "$cpu_ram_info" | awk '{print $9}' | sed 's/ //;s/B//')
-disk_size_needed_for_docker_and_storage= $disk_limit + $storage_file
+disk_size_needed_for_docker_and_storage=$((disk_limit + storage_file))
 
 # Get the available free space on the disk
 current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
