@@ -50,7 +50,7 @@ get_current_plan_id() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 }
 
-# Function to fetch plan limits for a given plan ID
+# Function to fetch plan limits for a given plan ID smece format
 get_plan_limits() {
     local plan_id="$1"
     local query="SELECT cpu, ram, docker_image, storage_file, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
@@ -89,7 +89,7 @@ fi
 # Fetch limits for the current plan
 current_plan_limits=$(get_plan_limits "$current_plan_id")
 
-echo "Current plan limits:('$current_plan_limits')."
+##echo "Current plan limits:('$current_plan_limits')."
 
 # Check if the current plan limits were retrieved
 if [ -z "$current_plan_limits" ]; then
@@ -99,7 +99,7 @@ fi
 
 # Fetch limits for the new plan
 new_plan_limits=$(get_plan_limits "$new_plan_id")
-echo "New plan limits:('$new_plan_limits')."
+##echo "New plan limits:('$new_plan_limits')."
 
 # Check if the new plan limits were retrieved
 if [ -z "$new_plan_limits" ]; then
@@ -110,7 +110,7 @@ fi
 
 
 #Limiti stari i novi cpu, ram, docker_image, storage_file, inodes_limit, bandwidth
-echo "New plan ID:$new_plan_id"
+##echo "New plan ID:$new_plan_id"
 Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
 Ocpu=$(get_plan_limit "$current_plan_id" "cpu")
 Nram=$(get_plan_limit "$new_plan_id" "ram")
@@ -132,6 +132,7 @@ numNram=$(echo "$Nram" | tr -d 'g')
 numOdisk=$(echo "$Odisk_limit" | awk '{print $1}')
 numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
 addSize=$((numNdisk - numOdisk))
+addInodes=$((Ninodes_limit - Oinodes_limit))
 echo "addsize $addSize"
 curSize=$(df -BG | grep /home/$container_name | awk 'NR==1 {print $3}' | sed 's/G//')
 curInode=$(find /home/$container_name/. | wc -l)
@@ -166,6 +167,15 @@ if (( $curInode > $Ninodes_limit )); then
     exit 1
 fi
 
+if (( $addSize < 0 )); then
+    echo "Error: Storage downgrades are not possible."
+    exit 1
+fi
+
+if (( $addInodes < 0 )); then
+    echo "Error: Storage downgrades are not possible."
+    exit 1
+fi
 
 echo "          cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth"
 echo "Old plan: $Ocpu , $Oram, $Odocker_image, $Odisk_limit, $Oinodes_limit, $Obandwith"
@@ -183,33 +193,30 @@ echo "Difference in docker_image: $Odocker_image to $Ndocker_image"
 echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
 echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
 
-if (( $addSize != 0 )); then
-docker stop $container_name
+if (( $addSize > 0 || $addInodes > 0 )); then
+    docker stop $container_name
     if mount | grep "/home/$container_name" > /dev/null; then
         umount /home/$container_name
     fi
 
-if (( $addSize<0)); then
-truncate -s ${numNdisk}g /home/storage_file_$container_name
-fi
+    if (( $addInodes > 0 )); then
+        mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
+    fi
+    #echo "falokejt parametar ${numNdisk}g"
+    fallocate -l ${numNdisk}g /home/storage_file_$container_name
 
-#echo "falokejt parametar ${numNdisk}g"
-fallocate -l ${numNdisk}g /home/storage_file_$container_name
-
-#mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
-#fix+resize FSystem
-e2fsck -f -y /home/storage_file_$container_name
-resize2fs /home/storage_file_$container_name
-mount -o loop /home/storage_file_$container_name /home/$container_name
-docker start $container_name
-
+    #fix+resize FSystem
+    e2fsck -f -y /home/storage_file_$container_name
+    resize2fs /home/storage_file_$container_name
+    mount -o loop /home/storage_file_$container_name /home/$container_name
+    docker start $container_name
 
 else
 echo "No change in disk size."
 fi
 
 
-echo "Difference in bandwidth: $Obandwidth to $Nbandwidth"
+##echo "Difference in bandwidth: $Obandwidth to $Nbandwidth"
 
 
 # Remove the current Docker network from the container
