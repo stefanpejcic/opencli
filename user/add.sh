@@ -215,6 +215,7 @@ if [ "$DEBUG" = true ]; then
     echo "STORAGE FILE: $storage_file"
     echo "BANDWIDTH: $bandwidth"
     echo "NAME: $name"
+    echo "disk_size_needed_for_docker_and_storage: $disk_size_needed_for_docker_and_storage"
     #echo "RAM Soft Limit: $ram_soft_limit MB"
 fi
 
