@@ -2,7 +2,10 @@
 ################################################################################
 # Script Name: create.sh
 # Description: Generate a full backup for all active users.
-# Uage: opencli backup-create
+# Usage: opencli backup-create
+#        opencli backup-create --debug
+#        opencli backup-create container_name
+#        opencli backup-create container_name --debug
 # Author: Stefan Pejcic
 # Created: 08.10.2023
 # Last Modified: 15.11.2023
@@ -31,6 +34,22 @@
 RED="\e[31m"
 GREEN="\e[32m"
 ENDCOLOR="\e[0m"
+
+DEBUG=false # Default value for DEBUG
+SINGLE_CONTAINER=false
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            SINGLE_CONTAINER=true
+            container_name="$arg"
+            ;;
+    esac
+done
 
 # Function to log messages to the user-specific log file
 log_user() {
@@ -151,34 +170,61 @@ backup_apache_conf_and_ssl() {
 
 
 
-
 # Check if a container name is provided as an argument
-if [ -z "$1" ]; then
-  # No container name provided, so loop through all running containers
-  for container_name in $(docker ps --format '{{.Names}}'); do
-    echo "Running backup for user: $container_name"
-    timestamp=$(date +"%Y%m%d%H%M%S")
-    backup_dir="/backup/$container_name/$timestamp"
-    backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-    
-    log_user "$container_name" "Scheduled backup job started."
-    backup_files "$container_name"
-    backup_mysql_data "$container_name"
-    export_user_data_from_database "$container_name"
-    backup_apache_conf_and_ssl "$container_name"
-    log_user "$container_name" "Backup job successfully completed."
-  done
+if [ -z "$container_name" ]; then
+    if [ "$DEBUG" = true ]; then
+        # No container name provided, so loop through all running containers
+        for container_name in $(docker ps --format '{{.Names}}'); do
+            echo "Running backup for user: $container_name"
+            timestamp=$(date +"%Y%m%d%H%M%S")
+            backup_dir="/backup/$container_name/$timestamp"
+            backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
+            
+            log_user "$container_name" "Scheduled backup job started."
+            backup_files "$container_name"
+            backup_mysql_data "$container_name"
+            export_user_data_from_database "$container_name"
+            backup_apache_conf_and_ssl "$container_name"
+            log_user "$container_name" "Backup job successfully completed."
+        done
+    else
+        # No container name provided, so loop through all running containers
+        for container_name in $(docker ps --format '{{.Names}}'); do
+            timestamp=$(date +"%Y%m%d%H%M%S")
+            backup_dir="/backup/$container_name/$timestamp"
+            backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
+            
+            log_user "$container_name" "Scheduled backup job started." > /dev/null 2>&1
+            backup_files "$container_name" > /dev/null 2>&1
+            backup_mysql_data "$container_name" > /dev/null 2>&1
+            export_user_data_from_database "$container_name" > /dev/null 2>&1
+            backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
+            log_user "$container_name" "Backup job successfully completed."
+        done
+    fi
 else
-  # Container name is provided as an argument, backup only that user files..
-  container_name="$1"
-  timestamp=$(date +"%Y%m%d%H%M%S")
-  backup_dir="/backup/$container_name/$timestamp"
-  backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-  echo "Running backup for user: $container_name"
-  log_user "$container_name" "Backup on demand started."
-  backup_files "$container_name"
-  backup_mysql_data "$container_name"
-  export_user_data_from_database "$container_name"
-  backup_apache_conf_and_ssl "$container_name"
-  log_user "$container_name" "Backup successfully completed."
+    if [ "$DEBUG" = true ]; then
+        # Container name is provided as an argument, backup only that user files..
+        echo "Running backup for user: $container_name"
+        timestamp=$(date +"%Y%m%d%H%M%S")
+        backup_dir="/backup/$container_name/$timestamp"
+        backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
+        log_user "$container_name" "Backup on demand started."
+        backup_files "$container_name"
+        backup_mysql_data "$container_name"
+        export_user_data_from_database "$container_name"
+        backup_apache_conf_and_ssl "$container_name"
+        log_user "$container_name" "Backup successfully completed."
+    else
+        # Container name is provided as an argument, backup only that user files..
+        timestamp=$(date +"%Y%m%d%H%M%S")
+        backup_dir="/backup/$container_name/$timestamp"
+        backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
+        log_user "$container_name" "Backup on demand started." > /dev/null 2>&1
+        backup_files "$container_name" > /dev/null 2>&1
+        backup_mysql_data "$container_name" > /dev/null 2>&1
+        export_user_data_from_database "$container_name" > /dev/null 2>&1
+        backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
+        log_user "$container_name" "Backup successfully completed."
+    fi
 fi
