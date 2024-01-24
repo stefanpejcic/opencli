@@ -39,6 +39,7 @@ apply_permissions_in_container() {
       # Apply changes only to the specified path within the container
       if docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chmod 644 {} \;"; then
         #chown -r 1000:33 $path
+        chown 1000:33 $path
         echo "Permissions applied successfully."
       else
         echo "Error applying permissions to $path."
@@ -50,6 +51,7 @@ apply_permissions_in_container() {
       # Apply changes to the entire home directory within the container
       if docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chmod 644 {} \;"; then
       #chown -r 1000:33 /home/$container_name
+      chown 1000:33 /home/$container_name
         echo "Permissions applied successfully."
       else
         echo "Error applying permissions to /home/$container_name."
