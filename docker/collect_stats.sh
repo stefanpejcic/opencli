@@ -62,5 +62,5 @@ docker stats --no-stream --format '{{json .}}' | while read -r container_stats; 
 
   echo "Data for $username written to $output_file"
 
-  echo "$json_data"
+  #echo "$json_data"
 done
