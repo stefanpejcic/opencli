@@ -332,12 +332,10 @@ container_status=$(docker inspect -f '{{.State.Status}}' "$username")
 
 if [ "$container_status" != "running" ]; then
     echo "Error: Container status is not 'running'. Cleaning up..."
-    
-    # Remove Docker container
+    umount /home/$username
     docker rm -f "$username"
-   
-    # Remove home directory
     rm -rf /home/$username
+    rm /home/storage_file_$username
     
     exit 1
 fi
