@@ -56,7 +56,7 @@ WHERE u.username = '$USERNAME' AND s.ports = $PORT;")
 
 # Use `docker exec` to run the lsof command inside the existing container
 #docker exec "$USERNAME" apt-get install lsof -qq -y
-docker exec filip bash -c "command -v lsof"
+docker exec  "$USERNAME" bash -c "command -v lsof"
   if [ "$?" -eq 1 ]; then
     docker exec "$USERNAME" apt-get install lsof -qq -y
   fi
