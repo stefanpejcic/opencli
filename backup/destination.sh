@@ -27,7 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-
 # Set paths
 backup_dir="/usr/local/admin/backups/destinations/"
 jobs_file="/usr/local/admin/backups/jobs.json"
@@ -203,7 +202,7 @@ create_backup() {
 
   # Check if enough parameters are provided
   if [ "$#" -ne 7 ]; then
-    error "Usage: $0 create hostname password ssh_port ssh_user ssh_key_path destination_dir_name"
+    error "Usage: opencli backup-destination create hostname password ssh_port ssh_user ssh_key_path destination_dir_name"
     exit 1
   fi
 
@@ -278,6 +277,17 @@ EOF
   echo "$json_content"
 }
 
+
+
+
+# List destinations
+list_backup_ids() {
+    # get list of all destination IDs
+    json_files=$(find "$backup_dir" -type f -name "*.json" -exec basename {} \; | sed 's/\.json$//')
+    echo "Available destination IDs:"
+    echo "$json_files"
+    exit 1
+}
 
 
 # Function to validate the SSH connection using data from a JSON file
@@ -359,11 +369,14 @@ validate_ssh_connection() {
 
 # Main script
 if [ "$#" -lt 1 ]; then
-  error "Usage: $0 [create|edit|validate|delete] [ID]"
+  error "Usage: opencli backup-destination [create|edit|validate|delete|list] [ID]"
   exit 1
 fi
 
 case "$1" in
+  list)
+    list_backup_ids
+    ;;
   create)
     shift  # Remove the first argument "create"
     create_backup "$@"
