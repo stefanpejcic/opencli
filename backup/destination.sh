@@ -27,10 +27,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-# Set paths
+
 backup_dir="/usr/local/admin/backups/destinations/"
 jobs_file="/usr/local/admin/backups/jobs.json"
-
+DEBUG=false  # Default value for DEBUG
 
 # crveno na radost
 error() {
@@ -41,6 +41,19 @@ error() {
 success() {
     echo -e "\033[42;97m$1\033[0m"
 }
+
+
+
+# Parse optional flags to enable debug mode when needed!
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
 
 
 
@@ -330,9 +343,11 @@ validate_ssh_connection() {
 
       # Compare with storage_limit
       if [ "$usage_percentage" -ge "$storage_limit" ]; then
-        error "Disk usage on local destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
+        #error "Disk usage on local destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
+        pass
       else
-        echo "Disk space on local destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
+        #echo "Disk space on local destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
+        pass
       fi
     else
       error "Validation failed! The local destination directory $destination_dir_name does not exist."
@@ -340,10 +355,12 @@ validate_ssh_connection() {
   else
     # Perform SSH connection and checks for a remote machine
     validate_parameters "$hostname" "dummy_password" "$ssh_port" "$ssh_user" "$ssh_key_path" "$destination_dir_name" "$storage_limit"
-
-    # Debugging: Print extracted values
-    echo "Validating SSH connection with the destination, running command: 'ssh -i $ssh_key_path $ssh_user@$hostname -p $ssh_port'"
-
+    
+    if [ "$DEBUG" = true ]; then
+        echo "Validating SSH connection with the destination, running command: 'ssh -i $ssh_key_path $ssh_user@$hostname -p $ssh_port'"
+    else
+        pass
+    fi
     # Attempt to establish an SSH connection with a timeout
     timeout "$timeout_seconds" ssh -i "$ssh_key_path" -p "$ssh_port" "$ssh_user"@"$hostname" echo "SSH connection successful."
     connection_status=$?
@@ -359,26 +376,30 @@ validate_ssh_connection() {
     
           # Compare with your user
           if [ "$remote_owner" == "$ssh_user" ]; then
-            echo "Destination directory $destination_dir_name on the remote server is owned by $ssh_user user."
+            #echo "Destination directory $destination_dir_name on the remote server is owned by $ssh_user user."
     
             # Get disk usage percentage for the partition
             usage_percentage=$(ssh -i "$ssh_key_path" -p "$ssh_port" "$ssh_user"@"$hostname" "df -h --output=pcent $destination_dir_name | tail -n 1 | tr -d '%'")
     
             # Compare with storage_limit
             if [ "$usage_percentage" -ge "$storage_limit" ]; then
-              error "Disk usage on remote destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
+              #error "Disk usage on remote destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
+              pass
             else
-              echo "Disk space on remote destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
+              #echo "Disk space on remote destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
+              pass
             fi
           else
-            error "Validation failed! The destination directory $destination_dir_name on the remote server is not owned by $ssh_user user."
+            #error "Validation failed! The destination directory $destination_dir_name on the remote server is not owned by $ssh_user user."
+            pass
           fi
         else
-          error "Validation failed! The destination directory $destination_dir_name does not exist on the server."
+          #error "Validation failed! The destination directory $destination_dir_name does not exist on the server."
+          pass
         fi
     else
       error "Validation failed! SSH connection failed or timed out."
-      echo "SSH Connection Status: $connection_status"
+      #echo "SSH Connection Status: $connection_status"
     fi
   fi
 }
