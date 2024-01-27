@@ -193,11 +193,15 @@ validate_parameters() {
     exit 1
   fi
 
-  # Validate ssh key path
-  if [ ! -f "$5" ]; then
-    error "SSH key path does not exist."
-    exit 1
-  fi
+
+    # Validate ssh key path
+    if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] && [ "$1" != "$(hostname)" ]; then
+      # Validate ssh key path
+      if [ ! -f "$5" ]; then
+        echo "SSH key path does not exist."
+        exit 1
+      fi
+    fi
 
   # Check and set permissions for key file
   if [ "$(stat -c %a "$5")" != "600" ]; then
@@ -238,7 +242,7 @@ EOF
 
   # Create the new .json file with the provided content
   echo "$json_content" > "$new_file"
-  success "Created $(basename "$new_file" .json)"
+  success "Successfully created $(basename "$new_file" .json)"
 }
 
 
