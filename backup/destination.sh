@@ -344,10 +344,10 @@ validate_ssh_connection() {
       # Compare with storage_limit
       if [ "$usage_percentage" -ge "$storage_limit" ]; then
         #error "Disk usage on local destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
-        pass
+        :
       else
         #echo "Disk space on local destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
-        pass
+        :
       fi
     else
       error "Validation failed! The local destination directory $destination_dir_name does not exist."
@@ -359,7 +359,7 @@ validate_ssh_connection() {
     if [ "$DEBUG" = true ]; then
         echo "Validating SSH connection with the destination, running command: 'ssh -i $ssh_key_path $ssh_user@$hostname -p $ssh_port'"
     else
-        pass
+        :
     fi
     # Attempt to establish an SSH connection with a timeout
     timeout "$timeout_seconds" ssh -i "$ssh_key_path" -p "$ssh_port" "$ssh_user"@"$hostname" echo "SSH connection successful."
@@ -384,18 +384,18 @@ validate_ssh_connection() {
             # Compare with storage_limit
             if [ "$usage_percentage" -ge "$storage_limit" ]; then
               #error "Disk usage on remote destination is over the storage limit ($storage_limit%) for $destination_dir_name. Backups jobs will not run!"
-              pass
+              :
             else
               #echo "Disk space on remote destination is below the storage limit ($storage_limit%) for $destination_dir_name. Backups can run without a problem."
-              pass
+              :
             fi
           else
             #error "Validation failed! The destination directory $destination_dir_name on the remote server is not owned by $ssh_user user."
-            pass
+            :
           fi
         else
           #error "Validation failed! The destination directory $destination_dir_name does not exist on the server."
-          pass
+          :
         fi
     else
       error "Validation failed! SSH connection failed or timed out."
