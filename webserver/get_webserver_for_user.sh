@@ -193,12 +193,8 @@ if [ $? -eq 0 ]; then
     version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
     for version in $version_numbers; do
         # Copy php-fpm.conf file
-        if [ -f "/etc/php/$version/fpm/php-fpm.conf" ]; then
-            docker cp "/etc/php/$version/fpm/php-fpm.conf" "$backup_dir/php/php-fpm_$version.conf"
-            echo "php-fpm.conf for PHP $version copied to $backup_dir/php/php-fpm_$version.conf"
-        else
-            echo "Error: php-fpm.conf file not found for PHP $version"
-        fi
+        docker cp "/etc/php/$version/fpm/php-fpm.conf" "$backup_dir/php/php-fpm_$version.conf"
+        echo "php-fpm.conf for PHP $version copied to $backup_dir/php/php-fpm_$version.conf"
     done
 
 else
