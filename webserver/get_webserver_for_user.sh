@@ -143,6 +143,11 @@ docker cp $container_name:/etc/$ws/$ws.conf $backup_dir/$ws/
 
 
 
+export_entrypoint_file() {
+mkdir -p "$backup_dir/docker/"
+docker cp $container_name:/etc/entrypoint.sh $backup_dir/docker/
+}
+
 
 
 
@@ -237,6 +242,7 @@ if [ -z "$container_name" ]; then
             backup_files "$container_name"
 
             # configuration
+            export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
             
@@ -264,6 +270,7 @@ if [ -z "$container_name" ]; then
             backup_files "$container_name" > /dev/null 2>&1
 
             # configuration
+            export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
             
@@ -291,6 +298,7 @@ else
             backup_files "$container_name"
 
             # configuration
+            export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
             
@@ -314,6 +322,7 @@ else
             backup_files "$container_name" > /dev/null 2>&1
 
             # configuration
+            export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
             
