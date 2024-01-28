@@ -223,6 +223,17 @@ backup_apache_conf_and_ssl() {
     done
 }
 
+backup_crontab_for_root_user(){
+    file_path="/var/spool/cron/crontabs/root"
+
+    if [ -e "$file_path" ]; then
+        mkdir -p "$backup_dir/crons/"
+        docker cp $container_name:$file_path $backup_dir/crons/
+    else
+        echo "Crontab is empty, no cronjobs to backup."
+    fi
+
+}
 
 
 
@@ -245,6 +256,9 @@ if [ -z "$container_name" ]; then
             export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
+
+            #crons
+            backup_crontab_for_root_user "$container_name"
             
             #mysql
             backup_mysql_databases "$container_name"
@@ -273,6 +287,9 @@ if [ -z "$container_name" ]; then
             export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
+
+            #crons
+            backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
             
             #mysql
             backup_mysql_databases "$container_name" > /dev/null 2>&1
@@ -301,6 +318,9 @@ else
             export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
+
+            #crons
+            backup_crontab_for_root_user "$container_name"
             
             #mysql
             backup_mysql_databases "$container_name"
@@ -325,6 +345,9 @@ else
             export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
+
+            #crons
+            backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
             
             #mysql
             backup_mysql_databases "$container_name" > /dev/null 2>&1
