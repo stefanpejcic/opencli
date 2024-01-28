@@ -235,6 +235,14 @@ backup_crontab_for_root_user(){
 
 }
 
+backup_timezone(){
+    mkdir -p "$backup_dir/timezone/"
+    docker cp $container_name:/etc/timezone $backup_dir/timezone/
+    docker cp $container_name:/etc/localtime $backup_dir/timezone/
+}
+
+sudo cp /etc/timezone_backup /etc/timezone
+sudo cp /etc/localtime_backup /etc/localtime
 
 
 # Check if a container name is provided as an argument
@@ -256,6 +264,7 @@ if [ -z "$container_name" ]; then
             export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
+            backup_timezone "$container_name"
 
             #crons
             backup_crontab_for_root_user "$container_name"
@@ -287,6 +296,7 @@ if [ -z "$container_name" ]; then
             export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
+            backup_timezone "$container_name" > /dev/null 2>&1
 
             #crons
             backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
@@ -318,6 +328,7 @@ else
             export_entrypoint_file "$container_name"
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
+            backup_timezone "$container_name"
 
             #crons
             backup_crontab_for_root_user "$container_name"
@@ -345,6 +356,7 @@ else
             export_entrypoint_file "$container_name" > /dev/null 2>&1
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
+            backup_timezone "$container_name" > /dev/null 2>&1
 
             #crons
             backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
