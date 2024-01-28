@@ -316,9 +316,6 @@ backup_timezone(){
     docker cp $container_name:/etc/localtime $backup_dir/timezone/
 }
 
-sudo cp /etc/timezone_backup /etc/timezone
-sudo cp /etc/localtime_backup /etc/localtime
-
 
 # Check if a container name is provided as an argument
 if [ -z "$container_name" ]; then
