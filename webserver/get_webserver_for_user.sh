@@ -290,7 +290,7 @@ backup_apache_conf_and_ssl() {
         # Check if Certbot SSL certificates exist and copy them
         if [ -d "$certbot_ssl_dir" ]; then
             mkdir -p "$backup_certbot_ssl_dir"
-            cp -r "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
+            cp -Lr "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
             echo "Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
         else
             echo "Certbot SSL certificates for domain '$domain_name' not found."
