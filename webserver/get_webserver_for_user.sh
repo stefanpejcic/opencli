@@ -156,6 +156,20 @@ docker cp $container_name:/etc/entrypoint.sh $backup_dir/docker/
 backup_php_versions_in_container(){
 
 # Run the command and capture the output
+default_php_version=$(opencli php-default_php_version $container_name)
+
+# Check if the command was successful
+if [ $? -eq 0 ]; then
+    mkdir -p "$backup_dir/php/"
+    # Save the output to a file
+    echo "$default_php_version" > $backup_dir/php/default.txt
+    echo "Default PHP version saved for user."
+else
+    echo "Error running the command, default PHP version for user is not saved."
+fi
+
+
+# Run the command and capture the output
 output=$(opencli php-enabled_php_versions $container_name)
 
 # Check if the command was successful
