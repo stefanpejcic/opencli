@@ -240,6 +240,21 @@ backup_apache_conf_and_ssl() {
         exit 1
     fi
     
+
+    #get webserver for user
+    output=$(opencli webserver-get_webserver_for_user $container_name)
+
+    # Check if the output contains "nginx"
+    if [[ $output == *nginx* ]]; then
+        ws="nginx"
+    # Check if the output contains "apache"
+    elif [[ $output == *apache* ]]; then
+        ws="apache2"
+    else
+        # Set a default value if neither "nginx" nor "apache" is found
+        ws="unknown"
+    fi
+
     # Get domain names associated with the user_id from the 'domains' table
     local domain_names=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     echo "Getting Nginx configuration for user's domains.."
@@ -262,8 +277,7 @@ backup_apache_conf_and_ssl() {
         mkdir -p $backup_apache_conf_dir/container/
 
 
-        docker cp $container_name:/etc/nginx/sites-available/ $backup_apache_conf_dir/container/
-        docker cp $container_name:/etc/apache2/sites-available/ $backup_apache_conf_dir/container/
+        docker cp $container_name:/etc/$ws/sites-available/ $backup_apache_conf_dir/container/
 
         # Check if the zone file exists and copy it
         if [ -f "$zone_file" ]; then
