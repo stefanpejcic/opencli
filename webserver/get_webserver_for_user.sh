@@ -150,6 +150,15 @@ docker cp $container_name:/etc/entrypoint.sh $backup_dir/docker/
 
 
 
+users_local_files_in_core_users() {
+mkdir -p "$backup_dir/core/"
+cp -r /usr/local/panel/core/users/$container_name/ $backup_dir/core/
+}
+
+users_local_files_in_stats_users() {
+mkdir -p "$backup_dir/stats/"
+cp -r /usr/local/panel/core/users/$container_name/ $backup_dir/stats/
+}
 
 
 
@@ -327,6 +336,8 @@ if [ -z "$container_name" ]; then
 
             #panel data
             export_user_data_from_database "$container_name"
+            users_local_files_in_core_users "$container_name"
+            users_local_files_in_stats_users "$container_name"
 
             #domains
             backup_apache_conf_and_ssl "$container_name"
@@ -360,6 +371,8 @@ if [ -z "$container_name" ]; then
 
             #panel data
             export_user_data_from_database "$container_name" > /dev/null 2>&1
+            users_local_files_in_core_users "$container_name" > /dev/null 2>&1
+            users_local_files_in_stats_users "$container_name" > /dev/null 2>&1
 
             #domains
             backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
@@ -393,6 +406,8 @@ else
 
             #panel data
             export_user_data_from_database "$container_name"
+            users_local_files_in_core_users "$container_name"
+            users_local_files_in_stats_users "$container_name"
 
             #domains
             backup_apache_conf_and_ssl "$container_name"
@@ -422,7 +437,9 @@ else
 
             #panel data
             export_user_data_from_database "$container_name" > /dev/null 2>&1
-
+            users_local_files_in_core_users "$container_name" > /dev/null 2>&1
+            users_local_files_in_stats_users "$container_name" > /dev/null 2>&1
+            
             #domains
             backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
         log_user "$container_name" "Backup successfully completed."
