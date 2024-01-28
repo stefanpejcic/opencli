@@ -153,7 +153,33 @@ docker cp $container_name:/etc/entrypoint.sh $backup_dir/docker/
 
 
 
+backup_php_versions_in_container(){
 
+# Run the command and capture the output
+output=$(opencli php-enabled_php_versions $container_name)
+
+# Check if the command was successful
+if [ $? -eq 0 ]; then
+    mkdir -p "$backup_dir/php/"
+    # Save the output to a file
+    echo "$output" > $backup_dir/php/php_versions.txt
+    echo "PHP versions saved to php_versions.txt"
+
+    version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
+    for version in $version_numbers; do
+        # Copy php-fpm.conf file
+        if [ -f "/etc/php/$version/fpm/php-fpm.conf" ]; then
+            cp "/etc/php/$version/fpm/php-fpm.conf" "php-fpm_$version.conf"
+            echo "php-fpm.conf for PHP $version copied to php-fpm_$version.conf"
+        else
+            echo "Error: php-fpm.conf file not found for PHP $version"
+        fi
+    done
+
+else
+    echo "Error running the command, no PHP versions are backed up for the user."
+fi
+}
 
 
 
@@ -276,6 +302,7 @@ if [ -z "$container_name" ]; then
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
             backup_timezone "$container_name"
+            backup_php_versions_in_container "$container_name"
 
             #crons
             backup_crontab_for_root_user "$container_name"
@@ -308,6 +335,7 @@ if [ -z "$container_name" ]; then
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
             backup_timezone "$container_name" > /dev/null 2>&1
+            backup_php_versions_in_container "$container_name" > /dev/null 2>&1
 
             #crons
             backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
@@ -340,6 +368,7 @@ else
             export_webserver_main_conf_file "$container_name"
             backup_mysql_conf_file "$container_name"
             backup_timezone "$container_name"
+            backup_php_versions_in_container "$container_name"
 
             #crons
             backup_crontab_for_root_user "$container_name"
@@ -368,6 +397,7 @@ else
             export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
             backup_mysql_conf_file "$container_name" > /dev/null 2>&1
             backup_timezone "$container_name" > /dev/null 2>&1
+            backup_php_versions_in_container "$container_name" > /dev/null 2>&1
 
             #crons
             backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
