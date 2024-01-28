@@ -104,6 +104,8 @@ do
     echo "Exported mysql user '$USER' and their permissions to $OUTPUT_FILE."
 done
 
+}
+
 
 backup_mysql_conf_file() {
 
