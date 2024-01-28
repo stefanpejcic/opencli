@@ -29,7 +29,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-
+TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 DEBUG=false # Default value for DEBUG
 SINGLE_CONTAINER=false
 
@@ -59,16 +59,10 @@ log_user() {
 # DB
 source /usr/local/admin/scripts/db.sh
 
-backup_files() {
-# Create the backup directory
-mkdir -p "$backup_dir"
-tar -czvf "$backup_file" "/home/$container_name"
-}
-
 
 backup_mysql_databases() {
 
-mkdir -p "$backup_dir/mysql"
+mkdir -p "$BACKUP_DIR/mysql"
 
 # Get a list of databases with the specified prefix
 databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1')
@@ -77,26 +71,26 @@ databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE 
 for db in $databases
 do
   echo "Exporting database: $db"
-  docker exec "$container_name" mysqldump -u root "$db" > "$backup_dir/mysql/$db.sql"
+  docker exec "$container_name" mysqldump -u root "$db" > "$BACKUP_DIR/mysql/$db.sql"
 done
 
-echo "All MySQL databases have been exported to '$backup_dir/mysql/'."
+echo "All MySQL databases have been exported to '$BACKUP_DIR/mysql/'."
 }
 
 
 backup_mysql_users() {
 
-mkdir -p "$backup_dir/mysql/users/"
+mkdir -p "$BACKUP_DIR/mysql/users/"
 
 # Get a list of MySQL users (excluding root and other system users)
 USERS=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'")
 
-#docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $backup_dir/mysql/users/mysql_users_and_permissions.sql"
+#docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $BACKUP_DIR/mysql/users/mysql_users_and_permissions.sql"
 
 for USER in $USERS
 do
     # Generate a filename based on the username
-    OUTPUT_FILE="$backup_dir/mysql/users/${USER}.sql"
+    OUTPUT_FILE="$BACKUP_DIR/mysql/users/${USER}.sql"
 
     # Use mysqldump to export user accounts and their permissions
     docker exec "$container_name" mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user --where="user='$USER'" > $OUTPUT_FILE
@@ -109,9 +103,9 @@ done
 
 backup_mysql_conf_file() {
 
-mkdir -p "$backup_dir/mysql/conf/"
+mkdir -p "$BACKUP_DIR/docker/"
 
-docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $backup_dir/mysql/conf/
+docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $BACKUP_DIR/docker/
 
 echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
 }
@@ -135,10 +129,10 @@ else
     ws="unknown"
 fi
 
-mkdir -p "$backup_dir/$ws/"
+mkdir -p "$BACKUP_DIR/$ws/"
+mkdir -p "$BACKUP_DIR/docker/"
 
-
-docker cp $container_name:/etc/$ws/$ws.conf $backup_dir/$ws/
+docker cp $container_name:/etc/$ws/$ws.conf $BACKUP_DIR/docker/
 
 }
 
@@ -146,20 +140,20 @@ docker cp $container_name:/etc/$ws/$ws.conf $backup_dir/$ws/
 
 
 export_entrypoint_file() {
-mkdir -p "$backup_dir/docker/"
-docker cp $container_name:/etc/entrypoint.sh $backup_dir/docker/
+mkdir -p "$BACKUP_DIR/docker/"
+docker cp $container_name:/etc/entrypoint.sh $BACKUP_DIR/docker/entrypoint.sh
 }
 
 
 
 users_local_files_in_core_users() {
-mkdir -p "$backup_dir/core/"
-cp -r /usr/local/panel/core/users/$container_name/ $backup_dir/core/
+mkdir -p "$BACKUP_DIR/core/"
+cp -r /usr/local/panel/core/users/$container_name/ $BACKUP_DIR/core/
 }
 
 users_local_files_in_stats_users() {
-mkdir -p "$backup_dir/stats/"
-cp -r /usr/local/panel/core/users/$container_name/ $backup_dir/stats/
+mkdir -p "$BACKUP_DIR/stats/"
+cp -r /usr/local/panel/core/stats/$container_name/ $BACKUP_DIR/stats/
 }
 
 
@@ -171,9 +165,9 @@ default_php_version=$(opencli php-default_php_version $container_name)
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
-    mkdir -p "$backup_dir/php/"
+    mkdir -p "$BACKUP_DIR/php/"
     # Save the output to a file
-    echo "$default_php_version" > $backup_dir/php/default.txt
+    echo "$default_php_version" > $BACKUP_DIR/php/default.txt
     echo "Default PHP version saved for user."
 else
     echo "Error running the command, default PHP version for user is not saved."
@@ -185,16 +179,16 @@ output=$(opencli php-enabled_php_versions $container_name)
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
-    mkdir -p "$backup_dir/php/"
+    mkdir -p "$BACKUP_DIR/php/"
     # Save the output to a file
-    echo "$output" > $backup_dir/php/php_versions.txt
+    echo "$output" > $BACKUP_DIR/php/php_versions.txt
     echo "PHP versions saved to php_versions.txt"
 
     version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
     for version in $version_numbers; do
         # Copy php-fpm.conf file
-        docker cp "/etc/php/$version/fpm/php-fpm.conf" "$backup_dir/php/php-fpm_$version.conf"
-        echo "php-fpm.conf for PHP $version copied to $backup_dir/php/php-fpm_$version.conf"
+        docker cp $container_name:"/etc/php/$version/fpm/php-fpm.conf" "$BACKUP_DIR/php/php-fpm_$version.conf"
+        echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
     done
 
 else
@@ -213,7 +207,7 @@ export_user_data_from_database() {
     fi
 
     # Create a single SQL dump file
-    backup_file="$backup_dir/user_data_dump.sql"
+    backup_file="$BACKUP_DIR/user_data_dump.sql"
     
     # Use mysqldump to export data from the 'sites', 'domains', and 'users' tables
     mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" users -w "id='$user_id'" >> "$backup_file"
@@ -225,8 +219,8 @@ export_user_data_from_database() {
 
 
 backup_domain_access_reports() {
-    mkdir -p $backup_dir/nginx/stats/
-    cp -r /var/log/nginx/stats/$container_name/ $backup_dir/nginx/stats/
+    mkdir -p $BACKUP_DIR/nginx/stats/
+    cp -r /var/log/nginx/stats/$container_name/ $BACKUP_DIR/nginx/stats/
 }
 
 # Function to backup Apache .conf files and SSL certificates for domain names associated with a user
@@ -264,12 +258,12 @@ backup_apache_conf_and_ssl() {
         
         local apache_conf_file="$domain_name.conf"
         
-        local backup_apache_conf_dir="$backup_dir/nginx"
+        local backup_apache_conf_dir="$BACKUP_DIR/nginx"
         
         local certbot_ssl_dir="/etc/letsencrypt/live/$domain_name"
         
-        local backup_certbot_ssl_dir="$backup_dir/ssl/$domain_name"
-        local backup_dns_zones_dir="$backup_dir/dns"
+        local backup_certbot_ssl_dir="$BACKUP_DIR/ssl/$domain_name"
+        local backup_dns_zones_dir="$BACKUP_DIR/dns"
         local zone_file="/etc/bind/zones/$domain_name.zone"
 
 
@@ -312,8 +306,8 @@ backup_crontab_for_root_user(){
     file_path="/var/spool/cron/crontabs/root"
 
     if [ -e "$file_path" ]; then
-        mkdir -p "$backup_dir/crons/"
-        docker cp $container_name:$file_path $backup_dir/crons/
+        mkdir -p "$BACKUP_DIR/crons/"
+        docker cp $container_name:$file_path $BACKUP_DIR/crons/
     else
         echo "Crontab is empty, no cronjobs to backup."
     fi
@@ -321,153 +315,73 @@ backup_crontab_for_root_user(){
 }
 
 backup_timezone(){
-    mkdir -p "$backup_dir/timezone/"
-    docker cp $container_name:/etc/timezone $backup_dir/timezone/
-    docker cp $container_name:/etc/localtime $backup_dir/timezone/
+    mkdir -p "$BACKUP_DIR/timezone/"
+    docker cp $container_name:/etc/timezone $BACKUP_DIR/timezone/
+    docker cp $container_name:/etc/localtime $BACKUP_DIR/timezone/
 }
 
 
-# Check if a container name is provided as an argument
-if [ -z "$container_name" ]; then
-    if [ "$DEBUG" = true ]; then
-        # No container name provided, so loop through all running containers
-        for container_name in $(docker ps --format '{{.Names}}'); do
-            echo "Running backup for user: $container_name"
-            timestamp=$(date +"%Y%m%d%H%M%S")
-            backup_dir="/backup/$container_name/$timestamp"
-            backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-            
-            log_user "$container_name" "Scheduled backup job started."
 
-            # files
-            backup_files "$container_name"
 
-            # configuration
-            export_entrypoint_file "$container_name"
-            export_webserver_main_conf_file "$container_name"
-            backup_mysql_conf_file "$container_name"
-            backup_timezone "$container_name"
-            backup_php_versions_in_container "$container_name"
 
-            #crons
-            backup_crontab_for_root_user "$container_name"
-            
-            #mysql
-            backup_mysql_databases "$container_name"
-            backup_mysql_users "$container_name"
 
-            #panel data
-            export_user_data_from_database "$container_name"
-            users_local_files_in_core_users "$container_name"
-            users_local_files_in_stats_users "$container_name"
-
-            #domains
-            backup_apache_conf_and_ssl "$container_name"
-            backup_domain_access_reports "$container_name"
-
-            log_user "$container_name" "Backup job successfully completed."
-        done
-    else
-        # No container name provided, so loop through all running containers
-        for container_name in $(docker ps --format '{{.Names}}'); do
-            timestamp=$(date +"%Y%m%d%H%M%S")
-            backup_dir="/backup/$container_name/$timestamp"
-            backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-            
-            log_user "$container_name" "Scheduled backup job started." > /dev/null 2>&1
-            # files
-            backup_files "$container_name" > /dev/null 2>&1
-
-            # configuration
-            export_entrypoint_file "$container_name" > /dev/null 2>&1
-            export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
-            backup_mysql_conf_file "$container_name" > /dev/null 2>&1
-            backup_timezone "$container_name" > /dev/null 2>&1
-            backup_php_versions_in_container "$container_name" > /dev/null 2>&1
-
-            #crons
-            backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
-            
-            #mysql
-            backup_mysql_databases "$container_name" > /dev/null 2>&1
-            backup_mysql_users "$container_name" > /dev/null 2>&1
-
-            #panel data
-            export_user_data_from_database "$container_name" > /dev/null 2>&1
-            users_local_files_in_core_users "$container_name" > /dev/null 2>&1
-            users_local_files_in_stats_users "$container_name" > /dev/null 2>&1
-
-            #domains
-            backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
-            backup_domain_access_reports "$container_name" > /dev/null 2>&1
-            log_user "$container_name" "Backup job successfully completed."
-        done
+# Function to check command success and exit on failure
+check_command_success() {
+    if [ $? -ne 0 ]; then
+        echo "Error: $1"
+        exit 1
     fi
+}
+
+
+# Function to backup files
+backup_files() {
+    local source_dir="/home/$container_name"
+    local destination_dir="$BACKUP_DIR/files"
+    
+    mkdir -p "$destination_dir"
+    tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"
+    check_command_success "Error while creating files backup."
+}
+
+
+# Main Backup Function
+perform_backup() {
+    log_user "$container_name" "Backup started."
+
+    BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
+    
+    mkdir -p "$BACKUP_DIR"
+    
+    backup_files 
+    export_entrypoint_file
+    export_webserver_main_conf_file
+    backup_mysql_conf_file
+    backup_timezone
+    backup_php_versions_in_container
+    backup_crontab_for_root_user
+    backup_mysql_databases
+    backup_mysql_users
+    export_user_data_from_database
+    users_local_files_in_core_users
+    users_local_files_in_stats_users
+    backup_apache_conf_and_ssl
+    backup_domain_access_reports
+    
+    log_user "$container_name" "Backup completed successfully."
+}
+
+# Loop through containers or backup a specific container
+if [ -z "$container_name" ]; then
+    for container_name in $(docker ps --format '{{.Names}}'); do
+        if [ "$DEBUG" = true ]; then
+            echo "Running backup for user: $container_name (Debug Mode)"
+        fi
+        perform_backup "$container_name"
+    done
 else
     if [ "$DEBUG" = true ]; then
-        # Container name is provided as an argument, backup only that user files..
-        echo "Running backup for user: $container_name"
-        timestamp=$(date +"%Y%m%d%H%M%S")
-        backup_dir="/backup/$container_name/$timestamp"
-        backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-        log_user "$container_name" "Backup on demand started."
-            # files
-            backup_files "$container_name"
-
-            # configuration
-            export_entrypoint_file "$container_name"
-            export_webserver_main_conf_file "$container_name"
-            backup_mysql_conf_file "$container_name"
-            backup_timezone "$container_name"
-            backup_php_versions_in_container "$container_name"
-
-            #crons
-            backup_crontab_for_root_user "$container_name"
-            
-            #mysql
-            backup_mysql_databases "$container_name"
-            backup_mysql_users "$container_name"
-
-            #panel data
-            export_user_data_from_database "$container_name"
-            users_local_files_in_core_users "$container_name"
-            users_local_files_in_stats_users "$container_name"
-
-            #domains
-            backup_apache_conf_and_ssl "$container_name"
-            backup_domain_access_reports "$container_name"
-        log_user "$container_name" "Backup successfully completed."
-    else
-        # Container name is provided as an argument, backup only that user files..
-        timestamp=$(date +"%Y%m%d%H%M%S")
-        backup_dir="/backup/$container_name/$timestamp"
-        backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
-        log_user "$container_name" "Backup on demand started." > /dev/null 2>&1
-            # files
-            backup_files "$container_name" > /dev/null 2>&1
-
-            # configuration
-            export_entrypoint_file "$container_name" > /dev/null 2>&1
-            export_webserver_main_conf_file "$container_name" > /dev/null 2>&1
-            backup_mysql_conf_file "$container_name" > /dev/null 2>&1
-            backup_timezone "$container_name" > /dev/null 2>&1
-            backup_php_versions_in_container "$container_name" > /dev/null 2>&1
-
-            #crons
-            backup_crontab_for_root_user "$container_name" > /dev/null 2>&1
-            
-            #mysql
-            backup_mysql_databases "$container_name" > /dev/null 2>&1
-            backup_mysql_users "$container_name" > /dev/null 2>&1
-
-            #panel data
-            export_user_data_from_database "$container_name" > /dev/null 2>&1
-            users_local_files_in_core_users "$container_name" > /dev/null 2>&1
-            users_local_files_in_stats_users "$container_name" > /dev/null 2>&1
-
-            #domains
-            backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
-            backup_domain_access_reports "$container_name" > /dev/null 2>&1
-        log_user "$container_name" "Backup successfully completed."
+        echo "Running backup for user: $container_name (Debug Mode)"
     fi
+    perform_backup "$container_name"
 fi
