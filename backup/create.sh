@@ -3,12 +3,10 @@
 # Script Name: create.sh
 # Description: Generate a full backup for all active users.
 # Usage: opencli backup-create
-#        opencli backup-create --debug
-#        opencli backup-create container_name
-#        opencli backup-create container_name --debug
+#        opencli backup-create username [--debug]
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 28.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -31,9 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-RED="\e[31m"
-GREEN="\e[32m"
-ENDCOLOR="\e[0m"
 
 DEBUG=false # Default value for DEBUG
 SINGLE_CONTAINER=false
@@ -51,7 +46,7 @@ for arg in "$@"; do
     esac
 done
 
-# Function to log messages to the user-specific log file
+# Function to log messages to the user-specific log file for the user
 log_user() {
     local user_log_file="/usr/local/panel/core/users/$1/backup.log"
     local log_message="$2"
@@ -70,19 +65,8 @@ mkdir -p "$backup_dir"
 tar -czvf "$backup_file" "/home/$container_name"
 }
 
-#echo "Creating a backup of user container.."
-# Export the Docker container to a tar file
-#docker export "$container_name" > "$backup_file"
 
-
-# Check if the export was successful
-#if [ $? -eq 0 ]; then
-#  echo "${GREEN}[ ✓ ]${END} Exported $container_name to $backup_file"
-#else
-#  echo "${RED}ERROR${ENDCOLOR}: exporting $container_name"
-#fi
-
-backup_mysql_data() {
+backup_mysql_databases() {
 
 mkdir -p "$backup_dir/mysql"
 
@@ -100,12 +84,43 @@ echo "All MySQL databases have been exported to '$backup_dir/mysql/'."
 }
 
 
+backup_mysql_users() {
+
+mkdir -p "$backup_dir/mysql/users/"
+
+# Get a list of MySQL users (excluding root and other system users)
+USERS=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'")
+
+#docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $backup_dir/mysql/users/mysql_users_and_permissions.sql"
+
+for USER in $USERS
+do
+    # Generate a filename based on the username
+    OUTPUT_FILE="$backup_dir/mysql/users/${USER}.sql"
+
+    # Use mysqldump to export user accounts and their permissions
+    docker exec "$container_name" mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user --where="user='$USER'" > $OUTPUT_FILE
+
+    echo "Exported mysql user '$USER' and their permissions to $OUTPUT_FILE."
+done
+
+
+backup_mysql_conf_file() {
+
+mkdir -p "$backup_dir/mysql/conf/"
+
+docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $backup_dir/mysql/conf/
+
+echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
+}
+
+
 
 export_user_data_from_database() {
     user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$container_name';" -N)
 
     if [ -z "$user_id" ]; then
-        echo "${RED}ERROR${ENDCOLOR}: export_user_data_to_sql: User '$container_name' not found in the database."
+        echo "ERROR: export_user_data_to_sql: User '$container_name' not found in the database."
         exit 1
     fi
 
@@ -117,7 +132,7 @@ export_user_data_from_database() {
     mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" domains -w "user_id='$user_id'" >> "$backup_file"
     mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" sites -w "domain_id IN (SELECT domain_id FROM domains WHERE user_id='$user_id')" >> "$backup_file"
 
-    echo "${GREEN}[ ✓ ]${END}User '$container_name' data exported to $backup_file successfully."
+    echo "User '$container_name' data exported to $backup_file successfully."
 }
 
 
@@ -128,7 +143,7 @@ backup_apache_conf_and_ssl() {
     user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$container_name';" -N)
     
     if [ -z "$user_id" ]; then
-        echo "${RED}ERROR${ENDCOLOR}: backup_apache_conf_and_ssl: User '$container_name' not found in the database."
+        echo "ERROR: backup_apache_conf_and_ssl: User '$container_name' not found in the database."
         exit 1
     fi
     
@@ -151,7 +166,7 @@ backup_apache_conf_and_ssl() {
         if [ -f "$apache_conf_dir/$apache_conf_file" ]; then
             mkdir -p "$backup_apache_conf_dir"
             cp "$apache_conf_dir/$apache_conf_file" "$backup_apache_conf_dir/$apache_conf_file"
-            echo "${GREEN}[ ✓ ]${END} Backed up Apache .conf file for domain '$domain_name' to $backup_apache_conf_dir"
+            echo "Backed up Apache .conf file for domain '$domain_name' to $backup_apache_conf_dir"
         else
             echo "Apache .conf file for domain '$domain_name' not found."
         fi
@@ -160,7 +175,7 @@ backup_apache_conf_and_ssl() {
         if [ -d "$certbot_ssl_dir" ]; then
             mkdir -p "$backup_certbot_ssl_dir"
             cp -r "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
-            echo "${GREEN}[ ✓ ]${END} Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
+            echo "Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
         else
             echo "Certbot SSL certificates for domain '$domain_name' not found."
         fi
@@ -181,10 +196,21 @@ if [ -z "$container_name" ]; then
             backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
             
             log_user "$container_name" "Scheduled backup job started."
+
+            # files
             backup_files "$container_name"
-            backup_mysql_data "$container_name"
+            
+            #mysql
+            backup_mysql_databases "$container_name"
+            backup_mysql_users "$container_name"
+            backup_mysql_conf_file "$container_name"
+
+            #panel data
             export_user_data_from_database "$container_name"
+
+            #domains
             backup_apache_conf_and_ssl "$container_name"
+
             log_user "$container_name" "Backup job successfully completed."
         done
     else
@@ -196,7 +222,9 @@ if [ -z "$container_name" ]; then
             
             log_user "$container_name" "Scheduled backup job started." > /dev/null 2>&1
             backup_files "$container_name" > /dev/null 2>&1
-            backup_mysql_data "$container_name" > /dev/null 2>&1
+            backup_mysql_databases "$container_name" > /dev/null 2>&1
+            backup_mysql_users "$container_name" > /dev/null 2>&1
+            backup_mysql_conf_file "$container_name" > /dev/null 2>&1
             export_user_data_from_database "$container_name" > /dev/null 2>&1
             backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
             log_user "$container_name" "Backup job successfully completed."
@@ -211,7 +239,9 @@ else
         backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
         log_user "$container_name" "Backup on demand started."
         backup_files "$container_name"
-        backup_mysql_data "$container_name"
+        backup_mysql_databases "$container_name"
+        backup_mysql_users "$container_name"
+        backup_mysql_conf_file "$container_name"
         export_user_data_from_database "$container_name"
         backup_apache_conf_and_ssl "$container_name"
         log_user "$container_name" "Backup successfully completed."
@@ -222,7 +252,9 @@ else
         backup_file="/backup/$container_name/$timestamp/files_${container_name}_${timestamp}.tar.gz"
         log_user "$container_name" "Backup on demand started." > /dev/null 2>&1
         backup_files "$container_name" > /dev/null 2>&1
-        backup_mysql_data "$container_name" > /dev/null 2>&1
+        backup_mysql_databases "$container_name" > /dev/null 2>&1
+        backup_mysql_users "$container_name" > /dev/null 2>&1
+        backup_mysql_conf_file "$container_name" > /dev/null 2>&1
         export_user_data_from_database "$container_name" > /dev/null 2>&1
         backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
         log_user "$container_name" "Backup successfully completed."
