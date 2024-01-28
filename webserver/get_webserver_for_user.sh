@@ -122,7 +122,7 @@ echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
 export_webserver_main_conf_file() {
 
 #get webserver for user
-output=$(opencli webserver-get_webserver_for_user)
+output=$(opencli webserver-get_webserver_for_user $container_name)
 
 # Check if the output contains "nginx"
 if [[ $output == *nginx* ]]; then
@@ -194,8 +194,8 @@ if [ $? -eq 0 ]; then
     for version in $version_numbers; do
         # Copy php-fpm.conf file
         if [ -f "/etc/php/$version/fpm/php-fpm.conf" ]; then
-            cp "/etc/php/$version/fpm/php-fpm.conf" "php-fpm_$version.conf"
-            echo "php-fpm.conf for PHP $version copied to php-fpm_$version.conf"
+            docker cp "/etc/php/$version/fpm/php-fpm.conf" "$backup_dir/php/php-fpm_$version.conf"
+            echo "php-fpm.conf for PHP $version copied to $backup_dir/php/php-fpm_$version.conf"
         else
             echo "Error: php-fpm.conf file not found for PHP $version"
         fi
@@ -266,8 +266,8 @@ backup_apache_conf_and_ssl() {
         mkdir -p $backup_apache_conf_dir/container/
 
 
-        docker cp -r $container_name:/etc/nginx/sites-available/ $backup_apache_conf_dir/container/
-        docker cp -r $container_name:/etc/apache2/sites-available/ $backup_apache_conf_dir/container/
+        docker cp $container_name:/etc/nginx/sites-available/ $backup_apache_conf_dir/container/
+        docker cp $container_name:/etc/apache2/sites-available/ $backup_apache_conf_dir/container/
 
         # Check if the zone file exists and copy it
         if [ -f "$zone_file" ]; then
