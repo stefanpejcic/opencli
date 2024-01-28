@@ -226,6 +226,11 @@ export_user_data_from_database() {
 }
 
 
+backup_domain_access_reports() {
+    mkdir -p $backup_dir/nginx/stats/
+    cp -r /var/log/nginx/stats/$container_name/ $backup_dir/nginx/stats/
+}
+
 # Function to backup Apache .conf files and SSL certificates for domain names associated with a user
 backup_apache_conf_and_ssl() {
 
@@ -239,20 +244,28 @@ backup_apache_conf_and_ssl() {
     
     # Get domain names associated with the user_id from the 'domains' table
     local domain_names=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
-    echo "Getting Apache configuration for user's domains.."
+    echo "Getting Nginx configuration for user's domains.."
     # Loop through domain names
     for domain_name in $domain_names; do
-        local apache_conf_dir="/etc/apache2/sites-available"
+        local apache_conf_dir="/etc/nginx/sites-available"
         
         local apache_conf_file="$domain_name.conf"
         
-        local backup_apache_conf_dir="$backup_dir/apache_conf"
+        local backup_apache_conf_dir="$backup_dir/nginx"
         
         local certbot_ssl_dir="/etc/letsencrypt/live/$domain_name"
         
         local backup_certbot_ssl_dir="$backup_dir/ssl/$domain_name"
         local backup_dns_zones_dir="$backup_dir/dns"
         local zone_file="/etc/bind/zones/$domain_name.zone"
+
+
+        mkdir -p $backup_apache_conf_dir
+        mkdir -p $backup_apache_conf_dir/container/
+
+
+        docker cp -r $container_name:/etc/nginx/sites-available/ $backup_apache_conf_dir/container/
+        docker cp -r $container_name:/etc/apache2/sites-available/ $backup_apache_conf_dir/container/
 
         # Check if the zone file exists and copy it
         if [ -f "$zone_file" ]; then
@@ -267,9 +280,9 @@ backup_apache_conf_and_ssl() {
         if [ -f "$apache_conf_dir/$apache_conf_file" ]; then
             mkdir -p "$backup_apache_conf_dir"
             cp "$apache_conf_dir/$apache_conf_file" "$backup_apache_conf_dir/$apache_conf_file"
-            echo "Backed up Apache .conf file for domain '$domain_name' to $backup_apache_conf_dir"
+            echo "Backed up Nginx .conf file for domain '$domain_name' to $backup_apache_conf_dir"
         else
-            echo "Apache .conf file for domain '$domain_name' not found."
+            echo "Nginx .conf file for domain '$domain_name' not found."
         fi
 
         # Check if Certbot SSL certificates exist and copy them
@@ -341,6 +354,7 @@ if [ -z "$container_name" ]; then
 
             #domains
             backup_apache_conf_and_ssl "$container_name"
+            backup_domain_access_reports "$container_name"
 
             log_user "$container_name" "Backup job successfully completed."
         done
@@ -376,6 +390,7 @@ if [ -z "$container_name" ]; then
 
             #domains
             backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
+            backup_domain_access_reports "$container_name" > /dev/null 2>&1
             log_user "$container_name" "Backup job successfully completed."
         done
     fi
@@ -411,6 +426,7 @@ else
 
             #domains
             backup_apache_conf_and_ssl "$container_name"
+            backup_domain_access_reports "$container_name"
         log_user "$container_name" "Backup successfully completed."
     else
         # Container name is provided as an argument, backup only that user files..
@@ -439,9 +455,10 @@ else
             export_user_data_from_database "$container_name" > /dev/null 2>&1
             users_local_files_in_core_users "$container_name" > /dev/null 2>&1
             users_local_files_in_stats_users "$container_name" > /dev/null 2>&1
-            
+
             #domains
             backup_apache_conf_and_ssl "$container_name" > /dev/null 2>&1
+            backup_domain_access_reports "$container_name" > /dev/null 2>&1
         log_user "$container_name" "Backup successfully completed."
     fi
 fi
