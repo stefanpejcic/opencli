@@ -32,12 +32,86 @@
 TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 DEBUG=false # Default value for DEBUG
 SINGLE_CONTAINER=false
+# Initialize all flags to false by default
+FILES=false
+ENTRYPOINT=false
+WEBSERVER_CONF=false
+MYSQL_CONF=false
+PHP_VERSIONS=false
+CRONTAB=false
+USER_DATA=false
+CORE_USERS=false
+STATS_USERS=false
+APACHE_SSL_CONF=false
+DOMAIN_ACCESS_REPORTS=false
+TIMEZONE=false
+SSH_PASS=false
 
-# Parse optional flags to enable debug mode when needed!
+# Parse optional flags to skip specific actions
 for arg in "$@"; do
     case $arg in
         --debug)
             DEBUG=true
+            ;;
+        --files)
+            FILES=true
+            ;;
+        --entrypoint)
+            ENTRYPOINT=true
+            ;;
+        --apache-conf)
+            WEBSERVER_CONF=true
+            ;;
+        --nginx-conf)
+            WEBSERVER_CONF=true
+            ;;
+        --mysql-conf)
+            MYSQL_CONF=true
+            ;;
+        --php-versions)
+            PHP_VERSIONS=true
+            ;;
+        --crontab)
+            CRONTAB=true
+            ;;
+        --user-data)
+            USER_DATA=true
+            ;;
+        --core-users)
+            CORE_USERS=true
+            ;;
+        --stats-users)
+            STATS_USERS=true
+            ;;
+        --apache-ssl-conf)
+            APACHE_SSL_CONF=true
+            ;;
+        --domain-access-reports)
+            DOMAIN_ACCESS_REPORTS=true
+            ;;
+        --ssh)
+            SSH_PASS=true
+            ;;
+        --timezone)
+            TIMEZONE=true
+            ;;
+        --all)
+            # Set all flags to true
+            DEBUG=true
+            SINGLE_CONTAINER=true
+            FILES=true
+            ENTRYPOINT=true
+            WEBSERVER_CONF=true
+            MYSQL_CONF=true
+            PHP_VERSIONS=true
+            CRONTAB=true
+            USER_DATA=true
+            CORE_USERS=true
+            STATS_USERS=true
+            APACHE_SSL_CONF=true
+            DOMAIN_ACCESS_REPORTS=true
+            TIMEZONE=true
+            SSH_PASS=true
             ;;
         *)
             SINGLE_CONTAINER=true
@@ -45,6 +119,8 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+
 
 # Function to log messages to the user-specific log file for the user
 log_user() {
@@ -321,7 +397,10 @@ backup_timezone(){
 }
 
 
-
+backup_ssh_conf_and_pass(){
+    docker cp $container_name:/etc/passwd $BACKUP_DIR/docker/
+    docker cp $container_name:/etc/shadow $BACKUP_DIR/docker/
+}
 
 
 
@@ -345,6 +424,7 @@ backup_files() {
 }
 
 
+
 # Main Backup Function
 perform_backup() {
     log_user "$container_name" "Backup started."
@@ -353,20 +433,62 @@ perform_backup() {
     
     mkdir -p "$BACKUP_DIR"
     
-    backup_files 
-    export_entrypoint_file
-    export_webserver_main_conf_file
-    backup_mysql_conf_file
-    backup_timezone
-    backup_php_versions_in_container
-    backup_crontab_for_root_user
-    backup_mysql_databases
-    backup_mysql_users
-    export_user_data_from_database
-    users_local_files_in_core_users
-    users_local_files_in_stats_users
-    backup_apache_conf_and_ssl
-    backup_domain_access_reports
+    if [ "$FILES" = true ]; then
+        backup_files 
+    fi
+
+    if [ "$ENTRYPOINT" = true ]; then
+        export_entrypoint_file
+    fi
+
+    if [ "$WEBSERVER_CONF" = true ]; then
+        export_webserver_main_conf_file
+    fi
+
+    if [ "$MYSQL_CONF" = true ]; then
+        backup_mysql_conf_file
+    fi
+
+    if [ "$TIMEZONE" = true ]; then
+        backup_timezone
+    fi
+
+    if [ "$PHP_VERSIONS" = true ]; then
+        backup_php_versions_in_container
+    fi
+
+    if [ "$CRONTAB" = true ]; then
+        backup_crontab_for_root_user
+    fi
+
+    if [ "$MYSQL_CONF" = true ]; then
+        backup_mysql_databases
+        backup_mysql_users
+    fi
+
+    if [ "$USER_DATA" = true ]; then
+        export_user_data_from_database
+    fi
+
+    if [ "$CORE_USERS" = true ]; then
+        users_local_files_in_core_users
+    fi
+
+    if [ "$STATS_USERS" = true ]; then
+        users_local_files_in_stats_users
+    fi
+
+    if [ "$APACHE_SSL_CONF" = true ]; then
+        backup_apache_conf_and_ssl
+    fi
+
+    if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
+        backup_domain_access_reports
+    fi
+
+    if [ "$SSH_PASS" = true ]; then
+        backup_ssh_conf_and_pass
+    fi
     
     log_user "$container_name" "Backup completed successfully."
 }
