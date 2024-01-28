@@ -202,6 +202,17 @@ backup_apache_conf_and_ssl() {
         local certbot_ssl_dir="/etc/letsencrypt/live/$domain_name"
         
         local backup_certbot_ssl_dir="$backup_dir/ssl/$domain_name"
+        local backup_dns_zones_dir="$backup_dir/dns"
+        local zone_file="/etc/bind/zones/$domain_name.zone"
+
+        # Check if the zone file exists and copy it
+        if [ -f "$zone_file" ]; then
+            mkdir -p "$backup_dns_zones_dir"
+            cp "$zone_file" "$backup_dns_zones_dir"
+            echo "Backed up DNS zone file for domain '$domain_name' to $backup_dns_zones_dir"
+        else
+            echo "DNS zone file for domain '$domain_name' not found."
+        fi
 
         # Check if the Apache .conf file exists and copy it
         if [ -f "$apache_conf_dir/$apache_conf_file" ]; then
