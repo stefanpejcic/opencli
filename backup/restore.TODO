@@ -87,5 +87,10 @@ local_temp_dir="/tmp/openpanel_restore_temp_dir"
 
 run_restore() {
 
+    if [ "$LOCAL" != true ]; then rsync
+
+    else
+        cp -rl
+
 }
 
