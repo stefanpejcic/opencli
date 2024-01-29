@@ -206,13 +206,6 @@ if [ "$LOCAL" != true ]; then
     fi
     
 
-if [[ "$source_path" == docker:* ]]; then
-    docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
-    docker cp "$docker_source_path" "$local_destination"
-else
-    mv $local_temp_dir/* /$local_destination
-fi
-
 else
     cp -Lr "$source_path_restore" /"$local_destination"
 fi
