@@ -206,15 +206,11 @@ fi
 
 
 
-source_path_restore="/nesto/20240129002034/stats"
-local_destination="/root/backup"
+#source_path_restore="/nesto/20240129002034/stats"
+#local_destination="/root/backup"
 
 
-run_restore  $source_path_restore $local_destination
-
-
-
-
+run_restore "$PATH_ON_REMOTE_SERVER" "$container_name"
 
 
 
