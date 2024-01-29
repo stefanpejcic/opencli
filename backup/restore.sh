@@ -238,7 +238,7 @@ perform_backup() {
     if [ "$ENTRYPOINT" = true ]; then
         path_in_docker_container="docker:$CONTAINER_NAME:/etc/entrypoint.sh"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
-        #bash restore.sh /backup/nesto/20240129005258/docker/openpanel_backup_temp_dir/entrypoint.sh nesto --entrypoint
+        #bash restore.sh 1 /backup/nesto/20240129005258/docker/openpanel_backup_temp_dir/entrypoint.sh nesto --entrypoint
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
