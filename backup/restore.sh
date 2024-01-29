@@ -204,7 +204,7 @@ fi
 
 
 
-source_path_restore="/backup/nesto/20240129002034/stats/"
+source_path_restore="/nesto/20240129002034/stats/"
 local_destination="/root/backup"
 
 
