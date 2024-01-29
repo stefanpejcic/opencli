@@ -235,7 +235,8 @@ perform_backup() {
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
-        export_entrypoint_file
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/entrypoint.sh"
+        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
