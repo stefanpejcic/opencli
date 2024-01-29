@@ -190,7 +190,7 @@ source_path_restore="${source_path_restore#/}"
 source_path_restore="${source_path_restore%/}"
 local_destination="${local_destination#/}"
 
-if [[ "$source_path" == docker:* ]]; then
+if [[ "$source_path_restore" == docker:* ]]; then
     docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
     docker cp "$docker_source_path" "$local_destination"
     source_path_restore=${source_path_restore##*:}
