@@ -180,7 +180,7 @@ echo "Destination Storage Limit: $dest_storage_limit"
 fi
 
 
-local_temp_dir="/tmp/openpanel_restore_temp_dir"
+local_temp_dir="/tmp/openpanel_restore_temp_dir/$CONTAINER_NAME"
 mkdir -p $local_temp_dir
 
 run_restore() {
