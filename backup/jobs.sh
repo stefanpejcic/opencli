@@ -37,9 +37,7 @@ get_last_number() {
     echo "$last_number"
 }
 
-
 validate_parameters() {
-#NE RADI TRENUTNO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # Define regex patterns
     #local name_regex='^[[:alnum:]_]+$'
     #local destination_regex='^[0-9]+$'
@@ -121,17 +119,27 @@ create_backup_job() {
     # Validate parameters
     #validate_parameters "$@"
 
+    # Construct filters
+    filters=""
+    for ((i=8; i<=$#; i++)); do
+        filters+="\"${!i}\", "
+    done
+    filters="${filters%, }" # Remove trailing comma and space
+
+    # Construct type
+    backup_type="${4//,/\", \"}" # Replace commas with ", "
+
     # Construct JSON content
     json_content=$(cat <<EOF
 {
   "name": "$1",
   "destination": "$2",
   "directory": "$3",
-  "directory": "$4",
+  "type": [ "$backup_type" ],
   "schedule": "$5",
   "retention": "$6",
   "status": "$7",
-  "filters": "$8"
+  "filters": [ $filters ]
 }
 EOF
 )
@@ -162,17 +170,28 @@ edit_backup_job() {
     # Read the content of the existing file before editing
     old_file_content=$(cat "$filename")
 
+    # Construct filters
+    filters=""
+    for ((i=9; i<=$#; i++)); do
+        filters+="\"${!i}\", "
+    done
+    filters="${filters%, }" # Remove trailing comma and space
+
+    # Construct type
+    backup_type="${4//,/\", \"}" # Replace commas with ", "
+
+
     # Create new JSON content
     json_content=$(cat <<EOF
 {
   "name": "$2",
   "destination": "$3",
   "directory": "$4",
-  "directory": "$5",
+  "type": [ "$backup_type" ],
   "schedule": "$6",
   "retention": "$7",
   "status": "$8",
-  "filters": "$9"
+  "filters": [ $filters ]
 }
 EOF
 )
@@ -194,6 +213,40 @@ delete_backup_job() {
     # Check if the job file exists
     if [ ! -f "$job_file" ]; then
         echo "Job with ID: $1 does not exist."
+        exit 1
+    fi
+
+    # Check if job is running
+    log_dir="/usr/local/admin/backups/logs/$1"
+    last_number_log=$(ls -1 "$log_dir"*.json 2>/dev/null | grep -oP '\d+' | sort -n | tail -n 1)
+    echo $last_number_log
+    last_log="${log_dir}${last_number_log}.json"
+    # Check if last_log exists
+    if [ ! -f "$last_log" ]; then
+        echo "Error: Log file not found."
+        exit 1
+    fi
+
+    # Check if last_log contains valid data
+    log_content=$(head -6 "$last_log")
+    if [ -z "$log_content" ]; then
+        echo "Error: Log file is empty."
+        exit 1
+    fi
+
+    # Extract status and process_id from log content
+    status=$(echo "$log_content" | grep -Po 'status=\K\S+')
+    process_id=$(echo "$log_content" | grep -Po 'process_id=\K\S+')
+
+    # Check if status is Completed
+    if [ "$status" != "Completed" ]; then
+        echo "Error: Backup status is not Completed."
+        exit 1
+    fi
+
+    # Check if process with given pid is running
+    if ! ps -p "$process_id" > /dev/null; then
+        echo "Error: Process with PID $process_id is not running."
         exit 1
     fi
 
