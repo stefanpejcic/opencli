@@ -184,16 +184,16 @@ local_temp_dir="/tmp/openpanel_restore_temp_dir/$CONTAINER_NAME"
 mkdir -p $local_temp_dir
 
 run_restore() {
-source_path_restore=$1
-local_destination=$2
-path_in_docker_container=$3
+    source_path_restore=$1
+    local_destination=$2
+    path_in_docker_container=$3
+    
+    #remove / from beginning
+    source_path_restore="${source_path_restore#/}"
+    source_path_restore="${source_path_restore%/}"
+    local_destination="${local_destination#/}"
 
-#remove / from beginning
-source_path_restore="${source_path_restore#/}"
-source_path_restore="${source_path_restore%/}"
-local_destination="${local_destination#/}"
-
-# Check if the path_in_docker_container is provided
+    # Check if the path_in_docker_container is provided
     if [ "$LOCAL" != true ]; then
         rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
         if [ "$DEBUG" = true ]; then
@@ -212,7 +212,6 @@ local_destination="${local_destination#/}"
             docker_source_path="${path_in_docker_container#docker:}"
             docker cp "$source_path_restore/." "$docker_source_path/"
         fi
-        
     fi
 }
 
@@ -289,8 +288,9 @@ perform_restore_of_selected_files() {
     if [ "$SSH_PASS" = true ]; then
         backup_ssh_conf_and_pass
     fi
-    
-}
 
+    # Delete local_temp_dir after successful copy
+    rm -r "$local_temp_dir"  
+}
 
 perform_restore_of_selected_files
