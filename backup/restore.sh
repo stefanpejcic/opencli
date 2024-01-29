@@ -200,13 +200,12 @@ if [[ "$source_path_restore" == docker:* ]]; then
             echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
         fi
     else
-        docker cp "$docker_source_path" "$local_destination"
+        docker cp "$local_destination" "$docker_source_path"
     fi
 
 else
     if [ "$LOCAL" != true ]; then
         rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
-    
         if [ "$DEBUG" = true ]; then
             # backupjob json
             echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
