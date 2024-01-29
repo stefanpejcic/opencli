@@ -260,29 +260,6 @@ write_notification() {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-write_notification "Update check failed" "Failed connecting to https://update.openpanel.co/"
-
 # Actuall copy to destination
 copy_files() {
     source_path=$1
