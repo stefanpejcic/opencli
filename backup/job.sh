@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: jobs.sh
+# Script Name: job.sh
 # Description: Create, edit, delete, backup jobs.
 # Usage: opencli backup-jobs create|edit|delete
 # Author: Radovan Jecmenica
