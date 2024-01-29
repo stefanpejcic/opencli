@@ -188,6 +188,8 @@ local_destination=$2
 #remove / from beginning
 source_path_restore="${source_path_restore#/}"
 source_path_restore="${source_path_restore%/}"
+
+
 local_destination="${local_destination#/}"
 
 if [ "$LOCAL" != true ]; then
@@ -210,17 +212,18 @@ fi
 #source_path_restore="/nesto/20240129002034/stats"
 #local_destination="/root/backup"
 
-
-run_restore "$PATH_ON_REMOTE_SERVER" "$CONTAINER_NAME"
+#run_restore "$PATH_ON_REMOTE_SERVER" "$CONTAINER_NAME"
 
 
 
 # Main Restore Function
 perform_backup() {
-    #TREBA OMIT /home/ iz patha za conrainername #log_user "$container_name" "Restore started."
-    
+
     if [ "$FILES" = true ]; then
-        backup_files 
+        local_destination="/home/$CONTAINER_NAME"
+        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination"
+        # ovde untar na putanju
+        # rm targz
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
@@ -276,5 +279,4 @@ perform_backup() {
         backup_ssh_conf_and_pass
     fi
     
-    #log_user "$container_name" "Backup completed successfully."
 }
