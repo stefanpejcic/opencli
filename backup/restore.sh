@@ -89,6 +89,8 @@ mkdir -p $local_temp_dir
 run_restore() {
 source_path_restore=$1
 local_destination=$2
+#remove / from beginning
+local_destination="${local_destination#/}"
 
 if [ "$LOCAL" != true ]; then
     rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
