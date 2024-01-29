@@ -48,6 +48,7 @@ SSH_PASS=false
 
 NUMBER=$1
 PATH_ON_REMOTE_SERVER=$2
+CONTAINER_NAME=$3
 
 # Parse optional flags to skip specific actions
 for arg in "$@"; do
@@ -210,7 +211,7 @@ fi
 #local_destination="/root/backup"
 
 
-run_restore "$PATH_ON_REMOTE_SERVER" "$container_name"
+run_restore "$PATH_ON_REMOTE_SERVER" "$CONTAINER_NAME"
 
 
 
