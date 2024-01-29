@@ -44,9 +44,6 @@ read_dest_json_file() {
     jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
 }
 
-run_restore() {
-
-}
 
 # Extract data from the destination JSON file
 dest_data=$(read_dest_json_file "$DEST_JSON_FILE")
@@ -87,3 +84,8 @@ fi
 
 
 local_temp_dir="/tmp/openpanel_restore_temp_dir"
+
+run_restore() {
+
+}
+
