@@ -833,4 +833,4 @@ sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_ti
 echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
 
 # write notification to notifications center
-write_notification "Backup Job ID: $NUMBER finished at $end_time - Accounts: $total_containers - Total execution time: $total_exec_time"
+write_notification "Backup Job ID: $NUMBER finished" "Accounts: $total_containers - Total execution time: $total_exec_time"
