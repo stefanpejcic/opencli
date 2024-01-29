@@ -30,9 +30,9 @@
 
 
 TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-DEBUG=false # Default value for DEBUG
-SINGLE_CONTAINER=false
 # Initialize all flags to false by default
+DEBUG=false
+SINGLE_CONTAINER=false
 FILES=false
 ENTRYPOINT=false
 WEBSERVER_CONF=false
@@ -97,7 +97,7 @@ for arg in "$@"; do
             TIMEZONE=true
             ;;
         --all)
-            # Set all flags to true
+            # Set all flags to true if all flag is present
             DEBUG=true
             SINGLE_CONTAINER=true
             FILES=true
@@ -121,7 +121,7 @@ done
 
 # Check if the correct number of command line arguments is provided
 if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <NUMBER> [--force-run]"
+    echo "Usage: opencli backup-run <JOB_ID> --all [--force-run]"
     exit 1
 fi
 
@@ -205,7 +205,7 @@ fi
 
 
 if [ "$DEBUG" = true ]; then
-# Display the extracted values
+# backupjob json
 echo "Status: $status"
 echo "Destination: $destination"
 echo "Directory: $directory"
@@ -213,17 +213,14 @@ echo "Types: ${types[@]}"
 echo "Schedule: $schedule"
 echo "Retention: $retention"
 echo "Filters: ${filters[@]}"
-
-
-    # Display the extracted values from the destination JSON file
-    echo "Destination Hostname: $dest_hostname"
-    echo "Destination Password: $dest_password"
-    echo "Destination SSH Port: $dest_ssh_port"
-    echo "Destination SSH User: $dest_ssh_user"
-    echo "Destination SSH Key Path: $dest_ssh_key_path"
-    echo "Destination Directory Name: $dest_destination_dir_name"
-    echo "Destination Storage Limit: $dest_storage_limit"
-
+# destination json
+echo "Destination Hostname: $dest_hostname"
+echo "Destination Password: $dest_password"
+echo "Destination SSH Port: $dest_ssh_port"
+echo "Destination SSH User: $dest_ssh_user"
+echo "Destination SSH Key Path: $dest_ssh_key_path"
+echo "Destination Directory Name: $dest_destination_dir_name"
+echo "Destination Storage Limit: $dest_storage_limit"
 fi
 
 
@@ -627,8 +624,13 @@ backup_files() {
     local destination_dir="$BACKUP_DIR/files"
     
     mkdir -p "$destination_dir"
-    tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"
-    check_command_success "Error while creating files backup."
+
+    if [ "$DEBUG" = true ]; then
+        tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"
+        check_command_success "Error while creating files backup."
+    else
+        tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"  > /dev/null 2>&1
+    fi
 
     copy_files "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "/files/"
     rm "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz"
@@ -641,7 +643,7 @@ perform_backup() {
     log_user "$container_name" "Backup started."
 
     BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
-    
+
     mkdir -p "$BACKUP_DIR"
     
     if [ "$FILES" = true ]; then
@@ -702,19 +704,96 @@ perform_backup() {
     fi
     
     log_user "$container_name" "Backup completed successfully."
+
+
+
+
 }
 
-# Loop through containers or backup a specific container
+
+
+
+
+# log to the main log file for the job
+log_dir="/usr/local/admin/backups/logs/$NUMBER"
+mkdir -p $log_dir
+log_file="$log_dir/$(( $(ls -l "$log_dir" | grep -c '^-' ) + 1 )).log"
+process_id=$$
+start_time=$(date -u +"%a %b %d %T UTC %Y")
+
+# Determine type based on conditions
+if [ "$FILES" = true ] && [ "$ENTRYPOINT" = true ] && [ "$WEBSERVER_CONF" = true ] && \
+   [ "$MYSQL_CONF" = true ] && [ "$PHP_VERSIONS" = true ] && [ "$CRONTAB" = true ] && \
+   [ "$USER_DATA" = true ] && [ "$CORE_USERS" = true ] && [ "$STATS_USERS" = true ] && \
+   [ "$APACHE_SSL_CONF" = true ] && [ "$DOMAIN_ACCESS_REPORTS" = true ] && \
+   [ "$TIMEZONE" = true ] && [ "$SSH_PASS" = true ]; then
+    type="Full Backup"
+else
+    # List of conditions to check individually
+    conditions=("FILES" "ENTRYPOINT" "WEBSERVER_CONF" "MYSQL_CONF" "PHP_VERSIONS" "CRONTAB" "USER_DATA" "CORE_USERS" "STATS_USERS" "APACHE_SSL_CONF" "DOMAIN_ACCESS_REPORTS" "TIMEZONE" "SSH_PASS")
+    
+    # Initialize type as empty
+    type=""
+
+    # Check each condition and append to type if false
+    for condition in "${conditions[@]}"; do
+        if [ "${!condition}" = false ]; then
+            if [ -n "$type" ]; then
+                type+=" | "
+            fi
+            type+="$condition"
+        fi
+    done
+fi
+
+
+
+
+
+
+
+
+
+
+# Initial log content
+initial_log_content="process_id=$process_id
+type=$type
+start_time=$start_time
+end_time=
+total_exec_time=
+status=In progress.."
+
+# Create log file and write initial content
+echo -e "$initial_log_content" > "$log_file"
+
+# Redirect all output to the log file
+exec > >(tee -a "$log_file") 2>&1
+
+
+container_count=0
+# Get the total number of running containers
+total_containers=$(docker ps -q | wc -l)
+
+# Loop through containers or backup a specific container if name provided in command
 if [ -z "$container_name" ]; then
     for container_name in $(docker ps --format '{{.Names}}'); do
-        if [ "$DEBUG" = true ]; then
-            echo "Running backup for user: $container_name (Debug Mode)"
-        fi
+
+        ((container_count++))
+        echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
         perform_backup "$container_name"
     done
 else
-    if [ "$DEBUG" = true ]; then
-        echo "Running backup for user: $container_name (Debug Mode)"
-    fi
+    echo "Running backup for user: $container_name"
     perform_backup "$container_name"
 fi
+
+
+# Update log with end time, total execution time, and status
+end_time=$(date -u +"%a %b %d %T UTC %Y")
+total_exec_time=$(($(date -u +"%s") - $(date -u -d "$start_time" +"%s")))
+status="Completed"
+
+# Update the initial log content
+sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time/" -e "s/status=In progress../status=$status/" "$log_file"
+
+echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
