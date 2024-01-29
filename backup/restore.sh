@@ -185,6 +185,7 @@ run_restore() {
 source_path_restore=$1
 local_destination=$2
 #remove / from beginning
+source_path_restore="${source_path_restore#/}"
 local_destination="${local_destination#/}"
 
 if [ "$LOCAL" != true ]; then
