@@ -51,6 +51,10 @@ SSH_PASS=false
 local_temp_dir="/tmp/openpanel_backup_temp_dir"
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
+# Set a trap for CTRL+C to properly exit
+trap "echo CTRL+C Pressed!; read -p 'Press Enter to exit...'; exit 1;" SIGINT SIGTERM
+
+
 # Parse optional flags to skip specific actions
 for arg in "$@"; do
     case $arg in
