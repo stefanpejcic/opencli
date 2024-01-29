@@ -47,6 +47,9 @@ DOMAIN_ACCESS_REPORTS=false
 TIMEZONE=false
 SSH_PASS=false
 
+# settings
+local_temp_dir="/tmp/openpanel_backup_temp_dir"
+LOG_FILE="/usr/local/admin/logs/notifications.log"
 
 # Parse optional flags to skip specific actions
 for arg in "$@"; do
@@ -224,7 +227,61 @@ echo "Destination Storage Limit: $dest_storage_limit"
 fi
 
 
-local_temp_dir="/tmp/openpanel_backup_temp_dir"
+
+
+
+
+
+
+
+
+# Function to get the last message content from the log file
+get_last_message_content() {
+  tail -n 1 "$LOG_FILE" 2>/dev/null
+}
+
+# Function to check if an unread message with the same content exists in the log file
+is_unread_message_present() {
+  local unread_message_content="$1"
+  grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
+}
+
+# Function to write notification to log file if it's different from the last message content
+write_notification() {
+  local title="$1"
+  local message="$2"
+  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+  local last_message_content=$(get_last_message_content)
+
+  # Check if the current message content is the same as the last one and has "UNREAD" status
+  if [ "$message" != "$last_message_content" ] && ! is_unread_message_present "$title"; then
+    echo "$current_message" >> "$LOG_FILE"
+  fi
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+write_notification "Update check failed" "Failed connecting to https://update.openpanel.co/"
 
 # Actuall copy to destination
 copy_files() {
@@ -797,3 +854,6 @@ status="Completed"
 sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time/" -e "s/status=In progress../status=$status/" "$log_file"
 
 echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
+
+# write notification to notifications center
+write_notification "Backup Job ID: $NUMBER finished at $end_time - Accounts: $total_containers - Total execution time: $total_exec_time"
