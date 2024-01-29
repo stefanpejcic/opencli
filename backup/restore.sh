@@ -236,7 +236,7 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
-        path_in_docker_container="docker:$CONTAINER_NAME:/etc/entrypoint.sh"
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
         #bash restore.sh 1 /backup/nesto/20240129005258/docker/openpanel_backup_temp_dir/entrypoint.sh nesto --entrypoint
     fi
