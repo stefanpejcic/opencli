@@ -203,14 +203,14 @@ local_destination="${local_destination#/}"
              cp -Lr "$local_temp_dir" /"$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
-            docker cp "$local_temp_dir" "$path_in_docker_container"
+            docker cp "$local_temp_dir" "$docker_source_path"
         fi
     else
         if [ -z "$path_in_docker_container" ]; then
              cp -Lr "$source_path_restore" /"$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
-            docker cp "$source_path_restore" "$path_in_docker_container"
+            docker cp "$source_path_restore" "$docker_source_path"
         fi
         
     fi
