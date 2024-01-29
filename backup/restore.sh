@@ -185,42 +185,34 @@ mkdir -p $local_temp_dir
 run_restore() {
 source_path_restore=$1
 local_destination=$2
+path_in_docker_container=$3
+
 #remove / from beginning
 source_path_restore="${source_path_restore#/}"
 source_path_restore="${source_path_restore%/}"
 local_destination="${local_destination#/}"
 
-
-if [[ "$source_path_restore" == docker:* ]]; then
-    docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
-    source_path_restore=${source_path_restore##*:}
+# Check if the path_in_docker_container is provided
     if [ "$LOCAL" != true ]; then
         rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
         if [ "$DEBUG" = true ]; then
             echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
         fi
-    else
-        docker cp "$local_destination" "$docker_source_path"
-    fi
-
-else
-    if [ "$LOCAL" != true ]; then
-        rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
-        if [ "$DEBUG" = true ]; then
-            # backupjob json
-            echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
+        if [ -z "$path_in_docker_container" ]; then
+             cp -Lr "$local_temp_dir" /"$local_destination"
+        else
+            docker_source_path="${path_in_docker_container#docker:}"
+            docker cp "$local_temp_dir" "$path_in_docker_container"
         fi
     else
-        cp -Lr "$source_path_restore" /"$local_destination"
+        if [ -z "$path_in_docker_container" ]; then
+             cp -Lr "$source_path_restore" /"$local_destination"
+        else
+            docker_source_path="${path_in_docker_container#docker:}"
+            docker cp "$source_path_restore" "$path_in_docker_container"
+        fi
+        
     fi
-fi
-
-
-
-
-
-
-
 }
 
 
