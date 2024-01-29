@@ -100,9 +100,9 @@ if [ "$LOCAL" != true ]; then
         echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
     fi
     
-cp -rl $local_temp_dir/ $local_destination
+cp -rl $local_temp_dir/ /$local_destination
 else
-    cp -Lr "$source_path_restore" "$local_destination"
+    cp -Lr "$source_path_restore" /"$local_destination"
 fi
 
 }
