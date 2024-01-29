@@ -121,10 +121,11 @@ done
 
 
 # Check if the correct number of command line arguments is provided
-if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
-    echo "Usage: opencli backup-restore <DEST_ID> --all"
+if [ "$#" -lt 3 ]; then
+    echo "Usage: opencli backup-restore <PATH_ON_DESTINATION> <USERNAME> [--all]"
     exit 1
 fi
+
 
 DEST_JSON_FILE="/usr/local/admin/backups/destinations/$NUMBER.json"
 
