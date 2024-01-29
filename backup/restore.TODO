@@ -84,6 +84,7 @@ fi
 
 
 local_temp_dir="/tmp/openpanel_restore_temp_dir"
+mkdir -p $local_temp_dir
 
 run_restore() {
 source_path_restore=$1
