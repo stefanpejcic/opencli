@@ -188,9 +188,14 @@ local_destination=$2
 #remove / from beginning
 source_path_restore="${source_path_restore#/}"
 source_path_restore="${source_path_restore%/}"
-
-
 local_destination="${local_destination#/}"
+
+if [[ "$source_path" == docker:* ]]; then
+    docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
+    docker cp "$docker_source_path" "$local_destination"
+    source_path_restore=${source_path_restore##*:}
+fi
+
 
 if [ "$LOCAL" != true ]; then
     rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
@@ -200,7 +205,14 @@ if [ "$LOCAL" != true ]; then
         echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
     fi
     
-mv $local_temp_dir/* /$local_destination
+
+if [[ "$source_path" == docker:* ]]; then
+    docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
+    docker cp "$docker_source_path" "$local_destination"
+else
+    mv $local_temp_dir/* /$local_destination
+fi
+
 else
     cp -Lr "$source_path_restore" /"$local_destination"
 fi
