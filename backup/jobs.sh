@@ -31,20 +31,60 @@
 # Define paths
 backup_dir="/usr/local/admin/backups/jobs/"
 
-# Define functions
-error() {
-    echo -e "\033[41;97m$1\033[0m"
-}
-
-success() {
-    echo -e "\033[42;97m$1\033[0m"
-}
-
 # Function to find the last number in existing .json files
 get_last_number() {
     local last_number=$(ls -1 "$backup_dir"*.json 2>/dev/null | grep -oP '\d+' | sort -n | tail -n 1)
     echo "$last_number"
 }
+
+
+validate_parameters() {
+#NE RADI TRENUTNO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # Define regex patterns
+    #local name_regex='^[[:alnum:]_]+$'
+    #local destination_regex='^[0-9]+$'
+    local schedule_regex="^(daily|weekly|monthly)$"
+    local retention_regex="^[0-9]+$"
+    local status_regex="^(on|off)$"
+    local filters_regex="^.*$"
+
+    # Validation rules
+    if [[ ! "$1" =~ $name_regex ]]; then
+        echo "Error: Invalid name. Please provide a valid word (letters, digits, underscores)." >&2
+        exit 1
+    fi
+
+    if [[ ! "$2" =~ $destination_regex ]]; then
+        echo "Error: Invalid destination. Please provide a valid number." >&2
+        exit 1
+    fi
+
+    # Assuming directory can be any string, no validation needed
+
+    if [[ ! "$4" =~ $schedule_regex ]]; then
+        echo "Received schedule value: $4"
+        echo "Error: Invalid schedule. It can only be 'daily', 'weekly', or 'monthly'." >&2
+        exit 1
+    fi
+
+    if [[ ! "$5" =~ $retention_regex ]]; then
+        echo "Error: Invalid retention. Please provide a valid number." >&2
+        exit 1
+    fi
+
+    if [[ ! "$6" =~ $status_regex ]]; then
+        echo "Error: Invalid status. It can only be 'on' or 'off'." >&2
+        exit 1
+    fi
+
+    # Assuming filters can be any string, no validation needed
+
+    # If all validations pass, continue with the script
+    echo "All parameters are valid."
+}
+
+
+
 
 # Create a backup job
 create_backup_job() {
@@ -53,10 +93,33 @@ create_backup_job() {
     local new_file="${backup_dir}${new_number}.json"
 
     # Check if enough parameters are provided
-    if [ "$#" -ne 7 ]; then
-        error "Usage: opencli backup-job create name destination directory schedule retention status filters"
+    if [ "$#" -ne 8 ]; then
+        echo "Usage: opencli backup-job create name destination directory type schedule retention status filters"
         exit 1
     fi
+
+    # Validate destination
+    local destination_file="/usr/local/admin/backups/destinations/$2.json"
+
+    # Check if the file exists
+    if [ ! -f "$destination_file" ]; then
+        echo "Destination file $destination_file does not exist."
+        exit 1
+    fi
+
+    # Run the command
+    response=$(opencli backup-destination validate "$2")
+
+    # Check if the response contains "success"
+    if echo "$response" | grep -q "success"; then
+        echo "Destination validation successful."
+    else
+        echo "Destination validation failed: $response"
+        exit 1
+    fi
+
+    # Validate parameters
+    #validate_parameters "$@"
 
     # Construct JSON content
     json_content=$(cat <<EOF
@@ -64,17 +127,18 @@ create_backup_job() {
   "name": "$1",
   "destination": "$2",
   "directory": "$3",
-  "schedule": "$4",
-  "retention": "$5",
-  "status": "$6",
-  "filters": "$7"
+  "directory": "$4",
+  "schedule": "$5",
+  "retention": "$6",
+  "status": "$7",
+  "filters": "$8"
 }
 EOF
 )
 
     # Create the new .json file with the provided content
     echo "$json_content" > "$new_file"
-    success "Successfully created $(basename "$new_file" .json)"
+    echo "Successfully created $(basename "$new_file" .json)"
 }
 
 # Edit a backup job
@@ -83,7 +147,7 @@ edit_backup_job() {
 
     # Check if the file exists
     if [ ! -f "$filename" ]; then
-        error "Destination ID: $1 does not exist!"
+        echo "Destination ID: $1 does not exist!"
         # get list of all destination IDs
         json_files=$(find "$backup_dir" -type f -name "*.json" -exec basename {} \; | sed 's/\.json$//')
         printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
@@ -93,7 +157,7 @@ edit_backup_job() {
     fi
 
     # Validate parameters if needed
-    # validate_parameters "${@:2}"
+    #validate_parameters "${@:2}"
 
     # Read the content of the existing file before editing
     old_file_content=$(cat "$filename")
@@ -104,10 +168,11 @@ edit_backup_job() {
   "name": "$2",
   "destination": "$3",
   "directory": "$4",
-  "schedule": "$5",
-  "retention": "$6",
-  "status": "$7",
-  "filters": "$8"
+  "directory": "$5",
+  "schedule": "$6",
+  "retention": "$7",
+  "status": "$8",
+  "filters": "$9"
 }
 EOF
 )
@@ -115,7 +180,7 @@ EOF
     # Overwrite the existing .json file with the new content
     echo "$json_content" > "$filename"
 
-    success "Destination ID: '$1' edited successfully!"
+    echo "Destination ID: '$1' edited successfully!"
     echo "Previous destination configuration:"
     echo "$old_file_content"
     echo "New destination configuration:"
@@ -128,18 +193,18 @@ delete_backup_job() {
 
     # Check if the job file exists
     if [ ! -f "$job_file" ]; then
-        error "Job with ID: $1 does not exist."
+        echo "Job with ID: $1 does not exist."
         exit 1
     fi
 
     # Delete the job file
     rm "$job_file"
-    success "Backup job $1 deleted successfully."
+    echo "Backup job $1 deleted successfully."
 }
 
 # Main script
 if [ "$#" -lt 1 ]; then
-    error "Usage: opencli backup-job [create|edit|delete] [ID]"
+    echo "Usage: opencli backup-job [create|edit|delete] [ID]"
     exit 1
 fi
 
