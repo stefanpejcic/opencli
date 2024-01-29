@@ -190,25 +190,37 @@ source_path_restore="${source_path_restore#/}"
 source_path_restore="${source_path_restore%/}"
 local_destination="${local_destination#/}"
 
+
 if [[ "$source_path_restore" == docker:* ]]; then
     docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
-    docker cp "$docker_source_path" "$local_destination"
     source_path_restore=${source_path_restore##*:}
-fi
-
-
-if [ "$LOCAL" != true ]; then
-    rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
-
-    if [ "$DEBUG" = true ]; then
-        # backupjob json
-        echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
+    if [ "$LOCAL" != true ]; then
+        rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
+        if [ "$DEBUG" = true ]; then
+            echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
+        fi
+    else
+        docker cp "$docker_source_path" "$local_destination"
     fi
-    
 
 else
-    cp -Lr "$source_path_restore" /"$local_destination"
+    if [ "$LOCAL" != true ]; then
+        rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore" "$local_temp_dir"
+    
+        if [ "$DEBUG" = true ]; then
+            # backupjob json
+            echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
+        fi
+    else
+        cp -Lr "$source_path_restore" /"$local_destination"
+    fi
 fi
+
+
+
+
+
+
 
 }
 
