@@ -203,14 +203,14 @@ local_destination="${local_destination#/}"
              cp -Lr "$local_temp_dir" /"$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
-            docker cp "$local_temp_dir" "$docker_source_path"
+            docker cp "$local_temp_dir/." "$docker_source_path/"
         fi
     else
         if [ -z "$path_in_docker_container" ]; then
              cp -Lr "$source_path_restore" /"$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
-            docker cp "$source_path_restore" "$docker_source_path"
+            docker cp "$source_path_restore/." "$docker_source_path/"
         fi
         
     fi
@@ -236,7 +236,7 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
-        path_in_docker_container="docker:$CONTAINER_NAME:/etc/"
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
         #bash restore.sh 1 /backup/nesto/20240129005258/docker/openpanel_backup_temp_dir/entrypoint.sh nesto --entrypoint
     fi
