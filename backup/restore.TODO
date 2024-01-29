@@ -97,3 +97,9 @@ local_destination=$2
 
 }
 
+
+source_path_restore="/backup/nesto/20240129002034/user_data_dump.sql"
+local_destination="/root/backup"
+
+
+run_restore()  $source_path_restore $local_destination
