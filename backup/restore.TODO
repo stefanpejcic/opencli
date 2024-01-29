@@ -5,7 +5,7 @@
 # Use: opencli backup-restore <backup_directory>
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 29.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,61 +28,62 @@
 # THE SOFTWARE.
 ################################################################################
 
-RED="\e[31m"
-GREEN="\e[32m"
-ENDCOLOR="\e[0m"
+NUMBER=$1
 
-# Get the backup directory path from the first argument
-backup_dir="$1"
+DEST_JSON_FILE="/usr/local/admin/backups/destinations/$NUMBER.json"
 
-# Check if a backup directory path is provided
-if [ -z "$backup_dir" ]; then
-  echo "Usage: $0 <backup_directory>"
-  exit 1
+# Check if the destination JSON file exists
+if [ ! -f "$DEST_JSON_FILE" ]; then
+    echo "Error: Destination JSON file $DEST_JSON_FILE does not exist."
+    exit 1
 fi
 
-# Extract the container_name from the backup directory path
-container_name=$(basename "$(dirname "$backup_dir")")
-backup_file="$backup_dir/docker_${container_name}_$(basename "$backup_dir").tar"
-sql_dump_file="$backup_dir/user_data_dump.sql"
+# Read and parse the destination JSON file
+read_dest_json_file() {
+    local dest_json_file="$1"
+    jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
+}
 
-#echo $container_name
-#echo $backup_file
-#echo $sql_dump_file
+run_restore() {
 
-# Check if the backup files exist
-if [ ! -f "$backup_file" ] || [ ! -f "$sql_dump_file" ]; then
-  echo "${RED}ERROR${ENDCOLOR}: Backup files not found in the specified directory."
-  exit 1
-fi
+}
 
-echo "Restoring Docker container $container_name..."
-if [ ! "$(docker ps -a -q -f name=${container_name})" ]; then
-    docker import "$backup_file" "$container_name-image" || { echo "${RED}ERROR${ENDCOLOR}: Failed to restore Docker container $container_name"; exit 1; }
+# Extract data from the destination JSON file
+dest_data=$(read_dest_json_file "$DEST_JSON_FILE")
 
-    # Copy databases
-    rsync -avR $backup_dir/mysql/ /home/$container_name/mysql/
-    
-    # run your container
-    $$$$$$$$docker run -d --name <name> my-docker-image
+# Assign variables to extracted values
+dest_hostname=$(echo "$dest_data" | awk 'NR==1')
+dest_password=$(echo "$dest_data" | awk 'NR==2')
+dest_ssh_port=$(echo "$dest_data" | awk 'NR==3')
+dest_ssh_user=$(echo "$dest_data" | awk 'NR==4')
+dest_ssh_key_path=$(echo "$dest_data" | awk 'NR==5')
+dest_destination_dir_name=$(echo "$dest_data" | awk 'NR==6')
+dest_storage_limit=$(echo "$dest_data" | awk 'NR==7')
+
+# Check if the destination hostname is local
+if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
+    echo "Destination is local. Backing up files locally to $directory folder"
+    LOCAL=true
+    REMOTE=false
 else
-  echo "${RED}ERROR${ENDCOLOR}: CONTAINER NAME ALREADY IN USE."
-  exit 1
+    echo "Destination is not local. Backing files using SSH connection to $dest_hostname"
+    LOCAL=false
+    REMOTE=true
 fi
 
 
+if [ "$DEBUG" = true ]; then
+# backupjob json
+echo "Status: $status"
+echo "Destination: $destination"
+# destination json
+echo "Destination Hostname: $dest_hostname"
+echo "Destination Password: $dest_password"
+echo "Destination SSH Port: $dest_ssh_port"
+echo "Destination SSH User: $dest_ssh_user"
+echo "Destination SSH Key Path: $dest_ssh_key_path"
+echo "Destination Storage Limit: $dest_storage_limit"
+fi
 
 
-
-
-RUN KOMANDA
-
-copy vhosts
-copy ssl
-a2ensite
-
-
-
-insert in db user
-domains
-sites
+local_temp_dir="/tmp/openpanel_restore_temp_dir"
