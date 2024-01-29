@@ -156,11 +156,11 @@ dest_storage_limit=$(echo "$dest_data" | awk 'NR==7')
 
 # Check if the destination hostname is local
 if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
-    echo "Destination is local. Backing up files locally to $directory folder"
+    echo "Destination is local. Restoring files locally to $directory folder"
     LOCAL=true
     REMOTE=false
 else
-    echo "Destination is not local. Backing files using SSH connection to $dest_hostname"
+    echo "Destination is not local. Restoring files from $dest_hostname"
     LOCAL=false
     REMOTE=true
 fi
@@ -226,7 +226,7 @@ local_destination="${local_destination#/}"
 
 
 # Main Restore Function
-perform_backup() {
+perform_restore_of_selected_files() {
 
     if [ "$FILES" = true ]; then
         local_destination="/home/$CONTAINER_NAME"
@@ -291,3 +291,6 @@ perform_backup() {
     fi
     
 }
+
+
+perform_restore_of_selected_files
