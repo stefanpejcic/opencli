@@ -282,6 +282,12 @@ copy_files() {
         source_path="$local_temp_dir"
     fi
 
+
+    if [[ "$source_path" == "/etc/letsencrypt/live/"* ]]; then
+            cp -LTr "$source_path" "$local_temp_dir"
+            source_path=$local_temp_dir
+    fi
+
     if [ "$LOCAL" != true ]; then
 
         # Step 1: Create the remote directory
@@ -312,7 +318,7 @@ copy_files() {
 
     else
         # for local lets just use cp for now, no need for paraller either..
-        cp -Lr "$source_path" "$destination_path"
+        cp -LTr "$source_path" "$destination_path"
     fi
 
     # Clean up local temp directory if used
@@ -375,7 +381,7 @@ do
 done
 
 
-copy_files "$BACKUP_DIR/mysql/" "mysql"
+copy_files "$BACKUP_DIR/mysql/" "mysql/databases/"
 
 echo "All MySQL databases have been exported to '$BACKUP_DIR/mysql/'."
 }
@@ -411,7 +417,7 @@ backup_mysql_conf_file() {
 mkdir -p "$BACKUP_DIR/docker/"
 
 #docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $BACKUP_DIR/docker/
-copy_files "docker:$container_name:/etc/mysql/mysql.conf.d/mysqld.cnf" "mysql/users/"
+copy_files "docker:$container_name:/etc/mysql/mysql.conf.d/mysqld.cnf" "mysql/"
 echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
 }
 
@@ -500,7 +506,7 @@ if [ $? -eq 0 ]; then
     for version in $version_numbers; do
         # Copy php-fpm.conf file
         #docker cp $container_name:"/etc/php/$version/fpm/php-fpm.conf" "$BACKUP_DIR/php/php-fpm_$version.conf"
-        copy_files "docker:$container_name:/etc/php/$version/fpm/php-fpm.conf" "php/"
+        copy_files "docker:$container_name:/etc/php/$version/fpm/php-fpm.conf" "php/$version/"
         echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
         rm "$BACKUP_DIR/php/php-fpm_$version.conf"
     done
@@ -613,7 +619,7 @@ backup_apache_conf_and_ssl() {
         if [ -d "$certbot_ssl_dir" ]; then
             #mkdir -p "$backup_certbot_ssl_dir"
             #cp -Lr "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
-            copy_files "$certbot_ssl_dir/" "/ssl/$domain_name/"
+            copy_files "$certbot_ssl_dir/" "/ssl/"
             echo "Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
         else
             echo "Certbot SSL certificates for domain '$domain_name' not found."
