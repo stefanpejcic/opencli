@@ -56,13 +56,13 @@ fi
 add_new_user() {
     local username="$1"
     local password="$2"
-
+    local password_hash=$(python3 /usr/local/admin/core/users/hash.py $password) 
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        sqlite3 /usr/local/admin/users.db "CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);" "INSERT INTO user (username, password) VALUES ('$username', '$password');"
+        sqlite3 /usr/local/admin/users.db 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");'
         
         service admin reload
         
@@ -75,7 +75,7 @@ add_new_user() {
 
 
 
-# Function to update the password for provided user
+# Function to update the username for provided user
 update_username() {
     local old_username="$1"
     local new_username="$2"
@@ -99,9 +99,10 @@ update_username() {
 update_password() {
     local username="$1"
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local password_hash=$(python3 /usr/local/admin/core/users/hash.py $new_password) 
 
     if [ "$user_exists" -gt 0 ]; then
-        sqlite3 /usr/local/admin/users.db "UPDATE user SET password='$new_password' WHERE username='$username';"        
+        sqlite3 /usr/local/admin/users.db "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
         service admin reload
         echo "Password for user '$username' changed."
         echo ""
