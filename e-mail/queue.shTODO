@@ -1,0 +1,12 @@
+#!/bin/bash
+
+mailq_count="$(/usr/bin/mailq | /usr/bin/tail -n1 | /usr/bin/gawk '{print $5}')"
+
+# If variable is empty, then the queue is empty -> set it to zero
+if [ -z "$mailq_count" ]; then
+  mailq_count=0
+fi
+
+if [ "$mailq_count" -gt 0 ]; then
+  echo "Mail count on mail.myserver.local is ${mailq_count}" | /usr/bin/mail -s "mail.myserver.local queue size: ${mailq_count}" notify.me@somemail.local
+fi
