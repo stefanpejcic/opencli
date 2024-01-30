@@ -48,7 +48,7 @@ TIMEZONE=false
 SSH_PASS=false
 
 # settings
-local_temp_dir="/tmp/openpanel_backup_temp_dir"
+local_temp_dir="/tmp/openpanel_backup_temp_dir/"
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
 # Set a trap for CTRL+C to properly exit
@@ -588,7 +588,7 @@ backup_apache_conf_and_ssl() {
 
 
         #docker cp $container_name:/etc/$ws/sites-available/ $backup_apache_conf_dir/container/
-        copy_files "docker:@container_name:/etc/$ws/sites-available/" "/nginx/container/"
+        copy_files "docker:$container_name:/etc/$ws/sites-available/" "/nginx/container/"
         # Check if the zone file exists and copy it
         if [ -f "$zone_file" ]; then
             mkdir -p "$backup_dns_zones_dir"
