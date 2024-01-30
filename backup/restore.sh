@@ -29,8 +29,6 @@
 ################################################################################
 
 # Initialize all flags to false by default
-DEBUG=false
-SINGLE_CONTAINER=false
 FILES=false
 ENTRYPOINT=false
 WEBSERVER_CONF=false
@@ -100,8 +98,6 @@ for arg in "$@"; do
             ;;
         --all)
             # Set all flags to true if all flag is present
-            DEBUG=true
-            SINGLE_CONTAINER=true
             FILES=true
             ENTRYPOINT=true
             WEBSERVER_CONF=true
