@@ -123,7 +123,7 @@ update_password() {
 
 
 list_current_users() {
-users=$(sqlite3 "$db_file_path" "SELECT username, is_active FROM user;")
+users=$(sqlite3 "$db_file_path" "SELECT username, role, is_active FROM user;")
 echo "$users"
 }
 
