@@ -62,11 +62,12 @@ add_new_user() {
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        sqlite3 /usr/local/admin/users.db 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");'
-        
-        service admin reload
-        
+        output=$(sqlite3 /usr/local/admin/users.db 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
+        if [ $? -ne 0 ]; then
+        echo "User not created: $output"
+        else
         echo "User '$username' created."
+        fi
     fi
 }
 
