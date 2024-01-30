@@ -2,8 +2,8 @@
 
 CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
 service_name="admin"
-logins_file_path="/usr/local/admin/config.py"
-
+#logins_file_path="/usr/local/admin/config.py"
+db_file_path="/usr/local/admin/users.db"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
@@ -57,19 +57,12 @@ add_new_user() {
     local username="$1"
     local password="$2"
 
-    local user_exists=$(grep -c "'$username':" "$logins_file_path")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        # Remove the last line from the file
-        sed -i '$d' "$logins_file_path"
-    
-        # Add the new user to the config file
-        echo "        '$username': {'password': '$password', 'roles': ['user']}," >> "$logins_file_path"
-    
-        # Add the closing bracket '}' on a new line
-        echo "}" >> "$logins_file_path"
+        sqlite3 /usr/local/admin/users.db "CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);" "INSERT INTO user (username, password) VALUES ('$username', '$password');"
         
         service admin reload
         
@@ -86,24 +79,29 @@ add_new_user() {
 update_username() {
     local old_username="$1"
     local new_username="$2"
-    local user_exists=$(grep -c "'$new_username':" "$logins_file_path")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$old_username';")
+    local new_user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$new_username';")
 
     if [ "$user_exists" -gt 0 ]; then
-        echo -e "${RED}Error${RESET}: Username '$username' already taken."
+        if [ "$new_user_exists" -gt 0 ]; then
+            echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
+        else
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET username='$new_username' WHERE username='$old_username';"
+            service admin reload
+            echo "User '$old_username' renamed to '$new_username'."
+        fi
     else
-        sed -i "s/'$old_username': {/'$new_username': {/; s/: '$old_username'/: '$new_username'/" "$logins_file_path"
-        service admin reload
-        echo "User '$old_username' renamed to '$new_username'."
+        echo -e "${RED}Error${RESET}: User '$old_username' not found."
     fi
-}
+}   
 
 # Function to update the password for provided user
 update_password() {
     local username="$1"
-    local user_exists=$(grep -c "'$username':" "$logins_file_path")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
-        sed -i "s/\('$username': {'password': '\).*\(', 'roles': \['.*'\]}\)/\1$new_password\2/" "$logins_file_path"
+        sqlite3 /usr/local/admin/users.db "UPDATE user SET password='$new_password' WHERE username='$username';"        
         service admin reload
         echo "Password for user '$username' changed."
         echo ""
@@ -124,19 +122,21 @@ update_password() {
 
 
 list_current_users() {
-users=$(grep -E "^\s+'[^']+': {'password':" "$logins_file_path" | awk -F"'" '{print $2}')
+users=$(sqlite3 "$db_file_path" "SELECT username, is_active FROM user;")
 echo "$users"
 }
 
 
 delete_existing_users() {
     local username="$1"
-    if grep -q "'$username': {'password':" "$logins_file_path"; then
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
 
-        if grep -q "'$username': {'password': '.*', 'roles': \['admin'\]}," "$logins_file_path"; then
+    if [ "$user_exists" -gt 0 ]; then
+        if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
-            sed -i "/'$username': {'password'/d" "$logins_file_path"
+            sqlite3 /usr/local/admin/users.db "DELETE FROM user WHERE username='$username';"            
             service admin reload
             echo "User '$username' deleted successfully."
         fi
@@ -195,11 +195,12 @@ case "$1" in
         ;;
     "password")
         # Reset password for admin user
-        new_password="$2"
-        user_flag="$3"
+        user_flag="$2"
+        new_password="$3"
+
 
         # Check if the file exists
-        if [ -f "$logins_file_path" ]; then
+        if [ -f "$db_file_path" ]; then
             if [ "$user_flag" ]; then
                 # Use provided username
                 update_password "$user_flag"
@@ -208,7 +209,7 @@ case "$1" in
                 update_password "admin"
             fi
         else
-            echo "Error: File $logins_file_path does not exist, password not changed for user."
+            echo "Error: File $db_file_path does not exist, password not changed for user."
         fi
                 
         ;;
