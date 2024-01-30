@@ -62,9 +62,11 @@ for arg in "$@"; do
             ;;
         --apache-conf)
             WEBSERVER_CONF=true
+            WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER="apache2"
             ;;
         --nginx-conf)
             WEBSERVER_CONF=true
+            WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER="nginx"
             ;;
         --mysql-conf)
             MYSQL_CONF=true
@@ -233,11 +235,15 @@ perform_restore_of_selected_files() {
     if [ "$ENTRYPOINT" = true ]; then
         path_in_docker_container="docker:$CONTAINER_NAME:/etc"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
-        #bash restore.sh 1 /backup/nesto/20240129005258/docker/openpanel_backup_temp_dir/entrypoint.sh nesto --entrypoint
+        #bash restore.sh 1 /nesto/20240129005258/docker/entrypoint.sh nesto --entrypoint
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
-        export_webserver_main_conf_file
+        #export_webserver_main_conf_file
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
+        local_destination="/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
+        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
+        #bash restore.sh 1 /nesto/20240129005258/docker/nginx.conf nesto --apache-conf | --nginx-conf
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
@@ -288,5 +294,8 @@ perform_restore_of_selected_files() {
     # Delete local_temp_dir after successful copy
     rm -r "$local_temp_dir"  
 }
+
+
+
 
 perform_restore_of_selected_files
