@@ -673,8 +673,7 @@ backup_files() {
         tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"  > /dev/null 2>&1
     fi
 
-    copy_files "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "/files/"
-    rm "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz"
+    copy_files "/home/$container_name/" "/files/"
 }
 
 
