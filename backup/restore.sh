@@ -33,6 +33,7 @@ FILES=false
 ENTRYPOINT=false
 WEBSERVER_CONF=false
 MYSQL_CONF=false
+MYSQL_DATA=false
 PHP_VERSIONS=false
 CRONTAB=false
 USER_DATA=false
@@ -71,6 +72,9 @@ for arg in "$@"; do
         --mysql-conf)
             MYSQL_CONF=true
             ;;
+        --mysql-data)
+            MYSQL_DATA=true
+            ;;
         --php-versions)
             PHP_VERSIONS=true
             ;;
@@ -104,6 +108,7 @@ for arg in "$@"; do
             ENTRYPOINT=true
             WEBSERVER_CONF=true
             MYSQL_CONF=true
+            MYSQL_DATA=true
             PHP_VERSIONS=true
             CRONTAB=true
             USER_DATA=true
@@ -198,27 +203,29 @@ run_restore() {
             echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
         fi
         if [ -z "$path_in_docker_container" ]; then
-             cp -Lr "$local_temp_dir" /"$local_destination"
+             cp -Lr "$local_temp_dir" "/$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
             docker cp "$local_temp_dir/." "$docker_source_path/"
         fi
     else
         if [ -z "$path_in_docker_container" ]; then
-             cp -Lr "$source_path_restore" /"$local_destination"
+             cp -Lr "$source_path_restore" "/$local_destination"
         else
             docker_source_path="${path_in_docker_container#docker:}"
             docker cp "$source_path_restore/." "$docker_source_path/"
         fi
     fi
+
+
+
+
+
 }
 
 
 
-#source_path_restore="/nesto/20240129002034/stats"
-#local_destination="/root/backup"
 
-#run_restore "$PATH_ON_REMOTE_SERVER" "$CONTAINER_NAME"
 
 
 
@@ -227,31 +234,41 @@ perform_restore_of_selected_files() {
 
     if [ "$FILES" = true ]; then
         local_destination="/home/$CONTAINER_NAME"
-        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/files/ ."
+        run_restore "$remote_path_to_download" "$local_destination"
         # ovde untar na putanju
-        # rm targz
+        ## BACA BAJLOVE U /HOME/$CONTAINER_NAME/$CONTAINER_NAME
+        #bash restore.sh 1 20240131131407 nesto --files
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
         path_in_docker_container="docker:$CONTAINER_NAME:/etc"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
-        #bash restore.sh 1 /nesto/20240129005258/docker/entrypoint.sh nesto --entrypoint
+        #bash restore.sh 1 20240129005258 nesto --entrypoint
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
         #export_webserver_main_conf_file
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker/nginx.conf"
         path_in_docker_container="docker:$CONTAINER_NAME:/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
         local_destination="/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
-        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
-        #bash restore.sh 1 /nesto/20240129005258/docker/nginx.conf nesto --apache-conf | --nginx-conf
+        run_restore "$remote_path_to_download" "$local_destination" "$path_in_docker_container"
+        docker exec $CONTAINER_NAME bash -c "service $WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER reload"
+        #bash restore.sh 1 20240129005258 nesto --apache-conf | --nginx-conf
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
-        backup_mysql_conf_file
+        #backup_mysql_conf_file
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/mysql/mysql.conf.d/"
+        local_destination="/etc/mysql/mysql.conf.d/"
+        run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
+         #bash restore.sh 1 20240131131407/mysql/mysqld.cnf nesto --mysql-conf
+        docker exec $CONTAINER_NAME bash -c "service mysql restart"
     fi
 
     if [ "$TIMEZONE" = true ]; then
         backup_timezone
+        #run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
@@ -262,7 +279,7 @@ perform_restore_of_selected_files() {
         backup_crontab_for_root_user
     fi
 
-    if [ "$MYSQL_CONF" = true ]; then
+    if [ "$MYSQL_DATA" = true ]; then
         backup_mysql_databases
         backup_mysql_users
     fi
