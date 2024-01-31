@@ -128,6 +128,24 @@ users=$(sqlite3 "$db_file_path" "SELECT username, role, is_active FROM user;")
 echo "$users"
 }
 
+suspend_user() {
+    local username="$1"
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
+
+    if [ "$user_exists" -gt 0 ]; then
+        if [ "$is_admin" -gt 0 ]; then
+            echo -e "${RED}Error${RESET}: Cannot suspend user '$username' with 'admin' role."
+        else
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='0' WHERE username='$username';"
+            service admin reload
+            echo "User '$username' suspended successfully."
+        fi
+    else
+        echo -e "${RED}Error${RESET}: User '$username' does not exist."
+    fi
+
+}
 
 delete_existing_users() {
     local username="$1"
@@ -226,6 +244,11 @@ case "$1" in
         # List users
         list_current_users
         ;;
+    "suspend")
+        # List users
+        username="$2"
+        suspend_user "$username"
+        ;;        
     "new")
         # Add a new user
         new_username="$2"
