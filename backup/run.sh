@@ -50,6 +50,7 @@ SSH_PASS=false
 local_temp_dir="/tmp/openpanel_backup_temp_dir/"
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
+
 # Set a trap for CTRL+C to properly exit
 trap "echo CTRL+C Pressed!; read -p 'Press Enter to exit...'; exit 1;" SIGINT SIGTERM
 
@@ -811,6 +812,35 @@ echo -e "$initial_log_content" > "$log_file"
 exec > >(tee -a "$log_file") 2>&1
 
 
+backup_for_user_started(){
+    start_backup_for_user_time=$(date -u +"%a %b %d %T UTC %Y")
+    mkdir -p "$(dirname "$user_index_file")"
+        
+    # write that we started backup for user account
+    initial_index_content="
+    backup_job_id=$NUMBER
+    start_time=$start_backup_for_user_time
+    end_time=
+    total_exec_time=
+    contains=$type
+    status=In progress.."
+    
+    # Create log file and write initial content
+    echo -e "$initial_index_content" > "$user_index_file"
+
+}
+
+backup_for_user_finished(){
+    # write that we finished backup for user account
+    end_backup_for_user_time=$(date -u +"%a %b %d %T UTC %Y")
+    #$status="Completed"
+    total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
+    
+    sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=/status=Completed/" "$user_index_file"
+}
+
+
+
 container_count=0
 # Get the total number of running containers
 total_containers=$(docker ps -q | wc -l)
@@ -821,11 +851,21 @@ if [ -z "$container_name" ]; then
 
         ((container_count++))
         echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
+        user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
+        
+        backup_for_user_started
         perform_backup "$container_name"
+        backup_for_user_finished
+        
     done
 else
     echo "Running backup for user: $container_name"
+    user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
+    
+    backup_for_user_started
     perform_backup "$container_name"
+    backup_for_user_finished
+    
 fi
 
 
