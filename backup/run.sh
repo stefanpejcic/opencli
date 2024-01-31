@@ -207,7 +207,7 @@ if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$de
     LOCAL=true
     REMOTE=false
 else
-    echo "Destination is not local. Backing files using SSH connection to $dest_hostname"
+    echo "Remote Destination, backing files using SSH connection to $dest_hostname"
     LOCAL=false
     REMOTE=true
 fi
@@ -493,18 +493,18 @@ if [ $? -eq 0 ]; then
     # Save the output to a file
     echo "$output" > $BACKUP_DIR/php/php_versions.txt
     copy_files "$BACKUP_DIR/php/php_versions.txt" "php/"
-    echo "PHP versions saved to php_versions.txt"
+    echo "Saved a list of all PHP versions installed."
     rm $BACKUP_DIR/php/php_versions.txt
 
     version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
     for version in $version_numbers; do
+        if docker exec "$container_name" test -e "/etc/php/$version/fpm/php-fpm.conf"; then
         # Copy php-fpm.conf file
-        #docker cp $container_name:"/etc/php/$version/fpm/php-fpm.conf" "$BACKUP_DIR/php/php-fpm_$version.conf"
         copy_files "docker:$container_name:/etc/php/$version/fpm/php-fpm.conf" "php/$version/"
         echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
-        rm "$BACKUP_DIR/php/php-fpm_$version.conf"
+        fi
     done
-
+    rm -rf "$BACKUP_DIR/php/"
 else
     echo "Error running the command, no PHP versions are backed up for the user."
 fi
@@ -535,8 +535,11 @@ export_user_data_from_database() {
 
 backup_domain_access_reports() {
     mkdir -p $BACKUP_DIR/nginx/stats/
-    #cp -r /var/log/nginx/stats/$container_name/ $BACKUP_DIR/nginx/stats/
+    if [ -d "$directory" ]; then
     copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
+    else
+    echo "No resource usage stats found for user."
+    fi
 }
 
 # Function to backup Apache .conf files and SSL certificates for domain names associated with a user
@@ -620,7 +623,7 @@ backup_apache_conf_and_ssl() {
 
 backup_crontab_for_root_user(){
     file_path="/var/spool/cron/crontabs/root"
-    if docker exec "$container_name" "test -e $file_path && echo 'It Exists'"; then
+    if docker exec "$container_name" test -e "$file_path"; then
         copy_files "docker:$container_name:$file_path" "/crons/"
     else
         echo "Crontab file is empty, no cronjobs to backup."
@@ -630,7 +633,7 @@ backup_crontab_for_root_user(){
 
 backup_timezone(){
     copy_files "docker:$container_name:/etc/timezone" "/timezone/"
-    copy_files "docker:$container_name:/etc/localtime" "/timezone/"
+    #copy_files "docker:$container_name:/etc/localtime" "/timezone/"
 }
 
 
