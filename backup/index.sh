@@ -5,7 +5,22 @@ read_dest_json_file() {
     jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
 }
 
+
+
 job_id=$1
+log_dir="/usr/local/admin/backups/logs/$job_id"
+#log_file="$log_dir/$(( ls -l "$log_dir" | grep -c '^-' )).log"
+log_file=$(ls "$log_dir"/*.log 2>/dev/null | sort -V | tail -n 1)
+process_id=$(grep "process_id=" "$log_file" | awk -F'=' '{print $2}') 
+
+
+if kill -0 "$process_id" 2>/dev/null; then
+    echo "Error: Backup process with PID $process_id exists."
+    exit 0
+else
+    echo "Process with PID $process_id does not exist."
+fi
+
 INDEX_DIR="/usr/local/admin/backups/index/$job_id/"
 DEST_BASE_DIR="/path/to/destination/base/dir"
 
