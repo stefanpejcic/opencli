@@ -125,7 +125,7 @@ done
 
 
 # Check if the correct number of command line arguments is provided
-if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
+if [ "$#" -lt 2 ]; then
     echo "Usage: opencli backup-run <JOB_ID> --all [--force-run]"
     exit 1
 fi
@@ -842,33 +842,94 @@ backup_for_user_finished(){
 }
 
 
+retention_for_user_files_delete_oldest_files_for_job_id(){
+    # Get a list of all lines with "end_time="
+    lines_with_end_time=$(grep -n "end_time=" "$user_index_file" | cut -d: -f1)
+
+    # Extract the dates and destination_directory from each line and find the oldest date
+    oldest_date=""
+    oldest_destination_directory=""
+    for line_number in $lines_with_end_time; do
+        end_time=$(sed -n "${line_number}s/.*end_time=\(.*\)/\1/p" "$user_index_file")
+        current_date=$(date -d "$end_time" +%s)
+        
+        if [ -z "$oldest_date" ] || [ "$current_date" -lt "$oldest_date" ]; then
+            oldest_date="$current_date"
+            oldest_line_number="$line_number"
+            oldest_destination_directory=$(sed -n "${oldest_line_number} {/destination_directory=/s/.*destination_directory=\([^ ]*\).*/\1/p}" "$user_index_file")
+        fi
+    done
+
+    # Find the first empty row above the oldest line
+    first_empty_row_above=$(awk -v line="$oldest_line_number" 'NR < line && NF == 0 { last_empty_row = NR } END { print last_empty_row }' "$user_index_file")
+
+    # Find the first line after the end_time line that has content "backup_job_id"
+    first_line_after_end_time=$(awk -v line="$oldest_line_number" '$1 == "backup_job_id" && NR > line { print NR; exit }' "$user_index_file")
+
+    # Delete the text between the first empty row above and the first line after end_time with "backup_job_id"
+    sed -i "${first_empty_row_above},${first_line_after_end_time}d" "$user_index_file"
+
+    # Print or use the oldest date and destination_directory as needed
+    oldest_date_formatted=$(date -d "@$oldest_date" +"%c")
+
+
+    if [ "$DEBUG" = true ]; then
+        # Print for debugging
+        echo "Oldest Date: $oldest_date_formatted"
+        echo "Oldest Destination Directory: $oldest_destination_directory"
+    fi
+
+
+    ###### NOW DO THE ACTUAL ROTATION ON DESTINATION
+
+    if [ "$LOCAL" != true ]; then
+        ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm -rf $dest_destination_dir_name/$container_name/$TIMESTAMP/"
+        echo "Deleted oldest backup for user $container_name from the remote destination: $dest_destination_dir_name/$container_name/$TIMESTAMP/"
+    else
+        # for local lets just use cp for now, no need for paraller either..
+        rm -rf "$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+        echo "Deleted oldest backup for user $container_name from the local server: $dest_destination_dir_name/$container_name/$TIMESTAMP/"
+    fi
+    
+    
+}
+
+
+
 
 container_count=0
 # Get the total number of running containers
 total_containers=$(docker ps -q | wc -l)
 
-# Loop through containers or backup a specific container if name provided in command
-if [ -z "$container_name" ]; then
-    for container_name in $(docker ps --format '{{.Names}}'); do
+# Loop through all accounts
+for container_name in $(docker ps --format '{{.Names}}'); do
 
         ((container_count++))
+        
         echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
         user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
+
+
+        # Count occurrences of "backup_job_id=$NUMBER" in the index file
+        number_of_backups_in_this_job_that_user_has=$(grep -c "backup_job_id=\$NUMBER" "$user_index_file")
+
+        # Compare with retention
+        if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
+            # Action A
+            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention, will delete oldest user backup after generating a new one."
+            backup_for_user_started
+            perform_backup "$container_name"
+            backup_for_user_finished
+            retention_for_user_files_delete_oldest_files_for_job_id
+        else
+            # Action B
+            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached, no rotation is needed."
+            backup_for_user_started
+            perform_backup "$container_name"
+            backup_for_user_finished   
+        fi
         
-        backup_for_user_started
-        perform_backup "$container_name"
-        backup_for_user_finished
-        
-    done
-else
-    echo "Running backup for user: $container_name"
-    user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
-    
-    backup_for_user_started
-    perform_backup "$container_name"
-    backup_for_user_finished
-    
-fi
+done
 
 
 # Update log with end time, total execution time, and status
