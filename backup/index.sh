@@ -37,6 +37,7 @@ fi
 
 
 DEBUG=false
+FORCE=false
 
 read_dest_json_file() {
     local dest_json_file="$1"
@@ -47,7 +48,6 @@ read_dest_json_file() {
 
 job_id=$1
 log_dir="/usr/local/admin/backups/logs/$job_id"
-#log_file="$log_dir/$(( ls -l "$log_dir" | grep -c '^-' )).log"
 log_file=$(ls "$log_dir"/*.log 2>/dev/null | sort -V | tail -n 1)
 process_id=$(grep "process_id=" "$log_file" | awk -F'=' '{print $2}') 
 
@@ -64,6 +64,9 @@ for arg in "$@"; do
         --debug)
             DEBUG=true
             ;;
+        --force)
+            FORCE=true
+            ;;
     esac
 done
 
@@ -78,7 +81,6 @@ done
 
 
 INDEX_DIR="/usr/local/admin/backups/index/$job_id/"
-DEST_BASE_DIR="/path/to/destination/base/dir"
 
 # Define the path to the JSON file
 job_json_file="/usr/local/admin/backups/jobs/$job_id.json"
@@ -124,15 +126,21 @@ total_users=$(docker ps --format '{{.Names}}' | wc -l)
 
 echo "Indexing backups for $total_users users from destination: $dest_hostname and directory: $dest_destination_dir_name"
 
+if [ "$FORCE" = true ]; then
+    echo "--force flag present, deleting all existing indexes for users and creating new index from available backups on destination."
+    rm -rf $INDEX_DIR/*
+fi
+
+
 # Iterate through each container_name
 for container_name in $(docker ps --format '{{.Names}}'); do
 
-    bak_dir="$INDEX_DIR/$container_name.bak/"
+    bak_dir="$INDEX_DIR/$container_name.reindex/"
     rm -r $bak_dir 2>/dev/null
     # Delete local .index files after copying to indexes_bak
     # Copy .index files from $container_name to temporary backup directory
     if [ -d "$INDEX_DIR/$container_name" ]; then
-    mv "$INDEX_DIR/$container_name" "$INDEX_DIR/$container_name.bak"
+    mv "$INDEX_DIR/$container_name" "$INDEX_DIR/$container_name.reindex"
     fi
     mkdir -p "/usr/local/admin/backups/index/$job_id/$container_name/"
     ((user_count++))
