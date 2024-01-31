@@ -819,14 +819,16 @@ backup_for_user_started(){
     # write that we started backup for user account
     initial_index_content="
     backup_job_id=$NUMBER
+    destination_id=$destination
+    destination_directory=$TIMESTAMP
     start_time=$start_backup_for_user_time
     end_time=
     total_exec_time=
     contains=$type
     status=In progress.."
-    
+    separator=""
     # Create log file and write initial content
-    echo -e "$initial_index_content" > "$user_index_file"
+    echo -e "$initial_index_content$separator" >> "$user_index_file"
 
 }
 
