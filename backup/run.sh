@@ -160,9 +160,8 @@ status=$(echo "$data" | awk 'NR==1')
 destination=$(echo "$data" | awk 'NR==2')
 directory=$(echo "$data" | awk 'NR==3')
 types=($(echo "$data" | awk 'NR>=4 && NR<=6'))
-schedule=$(echo "$data" | awk 'NR==7')
-retention=$(echo "$data" | awk 'NR==8')
-filters=($(echo "$data" | awk 'NR>=9'))
+retention=$(echo "$data" | awk 'NR==7')
+filters=$(echo "$data" | awk 'NR==8')
 
 # Check if the status is "off" and --force-run flag is not provided
 if [ "$status" == "off" ] && [ "$FORCE_RUN" == false ]; then
@@ -911,10 +910,17 @@ for container_name in $(docker ps --format '{{.Names}}'); do
         
         echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
         user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
-
-
+        
         # Count occurrences of "backup_job_id=$NUMBER" in the index file
         number_of_backups_in_this_job_that_user_has=$(grep -c "backup_job_id=\$NUMBER" "$user_index_file")
+
+        if [ "$DEBUG" = true ]; then
+        # Print commands for debugging
+        echo "Users index file: $user_index_file"
+        echo "Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
+        fi
+
+
 
         # Compare with retention
         if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
