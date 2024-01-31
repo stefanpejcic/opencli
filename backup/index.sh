@@ -30,7 +30,7 @@
 
 
 # Check if the correct number of command line arguments is provided
-if [ "$#" -mt 2 ]; then
+if [ "$#" -lt 1 ]; then
     echo "Usage: opencli backup-index <JOB_ID> [--debug]"
     exit 1
 fi
@@ -55,8 +55,6 @@ process_id=$(grep "process_id=" "$log_file" | awk -F'=' '{print $2}')
 if kill -0 "$process_id" 2>/dev/null; then
     echo "Error: Backup process with PID $process_id exists."
     exit 0
-else
-    echo "Process with PID $process_id does not exist."
 fi
 
 
@@ -93,9 +91,7 @@ fi
 
 # Parse the JSON file and extract the 'destination' field
 destination_id=$(jq -r '.destination' "$job_json_file")
-echo $destination_id
 dest_json_file="/usr/local/admin/backups/destinations/$destination_id.json"
-echo $dest_json_file
 # Extract destination data
 dest_data=$(read_dest_json_file "$dest_json_file")
 
@@ -117,6 +113,17 @@ else
     REMOTE=true
 fi
 
+
+
+# Initialize counters
+total_users=0
+user_count=0
+total_backups_count=0
+
+total_users=$(docker ps --format '{{.Names}}' | wc -l)
+
+echo "Indexing backups for $total_users users from destination: $dest_hostname and directory: $dest_destination_dir_name"
+
 # Iterate through each container_name
 for container_name in $(docker ps --format '{{.Names}}'); do
 
@@ -128,23 +135,29 @@ for container_name in $(docker ps --format '{{.Names}}'); do
     mv "$INDEX_DIR/$container_name" "$INDEX_DIR/$container_name.bak"
     fi
     mkdir -p "/usr/local/admin/backups/index/$job_id/$container_name/"
-
+    ((user_count++))
     if [ "$LOCAL" != true ]; then
-
+        echo "Processing user $container_name ($user_count/$total_users)"
         if [ "$DEBUG" = true ]; then
-        rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
+            rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
         else
         rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/" > /dev/null 2>&1
         fi
     else
+        echo "Processing user $container_name ($user_count/$total_users)"
         if [ "$DEBUG" = true ]; then
-           cp "$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
+            cp "$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
         else
            cp "$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/" > /dev/null 2>&1
         fi
     fi
 
+
+    new_index_count_for_user=$(find "$INDEX_DIR/$container_name/" -type f | wc -l)
+    ((total_backups_count += new_index_count_for_user))
+    echo "Indexed $new_index_count_for_user backups for user $container_name."
+
     rm -r $bak_dir 2>/dev/null
 done
 
-
+echo "Index complete, found a total of $total_backups_count backups for all $user_count users."
