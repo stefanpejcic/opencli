@@ -602,7 +602,6 @@ backup_apache_conf_and_ssl() {
         # Check if the Apache .conf file exists and copy it
         if [ -f "$apache_conf_dir/$apache_conf_file" ]; then
             mkdir -p "$backup_apache_conf_dir"
-            #cp "$apache_conf_dir/$apache_conf_file" "$backup_apache_conf_dir/$apache_conf_file"
             copy_files "$apache_conf_dir/$apache_conf_file" "/nginx/sites-available/"
             echo "Backed up Nginx .conf file for domain '$domain_name' to $backup_apache_conf_dir"
         else
@@ -611,8 +610,6 @@ backup_apache_conf_and_ssl() {
 
         # Check if Certbot SSL certificates exist and copy them
         if [ -d "$certbot_ssl_dir" ]; then
-            #mkdir -p "$backup_certbot_ssl_dir"
-            #cp -Lr "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
             copy_files "$certbot_ssl_dir/" "/ssl/"
             echo "Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
         else
@@ -623,13 +620,10 @@ backup_apache_conf_and_ssl() {
 
 backup_crontab_for_root_user(){
     file_path="/var/spool/cron/crontabs/root"
-
-    if [ -e "$file_path" ]; then
-        #mkdir -p "$BACKUP_DIR/crons/"
-        #docker cp $container_name:$file_path $BACKUP_DIR/crons/
+    if docker exec "$container_name" "test -e $file_path && echo 'It Exists'"; then
         copy_files "docker:$container_name:$file_path" "/crons/"
     else
-        echo "Crontab is empty, no cronjobs to backup."
+        echo "Crontab file is empty, no cronjobs to backup."
     fi
 
 }
