@@ -36,6 +36,7 @@ FILES=false
 ENTRYPOINT=false
 WEBSERVER_CONF=false
 MYSQL_CONF=false
+MYSQL_DATA=false
 PHP_VERSIONS=false
 CRONTAB=false
 USER_DATA=false
@@ -73,6 +74,9 @@ for arg in "$@"; do
         --nginx-conf)
             WEBSERVER_CONF=true
             ;;
+        --mysql-data)
+            MYSQL_DATA=true
+            ;;
         --mysql-conf)
             MYSQL_CONF=true
             ;;
@@ -109,6 +113,7 @@ for arg in "$@"; do
             ENTRYPOINT=true
             WEBSERVER_CONF=true
             MYSQL_CONF=true
+            MYSQL_DATA=true
             PHP_VERSIONS=true
             CRONTAB=true
             USER_DATA=true
@@ -271,7 +276,12 @@ copy_files() {
         docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
         
         mkdir -p "$local_temp_dir"
-        
+
+        if [ "$DEBUG" = true ]; then
+        echo "Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir"
+        fi
+
+
         # First, copy from Docker container to local temp directory
         docker cp "$docker_source_path" "$local_temp_dir"
 
@@ -674,59 +684,105 @@ perform_backup() {
     mkdir -p "$BACKUP_DIR"
     
     if [ "$FILES" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up user files."
+        fi
         backup_files 
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up user services."
+        fi
         export_entrypoint_file
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up webserver configuration file."
+        fi
         export_webserver_main_conf_file
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up MySQL configuration."
+        fi
         backup_mysql_conf_file
     fi
 
     if [ "$TIMEZONE" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up timezone settings."
+        fi
         backup_timezone
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up installed PHP versions and their .ini files."
+        fi
         backup_php_versions_in_container
     fi
 
     if [ "$CRONTAB" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up Cron Jobs."
+        fi
         backup_crontab_for_root_user
     fi
 
-    if [ "$MYSQL_CONF" = true ]; then
+    if [ "$MYSQL_DATA" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up MySQL databases."
+        fi
         backup_mysql_databases
+        
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up MySQL users."
+        fi
         backup_mysql_users
     fi
 
     if [ "$USER_DATA" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing list of domains and websites for user."
+        fi
         export_user_data_from_database
     fi
 
     if [ "$CORE_USERS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up configuration files for the account."
+        fi
         users_local_files_in_core_users
     fi
 
     if [ "$STATS_USERS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up user resource usage statistics."
+        fi
         users_local_files_in_stats_users
     fi
 
     if [ "$APACHE_SSL_CONF" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up VirtualHosts files and SSL Certificates."
+        fi
         backup_apache_conf_and_ssl
     fi
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up generated HTML reports from domains access logs."
+        fi
         backup_domain_access_reports
     fi
 
     if [ "$SSH_PASS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "Backing up SSH users."
+        fi
         backup_ssh_conf_and_pass
     fi
     
@@ -750,14 +806,14 @@ start_time=$(date -u +"%a %b %d %T UTC %Y")
 
 # Determine type based on conditions
 if [ "$FILES" = true ] && [ "$ENTRYPOINT" = true ] && [ "$WEBSERVER_CONF" = true ] && \
-   [ "$MYSQL_CONF" = true ] && [ "$PHP_VERSIONS" = true ] && [ "$CRONTAB" = true ] && \
+   [ "$MYSQL_CONF" = true ] && [ "$MYSQL_DATA" = true ] && [ "$PHP_VERSIONS" = true ] && [ "$CRONTAB" = true ] && \
    [ "$USER_DATA" = true ] && [ "$CORE_USERS" = true ] && [ "$STATS_USERS" = true ] && \
    [ "$APACHE_SSL_CONF" = true ] && [ "$DOMAIN_ACCESS_REPORTS" = true ] && \
    [ "$TIMEZONE" = true ] && [ "$SSH_PASS" = true ]; then
     type="Full Backup"
 else
     # List of conditions to check individually
-    conditions=("FILES" "ENTRYPOINT" "WEBSERVER_CONF" "MYSQL_CONF" "PHP_VERSIONS" "CRONTAB" "USER_DATA" "CORE_USERS" "STATS_USERS" "APACHE_SSL_CONF" "DOMAIN_ACCESS_REPORTS" "TIMEZONE" "SSH_PASS")
+    conditions=("FILES" "ENTRYPOINT" "WEBSERVER_CONF" "MYSQL_CONF" "MYSQL_DATA" "PHP_VERSIONS" "CRONTAB" "USER_DATA" "CORE_USERS" "STATS_USERS" "APACHE_SSL_CONF" "DOMAIN_ACCESS_REPORTS" "TIMEZONE" "SSH_PASS")
     
     # Initialize type as empty
     type=""
