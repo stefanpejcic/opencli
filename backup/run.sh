@@ -296,7 +296,7 @@ copy_files() {
 
         
         # Step 2: Rsync the files
-        # use parallel for hoem dir files only for now, and only for remote destination
+        # use parallel for home dir files only for now, and only for remote destination
         if [[ "$source_path" == /home/* ]]; then
             if ! command -v parallel &> /dev/null; then
                 if [ "$DEBUG" = true ]; then
@@ -329,23 +329,6 @@ copy_files() {
 
 # Example usage:
 #copy_files "docker:/container/path" "/path/to/destination"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -832,6 +815,8 @@ backup_for_user_started(){
     # Create log file and write initial content
     echo -e "$initial_index_content$separator" >> "$user_index_file"
 
+
+
 }
 
 backup_for_user_finished(){
@@ -840,10 +825,7 @@ backup_for_user_finished(){
     #$status="Completed"
     total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
     
-    #sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=/status=Completed/" "$user_index_file"
-    #first match from bottom only!
-    tac "$user_index_file" | sed -i -e "0,/end_time=/s/end_time=/end_time=$end_backup_for_user_time/" -e "0,/total_exec_time=/s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "0,/status=/s/status=/status=Completed/" && tac "$user_index_file"
-
+    sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
 }
 
 
@@ -912,10 +894,9 @@ for container_name in $(docker ps --format '{{.Names}}'); do
         ((container_count++))
         
         echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
-        user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/backup.index"
-        
-        # Count occurrences of "backup_job_id=$NUMBER" in the index file
-        number_of_backups_in_this_job_that_user_has=$(grep -c "backup_job_id=\$NUMBER" "$user_index_file")
+        user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
+        user_indexes="/usr/local/admin/backups/index/$NUMBER/$container_name/"
+        number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
 
         if [ "$DEBUG" = true ]; then
         # Print commands for debugging
@@ -924,21 +905,29 @@ for container_name in $(docker ps --format '{{.Names}}'); do
         fi
 
 
+            backup_for_user_started
+            copy_files "$user_index_file" "/"
+            perform_backup "$container_name"
+            backup_for_user_finished
+            
+
+    if [ "$LOCAL" != true ]; then
+            ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+    else
+            rm "$directory/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+    fi
+
+            copy_files "$user_index_file" "/"
+            
 
         # Compare with retention
         if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
             # Action A
             echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention, will delete oldest user backup after generating a new one."
-            backup_for_user_started
-            perform_backup "$container_name"
-            backup_for_user_finished
-            retention_for_user_files_delete_oldest_files_for_job_id
+            #retention_for_user_files_delete_oldest_files_for_job_id
         else
             # Action B
             echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached, no rotation is needed."
-            backup_for_user_started
-            perform_backup "$container_name"
-            backup_for_user_finished   
         fi
         
 done
