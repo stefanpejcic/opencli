@@ -1,4 +1,42 @@
 #!/bin/bash
+################################################################################
+# Script Name: index.sh
+# Description: Re-index destination files for a backup job
+# Usage: opencli backup-index ID [--debug]
+# Author: Petar Curic
+# Created: 31.01.2024
+# Last Modified: 31.01.2024
+# Company: openpanel.co
+# Copyright (c) openpanel.co
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+################################################################################
+
+
+# Check if the correct number of command line arguments is provided
+if [ "$#" -mt 2 ]; then
+    echo "Usage: opencli backup-index <JOB_ID> [--debug]"
+    exit 1
+fi
+
+
+DEBUG=false
 
 read_dest_json_file() {
     local dest_json_file="$1"
@@ -20,6 +58,26 @@ if kill -0 "$process_id" 2>/dev/null; then
 else
     echo "Process with PID $process_id does not exist."
 fi
+
+
+# enable debug
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+    esac
+done
+
+
+
+
+
+
+
+
+
+
 
 INDEX_DIR="/usr/local/admin/backups/index/$job_id/"
 DEST_BASE_DIR="/path/to/destination/base/dir"
@@ -50,8 +108,14 @@ dest_ssh_key_path=$(echo "$dest_data" | awk 'NR==5')
 dest_destination_dir_name=$(echo "$dest_data" | awk 'NR==6')
 dest_storage_limit=$(echo "$dest_data" | awk 'NR==7')
 
-# Delete the temporary backup directory if it exists
-
+# Check if the destination hostname is local
+if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
+    LOCAL=true
+    REMOTE=false
+else
+    LOCAL=false
+    REMOTE=true
+fi
 
 # Iterate through each container_name
 for container_name in $(docker ps --format '{{.Names}}'); do
@@ -65,8 +129,21 @@ for container_name in $(docker ps --format '{{.Names}}'); do
     fi
     mkdir -p "/usr/local/admin/backups/index/$job_id/$container_name/"
 
-    # Use rsync to copy .index files from destination to origin server
-    rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
+    if [ "$LOCAL" != true ]; then
+
+        if [ "$DEBUG" = true ]; then
+        rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
+        else
+        rsync -e "ssh -p $dest_ssh_port -i $dest_ssh_key_path" -avz "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/" > /dev/null 2>&1
+        fi
+    else
+        if [ "$DEBUG" = true ]; then
+           cp "$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/"
+        else
+           cp "$dest_destination_dir_name/$container_name/*/*.index" "$INDEX_DIR/$container_name/" > /dev/null 2>&1
+        fi
+    fi
+
     rm -r $bak_dir 2>/dev/null
 done
 
