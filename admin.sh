@@ -88,7 +88,6 @@ update_username() {
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
             sqlite3 /usr/local/admin/users.db "UPDATE user SET username='$new_username' WHERE username='$old_username';"
-            service admin reload
             echo "User '$old_username' renamed to '$new_username'."
         fi
     else
@@ -104,7 +103,6 @@ update_password() {
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 /usr/local/admin/users.db "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
-        service admin reload
         echo "Password for user '$username' changed."
         echo ""
         printf "=%.0s"  $(seq 1 63)
@@ -138,13 +136,24 @@ suspend_user() {
             echo -e "${RED}Error${RESET}: Cannot suspend user '$username' with 'admin' role."
         else
             sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='0' WHERE username='$username';"
-            service admin reload
             echo "User '$username' suspended successfully."
         fi
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
     fi
 
+}
+
+unsuspend_user() {
+    local username="$1"
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+
+    if [ "$user_exists" -gt 0 ]; then
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='1' WHERE username='$username';"
+            echo "User '$username' unsuspended successfully."
+    else
+        echo -e "${RED}Error${RESET}: User '$username' does not exist."
+    fi
 }
 
 delete_existing_users() {
@@ -157,7 +166,6 @@ delete_existing_users() {
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
             sqlite3 /usr/local/admin/users.db "DELETE FROM user WHERE username='$username';"            
-            service admin reload
             echo "User '$username' deleted successfully."
         fi
     else
@@ -248,7 +256,12 @@ case "$1" in
         # List users
         username="$2"
         suspend_user "$username"
-        ;;        
+        ;;   
+    "unsuspend")
+        # List users
+        username="$2"
+        unsuspend_user "$username"
+        ;;       
     "new")
         # Add a new user
         new_username="$2"
