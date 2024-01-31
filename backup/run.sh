@@ -838,7 +838,10 @@ backup_for_user_finished(){
     #$status="Completed"
     total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
     
-    sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=/status=Completed/" "$user_index_file"
+    #sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=/status=Completed/" "$user_index_file"
+    #first match from bottom only!
+    tac "$user_index_file" | sed -i -e "0,/end_time=/s/end_time=/end_time=$end_backup_for_user_time/" -e "0,/total_exec_time=/s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "0,/status=/s/status=/status=Completed/" && tac "$user_index_file"
+
 }
 
 
