@@ -170,9 +170,6 @@ fi
 
 
 if [ "$DEBUG" = true ]; then
-# backupjob json
-echo "Status: $status"
-echo "Destination: $destination"
 # destination json
 echo "Destination Hostname: $dest_hostname"
 echo "Destination Password: $dest_password"
@@ -312,7 +309,10 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
-        backup_domain_access_reports
+        local_destination="/var/log/nginx/stats/"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/stats/."
+        run_restore "$remote_path_to_download" "$local_destination"
+	#bash restore.sh 1 20240202115324 nesto --domain-access-reports
     fi
 
     if [ "$SSH_PASS" = true ]; then
