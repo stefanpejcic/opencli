@@ -622,7 +622,7 @@ backup_apache_conf_and_ssl() {
 }
 
 backup_crontab_for_root_user(){
-    file_path="/var/spool/cron/crontabs/root"
+    file_path="/var/spool/cron/crontabs/$container_name"
     if docker exec "$container_name" test -e "$file_path"; then
         copy_files "docker:$container_name:$file_path" "/crons/"
     else
