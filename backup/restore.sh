@@ -316,7 +316,14 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$SSH_PASS" = true ]; then
-        backup_ssh_conf_and_pass
+        #backup_ssh_conf_and_pass
+	path_to_ssh_shadow_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker/shadow"
+	path_to_ssh_passwd_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker/passwd"
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/"
+        local_destination="/etc/"
+        run_restore "$path_to_ssh_shadow_in_backup" "$local_destination" "$path_in_docker_container"  
+	run_restore "$path_to_ssh_passwd_in_backup" "$local_destination" "$path_in_docker_container"  
+ 	docker exec $CONTAINER_NAME bash -c "service ssh restart"
     fi
 
     # Delete local_temp_dir after successful copy
