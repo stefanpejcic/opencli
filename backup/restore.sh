@@ -319,7 +319,11 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$STATS_USERS" = true ]; then
-        users_local_files_in_stats_users
+        local_destination="/usr/local/panel/core/stats/$CONTAINER_NAME/"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/stats/."
+        run_restore "$remote_path_to_download" "$local_destination"
+	#bash restore.sh 1 20240202115324 nesto --stats-users
+ 
     fi
 
     if [ "$APACHE_SSL_CONF" = true ]; then
@@ -328,7 +332,7 @@ perform_restore_of_selected_files() {
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
         local_destination="/var/log/nginx/stats/"
-        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/stats/."
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/nginx/stats/."
         run_restore "$remote_path_to_download" "$local_destination"
 	#bash restore.sh 1 20240202115324 nesto --domain-access-reports 
     fi
