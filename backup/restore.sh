@@ -313,7 +313,7 @@ perform_restore_of_selected_files() {
 
     if [ "$CRONTAB" = true ]; then
         #backup_crontab_for_root_user
-	path_to_cron_file_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/crons/ ."
+	path_to_cron_file_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/crons/."
         path_in_docker_container="docker:$CONTAINER_NAME:/var/spool/cron/crontabs/"
         local_destination="/var/spool/cron/crontabs/"
         run_restore "$path_to_cron_file_in_backup" "$local_destination" "$path_in_docker_container"  
@@ -354,7 +354,43 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$APACHE_SSL_CONF" = true ]; then
-        backup_apache_conf_and_ssl
+	    #get webserver for user
+	    output=$(opencli webserver-get_webserver_for_user $container_name)
+	
+	    # Check if the output contains "nginx"
+	    if [[ $output == *nginx* ]]; then
+	        ws="nginx"
+	    # Check if the output contains "apache"
+	    elif [[ $output == *apache* ]]; then
+	        ws="apache2"
+	    else
+	        # Set a default value if neither "nginx" nor "apache" is found
+	        ws="unknown"
+	    fi
+
+ 	#in container
+	path_in_docker_container="docker:$CONTAINER_NAME:/etc/$ws/sites-available/"
+	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/$ws/container/sites-available/."
+        local_destination="/$ws/sites-available/"
+        run_restore "$path_in_docker_container" "$local_destination" "$path_to_domain_files_in_backup"
+	
+	# on host server
+	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/$ws/sites-available/."
+        local_destination="/etc/nginx/sites-available/"
+        run_restore "$path_in_docker_container" "$local_destination"
+
+	# ssl certificates
+ 	# todo: check if symlinks are repalced, then check if certbot renews them properly
+	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/ssl/."
+        local_destination="/etc/letsencrypt/live/"
+        run_restore "$path_to_domain_files_in_backup" "$local_destination"
+
+	# dns zones
+ 	# todo: check and add in named.conf.local each domain after adding its zone file!
+	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/dns/."
+        local_destination="/etc/bind/zones/"
+        run_restore "$path_to_domain_files_in_backup" "$local_destination"
+ 
     fi
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
