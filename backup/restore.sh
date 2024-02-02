@@ -283,8 +283,9 @@ perform_restore_of_selected_files() {
 		path_to_cron_file_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/crons/ ."
         path_in_docker_container="docker:$CONTAINER_NAME:/var/spool/cron/crontabs/"
         local_destination="/var/spool/cron/crontabs/"
-        run_restore "$path_to_cron_file_in_backup" "$local_destination" "$path_in_docker_container"       
-        
+        run_restore "$path_to_cron_file_in_backup" "$local_destination" "$path_in_docker_container"  
+	docker exec $CONTAINER_NAME bash -c "chown $CONTAINER_NAME:$CONTAINER_NAME $local_destination/$CONTAINER_NAME"
+ 	docker exec $CONTAINER_NAME bash -c "service crond restart"
         #bash restore.sh 1 20240202101012 pera2 --crontab
     fi
 
