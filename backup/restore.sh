@@ -339,7 +339,10 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$CORE_USERS" = true ]; then
-        users_local_files_in_core_users
+        local_destination="/usr/local/panel/core/users/$CONTAINER_NAME/"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/core/."
+        run_restore "$remote_path_to_download" "$local_destination"
+	#bash restore.sh 1 20240202115324 nesto --core-users
     fi
 
     if [ "$STATS_USERS" = true ]; then
