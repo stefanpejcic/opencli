@@ -284,7 +284,31 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
-        backup_php_versions_in_container
+          remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/php/php_versions.txt"
+          local_destination="/php"
+
+         run_restore "$remote_path_to_download" "$local_destination"
+
+
+        version_numbers=$(cat /$local_destination/php_versions.txt | grep -oP 'php\d+\.\d+' | sed 's/php//')
+        echo $version_numbers
+        for version in $version_numbers; do 
+            status=$(docker exec "$CONTAINER_NAME" bash -c "service php$version-fpm status")
+                if [[ $status == *"unrecognized service"* ]]; then
+                    echo "php$version-fpm is an unrecognized service"
+                    opencli php-install_php_version "$CONTAINER_NAME" "$version"
+                    docker exec "$CONTAINER_NAME" bash -c "service php$version-fpm start"
+                else
+                    echo "$version-fpm is already installed. Restoring php.ini file /etc/php/$version/fpm/php-fpm.conf"
+
+		    path_in_docker_container="docker:$CONTAINER_NAME:/etc/php/$version/fpm/"
+                    local_destination="/tmp/openpanel_restore_temp_dir/$CONTAINER_NAME/php"
+                    remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/php/$version/"
+                    run_restore "$remote_path_to_download" "$local_destination" "$path_in_docker_container"
+                    
+                    docker exec "$CONTAINER_NAME" bash -c "service php$version-fpm restart"
+                fi
+        done
     fi
 
     if [ "$CRONTAB" = true ]; then
