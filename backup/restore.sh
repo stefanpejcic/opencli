@@ -267,8 +267,11 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$TIMEZONE" = true ]; then
-        backup_timezone
-        #run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
+        #backup_timezone
+        path_in_docker_container="docker:$CONTAINER_NAME:/etc/timezone/"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/timezone/"
+        run_restore "$remote_path_to_download" "$path_in_docker_container"
+        #bash restore.sh 1 20240131131407 nesto --timezone
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
