@@ -51,7 +51,6 @@ SSH_PASS=false
 local_temp_dir="/tmp/openpanel_backup_temp_dir/"
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
-
 # Set a trap for CTRL+C to properly exit
 trap "echo CTRL+C Pressed!; read -p 'Press Enter to exit...'; exit 1;" SIGINT SIGTERM
 
@@ -667,6 +666,7 @@ backup_files() {
 
 # Main Backup Function
 perform_backup() {
+    type=""
     log_user "$container_name" "Backup started."
 
     BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
@@ -677,7 +677,8 @@ perform_backup() {
         if [ "$DEBUG" = true ]; then
             echo "## Backing up user files."
         fi
-        backup_files 
+        backup_files
+        type+="FILES,"
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
@@ -685,6 +686,7 @@ perform_backup() {
             echo "## Backing up user services."
         fi
         export_entrypoint_file
+        type+="ENTRYPOINT,"
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
@@ -692,6 +694,7 @@ perform_backup() {
             echo "## Backing up webserver configuration file."
         fi
         export_webserver_main_conf_file
+        type+="WEBSERVER_CONF,"
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
@@ -699,6 +702,7 @@ perform_backup() {
             echo "## Backing up MySQL configuration."
         fi
         backup_mysql_conf_file
+        type+="MYSQL_CONF,"
     fi
 
     if [ "$TIMEZONE" = true ]; then
@@ -706,6 +710,7 @@ perform_backup() {
             echo "## Backing up timezone settings."
         fi
         backup_timezone
+        type+="TIMEZONE,"
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
@@ -713,6 +718,7 @@ perform_backup() {
             echo "## Backing up installed PHP versions and their .ini files."
         fi
         backup_php_versions_in_container
+        type+="PHP_VERSIONS,"
     fi
 
     if [ "$CRONTAB" = true ]; then
@@ -720,6 +726,7 @@ perform_backup() {
             echo "## Backing up Cron Jobs."
         fi
         backup_crontab_for_root_user
+        type+="CRONTAB,"
     fi
 
     if [ "$MYSQL_DATA" = true ]; then
@@ -727,6 +734,8 @@ perform_backup() {
             echo "## Backing up MySQL databases."
         fi
         backup_mysql_databases
+        
+        type+="MYSQL_DATA,"
         
         if [ "$DEBUG" = true ]; then
             echo "## Backing up MySQL users."
@@ -739,6 +748,7 @@ perform_backup() {
             echo "## Backing list of domains and websites for user."
         fi
         export_user_data_from_database
+        type+="USER_DATA,"
     fi
 
     if [ "$CORE_USERS" = true ]; then
@@ -746,6 +756,7 @@ perform_backup() {
             echo "## Backing up configuration files for the account."
         fi
         users_local_files_in_core_users
+        type+="CORE_USERS,"
     fi
 
     if [ "$STATS_USERS" = true ]; then
@@ -753,6 +764,7 @@ perform_backup() {
             echo "## Backing up user resource usage statistics."
         fi
         users_local_files_in_stats_users
+        type+="STATS_USERS,"
     fi
 
     if [ "$APACHE_SSL_CONF" = true ]; then
@@ -760,6 +772,7 @@ perform_backup() {
             echo "## Backing up VirtualHosts files and SSL Certificates."
         fi
         backup_apache_conf_and_ssl
+        type+="APACHE_SSL_CONF,"
     fi
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
@@ -767,6 +780,7 @@ perform_backup() {
             echo "## Backing up generated HTML reports from domains access logs."
         fi
         backup_domain_access_reports
+        type+="DOMAIN_ACCESS_REPORTS,"
     fi
 
     if [ "$SSH_PASS" = true ]; then
@@ -774,7 +788,10 @@ perform_backup() {
             echo "## Backing up SSH users."
         fi
         backup_ssh_conf_and_pass
+        type+="SSH_PASS,"
     fi
+
+    type="${type%,}"
     
     log_user "$container_name" "Backup completed successfully."
 
@@ -794,30 +811,6 @@ log_file="$log_dir/$(( $(ls -l "$log_dir" | grep -c '^-' ) + 1 )).log"
 process_id=$$
 start_time=$(date -u +"%a %b %d %T UTC %Y")
 
-# Determine type based on conditions
-if [ "$FILES" = true ] && [ "$ENTRYPOINT" = true ] && [ "$WEBSERVER_CONF" = true ] && \
-   [ "$MYSQL_CONF" = true ] && [ "$MYSQL_DATA" = true ] && [ "$PHP_VERSIONS" = true ] && [ "$CRONTAB" = true ] && \
-   [ "$USER_DATA" = true ] && [ "$CORE_USERS" = true ] && [ "$STATS_USERS" = true ] && \
-   [ "$APACHE_SSL_CONF" = true ] && [ "$DOMAIN_ACCESS_REPORTS" = true ] && \
-   [ "$TIMEZONE" = true ] && [ "$SSH_PASS" = true ]; then
-    type="Full Backup"
-else
-    # List of conditions to check individually
-    conditions=("FILES" "ENTRYPOINT" "WEBSERVER_CONF" "MYSQL_CONF" "MYSQL_DATA" "PHP_VERSIONS" "CRONTAB" "USER_DATA" "CORE_USERS" "STATS_USERS" "APACHE_SSL_CONF" "DOMAIN_ACCESS_REPORTS" "TIMEZONE" "SSH_PASS")
-    
-    # Initialize type as empty
-    type=""
-
-    # Check each condition and append to type if false
-    for condition in "${conditions[@]}"; do
-        if [ "${!condition}" = false ]; then
-            if [ -n "$type" ]; then
-                type+=" | "
-            fi
-            type+="$condition"
-        fi
-    done
-fi
 
 
 
