@@ -31,6 +31,12 @@
 # Define paths
 backup_dir="/usr/local/admin/backups/jobs/"
 
+if [ "$#" -lt 1 ]; then
+    echo "Usage: opencli backup-job create|edit|delete"
+    exit 1
+fi
+
+
 # Function to find the last number in existing .json files
 get_last_number() {
     local last_number=$(ls -1 "$backup_dir"*.json 2>/dev/null | grep -oP '\d+' | sort -n | tail -n 1)
@@ -274,7 +280,7 @@ case "$action" in
         delete_backup_job "$2"
         ;;
     *)
-        error "Invalid action. Use: create, edit, or delete."
+        echo "Invalid action. Use: create, edit, or delete."
         exit 1
         ;;
 esac
