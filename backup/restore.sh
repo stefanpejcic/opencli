@@ -373,7 +373,7 @@ perform_restore_of_selected_files() {
 	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/$ws/container/sites-available/."
         local_destination="/$ws/sites-available/"
         run_restore "$path_in_docker_container" "$local_destination" "$path_to_domain_files_in_backup"
-	
+	docker exec -it bash -c "service $ws reload"
 	# on host server
 	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/$ws/sites-available/."
         local_destination="/etc/nginx/sites-available/"
@@ -384,12 +384,14 @@ perform_restore_of_selected_files() {
 	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/ssl/."
         local_destination="/etc/letsencrypt/live/"
         run_restore "$path_to_domain_files_in_backup" "$local_destination"
+	service nginx reload
 
 	# dns zones
  	# todo: check and add in named.conf.local each domain after adding its zone file!
 	path_to_domain_files_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/dns/."
         local_destination="/etc/bind/zones/"
         run_restore "$path_to_domain_files_in_backup" "$local_destination"
+	service named reload
  
     fi
 
