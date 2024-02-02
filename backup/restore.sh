@@ -233,8 +233,6 @@ perform_restore_of_selected_files() {
         local_destination="/home/$CONTAINER_NAME"
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/files/ ."
         run_restore "$remote_path_to_download" "$local_destination"
-        # ovde untar na putanju
-        ## BACA BAJLOVE U /HOME/$CONTAINER_NAME/$CONTAINER_NAME
         #bash restore.sh 1 20240131131407 nesto --files
     fi
 
@@ -250,8 +248,14 @@ perform_restore_of_selected_files() {
         path_in_docker_container="docker:$CONTAINER_NAME:/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
         local_destination="/etc/$WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER/"
         run_restore "$remote_path_to_download" "$local_destination" "$path_in_docker_container"
-        docker exec $CONTAINER_NAME bash -c "service $WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER reload"
+        
         #bash restore.sh 1 20240129005258 nesto --apache-conf | --nginx-conf
+
+	if [ "$DEBUG" = true ]; then
+	docker exec $CONTAINER_NAME bash -c "service $WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER reload"
+ 	else
+	docker exec $CONTAINER_NAME bash -c "service $WEBSERVER_FOR_USER_IN_DOCKER_CONTAINER reload" > /dev/null 2>&1
+ 	fi
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
@@ -259,8 +263,15 @@ perform_restore_of_selected_files() {
         path_in_docker_container="docker:$CONTAINER_NAME:/etc/mysql/mysql.conf.d/"
         local_destination="/etc/mysql/mysql.conf.d/"
         run_restore "$PATH_ON_REMOTE_SERVER" "$local_destination" "$path_in_docker_container"
-         #bash restore.sh 1 20240131131407/mysql/mysqld.cnf nesto --mysql-conf
-        docker exec $CONTAINER_NAME bash -c "service mysql restart"
+        
+	#bash restore.sh 1 20240131131407/mysql/mysqld.cnf nesto --mysql-conf
+        
+	if [ "$DEBUG" = true ]; then
+	docker exec $CONTAINER_NAME bash -c "service mysql restart"
+ 	else
+	docker exec $CONTAINER_NAME bash -c "service mysql restart" > /dev/null 2>&1
+ 	fi
+ 
     fi
 
     if [ "$TIMEZONE" = true ]; then
@@ -282,9 +293,16 @@ perform_restore_of_selected_files() {
         path_in_docker_container="docker:$CONTAINER_NAME:/var/spool/cron/crontabs/"
         local_destination="/var/spool/cron/crontabs/"
         run_restore "$path_to_cron_file_in_backup" "$local_destination" "$path_in_docker_container"  
+
+        #bash restore.sh 1 20240202101012 pera2 --crontab
+
+	if [ "$DEBUG" = true ]; then
 	docker exec $CONTAINER_NAME bash -c "chown $CONTAINER_NAME:$CONTAINER_NAME $local_destination/$CONTAINER_NAME"
  	docker exec $CONTAINER_NAME bash -c "service crond restart"
-        #bash restore.sh 1 20240202101012 pera2 --crontab
+ 	else
+	docker exec $CONTAINER_NAME bash -c "chown $CONTAINER_NAME:$CONTAINER_NAME $local_destination/$CONTAINER_NAME" > /dev/null 2>&1
+ 	docker exec $CONTAINER_NAME bash -c "service crond restart" > /dev/null 2>&1
+ 	fi
     fi
 
     if [ "$MYSQL_DATA" = true ]; then
@@ -312,7 +330,7 @@ perform_restore_of_selected_files() {
         local_destination="/var/log/nginx/stats/"
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/stats/."
         run_restore "$remote_path_to_download" "$local_destination"
-	#bash restore.sh 1 20240202115324 nesto --domain-access-reports
+	#bash restore.sh 1 20240202115324 nesto --domain-access-reports 
     fi
 
     if [ "$SSH_PASS" = true ]; then
@@ -321,9 +339,17 @@ perform_restore_of_selected_files() {
 	path_to_ssh_passwd_in_backup="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker/passwd"
         path_in_docker_container="docker:$CONTAINER_NAME:/etc/"
         local_destination="/etc/"
+	
+	if [ "$DEBUG" = true ]; then
         run_restore "$path_to_ssh_shadow_in_backup" "$local_destination" "$path_in_docker_container"  
 	run_restore "$path_to_ssh_passwd_in_backup" "$local_destination" "$path_in_docker_container"  
  	docker exec $CONTAINER_NAME bash -c "service ssh restart"
+ 	else
+        run_restore "$path_to_ssh_shadow_in_backup" "$local_destination" "$path_in_docker_container"  > /dev/null 2>&1 
+	run_restore "$path_to_ssh_passwd_in_backup" "$local_destination" "$path_in_docker_container"   > /dev/null 2>&1
+ 	docker exec $CONTAINER_NAME bash -c "service ssh restart" > /dev/null 2>&1
+ 	fi
+
     fi
 
     # Delete local_temp_dir after successful copy
