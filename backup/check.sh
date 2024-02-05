@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: backup/check.sh
-# Description: CHeck if process id is running for a backup job.
+# Description: Check if process id is running for a backup job.
 # Usage: opencli backup-check
 # Author: Stefan Pejcic
 # Created: 31.01.2024
