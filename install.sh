@@ -36,6 +36,7 @@ cron_jobs=(
   "15 0 * * * opencli update"
   "30 2 * * * opencli domains-stats"
   "0 0 12 * * opencli server-ips"
+  "0 7 * * * opencli backup-check"
   "0 8 * * * opencli backup-scheduler"
   "* * * * * bash /usr/local/admin/service/notifications.sh"
   "@reboot bash /usr/local/admin/service/notifications.sh --startup"
