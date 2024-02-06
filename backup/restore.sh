@@ -182,7 +182,7 @@ fi
 
 local_temp_dir="/tmp/openpanel_restore_temp_dir/$CONTAINER_NAME"
 mkdir -p $local_temp_dir
-
+#petar
 run_restore() {
     source_path_restore=$1
     local_destination=$2
@@ -213,14 +213,13 @@ run_restore() {
             docker cp "$source_path_restore/." "$docker_source_path/"
         fi
     fi
-
-
-
-
-
 }
 
-
+ssh_list_sql_files() {
+    source_path_restore=$1
+    source_path_restore="${source_path_restore#/}"
+    ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "ls -p \"$dest_destination_dir_name/$source_path_restore\" | awk -F'.sql' '{print \$1}'"
+    }
 
 
 
@@ -329,10 +328,34 @@ perform_restore_of_selected_files() {
  	fi
     fi
 
+#petar
     if [ "$MYSQL_DATA" = true ]; then
-        backup_mysql_databases
-        backup_mysql_users
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER"
+        userpath="$remote_path_to_download/mysql/users"
+        dbpath="$remote_path_to_download/mysql/databases"
+        local_destination="/usr/local/panel/core/users/$CONTAINER_NAME/mysql/"
+	    path_in_docker_container="docker:$CONTAINER_NAME:/tmp/"
+
+        Mstatus=$(docker exec "$CONTAINER_NAME" bash -c "service mysql status | grep -i copyright")
+        if [[ $Mstatus ]]; then
+            usr_files=$(ssh_list_sql_files $userpath)
+            db_files=$(ssh_list_sql_files $dbpath)
+
+            echo $usr_files
+            echo $db_files
+
+                for usr in $usr_files; do 
+
+                run_restore "$userpath/$usr.sql" $local_destination $path_in_docker_container
+                
+                done
+        else
+        echo "Mysql is not running!"
+       fi
+       
     fi
+   
+
 
     if [ "$USER_DATA" = true ]; then
         export_user_data_from_database
