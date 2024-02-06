@@ -246,7 +246,6 @@ case "$1" in
         old_username="$2"
         new_username="$3"
         update_username "$old_username" "$new_username"
-        echo "Changing username from $old_username to $new_username"
         ;;
     "list")
         # List users
