@@ -229,12 +229,13 @@ case "$1" in
 
         # Check if the file exists
         if [ -f "$db_file_path" ]; then
-            if [ "$user_flag" ]; then
+            if [ "$new_password" ]; then
                 # Use provided username
                 update_password "$user_flag"
-            else
+            #else
                 # Default to 'admin' user
-                update_password "admin"
+             #   new_password=$2
+             #   update_password "admin"
             fi
         else
             echo "Error: File $db_file_path does not exist, password not changed for user."
