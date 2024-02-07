@@ -33,31 +33,81 @@ REMOTE_BASE_URL="https//hub.openpanel.co/_/ubuntu_22.04"
 LOCAL_BASE_DIR="/usr/local/admin/DOCKER/images"
 
 # Function to download and update files if they are different
-download_and_update() {
+download_then_check_and_update() {
     local file_prefix="$1"
     local local_dir="$LOCAL_BASE_DIR"
 
     # Download the remote file
     curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"
 
+    if [[ "$file_prefix" == "apache_info" ]]; then
+         file="apache"
+    elif [[ "$file_prefix" == "nginx_info" ]]; then
+         file="nginx"
+    fi
+
     # Compare the downloaded file with the local file
     if ! diff -q "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix" > /dev/null; then
-        echo "Updating $local_dir/$file_prefix"
+    
+        echo "Newer docker image is available, downloading openpanel_$file Docker image."
         mv "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix"
 
-        # Check if it's a tar.gz file, and if yes, download and overwrite it
-        if [[ "$file_prefix" == "apache_info" ]]; then
-            curl -o "$local_dir/apache.tar.gz" "$REMOTE_BASE_URL/apache.tar.gz"
-        elif [[ "$file_prefix" == "nginx_info" ]]; then
-            curl -o "$local_dir/nginx.tar.gz" "$REMOTE_BASE_URL/nginx.tar.gz"
+        # If not, download the Docker image
+        if curl -o "$local_dir/$file.tar.gz" "$REMOTE_BASE_URL/$file.tar.gz"; then
+            echo "Download successful, importing Docker image."
+        else
+            echo "Error: Download failed."
+            exit 1
         fi
+
+        # Check if the Docker image was built successfully
+        if docker load < "$local_dir/${file}.tar.gz"; then
+            echo "Docker image openpanel_$file was built successfully."
+        else
+            echo "Error: Docker image openpanel_$file failed to load."
+            exit 1
+        fi
+
+
+
     else
-        echo "Files are the same. No update needed."
+
+        echo "No newer docker image available. No update needed."
         rm "$local_dir/tmp_$file_prefix" # Remove temporary file if no update
     fi
 }
 
+
+
+
+# Function to download and update files if they are different
+download_and_install() {
+    local file_prefix="$1"
+    local local_dir="$LOCAL_BASE_DIR"
+    
+    if [[ "$file_prefix" == "apache_info" ]]; then
+         file="apache"
+    elif [[ "$file_prefix" == "nginx_info" ]]; then
+         file="nginx"
+    fi
+    
+    # Check if the Docker image exists locally
+    if ! docker image inspect "openpanel_$file" > /dev/null 2>&1; then
+        # If not, download and import the Docker image
+        echo "Downloading and importing openpanel_$file Docker image."
+        curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz"
+        docker load < "$local_dir/${file}.tar.gz"
+    else
+        echo "Docker image openpanel_$file_prefix already exists. Checking if newer image is available on hub.openpanel.co"
+        curl -o "$local_dir/${file_prefix}_info" "$REMOTE_BASE_URL/${file_prefix}_info"
+        download_then_check_and_update "$file_prefix"
+    fi
+}
+
+
+
+
 # Compare and update apache_info and associated tar.gz
-download_and_update "apache_info"
+download_and_install "apache_info"
 # Compare and update nginx_info and associated tar.gz
-download_and_update "nginx_info"
+download_and_install "nginx_info"
