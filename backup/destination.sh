@@ -169,10 +169,8 @@ validate_parameters() {
   local hostname_regex="^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.([a-zA-Z]{2,}|[a-zA-Z0-9-]*[a-zA-Z0-9]\.[a-zA-Z]{2,})$"
   local ipv4_regex="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
   local domain_regex="^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])$"
-  local password_regex="^\S+$"
   local port_regex="^([1-9]|[1-9][0-9]{1,4}|[1-2][0-9]{1,4}|3[0-4][0-9]{1,3}|35000)$"
   local ssh_user_regex="^\S+$"
-  local destination_dir_regex="^([1-9]|[1-9][0-9]|100)$"
 
     # Validate hostname
     if [[ ! "$1" =~ $hostname_regex && ! "$1" =~ $ipv4_regex && "$1" != "localhost" && "$1" != "127.0.0.1" && "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" && "$1" != "$(hostname)" ]]; then
@@ -180,20 +178,15 @@ validate_parameters() {
         exit 1
     fi
 
-  # Validate password
-  if [[ ! "$2" =~ $password_regex ]]; then
-    error "Invalid password. Must be one word only."
-    exit 1
-  fi
-
   # Validate ssh port
-  if [[ ! "$3" =~ $port_regex ]]; then
+  if [[ ! "$2" =~ $port_regex ]]; then
+      echo $2
     error "Invalid SSH port number. Must be a number between 1 and 35000."
     exit 1
   fi
 
   # Validate ssh user
-  if [[ ! "$4" =~ $ssh_user_regex ]]; then
+  if [[ ! "$3" =~ $ssh_user_regex ]]; then
     error "Invalid SSH user. Must be one word only."
     exit 1
   fi
@@ -202,7 +195,7 @@ validate_parameters() {
     # Validate ssh key path
     if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] && [ "$1" != "$(hostname)" ]; then
       # Validate ssh key path
-      if [ ! -f "$5" ]; then
+      if [ ! -f "$4" ]; then
         echo "SSH key path does not exist."
         exit 1
       fi
@@ -223,23 +216,28 @@ create_backup() {
   local new_file="${new_number}.json"
 
   # Check if enough parameters are provided
-  if [ "$#" -ne 7 ]; then
-    error "Usage: opencli backup-destination create hostname password ssh_port ssh_user ssh_key_path"
+  if [ "$#" -lt 5 ]; then
+    error "Usage: opencli backup-destination create hostname ssh_port ssh_user ssh_key_path treshold"
     exit 1
   fi
 
-  # Validate parameters
-  validate_parameters "$@"
 
+  # Check if the hostname is local or one of the predefined IPs
+  if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
+    # Perform checks on the local machine without attempting SSH connection
+    pass
+  else
+    # Pvalidate
+    validate_parameters "$1" "$2" "$3" "$4" "$5"
+ fi
   # Construct JSON content
   json_content=$(cat <<EOF
 {
   "hostname": "$1",
-  "password": "$2",
-  "ssh_port": $3,
-  "ssh_user": "$4",
-  "ssh_key_path": "$5",
-  "storage_limit": "$6"
+  "ssh_port": $2,
+  "ssh_user": "$3",
+  "ssh_key_path": "$4",
+  "storage_limit": "$5"
 }
 EOF
 )
@@ -278,11 +276,10 @@ edit_backup() {
   json_content=$(cat <<EOF
 {
   "hostname": "$2",
-  "password": "$3",
-  "ssh_port": $4,
-  "ssh_user": "$5",
-  "ssh_key_path": "$6",
-  "storage_limit": "$7"
+  "ssh_port": $3,
+  "ssh_user": "$4",
+  "ssh_key_path": "$5",
+  "storage_limit": "$6"
 }
 EOF
 )
@@ -342,7 +339,7 @@ validate_ssh_connection() {
     pass
   else
     # Perform SSH connection and checks for a remote machine
-    validate_parameters "$hostname" "dummy_password" "$ssh_port" "$ssh_user" "$ssh_key_path" "$storage_limit"
+    validate_parameters "$hostname" "$ssh_port" "$ssh_user" "$ssh_key_path" "$storage_limit"
     
     if [ "$DEBUG" = true ]; then
         echo "Validating SSH connection with the destination, running command: 'ssh -i $ssh_key_path $ssh_user@$hostname -p $ssh_port'"
