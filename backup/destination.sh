@@ -202,11 +202,17 @@ validate_parameters() {
         echo "SSH key path file $4 does not exist."
         exit 1
       else
-          # Check and set permissions for key file
-          if [ "$(stat -c %a "$4")" != "600" ]; then
-            chmod 600 "$4"
-            #error "SSH key has incorrect permissions, setting permissions to 600."
-          fi
+        key_type=$(file -b $4 | cut -d ' ' -f 1)
+    
+        if [[ "$key_type" == "OpenSSH" ]]; then
+              # Check and set permissions for key file
+              if [ "$(stat -c %a "$4")" != "600" ]; then
+                chmod 600 "$4"
+              fi
+        else
+            echo "Provided file is not an SSH private key."
+            exit 1
+        fi
       fi
     fi
 
