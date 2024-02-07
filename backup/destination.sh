@@ -65,6 +65,14 @@ if [ ! -d "$backup_dir" ]; then
 fi
 
 
+
+
+
+
+
+# Function to find job with the specified destination
+is_destination_used() {
+
 if [ ! -f "$jobs_file" ]; then
   error "File $jobs_file does not exist."
   exit 1
@@ -72,9 +80,6 @@ fi
 
 
 
-
-# Function to find job with the specified destination
-is_destination_used() {
   local destination_number="$1"
   local used=false
   local job_name=""
