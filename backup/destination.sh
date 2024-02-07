@@ -213,7 +213,8 @@ validate_parameters() {
             key_type=$(ssh-keygen -y -e -f $4 2>&1 | grep -q "BEGIN" && echo "OpenSSH" || echo "Not an SSH key")
     
             if [[ $key_type == "OpenSSH" ]]; then
-                echo "File is an SSH private key."
+                #echo "File is an SSH private key."
+                true
             else
                 # if not, revert permissions
                 chmod "$current_permissions" "$4"
