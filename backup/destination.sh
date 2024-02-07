@@ -337,7 +337,7 @@ validate_ssh_connection() {
   if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
     # no checks needed
     #true
-    echo "Validated!"
+    echo "success: Validated!"
   else
     # Perform SSH connection and checks for a remote machine
     validate_parameters "$hostname" "$ssh_port" "$ssh_user" "$ssh_key_path" "$storage_limit"
