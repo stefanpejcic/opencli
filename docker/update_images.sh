@@ -30,7 +30,7 @@
 ################################################################################
 
 REMOTE_BASE_URL="https//hub.openpanel.co/_/ubuntu_22.04"
-LOCAL_BASE_DIR="/usr/local/admin/DOCKER/images"
+LOCAL_BASE_DIR="/usr/local/panel/DOCKER/images"
 
 # Function to download and update files if they are different
 download_then_check_and_update() {
