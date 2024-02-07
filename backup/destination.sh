@@ -5,7 +5,7 @@
 # Usage: opencli backup-destination create|edit|delete|validate ID
 # Author: Stefan Pejcic
 # Created: 26.01.2024
-# Last Modified: 26.01.2024
+# Last Modified: 07.02.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
