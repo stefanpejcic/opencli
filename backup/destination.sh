@@ -198,17 +198,19 @@ validate_parameters() {
     # Validate ssh key path
     if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] && [ "$1" != "$(hostname)" ]; then
       # Validate ssh key path
-      if [ ! -f "$4" ]; then
-        echo "SSH key path does not exist."
+      if [ ! -f $4 ]; then
+        echo "SSH key path file $4 does not exist."
         exit 1
+      else
+          # Check and set permissions for key file
+          if [ "$(stat -c %a "$4")" != "600" ]; then
+            chmod 600 "$4"
+            #error "SSH key has incorrect permissions, setting permissions to 600."
+          fi
       fi
     fi
 
-  # Check and set permissions for key file
-  if [ "$(stat -c %a "$5")" != "600" ]; then
-    chmod 600 "$5"
-    error "SSH key has incorrect permissions, setting permissions to 600."
-  fi
+
 
 }
 
@@ -226,13 +228,32 @@ create_backup() {
 
 
   # Check if the hostname is local or one of the predefined IPs
-  if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
-    # Perform checks on the local machine without attempting SSH connection
+  if [ "$1" == "localhost" ] || [ "$1" == "127.0.0.1" ] || [ "$1" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$1" == "$(hostname)" ]; then
+    # Perform du check only, TODO
     true
   else
     # validate
     validate_parameters "$1" "$2" "$3" "$4" "$5"
- fi
+
+    # Perform SSH connection and checks for a remote machine
+    if [ "$DEBUG" = true ]; then
+        echo "Validating SSH connection with the destination, running command: 'ssh -i $4 $3@$1 -p $2'"
+    fi
+    
+    # Attempt to establish an SSH connection with a timeout
+    timeout "10" ssh -i $4 -p "$2" "$3"@"$1" echo "SSH connection successful."
+    connection_status=$?
+
+    if [ $connection_status -ne 0 ]; then
+      echo "SSH connection to $1 failed or timed out."
+      exit 1
+    fi
+    
+  fi
+
+
+
+  
   # Construct JSON content
   json_content=$(cat <<EOF
 {
