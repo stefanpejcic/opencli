@@ -29,7 +29,6 @@
 ################################################################################
 
 backup_dir="/usr/local/admin/backups/destinations/"
-jobs_file="/usr/local/admin/backups/jobs.json"
 DEBUG=false  # Default value for DEBUG
 
 # crveno na radost
@@ -73,25 +72,29 @@ fi
 # Function to find job with the specified destination
 is_destination_used() {
 
-if [ ! -f "$jobs_file" ]; then
-  error "File $jobs_file does not exist."
-  exit 1
-fi
+dir="/usr/local/admin/backups/jobs"
+used=false
+job_name=""
 
 
-
-  local destination_number="$1"
-  local used=false
-  local job_name=""
-  local destination_line_number=$(grep -n "\"destination\":\s*\"$destination_number\"" "$jobs_file" | cut -d: -f1)
-
-  if [ -n "$destination_line_number" ]; then
-    local job_name=$(awk -v dest_line="$destination_line_number" 'NR==dest_line-1 {gsub(/.*"name":\s*"/, ""); gsub(/".*$/, ""); print}' "$jobs_file")
-    used=true
-  else
-    used=false
-    #echo "No backup jobs are currently using destination ID: '$destination_number'. Proceeding with delete."
+# Loop through all files ending with .json in the specified directory
+for file in "$dir"/*.json; do
+  # Check if the file exists
+  if [ ! -f "$file" ]; then
+    echo "Error: File $file does not exist."
+    exit 1
   fi
+
+  # Read the destination line from the current file
+  destination_number=$(jq -r '.destination' "$file")
+
+  # Compare the destination number with the provided argument
+  if [ "$destination_number" == "$1" ]; then
+    used=true
+    job_name=$(jq -r '.name' "$file")
+    break  # Exit the loop once a match is found
+  fi
+done
 
   echo "$used|$job_name"
 }
