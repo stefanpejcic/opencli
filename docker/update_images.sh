@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: docker/check_image_files
 # Description: Create a new user with the provided plan_id.
-# Usage: opencli check_image_files
+# Usage: opencli docker-update_images
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Radovan Jecmenica
 # Created: 30.11.2023
