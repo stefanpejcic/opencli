@@ -29,8 +29,10 @@
 # THE SOFTWARE.
 ################################################################################
 
-REMOTE_BASE_URL="https//hub.openpanel.co/_/ubuntu_22.04"
+REMOTE_BASE_URL="https://hub.openpanel.co/_/ubuntu_22.04"
 LOCAL_BASE_DIR="/usr/local/panel/DOCKER/images"
+
+mkdir -p $LOCAL_BASE_DIR
 
 # Function to download and update files if they are different
 download_then_check_and_update() {
@@ -96,6 +98,7 @@ download_and_install() {
         # If not, download and import the Docker image
         echo "Downloading and importing openpanel_$file Docker image."
         curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz"
+        echo "curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz""
         docker load < "$local_dir/${file}.tar.gz"
     else
         echo "Docker image openpanel_$file_prefix already exists. Checking if newer image is available on hub.openpanel.co"
