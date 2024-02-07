@@ -195,24 +195,31 @@ validate_parameters() {
   fi
 
 
-    # Validate ssh key path
+    # Validate ssh key path for remote destination only
     if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] && [ "$1" != "$(hostname)" ]; then
-      # Validate ssh key path
+     
+      # Check if exists
       if [ ! -f $4 ]; then
         echo "SSH key path file $4 does not exist."
         exit 1
       else
-        key_type=$(file -b $4 | cut -d ' ' -f 1)
-    
-        if [[ "$key_type" == "OpenSSH" ]]; then
-              # Check and set permissions for key file
-              if [ "$(stat -c %a "$4")" != "600" ]; then
+            # Check permissions and set to 600 if not already set
+            current_permissions=$(stat -c %a "$4")
+            if [ "$current_permissions" != "600" ]; then
                 chmod 600 "$4"
-              fi
-        else
-            echo "Provided file is not an SSH private key."
-            exit 1
-        fi
+            fi
+
+            # Check if file is a valid private key
+            key_type=$(ssh-keygen -y -e -f $4 2>&1 | grep -q "BEGIN" && echo "OpenSSH" || echo "Not an SSH key")
+    
+            if [[ $key_type == "OpenSSH" ]]; then
+                echo "File is an SSH private key."
+            else
+                # if not, revert permissions
+                chmod "$current_permissions" "$4"
+                echo "File is not an SSH private key."
+                exit 1
+            fi
       fi
     fi
 
