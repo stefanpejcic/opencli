@@ -225,9 +225,9 @@ create_backup() {
   # Check if the hostname is local or one of the predefined IPs
   if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
     # Perform checks on the local machine without attempting SSH connection
-    pass
+    true
   else
-    # Pvalidate
+    # validate
     validate_parameters "$1" "$2" "$3" "$4" "$5"
  fi
   # Construct JSON content
@@ -335,8 +335,9 @@ validate_ssh_connection() {
 
   # Check if the hostname is local or one of the predefined IPs
   if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
-    # Perform checks on the local machine without attempting SSH connection
-    pass
+    # no checks needed
+    #true
+    echo "Validated!"
   else
     # Perform SSH connection and checks for a remote machine
     validate_parameters "$hostname" "$ssh_port" "$ssh_user" "$ssh_key_path" "$storage_limit"
