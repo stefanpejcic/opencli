@@ -98,6 +98,7 @@ download_and_install() {
         # If not, download and import the Docker image
         echo "Downloading and importing openpanel_$file Docker image."
         curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz"
+        curl -o "$local_dir/${file_prefix}" "$REMOTE_BASE_URL/${file_prefix}"
         echo "curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz""
         docker load < "$local_dir/${file}.tar.gz"
     else
