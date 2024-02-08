@@ -39,43 +39,66 @@ download_then_check_and_update() {
     local file_prefix="$1"
     local local_dir="$LOCAL_BASE_DIR"
 
-    # Download the remote file
-    curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"  > /dev/null 2>&1
-
     if [[ "$file_prefix" == "apache_info" ]]; then
          file="apache"
     elif [[ "$file_prefix" == "nginx_info" ]]; then
          file="nginx"
     fi
 
-    # Compare the downloaded file with the local file
-    if ! diff -q "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix" > /dev/null; then
+
+    # Download the remote file
+    curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"  > /dev/null 2>&1
     
-        echo "Newer docker image is available, downloading openpanel_$file Docker image."
-        mv "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix"
+    # Check the exit status of curl
+    if [ $? -eq 0 ]; then
+        #echo "Curl command was successful." #this on debug only!
+    
+        # Open the file and check its content
+        file_content=$(cat "$local_dir/tmp_$file_prefix")
+    
+        # Check if content matches the expected format (32 hex characters followed by space and hyphen)
+        #if [[ "$file_content" =~ ^[0-9a-f]{32} - ]]; then
+        if [[ "$file_content" =~ "^[0-9a-f]{32} -" ]]; then
+            #echo "File content is in the expected format."
 
-        # If not, download the Docker image
-        if curl -o "$local_dir/$file.tar.gz" "$REMOTE_BASE_URL/$file.tar.gz"; then
-            echo "Download successful, importing Docker image."
+            # Compare the downloaded file with the local file
+            if ! diff -q "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix" > /dev/null; then
+            
+                echo "Newer docker image is available, downloading openpanel_$file Docker image."
+                mv "$local_dir/tmp_$file_prefix" "$local_dir/$file_prefix"
+        
+                # If not, download the Docker image
+                if curl -o "$local_dir/$file.tar.gz" "$REMOTE_BASE_URL/$file.tar.gz"; then
+                    echo "Download successful, importing Docker image."
+                else
+                    echo "Error: Downloading newer docker image $file failed."
+                    exit 1
+                fi
+        
+                # Check if the Docker image was built successfully
+                if docker load < "$local_dir/${file}.tar.gz"; then
+                    echo "Docker image openpanel_$file was built successfully."
+                else
+                    echo "Error: Docker image openpanel_$file failed to load."
+                    exit 1
+                fi
+                rm $local_dir/${file}.tar.gz # delete downlaoded .tar.gz file
+            else
+                echo "No newer docker image available. No update needed."
+            fi
+
         else
-            echo "Error: Download failed."
+            echo "Checksum failed: File content is not a valid MD5 checksum, received content:"
+            echo " "
+            echo $file_content
+            echo " "
+            echo "Please contact support at: https://community.openpanel.co/t/openadmin"
             exit 1
         fi
-
-        # Check if the Docker image was built successfully
-        if docker load < "$local_dir/${file}.tar.gz"; then
-            echo "Docker image openpanel_$file was built successfully."
-        else
-            echo "Error: Docker image openpanel_$file failed to load."
-            exit 1
-        fi
-
-
-
+        rm "$local_dir/tmp_$file_prefix" # Remove temporary file
     else
-
-        echo "No newer docker image available. No update needed."
-        rm "$local_dir/tmp_$file_prefix" # Remove temporary file if no update
+        echo "Curl command failed. Make sure that your server can connect to https://hub.openpanel.co/ in order to download new docker images."
+        echo "Please contact support at: https://community.openpanel.co/t/openadmin"
     fi
 }
 
