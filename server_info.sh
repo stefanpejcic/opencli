@@ -26,6 +26,17 @@ run_ufw_rules() {
   run_command "cat /etc/ufw/user.rules" "Server IPv4 Firewall Rules"
 }
 
+# Function to check the status of services
+check_services_status() {
+  echo "=== Services Status ===" >> "$output_file"
+  run_command "systemctl status nginx" "Nginx Status"
+  run_command "systemctl status docker" "Docker Status"
+  run_command "systemctl status mysql" "MySQL Status"
+  run_command "systemctl status ufw" "UFW Status"
+  run_command "systemctl status admin" "Admin Service Status"
+  run_command "systemctl status panel" "Panel Service Status"
+}
+
 # Default values
 cli_flag=false
 ufw_flag=false
@@ -69,10 +80,8 @@ if [ "$ufw_flag" = true ]; then
   run_ufw_rules
 fi
 
-# Count the number of running Docker containers
-docker_container_count=$(docker ps -q | wc -l)
-echo "=== Number of Docker Containers ===" >> "$output_file"
-echo "Running Containers: $docker_container_count" >> "$output_file"
+# Check the status of services
+check_services_status
 
 # Print a message about the output file
 echo -e "Information collected successfully. Please provide the following file to the support team:\n$output_file"
