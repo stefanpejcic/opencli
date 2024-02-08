@@ -40,7 +40,7 @@ download_then_check_and_update() {
     local local_dir="$LOCAL_BASE_DIR"
 
     # Download the remote file
-    curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"
+    curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"  > /dev/null 2>&1
 
     if [[ "$file_prefix" == "apache_info" ]]; then
          file="apache"
@@ -97,13 +97,13 @@ download_and_install() {
     if ! docker image inspect "openpanel_$file" > /dev/null 2>&1; then
         # If not, download and import the Docker image
         echo "Downloading and importing openpanel_$file Docker image."
-        curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz"
-        curl -o "$local_dir/${file_prefix}" "$REMOTE_BASE_URL/${file_prefix}"
+        curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz" > /dev/null 2>&1
+        curl -o "$local_dir/${file_prefix}" "$REMOTE_BASE_URL/${file_prefix}" > /dev/null 2>&1
         echo "curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz""
         docker load < "$local_dir/${file}.tar.gz"
     else
         echo "Docker image openpanel_$file_prefix already exists. Checking if newer image is available on hub.openpanel.co"
-        curl -o "$local_dir/${file_prefix}_info" "$REMOTE_BASE_URL/${file_prefix}_info"
+        curl -o "$local_dir/${file_prefix}" "$REMOTE_BASE_URL/${file_prefix}" > /dev/null 2>&1
         download_then_check_and_update "$file_prefix"
     fi
 }
