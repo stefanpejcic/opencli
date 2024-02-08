@@ -6,7 +6,6 @@ mkdir -p "$output_dir"
 
 output_file="$output_dir/system_info_$(date +'%Y%m%d%H%M%S').txt"
 
-
 # Function to run a command and print its output with a custom message
 run_command() {
   echo "# $2:" >> "$output_file"
@@ -16,8 +15,8 @@ run_command() {
 
 # Function to run OpenCLI commands if --cli flag is provided
 run_opencli() {
-    echo "=== OpenCLI Information ===" >> "$output_file"
-    run_command "opencli commands" "Available OpenCLI Commands"
+  echo "=== OpenCLI Information ===" >> "$output_file"
+  run_command "opencli commands" "Available OpenCLI Commands"
 }
 
 # Function to display UFW rules if --ufw flag is provided
@@ -35,6 +34,19 @@ check_services_status() {
   run_command "systemctl status ufw" "UFW Status"
   run_command "systemctl status admin" "Admin Service Status"
   run_command "systemctl status panel" "Panel Service Status"
+}
+
+# Function to display OpenPanel settings
+display_openpanel_settings() {
+  echo "=== OpenPanel Settings ===" >> "$output_file"
+  run_command "cat /usr/local/panel/conf/panel.config" "OpenPanel Configuration file:"
+}
+
+# Function to display MySQL information
+display_mysql_information() {
+  echo "=== MySQL Information ===" >> "$output_file"
+  run_command "cat /usr/local/admin/config.json" "MySQL login information for OpenPanel and OpenAdmin services"
+  run_command "cat /usr/local/admin/db.cnf" "MySQL login information for OpenCLI scripts"
 }
 
 # Default values
@@ -79,6 +91,12 @@ fi
 if [ "$ufw_flag" = true ]; then
   run_ufw_rules
 fi
+
+# Display OpenPanel settings
+display_openpanel_settings
+
+# Display MySQL information
+display_mysql_information
 
 # Check the status of services
 check_services_status
