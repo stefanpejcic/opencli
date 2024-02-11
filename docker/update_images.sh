@@ -167,11 +167,13 @@ download_and_install() {
         curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz"
         echo "Importing the openpanel_$file docker image from file"
         docker load < "$local_dir/${file}.tar.gz"
+        rm "$local_dir/${file}.tar.gz"
         echo "Saving checksum to $REMOTE_BASE_URL/${file_prefix}"
         curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}"
         else
         curl -o "$local_dir/${file}.tar.gz" "$REMOTE_BASE_URL/${file}.tar.gz" > /dev/null 2>&1
         docker load < "$local_dir/${file}.tar.gz" > /dev/null 2>&1
+        rm "$local_dir/${file}.tar.gz" > /dev/null 2>&1
         curl -o "$local_dir/tmp_$file_prefix" "$REMOTE_BASE_URL/${file_prefix}" > /dev/null 2>&1
         fi
     else
