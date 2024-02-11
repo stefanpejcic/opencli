@@ -44,7 +44,7 @@ check_update() {
     local autoupdate
 
     if [ "$force_update" = true ]; then
-        # When the '--force' flag is provided, set autopatch and autoupdate to "yes"
+        # When the '--force' flag is provided, set autopatch and autoupdate to "on"
         autopatch="on"
         autoupdate="on"
     else
@@ -74,7 +74,7 @@ check_update() {
 
 
         else
-            # If autoupdate is "yes" or force_update is true, check if local_version is less than remote_version
+            # If autoupdate is "on" or force_update is true, check if local_version is less than remote_version
             if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
                 echo "Update is available and will be automatically installed."
 
