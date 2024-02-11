@@ -45,15 +45,15 @@ check_update() {
 
     if [ "$force_update" = true ]; then
         # When the '--force' flag is provided, set autopatch and autoupdate to "yes"
-        autopatch="yes"
-        autoupdate="yes"
+        autopatch="on"
+        autoupdate="on"
     else
         autopatch=$(awk -F= '/^autopatch=/{print $2}' /usr/local/panel/conf/panel.config)
         autoupdate=$(awk -F= '/^autoupdate=/{print $2}' /usr/local/panel/conf/panel.config)
     fi
 
-    # Only proceed if autopatch or autoupdate is set to "yes"
-    if [ "$autopatch" = "yes" ] || [ "$autoupdate" = "yes" ] || [ "$force_update" = true ]; then
+    # Only proceed if autopatch or autoupdate is set to "on"
+    if [ "$autopatch" = "on" ] || [ "$autoupdate" = "on" ] || [ "$force_update" = true ]; then
         # Run the update_check.sh script to get the update status
         local update_status=$(opencli update_check)
 
@@ -62,23 +62,72 @@ check_update() {
         local remote_version=$(echo "$update_status" | jq -r '.latest_version')
 
         # Check if autoupdate is "no" and not forcing the update
-        if [ "$autoupdate" = "no" ] && [ "$local_version" \< "$remote_version" ] && [ "$force_update" = false ]; then
+        if [ "$autoupdate" = "off" ] && [ "$local_version" \< "$remote_version" ] && [ "$force_update" = false ]; then
             echo "Update is available, autopatch will be installed."
-            # Run the update process
-            wget -q -O - https://update.openpanel.co/versions/$remote_version | bash
+
+            # Incrementally update from local_version to remote_version
+            while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
+                local_version=$(get_next_version "$local_version")
+                echo "Updating to version $local_version"
+                wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+            done
+
+
         else
             # If autoupdate is "yes" or force_update is true, check if local_version is less than remote_version
             if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
                 echo "Update is available and will be automatically installed."
-                # Run the update process
-                wget -q -O - https://update.openpanel.co/versions/$remote_version | bash
+
+
+                # Incrementally update from local_version to remote_version
+                while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
+                    local_version=$(get_next_version "$local_version")
+                    echo "Updating to version $local_version"
+                    wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                done
+                
             else
                 echo "No update available."
             fi
         fi
     else
-        echo "Autopatch and Autoupdate are both set to 'no'. No updates will be installed automatically."
+        echo "Autopatch and Autoupdate are both set to 'off'. No updates will be installed automatically."
     fi
+}
+
+# Function to compare two semantic versions
+compare_versions() {
+    local version1=$1
+    local version2=$2
+    local IFS='.'
+
+    local array1=($version1)
+    local array2=($version2)
+
+    for ((i = 0; i < ${#array1[@]}; i++)); do
+        if ((array1[i] > array2[i])); then
+            echo 1  # version1 > version2
+            return
+        elif ((array1[i] < array2[i])); then
+            echo -1  # version1 < version2
+            return
+        fi
+    done
+
+    echo 0  # version1 == version2
+}
+
+# Function to get the next semantic version
+get_next_version() {
+    local version=$1
+    local IFS='.'
+
+    local array=($version)
+
+    # Increment the last segment
+    array[${#array[@]}-1]=$((array[${#array[@]}-1] + 1))
+
+    echo "${array[*]}"
 }
 
 # Call the function to check for updates, pass any additional arguments to it
