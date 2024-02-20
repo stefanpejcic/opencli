@@ -38,6 +38,9 @@ for USERNAME in $DOCKER_USERS; do
 
 done
 
+#mount storage files on reboot
+opencli files-remount
+
 #reset servisa
 service nginx reload
 service panel restart
