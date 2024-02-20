@@ -28,10 +28,69 @@
 # THE SOFTWARE.
 ################################################################################
 
+# check for server wide options
+config_file="/usr/local/admin/backups/config.ini"
+
+if [ -e "$config_file" ]; then
+    # enable debug
+    debug_value=$(awk -F'=' '/^\[GENERAL\]/{f=1} f&&/^debug/{print $2; f=0}' "$config_file")
+    
+    if [ -n "$debug_value" ]; then
+        if [ "$debug_value" = "no" ]; then
+            DEBUG=false
+        elif [ "$debug_value" = "yes" ]; then
+            echo "Debug mode is enabled in server configuration."
+            DEBUG=true
+        fi
+    fi
+
+    #user sepcified temp dir
+    workplace_dir=$(awk -F'=' '/^\[GENERAL\]/{f=1} f&&/^workplace_dir/{print $2; f=0}' "$config_file")
+
+    if [ -n "$workplace_dir" ]; then
+        local_temp_dir="$workplace_dir"
+        if [ "$DEBUG" = true ]; then
+        echo "Using $local_temp_dir as a workplace directory to store temporary backup files."
+        fi
+    else
+        local_temp_dir="/tmp/openpanel_backup_temp_dir/"
+        if [ "$DEBUG" = true ]; then
+        echo "Workplace directory is not set, using $local_temp_dir as a workplace directory to store temporary backup files."
+        fi
+    fi
+
+    #server laod limit 
+    avg_load_limit=$(awk -F'=' '/^\[PERFORMANCE\]/{f=1} f&&/^avg_load_limit/{print $2; f=0}' "$config_file")
+
+    if [ -n "$avg_load_limit" ]; then
+        current_load=$(uptime | awk -F'[a-z]:' '{print $2}' | tr -d '[:space:]')
+        one_minute_load=$(echo "$current_load" | awk -F, '{print $1}')
+        
+        if [ "$(echo "$one_minute_load >= $avg_load_limit" | bc -l)" -eq 1 ]; then
+            echo "Current server load ($one_minute_load) is above the average load limit ($avg_load_limit) in server settings. Aborting backup..."
+            exit 1
+        else
+            if [ "$DEBUG" = true ]; then
+            echo "Server load ($one_minute_load) is below the average load limit ($avg_load_limit). Proceeding..."
+            fi
+        fi
+        
+    else
+        if [ "$DEBUG" = true ]; then
+        echo "Error: 'avg_load_limit' setting not found in $config_file. backup will start regardless of the current server load."
+        fi
+        
+    fi
+    
+else
+#when config file is missing..
+DEBUG=false
+local_temp_dir="/tmp/openpanel_backup_temp_dir/"
+fi
+
 
 TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 # Initialize all flags to false by default
-DEBUG=false
 FILES=false
 ENTRYPOINT=false
 WEBSERVER_CONF=false
@@ -48,7 +107,6 @@ TIMEZONE=false
 SSH_PASS=false
 
 # settings
-local_temp_dir="/tmp/openpanel_backup_temp_dir/"
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
 # Set a trap for CTRL+C to properly exit
