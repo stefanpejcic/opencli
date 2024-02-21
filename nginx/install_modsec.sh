@@ -75,7 +75,7 @@ sudo cp /opt/ModSecurity/unicode.mapping /etc/nginx/modsec
 sudo sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' /etc/nginx/modsec/modsecurity.conf
 
 
-cd ~/
+cd /usr/local
 wget https://github.com/coreruleset/coreruleset/archive/refs/tags/v3.3.5.tar.gz
 
 tar -xzvf v3.3.5.tar.gz
@@ -94,8 +94,7 @@ echo "Include /usr/local/coreruleset-3.3.5/rules/*.conf" | sudo tee -a /etc/ngin
 # https://www.faqforge.com/linux/fixed-ubuntu-apt-get-upgrade-auto-restart-services/
 sed -i 's/$nrconf{restart} = '"'"'a'"'"';/#$nrconf{restart} = '"'"'i'"'"';/g' /etc/needrestart/needrestart.conf
 
-sudo nginx -s reload
-
-
 sudo mv coreruleset-3.3.5 /usr/local
 sudo cp /usr/local/coreruleset-3.3.5/crs-setup.conf.example /usr/local/coreruleset-3.3.5/crs-setup.conf
+
+sudo nginx -s reload
