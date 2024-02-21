@@ -37,7 +37,7 @@ if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
     exit 1
 fi
 
-username="$1"
+username="${1,,}"
 password="$2"
 email="$3"
 plan_id="$4"
