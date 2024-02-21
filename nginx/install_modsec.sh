@@ -75,7 +75,7 @@ sudo cp /opt/ModSecurity/unicode.mapping /etc/nginx/modsec
 sudo sed -i 's/SecRuleEngine DetectionOnly/SecRuleEngine On/' /etc/nginx/modsec/modsecurity.conf
 
 
-cd /usr/local
+cd ~/
 wget https://github.com/coreruleset/coreruleset/archive/refs/tags/v3.3.5.tar.gz
 
 tar -xzvf v3.3.5.tar.gz
