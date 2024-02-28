@@ -56,7 +56,7 @@ fi
 add_new_user() {
     local username="$1"
     local password="$2"
-    local password_hash=$(python3 /usr/local/admin/core/users/hash.py $password) 
+    local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
