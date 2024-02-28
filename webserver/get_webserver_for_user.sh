@@ -1,509 +1,75 @@
-#!/bin/bash
+!/bin/bash
 ################################################################################
-# Script Name: create.sh
-# Description: Generate a full backup for all active users.
-# Usage: opencli backup-create
-#        opencli backup-create username [--debug]
+# Script Name: webserver/get_webserver_for_user.sh
+# Description: View cached or check the installed webserver inside user container.
+# Usage: opencli webserver-get_webserver_for_user <USERNAME>
+#        opencli webserver-get_webserver_for_user <USERNAME> --update
 # Author: Stefan Pejcic
-# Created: 08.10.2023
-# Last Modified: 28.01.2024
+# Created: 01.10.2023
+# Last Modified: 15.11.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# 
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+	@@ -29,62 +29,303 @@
 # THE SOFTWARE.
 ################################################################################
 
-TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-DEBUG=false # Default value for DEBUG
-SINGLE_CONTAINER=false
-# Initialize all flags to false by default
-FILES=false
-ENTRYPOINT=false
-WEBSERVER_CONF=false
-MYSQL_CONF=false
-PHP_VERSIONS=false
-CRONTAB=false
-USER_DATA=false
-CORE_USERS=false
-STATS_USERS=false
-APACHE_SSL_CONF=false
-DOMAIN_ACCESS_REPORTS=false
-TIMEZONE=false
-SSH_PASS=false
-
-# Parse optional flags to skip specific actions
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        --files)
-            FILES=true
-            ;;
-        --entrypoint)
-            ENTRYPOINT=true
-            ;;
-        --apache-conf)
-            WEBSERVER_CONF=true
-            ;;
-        --nginx-conf)
-            WEBSERVER_CONF=true
-            ;;
-        --mysql-conf)
-            MYSQL_CONF=true
-            ;;
-        --php-versions)
-            PHP_VERSIONS=true
-            ;;
-        --crontab)
-            CRONTAB=true
-            ;;
-        --user-data)
-            USER_DATA=true
-            ;;
-        --core-users)
-            CORE_USERS=true
-            ;;
-        --stats-users)
-            STATS_USERS=true
-            ;;
-        --apache-ssl-conf)
-            APACHE_SSL_CONF=true
-            ;;
-        --domain-access-reports)
-            DOMAIN_ACCESS_REPORTS=true
-            ;;
-        --ssh)
-            SSH_PASS=true
-            ;;
-        --timezone)
-            TIMEZONE=true
-            ;;
-        --all)
-            # Set all flags to true
-            DEBUG=true
-            SINGLE_CONTAINER=true
-            FILES=true
-            ENTRYPOINT=true
-            WEBSERVER_CONF=true
-            MYSQL_CONF=true
-            PHP_VERSIONS=true
-            CRONTAB=true
-            USER_DATA=true
-            CORE_USERS=true
-            STATS_USERS=true
-            APACHE_SSL_CONF=true
-            DOMAIN_ACCESS_REPORTS=true
-            TIMEZONE=true
-            SSH_PASS=true
-            ;;
-        *)
-            SINGLE_CONTAINER=true
-            container_name="$arg"
-            ;;
-    esac
-done
-
-
-
-# Function to log messages to the user-specific log file for the user
-log_user() {
-    local user_log_file="/usr/local/panel/core/users/$1/backup.log"
-    local log_message="$2"
-    # Ensure the log directory exists
-    mkdir -p "$(dirname "$user_log_file")"
-    # Append the log message with a timestamp
-    echo "$(date +"%Y-%m-%d %H:%M:%S") - $log_message" >> "$user_log_file"
-}
-
-# DB
-source /usr/local/admin/scripts/db.sh
-
-
-backup_mysql_databases() {
-
-mkdir -p "$BACKUP_DIR/mysql"
-
-# Get a list of databases with the specified prefix
-databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1')
-
-# Iterate through the list of databases and export each one
-for db in $databases
-do
-  echo "Exporting database: $db"
-  docker exec "$container_name" mysqldump -u root "$db" > "$BACKUP_DIR/mysql/$db.sql"
-done
-
-echo "All MySQL databases have been exported to '$BACKUP_DIR/mysql/'."
-}
-
-
-backup_mysql_users() {
-
-mkdir -p "$BACKUP_DIR/mysql/users/"
-
-# Get a list of MySQL users (excluding root and other system users)
-USERS=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'")
-
-#docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $BACKUP_DIR/mysql/users/mysql_users_and_permissions.sql"
-
-for USER in $USERS
-do
-    # Generate a filename based on the username
-    OUTPUT_FILE="$BACKUP_DIR/mysql/users/${USER}.sql"
-
-    # Use mysqldump to export user accounts and their permissions
-    docker exec "$container_name" mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user --where="user='$USER'" > $OUTPUT_FILE
-
-    echo "Exported mysql user '$USER' and their permissions to $OUTPUT_FILE."
-done
-
-}
-
-
-backup_mysql_conf_file() {
-
-mkdir -p "$BACKUP_DIR/docker/"
-
-docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $BACKUP_DIR/docker/
-
-echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
-}
-
-
-
-
-export_webserver_main_conf_file() {
-
-#get webserver for user
-output=$(opencli webserver-get_webserver_for_user $container_name)
-
-# Check if the output contains "nginx"
-if [[ $output == *nginx* ]]; then
-    ws="nginx"
-# Check if the output contains "apache"
-elif [[ $output == *apache* ]]; then
-    ws="apache2"
-else
-    # Set a default value if neither "nginx" nor "apache" is found
-    ws="unknown"
-fi
-
-mkdir -p "$BACKUP_DIR/$ws/"
-mkdir -p "$BACKUP_DIR/docker/"
-
-docker cp $container_name:/etc/$ws/$ws.conf $BACKUP_DIR/docker/
-
-}
-
-
-
-
-export_entrypoint_file() {
-mkdir -p "$BACKUP_DIR/docker/"
-docker cp $container_name:/etc/entrypoint.sh $BACKUP_DIR/docker/entrypoint.sh
-}
-
-
-
-users_local_files_in_core_users() {
-mkdir -p "$BACKUP_DIR/core/"
-cp -r /usr/local/panel/core/users/$container_name/ $BACKUP_DIR/core/
-}
-
-users_local_files_in_stats_users() {
-mkdir -p "$BACKUP_DIR/stats/"
-cp -r /usr/local/panel/core/stats/$container_name/ $BACKUP_DIR/stats/
-}
-
-
-
-backup_php_versions_in_container(){
-
-# Run the command and capture the output
-default_php_version=$(opencli php-default_php_version $container_name)
-
-# Check if the command was successful
-if [ $? -eq 0 ]; then
-    mkdir -p "$BACKUP_DIR/php/"
-    # Save the output to a file
-    echo "$default_php_version" > $BACKUP_DIR/php/default.txt
-    echo "Default PHP version saved for user."
-else
-    echo "Error running the command, default PHP version for user is not saved."
-fi
-
-
-# Run the command and capture the output
-output=$(opencli php-enabled_php_versions $container_name)
-
-# Check if the command was successful
-if [ $? -eq 0 ]; then
-    mkdir -p "$BACKUP_DIR/php/"
-    # Save the output to a file
-    echo "$output" > $BACKUP_DIR/php/php_versions.txt
-    echo "PHP versions saved to php_versions.txt"
-
-    version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
-    for version in $version_numbers; do
-        # Copy php-fpm.conf file
-        docker cp $container_name:"/etc/php/$version/fpm/php-fpm.conf" "$BACKUP_DIR/php/php-fpm_$version.conf"
-        echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
-    done
-
-else
-    echo "Error running the command, no PHP versions are backed up for the user."
-fi
-}
-
-
-
-export_user_data_from_database() {
-    user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$container_name';" -N)
-
-    if [ -z "$user_id" ]; then
-        echo "ERROR: export_user_data_to_sql: User '$container_name' not found in the database."
-        exit 1
-    fi
-
-    # Create a single SQL dump file
-    backup_file="$BACKUP_DIR/user_data_dump.sql"
-    
-    # Use mysqldump to export data from the 'sites', 'domains', and 'users' tables
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" users -w "id='$user_id'" >> "$backup_file"
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" domains -w "user_id='$user_id'" >> "$backup_file"
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" sites -w "domain_id IN (SELECT domain_id FROM domains WHERE user_id='$user_id')" >> "$backup_file"
-
-    echo "User '$container_name' data exported to $backup_file successfully."
-}
-
-
-backup_domain_access_reports() {
-    mkdir -p $BACKUP_DIR/nginx/stats/
-    cp -r /var/log/nginx/stats/$container_name/ $BACKUP_DIR/nginx/stats/
-}
-
-# Function to backup Apache .conf files and SSL certificates for domain names associated with a user
-backup_apache_conf_and_ssl() {
-
-    # Step 1: Get the user_id from the 'users' table
-    user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$container_name';" -N)
-    
-    if [ -z "$user_id" ]; then
-        echo "ERROR: backup_apache_conf_and_ssl: User '$container_name' not found in the database."
-        exit 1
-    fi
-    
-
-    #get webserver for user
-    output=$(opencli webserver-get_webserver_for_user $container_name)
-
-    # Check if the output contains "nginx"
-    if [[ $output == *nginx* ]]; then
-        ws="nginx"
-    # Check if the output contains "apache"
-    elif [[ $output == *apache* ]]; then
-        ws="apache2"
+# Function to determine the current web server inside the user's container
+determine_web_server() {
+    # Check for Apache inside the container
+    if docker exec "$username" which apache2 &> /dev/null; then
+        echo "apache"
+    # Check for Nginx inside the container
+    elif docker exec "$username" which nginx &> /dev/null; then
+        echo "nginx"
     else
-        # Set a default value if neither "nginx" nor "apache" is found
-        ws="unknown"
+        echo "unknown"
     fi
-
-    # Get domain names associated with the user_id from the 'domains' table
-    local domain_names=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
-    echo "Getting Nginx configuration for user's domains.."
-    # Loop through domain names
-    for domain_name in $domain_names; do
-        local apache_conf_dir="/etc/nginx/sites-available"
-        
-        local apache_conf_file="$domain_name.conf"
-        
-        local backup_apache_conf_dir="$BACKUP_DIR/nginx"
-        
-        local certbot_ssl_dir="/etc/letsencrypt/live/$domain_name"
-        
-        local backup_certbot_ssl_dir="$BACKUP_DIR/ssl/$domain_name"
-        local backup_dns_zones_dir="$BACKUP_DIR/dns"
-        local zone_file="/etc/bind/zones/$domain_name.zone"
-
-
-        mkdir -p $backup_apache_conf_dir
-        mkdir -p $backup_apache_conf_dir/container/
-
-
-        docker cp $container_name:/etc/$ws/sites-available/ $backup_apache_conf_dir/container/
-
-        # Check if the zone file exists and copy it
-        if [ -f "$zone_file" ]; then
-            mkdir -p "$backup_dns_zones_dir"
-            cp "$zone_file" "$backup_dns_zones_dir"
-            echo "Backed up DNS zone file for domain '$domain_name' to $backup_dns_zones_dir"
-        else
-            echo "DNS zone file for domain '$domain_name' not found."
-        fi
-
-        # Check if the Apache .conf file exists and copy it
-        if [ -f "$apache_conf_dir/$apache_conf_file" ]; then
-            mkdir -p "$backup_apache_conf_dir"
-            cp "$apache_conf_dir/$apache_conf_file" "$backup_apache_conf_dir/$apache_conf_file"
-            echo "Backed up Nginx .conf file for domain '$domain_name' to $backup_apache_conf_dir"
-        else
-            echo "Nginx .conf file for domain '$domain_name' not found."
-        fi
-
-        # Check if Certbot SSL certificates exist and copy them
-        if [ -d "$certbot_ssl_dir" ]; then
-            mkdir -p "$backup_certbot_ssl_dir"
-            cp -Lr "$certbot_ssl_dir"/* "$backup_certbot_ssl_dir/"
-            echo "Backed up Certbot SSL certificates for domain '$domain_name' to $backup_certbot_ssl_dir"
-        else
-            echo "Certbot SSL certificates for domain '$domain_name' not found."
-        fi
-    done
 }
 
-backup_crontab_for_root_user(){
-    file_path="/var/spool/cron/crontabs/root"
+# Check if the username is provided as a command-line argument
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <username> [--update]"
+    exit 1
+fi
 
-    if [ -e "$file_path" ]; then
-        mkdir -p "$BACKUP_DIR/crons/"
-        docker cp $container_name:$file_path $BACKUP_DIR/crons/
-    else
-        echo "Crontab is empty, no cronjobs to backup."
-    fi
+# Get the username from the command-line argument
+username="$1"
 
-}
+# Construct the path to the configuration file
+config_file="/usr/local/panel/core/users/$username/server_config.yml"
 
-backup_timezone(){
-    mkdir -p "$BACKUP_DIR/timezone/"
-    docker cp $container_name:/etc/timezone $BACKUP_DIR/timezone/
-    docker cp $container_name:/etc/localtime $BACKUP_DIR/timezone/
-}
+# Check if the --update flag is provided
+if [ "$2" == "--update" ]; then
+    # Determine the current web server
+    current_web_server=$(determine_web_server)
 
-
-backup_ssh_conf_and_pass(){
-    docker cp $container_name:/etc/passwd $BACKUP_DIR/docker/
-    docker cp $container_name:/etc/shadow $BACKUP_DIR/docker/
-}
-
-
-
-# Function to check command success and exit on failure
-check_command_success() {
-    if [ $? -ne 0 ]; then
-        echo "Error: $1"
+    if [ "$current_web_server" == "unknown" ]; then
+        echo "Unable to determine the web server in the container named $username."
         exit 1
     fi
-}
 
-
-# Function to backup files
-backup_files() {
-    local source_dir="/home/$container_name"
-    local destination_dir="$BACKUP_DIR/files"
-    
-    mkdir -p "$destination_dir"
-    tar -czvf "$destination_dir/files_${container_name}_${TIMESTAMP}.tar.gz" "$source_dir"
-    check_command_success "Error while creating files backup."
-}
-
-
-
-# Main Backup Function
-perform_backup() {
-    log_user "$container_name" "Backup started."
-
-    BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
-    
-    mkdir -p "$BACKUP_DIR"
-    
-    if [ "$FILES" = true ]; then
-        backup_files 
+    # Check if the file exists
+    if [ -f "$config_file" ]; then
+        # Update the web_server value in the configuration file
+        sed -i "s/web_server:.*/web_server: $current_web_server/" "$config_file"
+        echo "Web Server for user $username updated to: $current_web_server"
+    else
+        echo "Configuration file not found for user $username"
     fi
-
-    if [ "$ENTRYPOINT" = true ]; then
-        export_entrypoint_file
-    fi
-
-    if [ "$WEBSERVER_CONF" = true ]; then
-        export_webserver_main_conf_file
-    fi
-
-    if [ "$MYSQL_CONF" = true ]; then
-        backup_mysql_conf_file
-    fi
-
-    if [ "$TIMEZONE" = true ]; then
-        backup_timezone
-    fi
-
-    if [ "$PHP_VERSIONS" = true ]; then
-        backup_php_versions_in_container
-    fi
-
-    if [ "$CRONTAB" = true ]; then
-        backup_crontab_for_root_user
-    fi
-
-    if [ "$MYSQL_CONF" = true ]; then
-        backup_mysql_databases
-        backup_mysql_users
-    fi
-
-    if [ "$USER_DATA" = true ]; then
-        export_user_data_from_database
-    fi
-
-    if [ "$CORE_USERS" = true ]; then
-        users_local_files_in_core_users
-    fi
-
-    if [ "$STATS_USERS" = true ]; then
-        users_local_files_in_stats_users
-    fi
-
-    if [ "$APACHE_SSL_CONF" = true ]; then
-        backup_apache_conf_and_ssl
-    fi
-
-    if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
-        backup_domain_access_reports
-    fi
-
-    if [ "$SSH_PASS" = true ]; then
-        backup_ssh_conf_and_pass
-    fi
-    
-    log_user "$container_name" "Backup completed successfully."
-}
-
-# Loop through containers or backup a specific container
-if [ -z "$container_name" ]; then
-    for container_name in $(docker ps --format '{{.Names}}'); do
-        if [ "$DEBUG" = true ]; then
-            echo "Running backup for user: $container_name (Debug Mode)"
-        fi
-        perform_backup "$container_name"
-    done
 else
-    if [ "$DEBUG" = true ]; then
-        echo "Running backup for user: $container_name (Debug Mode)"
+    # Check if the file exists
+    if [ -f "$config_file" ]; then
+        # Use grep and awk to extract the value of web_server
+        web_server=$(grep "web_server:" "$config_file" | awk '{print $2}')
+
+        # Check if web_server is not empty
+        if [ -n "$web_server" ]; then
+            echo "Web Server for user $username: $web_server"
+        else
+            echo "Web Server not found for user $username"
+        fi
+    else
+        echo "Configuration file not found for user $username"
     fi
-    perform_backup "$container_name"
 fi
