@@ -33,8 +33,6 @@ ufw status > ports.txt
 
 # Step 1: List all container names
 container_names=$(docker ps -a --format '{{.Names}}')
-ufw allow "82.117.216.242"
-ufw allow "31.3.155.127"
 # Function to extract the host port from 'docker port' output for a specific container
 extract_host_port() {
     local container_name="$1"
