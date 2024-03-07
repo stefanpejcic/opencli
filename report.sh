@@ -32,6 +32,7 @@ check_services_status() {
   run_command "systemctl status docker" "Docker Status"
   run_command "systemctl status mysql" "MySQL Status"
   run_command "systemctl status ufw" "UFW Status"
+  run_command "systemctl status named" "BIND9 Status"
   run_command "systemctl status admin" "Admin Service Status"
   run_command "systemctl status panel" "Panel Service Status"
 }
