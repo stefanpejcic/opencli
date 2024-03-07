@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create directory if it doesn't exist
-output_dir="/usr/local/admin/static/reports"
+output_dir="/usr/local/admin/logs/reports"
 mkdir -p "$output_dir"
 
 output_file="$output_dir/system_info_$(date +'%Y%m%d%H%M%S').txt"
@@ -52,6 +52,7 @@ display_mysql_information() {
 # Default values
 cli_flag=false
 ufw_flag=false
+upload_flag=false
 
 # Parse command line arguments
 for arg in "$@"; do
@@ -59,6 +60,8 @@ for arg in "$@"; do
     cli_flag=true
   elif [ "$arg" = "--ufw" ]; then
     ufw_flag=true
+  elif [ "$arg" = "--public" ]; then
+    upload_flag=true
   else
     echo "Unknown option: $arg"
     exit 1
@@ -101,6 +104,18 @@ display_mysql_information
 # Check the status of services
 check_services_status
 
-# Print a message about the output file
-echo -e "Information collected successfully. Please provide the following file to the support team:\n$output_file"
+if [ "$upload_flag" = true ]; then
+  # Use curl to upload the file and capture the response
+  response=$(curl -F "file=@$output_file" https://support.openpanel.co/opencli_server_info.php 2>/dev/null)
+
+  # Extract the link from the response
+  LINKHERE=$(echo $response | grep -o 'http[s]\?://[^ ]*')
+
+  # Display the link to the user
+  echo -e "Information collected successfully. Please provide the following link to the support team:\n$LINKHERE"
+else
+  # Print a message about the output file
+  echo -e "Information collected successfully. Please provide the following file to the support team:\n$output_file"
+fi
+
 exit 0
