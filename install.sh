@@ -66,6 +66,7 @@ chown root:root /usr/local/admin/scripts/*
 # Only opencli binary is added to path and is used to call all other scripts
 cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
+chmod +x -R /usr/local/admin/scripts/
 
 # Generate a list of commands for the opencli
 opencli commands
