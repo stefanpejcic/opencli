@@ -29,6 +29,7 @@
 ################################################################################
 
 # https://www.faqforge.com/linux/fixed-ubuntu-apt-get-upgrade-auto-restart-services/
+
 sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/g' /etc/needrestart/needrestart.conf
 
 sudo apt-get update
@@ -48,7 +49,12 @@ sudo make install
 
 sudo apt-get install nginx -y
 
-sudo apt-get install libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev -y
+sudo apt-get install libpcre3 -y
+sudo apt-get install libpcre3-dev -y
+sudo apt-get install zlib1g -y
+sudo apt-get install zlib1g-dev -y
+sudo apt-get install libssl-dev -y
+
 cd /opt/
 sudo git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git
 
