@@ -32,19 +32,40 @@
 # Function to print usage instructions
 print_usage() {
     script_name=$(basename "$0")
-    echo "Usage: $script_name <plan_name>"
+    echo "Usage: $script_name <plan_name> [--json]"
     exit 1
 }
 
 # Initialize variables
 plan_name=""
+output_json=0
 
 # Command-line argument processing
 if [ "$#" -lt 1 ]; then
     print_usage
 fi
 
-plan_name=$1
+
+for arg in "$@"
+do
+    case $arg in
+        --json)
+        output_json=1
+        shift # Remove --json from processing
+        ;;
+        *)
+        if [ -z "$plan_name" ]; then
+            plan_name=$arg
+        else
+            echo "Invalid argument: $arg"
+            print_usage
+        fi
+        ;;
+    esac
+done
+
+
+
 
 # Source database configuration
 source /usr/local/admin/scripts/db.sh
@@ -53,26 +74,40 @@ source /usr/local/admin/scripts/db.sh
 users_count=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT COUNT(*) FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" | tail -n +2)
 
 if [ "$users_count" -gt 0 ]; then
-    echo "Cannot delete plan '$plan_name' as there are users assigned to it. List of users:"
-    
-    # List users on the plan
-    #users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';")
-    users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';")
-
-    if [ -n "$users_data" ]; then
-        echo "$users_data"
+    if [ "$output_json" -eq 1 ]; then
+        # JSON output
+        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" -B -s)
+        if [ -n "$users_data" ]; then
+            echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": [$users_data]}"
+        else
+            echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": []}"
+        fi
     else
-        echo "No users on plan '$plan_name'."
+        # Regular output
+        echo "Cannot delete plan '$plan_name' as there are users assigned to it. List of users:"
+        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';")
+        if [ -n "$users_data" ]; then
+            echo "$users_data"
+        else
+            echo "No users on plan '$plan_name'."
+        fi
     fi
 
     exit 1
 else
-    # Delete the plan data
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$plan_name';"
-
-    # Delete the Docker network
-    docker network rm "$plan_name"
-
-    echo "Docker network '$plan_name' deleted successfully."
-    echo "Plan '$plan_name' deleted successfully."
+    if [ "$output_json" -eq 1 ]; then
+        # Delete the plan data
+        mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$plan_name';"
+        # Delete the Docker network
+        docker network rm "$plan_name"
+        echo "{\"message\": \"Plan '$plan_name' and Docker network '$plan_name' deleted successfully.\"}"
+    else
+        # Delete the plan data
+        mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$plan_name';"
+        # Delete the Docker network
+        docker network rm "$plan_name"
+        echo "Docker network '$plan_name' deleted successfully."
+        echo "Plan '$plan_name' deleted successfully."
+    fi
 fi
+
