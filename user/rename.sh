@@ -284,6 +284,30 @@ rename_user_in_db() {
 
 
 
+
+
+
+
+
+replace_username_in_phpfpm_configs() {
+    old_username="$1" # Assuming $1 is the old username
+    new_username="$2" # Assuming $2 is the new username
+
+    # change user in www.conf file for each php-fpm verison
+    docker exec $old_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \;
+
+    # restart version
+    docker exec $old_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+}
+
+
+
+
+
+
+
+
+replace_username_in_phpfpm_configs "$old_username" "$new_username"
 edit_nginx_files_on_host_server "$old_username" "$new_username"
 update_firewall_rules "$IP_TO_USE"
 rename_user_in_db "$old_username" "$new_username"
