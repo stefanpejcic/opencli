@@ -431,16 +431,18 @@ if [ "$DEBUG" = true ]; then
     echo "Changing the username for php-fpm services inside the docker container..."
     docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
 
+    # mysql fix for: https://community.openpanel.co/d/18-cant-connect-to-local-mysql-server-through-socket-varrunmysqldmysqldsock-13
+    echo "Setting MySQL..."
+    docker exec $username bash -c "echo -e '[client]\nprotocol=tcp' > /home/$username/.my.cnf"
+
     # restart version
     echo "Setting container services..."
     docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
 else
     docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
     docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
+    docker exec $username bash -c "echo -e '[client]\nprotocol=tcp' > /home/$username/.my.cnf"  > /dev/null 2>&1
 fi
-
-
-
 
 
 
