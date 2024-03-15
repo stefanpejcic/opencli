@@ -119,4 +119,10 @@ echo "max_execution_time = 600"
 docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
 
 
+
+echo "## Setting service for PHP $php_version"
+docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
+wait $!
+docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+
 echo "## PHP version $php_version is successfully installed."
