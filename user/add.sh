@@ -424,6 +424,26 @@ else
   docker exec $username chmod -R g+w /home/$username > /dev/null 2>&1
 fi
 
+
+
+if [ "$DEBUG" = true ]; then
+    # change user in www.conf file for each php-fpm verison
+    echo "Changing the username for php-fpm services inside the docker container..."
+    docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
+
+    # restart version
+    echo "Setting container services..."
+    docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+else
+    docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
+    docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
+fi
+
+
+
+
+
+
 # Define the path to the main configuration file
 config_file="/usr/local/panel/conf/panel.config"
 
