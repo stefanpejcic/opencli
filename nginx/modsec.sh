@@ -37,6 +37,8 @@ OUTPUT_JSON=0
 SEARCH_RULES=0
 UPDATE_RULES=0
 VIEW_LOGS=0
+DOMAIN_NAME=""
+DOMAIN_OPTION=0
 
 # Process flags
 while [[ "$#" -gt 0 ]]; do
@@ -44,16 +46,8 @@ while [[ "$#" -gt 0 ]]; do
         --json) OUTPUT_JSON=1 ;;
         --rules) SEARCH_RULES=1 ;;
         --update) UPDATE_RULES=1 ;;
-        --logs)
-            VIEW_LOGS=1
-            LOG_FILTER=$2 # Save the next argument as the log filter
-            if [[ "$LOG_FILTER" =~ ^--.* ]]; then
-                # If the next argument is another flag, ignore it as a filter
-                LOG_FILTER=""
-            else
-                shift # Skip the next argument only if it's not a flag
-            fi
-            ;;
+        --logs) VIEW_LOGS=1; LOG_FILTER="${2:-}"; if [[ "$LOG_FILTER" != "--"* ]]; then shift; fi ;;
+        --domain) DOMAIN_OPTION=1; DOMAIN_NAME="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -106,6 +100,45 @@ if [ "$VIEW_LOGS" -eq 1 ]; then
 fi
 
 
+# Domain-specific functionality
+if [ "$DOMAIN_OPTION" -eq 1 ]; then
+    if [ -n "$DOMAIN_NAME" ]; then
+        # Check ModSecurity status in the domain's Nginx configuration
+        if [ -f "/etc/nginx/sites-available/$DOMAIN_NAME.conf" ]; then
+            MODSECURITY_STATUS=$(grep "modsecurity on;" "/etc/nginx/sites-available/$DOMAIN_NAME.conf" | wc -l)
+            
+            if [ "$MODSECURITY_STATUS" -gt 0 ]; then
+                echo "ModSecurity status: ✔ Enabled"
+            else
+                echo "ModSecurity status: ✘ Disabled"
+            fi
+        else
+            echo "ModSecurity status: ? Unknown"
+            echo "Nginx configuration file for /etc/nginx/sites-available/$DOMAIN_NAME.conf not found."
+        fi
+
+
+    
+        # Grep the domain name and show total count      
+        total_count=$(grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log | grep -c "$DOMAIN_NAME")
+        echo "Blocked requests: $total_count"
+        # Obtain the username of the user owning the domain, extracting only the last word after ':'
+        OWNER_INFO=$(opencli domains-whoowns "$DOMAIN_NAME")
+        USERNAME=$(echo "$OWNER_INFO" | awk -F': ' '{print $NF}')
+
+        # Display the domain-specific WAF configuration
+        if [ -f "/usr/local/panel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf" ]; then
+            disabled_rules_list=$(cat "/usr/local/panel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf")
+            echo "Disabled rules: $disabled_rules_list"
+        else
+            echo "No disabled rules."
+        fi
+    else
+        echo "Domain name not provided."
+        exit 1
+    fi
+    exit 0
+fi
 
 
 
