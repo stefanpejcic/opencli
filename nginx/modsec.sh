@@ -36,6 +36,7 @@ SEARCH_DIR="/usr/local/coreruleset-*/rules/"
 OUTPUT_JSON=0
 SEARCH_RULES=0
 UPDATE_RULES=0
+VIEW_LOGS=0
 
 # Process flags
 while [[ "$#" -gt 0 ]]; do
@@ -43,6 +44,16 @@ while [[ "$#" -gt 0 ]]; do
         --json) OUTPUT_JSON=1 ;;
         --rules) SEARCH_RULES=1 ;;
         --update) UPDATE_RULES=1 ;;
+        --logs)
+            VIEW_LOGS=1
+            LOG_FILTER=$2 # Save the next argument as the log filter
+            if [[ "$LOG_FILTER" =~ ^--.* ]]; then
+                # If the next argument is another flag, ignore it as a filter
+                LOG_FILTER=""
+            else
+                shift # Skip the next argument only if it's not a flag
+            fi
+            ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -83,6 +94,16 @@ if [ "$UPDATE_RULES" -eq 1 ]; then
 fi
 
 
+
+if [ "$VIEW_LOGS" -eq 1 ]; then
+    if [ -n "$LOG_FILTER" ]; then
+        # Use the filter if provided
+        grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log | grep "$LOG_FILTER"
+    else
+        grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log
+    fi
+    exit 0
+fi
 
 
 
