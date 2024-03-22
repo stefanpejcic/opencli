@@ -78,7 +78,7 @@ if [ "$UPDATE_RULES" -eq 1 ]; then
 
     done < <(find "$CRS_DIR/rules" -type f -name "*.conf" -print0)
     
-    echo "Update completed."
+    echo "OWASP ModSecurity Core Rule Set updated successfully."
     exit 0
 fi
 
