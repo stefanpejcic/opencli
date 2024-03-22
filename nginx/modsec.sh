@@ -35,16 +35,58 @@
 SEARCH_DIR="/usr/local/coreruleset-*/rules/"
 OUTPUT_JSON=0
 SEARCH_RULES=0
+UPDATE_RULES=0
 
 # Process flags
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --json) OUTPUT_JSON=1 ;;
         --rules) SEARCH_RULES=1 ;;
+        --update) UPDATE_RULES=1 ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
+
+
+if [ "$UPDATE_RULES" -eq 1 ]; then
+    CRS_REPO="https://github.com/coreruleset/coreruleset.git"
+    CRS_DIR=$(mktemp -d)
+    UPDATE_DIR="/usr/local/coreruleset-3.3.5/rules"
+
+    git clone "$CRS_REPO" "$CRS_DIR"
+
+    while IFS= read -r -d '' conf_file; do
+        filename=$(basename -- "$conf_file")
+
+        # Check if a corresponding .conf.disabled exists
+        if [ -f "${UPDATE_DIR}/${filename}.disabled" ]; then
+            # Rename the new .conf file to .conf.disabled before copying
+            mv "$conf_file" "${conf_file}.disabled"
+            # Copy the now renamed .conf.disabled file to UPDATE_DIR, overwriting the existing one
+            cp "${conf_file}.disabled" "${UPDATE_DIR}/${filename}.disabled"
+            echo "Updating disabled rules file ${UPDATE_DIR}/${filename}.disabled"
+        elif [ -f "${UPDATE_DIR}/${filename}" ]; then
+            # Directly overwrite the .conf file in the UPDATE_DIR
+            echo "Updating existing active rules file ${UPDATE_DIR}/${filename}"
+            cp "$conf_file" "${UPDATE_DIR}/${filename}"
+        else
+            # Directly overwrite the .conf file in the UPDATE_DIR
+            echo "Downloading new active rules file ${UPDATE_DIR}/${filename}"
+            cp "$conf_file" "${UPDATE_DIR}/${filename}"
+        fi
+
+    done < <(find "$CRS_DIR/rules" -type f -name "*.conf" -print0)
+    
+    echo "Update completed."
+    exit 0
+fi
+
+
+
+
+
+
 
 # Initialize an array to hold the output data
 OUTPUT_DATA=()
