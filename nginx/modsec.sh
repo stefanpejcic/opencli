@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+# https://nature.berkeley.edu/~casterln/modsecurity/modsecurity2-apache-reference.html
+
 # specific for OpenPanel
 SEARCH_DIR="/usr/local/coreruleset-*/rules/"
 OUTPUT_JSON=0
