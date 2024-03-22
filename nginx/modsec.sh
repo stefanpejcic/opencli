@@ -68,7 +68,7 @@ else
         if [ -d "$dir" ]; then
             while IFS= read -r file; do
                 OUTPUT_DATA+=("$file")
-            done < <(find "$dir" -type f -name "*.conf")
+            done < <(find "$dir" -type f \( -name "*.conf" -o -name "*.conf.disabled" \)) # .disbaled
         fi
     done
 fi
