@@ -68,26 +68,60 @@ if [ "$ENABLE" -eq 1 ]; then
             if [ ! -e "$FILE_NAME" ]; then
                 
                 if [ ! -e "${FILE_NAME%.disabled}" ]; then
-                    echo "SUCCESS: File is already enabled."
-                    exit 0
+    
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"SUCCESS: File is already enabled.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "SUCCESS: File is already enabled."
+                        exit 0
+                    fi
+                
+
                 else
                     echo "ERROR: File '$FILE_NAME' does not exist."
+
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"ERROR: File does not exist.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "ERROR: File '$FILE_NAME' does not exist."
+                        exit 1
+                    fi
+
+                    
                 fi
             else
                 # Remove the ".disabled" suffix from FILE_NAME
                 NEW_FILE_NAME="${FILE_NAME%.disabled}"
                 # Rename the file
                 mv "$FILE_NAME" "$NEW_FILE_NAME"
-                echo "SUCCESS: Enabled conf file: $NEW_FILE_NAME"
+                
+                if [ "$OUTPUT_JSON" -eq 1 ]; then
+                    JSON_MESSAGE="{ \"message\": \"SUCCESS: Enabled conf file: $NEW_FILE_NAME\" }"
+                    echo "$JSON_MESSAGE"
+                else
+                    echo "SUCCESS: Enabled conf file: $NEW_FILE_NAME"
+                fi
             fi           
         else
-            echo "ERROR: File name is not valid!"
-            exit 1  # exit the script
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"ERROR: File name is not valid.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "ERROR: File name is not valid!"
+                        exit 1
+                    fi
         fi
   exit 0  
   else
-    echo "ERROR: Please provide configuration file path."
-    exit 1
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"ERROR: Please provide configuration file path.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "ERROR: Please provide configuration file path."
+                        exit 1
+                    fi
     
    fi
 fi
@@ -116,15 +150,33 @@ if [ "$DISABLE" -eq 1 ]; then
             fi
 
         elif [[ "$FILE_NAME" == *.conf.disabled ]]; then
-            echo "SUCCESS: File is already disabled."
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"SUCCESS: File is already disabled.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "SUCCESS: File is already disabled."
+                        exit 1
+                    fi
         else
-            echo "ERROR: File name is not valid!"
-            exit 1  # exit the script
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"ERROR: File name is not valid.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "ERROR: File name is not valid!"
+                        exit 1
+                    fi
+
         fi
   exit 0  
   else
-    echo "ERROR: Please provide configuration file path."
-    exit 1
+    
+                    if [ "$OUTPUT_JSON" -eq 1 ]; then
+                        JSON_MESSAGE="{ \"message\": \"ERROR: Please provide configuration file path.\" }"
+                        echo "$JSON_MESSAGE"
+                    else
+                         echo "ERROR: Please provide configuration file path."
+                        exit 1
+                    fi
     
    fi
 fi
