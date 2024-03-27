@@ -93,11 +93,14 @@ if [ "$VIEW_LOGS" -eq 1 ]; then
     if [ -n "$LOG_FILTER" ]; then
         # Use the filter if provided
         grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log | grep "$LOG_FILTER"
+        zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz | grep "$LOG_FILTER"
     else
         grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log
+        zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz
     fi
     exit 0
 fi
+
 
 
 # Domain-specific functionality
