@@ -79,10 +79,9 @@ if [ "$ENABLE" -eq 1 ]; then
                 
 
                 else
-                    echo "ERROR: File '$FILE_NAME' does not exist."
 
                     if [ "$OUTPUT_JSON" -eq 1 ]; then
-                        JSON_MESSAGE="{ \"message\": \"ERROR: File does not exist.\" }"
+                        JSON_MESSAGE="{ \"message\": \"ERROR: File $FILE_NAME does not exist.\" }"
                         echo "$JSON_MESSAGE"
                     else
                          echo "ERROR: File '$FILE_NAME' does not exist."
@@ -106,18 +105,20 @@ if [ "$ENABLE" -eq 1 ]; then
             fi           
         else
                     if [ "$OUTPUT_JSON" -eq 1 ]; then
-                        JSON_MESSAGE="{ \"message\": \"ERROR: File name is not valid.\" }"
+                        JSON_MESSAGE="{ \"message\": \"ERROR: File name $FILE_NAME is not valid.\" }"
                         echo "$JSON_MESSAGE"
+                        exit 1
                     else
-                         echo "ERROR: File name is not valid!"
+                         echo "ERROR: File name $FILE_NAME is not valid!"
                         exit 1
                     fi
         fi
   exit 0  
   else
                     if [ "$OUTPUT_JSON" -eq 1 ]; then
-                        JSON_MESSAGE="{ \"message\": \"ERROR: Please provide configuration file path.\" }"
+                        JSON_MESSAGE="{ \"message\": \"ERROR: Please provide configuration file path $FILE_NAME.\" }"
                         echo "$JSON_MESSAGE"
+                        exit 1
                     else
                          echo "ERROR: Please provide configuration file path."
                         exit 1
