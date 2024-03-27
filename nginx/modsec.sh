@@ -38,7 +38,10 @@ SEARCH_RULES=0
 UPDATE_RULES=0
 VIEW_LOGS=0
 DOMAIN_NAME=""
+FILE_NAME=""
 DOMAIN_OPTION=0
+ENABLE=0
+DISABLE=0
 
 # Process flags
 while [[ "$#" -gt 0 ]]; do
@@ -48,10 +51,90 @@ while [[ "$#" -gt 0 ]]; do
         --update) UPDATE_RULES=1 ;;
         --logs) VIEW_LOGS=1; LOG_FILTER="${2:-}"; if [[ "$LOG_FILTER" != "--"* ]]; then shift; fi ;;
         --domain) DOMAIN_OPTION=1; DOMAIN_NAME="$2"; shift ;;
+        --enable) ENABLE=1; FILE_NAME="$2"; shift ;;
+        --disable) DISABLE=1; FILE_NAME="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
+
+
+# enable conf file
+if [ "$ENABLE" -eq 1 ]; then
+    if [ -n "$FILE_NAME" ]; then
+        # Check if FILE_NAME ends with .conf.disabled
+        if [[ "$FILE_NAME" == *.conf.disabled ]]; then
+            # Check if FILE_NAME exists
+            if [ ! -e "$FILE_NAME" ]; then
+                
+                if [ ! -e "${FILE_NAME%.disabled}" ]; then
+                    echo "SUCCESS: File is already enabled."
+                    exit 0
+                else
+                    echo "ERROR: File '$FILE_NAME' does not exist."
+                fi
+            else
+                # Remove the ".disabled" suffix from FILE_NAME
+                NEW_FILE_NAME="${FILE_NAME%.disabled}"
+                # Rename the file
+                mv "$FILE_NAME" "$NEW_FILE_NAME"
+                echo "SUCCESS: Enabled conf file: $NEW_FILE_NAME"
+            fi           
+        else
+            echo "ERROR: File name is not valid!"
+            exit 1  # exit the script
+        fi
+  exit 0  
+  else
+    echo "ERROR: Please provide configuration file path."
+    exit 1
+    
+   fi
+fi
+
+
+# disable conf file
+if [ "$DISABLE" -eq 1 ]; then
+    if [ -n "$FILE_NAME" ]; then
+        # Check if FILE_NAME ends with .conf
+        if [[ "$FILE_NAME" == *.conf ]]; then
+            # Check if FILE_NAME exists
+            if [ ! -e "$FILE_NAME" ]; then
+                
+                if [ ! -e "${FILE_NAME%.disabled}" ]; then
+                    echo "SUCCESS: File is already disabled."
+                    exit 0
+                else
+                    echo "ERROR: File '$FILE_NAME' does not exist."
+                fi
+            else
+                # Remove the ".disabled" suffix from FILE_NAME
+                DISABLED_FILE_NAME="$FILE_NAME.disabled"
+                # Rename the file
+                mv "$FILE_NAME" "$DISABLED_FILE_NAME"
+                echo "SUCCESS: Disabled conf file: $DISABLED_FILE_NAME"
+            fi
+
+        elif [[ "$FILE_NAME" == *.conf.disabled ]]; then
+            echo "SUCCESS: File is already disabled."
+        else
+            echo "ERROR: File name is not valid!"
+            exit 1  # exit the script
+        fi
+  exit 0  
+  else
+    echo "ERROR: Please provide configuration file path."
+    exit 1
+    
+   fi
+fi
+
+
+
+
+
+
+
 
 
 
