@@ -54,6 +54,8 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 
+
+
 if [ "$UPDATE_RULES" -eq 1 ]; then
     CRS_REPO="https://github.com/coreruleset/coreruleset.git"
     CRS_DIR=$(mktemp -d)
@@ -162,14 +164,60 @@ if [ "$SEARCH_RULES" -eq 1 ]; then
         done < <(grep -Rohs 'id:[0-9]*' $SEARCH_DIR | sort | uniq)
     fi
 else
-    # Default behavior: find .conf files
-    for dir in $SEARCH_DIR; do
-        if [ -d "$dir" ]; then
-            while IFS= read -r file; do
-                OUTPUT_DATA+=("$file")
-            done < <(find "$dir" -type f \( -name "*.conf" -o -name "*.conf.disabled" \)) # .disbaled
-        fi
-    done
+
+
+# TODO: GET RULE INFO FROM https://coreruleset.org/docs/rules/rules/
+for dir in $SEARCH_DIR; do
+    if [ -d "$dir" ]; then
+        while IFS= read -r file; do
+            # Extract the file name from the file path
+            name=$(basename "$file")
+
+            # Initialize variables to store version
+            version=""
+
+            # Read each line of the file
+            while IFS= read -r line; do
+                # Check for version
+                if [[ "$line" == *"ver."* ]]; then
+                    version="${line##*ver.}"
+                    # Break to prevent unnecessary further checks for version
+                    break
+                fi
+            done < "$file"
+
+            # Output the collected information
+            if [ "$OUTPUT_JSON" -eq 1 ]; then
+                if [ "$json_started" != "true" ]; then
+                    echo -n "["
+                    json_started="true"
+                else
+                    echo -n ","
+                fi
+                jq -n --arg file "$file" --arg name "$name" --arg version "$version" '{file: $file, name: $name, version: $version}'
+            else
+                echo "File: $file"
+                echo "Name: $name"
+                echo "Version: $version"
+                echo
+            fi
+        done < <(find "$dir" -type f \( -name "*.conf" -o -name "*.conf.disabled" \)) # .disabled
+    fi
+done
+
+# Close the JSON array if JSON output is enabled
+if [ "$OUTPUT_JSON" -eq 1 ]; then
+    echo "]"
+fi
+exit 0
+
+
+
+
+    
+
+
+
 fi
 
 
