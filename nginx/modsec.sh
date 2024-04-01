@@ -252,14 +252,19 @@ fi
 if [ "$VIEW_LOGS" -eq 1 ]; then
     if [ -n "$LOG_FILTER" ]; then
         # Use the filter if provided
+        if ls /var/log/nginx/error.log.*.gz 1> /dev/null 2>&1; then
+            zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz | grep "$LOG_FILTER"
+        fi
         grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log | grep "$LOG_FILTER"
-        zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz | grep "$LOG_FILTER"
     else
+        if ls /var/log/nginx/error.log.*.gz 1> /dev/null 2>&1; then
+            zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz
+        fi
         grep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log
-        zgrep "ModSecurity: Access denied with code 403" /var/log/nginx/error.log.*.gz
     fi
     exit 0
 fi
+
 
 
 
