@@ -5,7 +5,7 @@
 # Usage: opencli nginx-modsec
 # Author: Stefan Pejcic
 # Created: 22.03.2024
-# Last Modified: 22.03.2024
+# Last Modified: 01.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
