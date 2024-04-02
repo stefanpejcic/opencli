@@ -76,7 +76,7 @@ users_count=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e
 if [ "$users_count" -gt 0 ]; then
     if [ "$output_json" -eq 1 ]; then
         # JSON output
-        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT SUBSTRING_INDEX(username, '_', -1) as username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name' AND username LIKE 'SUSPENDED\_%';" -B -s)
+        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT SUBSTRING_INDEX(username, '_', -1) as username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name' AND username NOT LIKE 'SUSPENDED\_%';" -B -s)
         if [ -n "$users_data" ]; then
             echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": [$users_data]}"
         else
@@ -85,7 +85,7 @@ if [ "$users_count" -gt 0 ]; then
     else
         # Regular output
         echo "Cannot delete plan '$plan_name' as there are users assigned to it. List of users:"
-        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT SUBSTRING_INDEX(username, '_', -1) as username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name' AND username LIKE 'SUSPENDED\_%';")
+        users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT SUBSTRING_INDEX(username, '_', -1) as username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name' AND username NOT LIKE 'SUSPENDED\_%';")
         if [ -n "$users_data" ]; then
             echo "$users_data"
         else
