@@ -99,7 +99,7 @@ update_username() {
 update_password() {
     local username="$1"
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local password_hash=$(python3 /usr/local/admin/core/users/hash.py $new_password) 
+    local password_hash=$(python3 /usr/local/admin/core/users/hash $new_password) 
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 /usr/local/admin/users.db "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
