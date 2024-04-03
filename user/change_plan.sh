@@ -133,8 +133,26 @@ numOdisk=$(echo "$Odisk_limit" | awk '{print $1}')
 numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
 addSize=$((numNdisk - numOdisk))
 addInodes=$((Ninodes_limit - Oinodes_limit))
+
+if (($numNdisk>0)); then
+    nMounted=1
+else
+    nMounted=0
+fi
 echo "addsize $addSize"
-curSize=$(df -BG | grep /home/$container_name | awk 'NR==1 {print $3}' | sed 's/G//')
+
+oMounted=1
+if df -BG | grep -q "/home/$container_name"; then
+    # Directory is mounted
+    curSize=$(df -BG | grep "/home/$container_name" | awk 'NR==1 {print $3}' | sed 's/G//')
+    echo "storage file IS mounted, current size: ${curSize}G"
+else
+    # Directory is not mounted
+    curSize=$(du -sBG "/home/$container_name" | awk '{print $1}' | sed 's/G//')
+    echo "storage file IS NOT mounted, current size: ${curSize}G"
+    oMounted=0
+fi
+
 curInode=$(find /home/$container_name/. | wc -l)
 
 if (( $numNram > $maxRAM )); then
@@ -157,7 +175,7 @@ if [[ "$Ndocker_image" != "$Odocker_image" ]]; then
     exit 1
 fi
 
-if (( $curSize > $numNdisk )); then
+if (( $curSize > $numNdisk && $numNdisk!=0 )); then
     echo "Error: Current size on disk exceeds the limits of the new plan - $curSize > $numNdisk."
     exit 1
 fi
@@ -167,12 +185,12 @@ if (( $curInode > $Ninodes_limit )); then
     exit 1
 fi
 
-if (( $addSize < 0 )); then
+if (( $addSize < 0 && $numNdisk!=0)); then
     echo "Error: Storage downgrades are not possible."
     exit 1
 fi
 
-if (( $addInodes < 0 )); then
+if (( $addInodes < 0 && $numNdisk!=0 )); then
     echo "Error: Storage downgrades are not possible."
     exit 1
 fi
@@ -193,29 +211,45 @@ echo "Difference in docker_image: $Odocker_image to $Ndocker_image"
 echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
 echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
 
-if (( $addSize > 0 || $addInodes > 0 )); then
-    docker stop $container_name
-    if mount | grep "/home/$container_name" > /dev/null; then
+if [ "$nMounted" -gt 0 ] && [ "$oMounted" -gt 0 ]; then
+
+
+    if (( $addSize > 0 || $addInodes > 0 )); then
+        docker stop $container_name
+        if mount | grep "/home/$container_name" > /dev/null; then
+            umount /home/$container_name
+        fi
+
+        if (( $addInodes > 0 )); then
+            mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
+        fi
+        #echo "falokejt parametar ${numNdisk}g"
+        fallocate -l ${numNdisk}g /home/storage_file_$container_name
+
+        #fix+resize FSystem
+        e2fsck -f -y /home/storage_file_$container_name
+        resize2fs /home/storage_file_$container_name
+        mount -o loop /home/storage_file_$container_name /home/$container_name
+        docker start $container_name
+
+    else
+    echo "No change in disk size."
+    fi
+
+elif [ "$oMounted" -ne 0 ] && [ "$nMounted" -eq 0 ]; then
         umount /home/$container_name
+        rm /home/storage_file_$container_name
+elif [ "$oMounted" -eq 0 ] && [ "$nMounted" -ne 0 ]; then
+    if [$free_space<=$numNdisk]; then
+        echo "Error: Not enough free space on disk for storage file creation."
+    else
+        fallocate -l ${numNdisk}g /home/storage_file_$container_name
+        mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
+        mount -o loop /home/storage_file_$container_name /home/$container_name
     fi
-
-    if (( $addInodes > 0 )); then
-        mkfs.ext4 -F -N $Ninodes_limit /home/storage_file_$container_name
-    fi
-    #echo "falokejt parametar ${numNdisk}g"
-    fallocate -l ${numNdisk}g /home/storage_file_$container_name
-
-    #fix+resize FSystem
-    e2fsck -f -y /home/storage_file_$container_name
-    resize2fs /home/storage_file_$container_name
-    mount -o loop /home/storage_file_$container_name /home/$container_name
-    docker start $container_name
-
 else
-echo "No change in disk size."
+    echo "No change in disk, both new and old plan are unlimited."
 fi
-
-
 ##echo "Difference in bandwidth: $Obandwidth to $Nbandwidth"
 
 
@@ -245,4 +279,3 @@ opencli nginx-update_vhosts $container_name --nginx-reload
 
 # Compare limits and list the differences
 #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
-
