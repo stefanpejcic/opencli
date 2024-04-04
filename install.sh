@@ -34,7 +34,7 @@ cron_jobs=(
   "* 2 * * * opencli docker-usage_stats_cleanup"
   "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
   "15 0 * * * opencli update"
-  "30 0 * * * opencli opencli server-stats --save"
+  "30 0 * * * opencli server-stats --save"
   "30 2 * * * opencli domains-stats"
   "0 0 12 * * opencli server-ips"
   "0 7 * * * opencli backup-check"
