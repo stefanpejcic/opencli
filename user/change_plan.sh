@@ -168,7 +168,9 @@ fi
 addSize=0
 addInodes=0
 if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then    
-    echo "BOTH MOUNTED"
+    if $debug; then 
+        echo "BOTH MOUNTED"
+    fi
     addSize=$((numNdisk - numOdisk))
     addInodes=$((Ninodes_limit - Oinodes_limit))
 fi
@@ -189,9 +191,10 @@ if (( $Ncpu > $maxCPU )); then
     exit 1
 fi
 
-if (( $addSize > $free_space )); then
-    echo "Error: Insufficient disk space mounted, Available: $free_space - Required: $addSize."
-    exit 1
+noDiskSpace=false
+if (( $numNdisk > $free_space )); then
+    echo "Error: Insufficient space on disk, no changes to disk limit were made, Available: ${free_space}GB - Required: $Ndisk_limit."
+    noDiskSpace=true
 fi
 
 if [[ "$Ndocker_image" != "$Odocker_image" ]]; then
@@ -243,7 +246,7 @@ fi
 if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then
 
 
-    if (( $addSize > 0 || $addInodes > 0 )); then
+    if (( $addSize > 0 || $addInodes > 0 )) && [ "$noDiskSpace" = false ]; then
         docker stop $container_name
         if mount | grep "/home/$container_name" > /dev/null; then
             umount /home/$container_name
