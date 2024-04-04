@@ -73,7 +73,7 @@ else
 fi
 
 if [ "$save_to_file" = true ]; then
-    timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+    timestamp=$(date +"%Y-%m-%d")
     json="{\"timestamp\": \"$timestamp\", \"users\": $user_count, \"domains\": $domain_count, \"websites\": $site_count}"
     mkdir -p /usr/local/admin/logs/
     echo "$json" >> /usr/local/admin/logs/usage_stats.json
