@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#list-users
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 19.11.2023
+# Last Modified: 04.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -34,17 +34,23 @@ print_usage() {
     script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name [--json]"
+    echo "Usage: opencli $script_name [--json] [--total]"
     exit 1
 }
 
+# Flag variables
+json_output=false
+total_users=false
 
-
-# if --json flag is provided then we use different mysql query and format as json
+# Loop through command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --json)
             json_output=true
+            shift
+            ;;
+        --total)
+            total_users=true
             shift
             ;;
         *)
@@ -52,12 +58,30 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+
 # DB
 source /usr/local/admin/scripts/db.sh
 
 
-# Fetch all user data from the users table
-if [ "$json_output" ]; then
+
+# Count total users
+if [ "$total_users" = true ]; then
+    # Fetch only the count of users
+    user_count=$(mysql --defaults-extra-file=$config_file -D $mysql_database -se "SELECT COUNT(*) FROM users")
+
+    if [ "$json_output" = true ]; then
+        echo "$user_count"
+    else
+        echo "Total number of users: $user_count"
+    fi
+    
+exit 0
+fi
+
+
+# Get users information
+if [ "$json_output" = true ]; then
     # For JSON output without --table option
     users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;" | tail -n +2)
     json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]})' )
