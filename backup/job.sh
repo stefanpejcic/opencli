@@ -31,6 +31,8 @@
 # Define paths
 backup_dir="/usr/local/admin/backups/jobs/"
 
+mkdir -p $backup_dir
+
 if [ "$#" -lt 1 ]; then
     echo "Usage: opencli backup-job create|edit|delete"
     exit 1
