@@ -29,7 +29,7 @@
 ################################################################################
 
 # Check if the correct number of parameters is provided
-if [ "$#" -ne 2 ]; then
+if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
     script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
@@ -39,6 +39,16 @@ fi
 
 container_name=$1
 new_plan_id=$2
+
+debug=false
+for arg in "$@"
+do
+    # Enable debug mode if --debug flag is provided 
+    if [ "$arg" == "--debug" ]; then
+        debug=true
+        break
+    fi
+done
 
 # DB
 source /usr/local/admin/scripts/db.sh
@@ -131,26 +141,40 @@ maxRAM=$(free -g | awk '/^Mem/ {print $2}')
 numNram=$(echo "$Nram" | tr -d 'g')
 numOdisk=$(echo "$Odisk_limit" | awk '{print $1}')
 numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
-addSize=$((numNdisk - numOdisk))
-addInodes=$((Ninodes_limit - Oinodes_limit))
+
 
 if (($numNdisk>0)); then
-    nMounted=1
+    nMounted=true
 else
-    nMounted=0
+    nMounted=false
 fi
-echo "addsize $addSize"
 
-oMounted=1
+oMounted=true
 if df -BG | grep -q "/home/$container_name"; then
     # Directory is mounted
     curSize=$(df -BG | grep "/home/$container_name" | awk 'NR==1 {print $3}' | sed 's/G//')
-    echo "storage file IS mounted, current size: ${curSize}G"
+        if $debug; then
+            echo "storage file IS currently mounted, current size: ${curSize}G"
+        fi
 else
     # Directory is not mounted
     curSize=$(du -sBG "/home/$container_name" | awk '{print $1}' | sed 's/G//')
-    echo "storage file IS NOT mounted, current size: ${curSize}G"
-    oMounted=0
+        if $debug; then
+            echo "storage file IS NOT currently mounted, current size: ${curSize}G" 
+        fi
+    oMounted=false
+fi
+
+addSize=0
+addInodes=0
+if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then    
+    echo "BOTH MOUNTED"
+    addSize=$((numNdisk - numOdisk))
+    addInodes=$((Ninodes_limit - Oinodes_limit))
+fi
+
+if $debug; then 
+    echo "New plan Disk limit - Old plan Disk limit = $addSize (set to 0 if new or old plan is unlimited)" 
 fi
 
 curInode=$(find /home/$container_name/. | wc -l)
@@ -185,33 +209,38 @@ if (( $curInode > $Ninodes_limit )); then
     exit 1
 fi
 
-if (( $addSize < 0 && $numNdisk!=0)); then
-    echo "Error: Storage downgrades are not possible."
-    exit 1
+#if (( $addInodes < 0 && $numNdisk!=0 )); then
+#    echo "Error: Storage downgrades are not possible."
+#    exit 1
+#fi
+
+if $debug; then
+    echo "          cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth"
+    echo "Old plan: $Ocpu , $Oram, $Odocker_image, $Odisk_limit, $Oinodes_limit, $Obandwith"
+    echo "New plan: $Ncpu , $Nram, $Ndocker_image, $Ndisk_limit, $Ninodes_limit, $Nbandwith"
+
+    echo "Difference in cpu: $Ocpu to $Ncpu"
 fi
 
-if (( $addInodes < 0 && $numNdisk!=0 )); then
-    echo "Error: Storage downgrades are not possible."
-    exit 1
+docker update --cpus="$Ncpu" "$container_name" > /dev/null
+
+if $debug; then
+    echo "Difference in ram: $Oram to $Nram"
 fi
 
-echo "          cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth"
-echo "Old plan: $Ocpu , $Oram, $Odocker_image, $Odisk_limit, $Oinodes_limit, $Obandwith"
-echo "New plan: $Ncpu , $Nram, $Ndocker_image, $Ndisk_limit, $Ninodes_limit, $Nbandwith"
+docker update --memory="$Nram" --memory-swap="$Nram" "$container_name" > /dev/null
 
-echo "Difference in cpu: $Ocpu to $Ncpu"
-docker update --cpus="$Ncpu" "$container_name"
+if $debug; then
+    echo "Current docker image $Odocker_image"
+    echo "New docker image $Ndocker_image (must be the same for the plan change to work!)"
+    #ako je drugi image nema izmene plana
 
-echo "Difference in ram: $Oram to $Nram"
-docker update --memory="$Nram" --memory-swap="$Nram" "$container_name"
+    echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
+    echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
+    echo "New limits must be larger than or equal to old limits."
+fi
 
-echo "Difference in docker_image: $Odocker_image to $Ndocker_image"
-#ako je drugi image nema izmene plana
-
-echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
-echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
-
-if [ "$nMounted" -gt 0 ] && [ "$oMounted" -gt 0 ]; then
+if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then
 
 
     if (( $addSize > 0 || $addInodes > 0 )); then
@@ -220,35 +249,55 @@ if [ "$nMounted" -gt 0 ] && [ "$oMounted" -gt 0 ]; then
             umount /home/$container_name
         fi
 
-        if (( $addInodes > 0 )); then
-            mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
-        fi
         #echo "falokejt parametar ${numNdisk}g"
         fallocate -l ${numNdisk}g /home/storage_file_$container_name
 
         #fix+resize FSystem
-        e2fsck -f -y /home/storage_file_$container_name
+        e2fsck -f -y /home/storage_file_$container_name  > /dev/null
         resize2fs /home/storage_file_$container_name
         mount -o loop /home/storage_file_$container_name /home/$container_name
         docker start $container_name
+        if $debug; then
+            echo "Disk limit changed from ${numOdisk}G to ${numNdisk}G"
+        fi
 
+        if (( $addInodes > 0 )); then
+            #mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
+            echo "Warning: Increasing Inode limit is not possible, old plan limit remains"
+        fi
+
+    elif (($addSize < 0)); then
+        echo "Warning: No change was made to the disk limit, new plan limit is more restrictive which is not allowed"
     else
-    echo "No change in disk size."
+        if $debug; then
+            echo "No change was made to the disk limit, new plan limit is the same as old limit."
+        fi
     fi
 
-elif [ "$oMounted" -ne 0 ] && [ "$nMounted" -eq 0 ]; then
-        umount /home/$container_name
-        rm /home/storage_file_$container_name
-elif [ "$oMounted" -eq 0 ] && [ "$nMounted" -ne 0 ]; then
-    if [$free_space<=$numNdisk]; then
-        echo "Error: Not enough free space on disk for storage file creation."
-    else
-        fallocate -l ${numNdisk}g /home/storage_file_$container_name
-        mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
-        mount -o loop /home/storage_file_$container_name /home/$container_name
-    fi
+elif [ "$oMounted" = "true" ] && [ "$nMounted" != "true" ]; then
+
+    echo "Warning: disk size limit can't be set to unlimited after filesystem creation, original plan limit remains."
+        #umount /home/$container_name
+        #rm /home/storage_file_$container_name
+
+elif [ "$oMounted" != "true" ] && [ "$nMounted" = "true" ]; then
+    echo "Warning: disk usage cannot be limited after user was created on an unlimited plan, disk usage remains unlimited."
+    #if [ "$free_space" -le "$numNdisk" ]; then
+    #    echo "Error: Not enough free space on disk for storage file creation, no limit enforced on container, switch to a smaller plan or free up disk space."
+    #else
+        #docker stop $container_name
+        #fallocate -l ${numNdisk}g /home/storage_file_$container_name 
+        #mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name 
+        #mount -o loop /home/storage_file_$container_name /home/$container_name
+        #docker start $container_name
+        #if $debug; then
+        #    echo "Container disk usage now limited to ${numNdisk}G"
+        #fi
+    #fi
 else
-    echo "No change in disk, both new and old plan are unlimited."
+    if $debug; then
+        echo "No change in disk, both new and original plan are unlimited."
+    fi
 fi
 ##echo "Difference in bandwidth: $Obandwidth to $Nbandwidth"
 
@@ -263,19 +312,25 @@ NETWORKS=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.Networ
 for network in $NETWORKS; do
   docker network disconnect "$network" "$container_name"
 done
-echo "current plan name: ('$current_plan_name')"
 
+if $debug; then
+    echo "old plan name: ('$current_plan_name')"
+fi
 # Connect the container to the new Docker network
 docker network connect "$new_plan_name" "$container_name"
-echo "new plan name:('$new_plan_name')"
-
+if $debug; then
+    echo "new plan name:('$new_plan_name')"
+fi
 #Menja ID
 query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 
 
 #skripta za rewrite nginx vhosts za tog usera!
-opencli nginx-update_vhosts $container_name --nginx-reload
-
+if $debug; then
+    opencli nginx-update_vhosts $container_name --nginx-reload
+else
+    opencli nginx-update_vhosts $container_name --nginx-reload > /dev/null
+fi
 # Compare limits and list the differences
 #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
