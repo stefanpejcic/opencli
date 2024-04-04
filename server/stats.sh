@@ -60,6 +60,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 
+print_usage() {
+
+}
+
 if [ "$json_output" = true ]; then
     echo "{"
     echo "  \"users\": $user_count,"
