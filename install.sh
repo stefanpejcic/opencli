@@ -5,7 +5,7 @@
 # Usage: opencli install
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 04.04.2024
+# Last Modified: 09.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -27,36 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-
-# Cron job entries
-cron_jobs=(
-  "0 * * * * opencli docker-collect_stats"
-  "* 2 * * * opencli docker-usage_stats_cleanup"
-  "0 */3 * * * certbot renew --post-hook 'systemctl reload nginx'"
-  "15 0 * * * opencli update"
-  "30 0 * * * opencli server-stats --save"
-  "30 2 * * * opencli domains-stats"
-  "0 0 12 * * opencli server-ips"
-  "0 7 * * * opencli backup-check"
-  "0 8 * * * opencli backup-scheduler"
-  "* * * * * bash /usr/local/admin/service/notifications.sh"
-  "@reboot bash /usr/local/admin/service/notifications.sh --startup"
-  "@reboot opencli server-on_startup"
-)
-
-# Create a temporary file to store the cron job entries
-cron_temp_file=$(mktemp)
-
-# Add the cron jobs to the temporary file
-for job in "${cron_jobs[@]}"; do
-    echo "$job" >> "$cron_temp_file"
-done
-
-# Install the crontab for the root user from the temporary file
-crontab "$cron_temp_file"
-
-# Remove the temporary file
-rm "$cron_temp_file"
 
 # set aliases
 ln -s /usr/local/admin/scripts/version /usr/local/admin/scripts/v
