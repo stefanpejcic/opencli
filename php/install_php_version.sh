@@ -121,8 +121,8 @@ docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_ex
 
 
 echo "## Setting service for PHP $php_version"
-docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
+docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
 wait $!
-docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+docker exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
 
 echo "## PHP version $php_version is successfully installed."
