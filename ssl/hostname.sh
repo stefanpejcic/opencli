@@ -68,7 +68,14 @@ ip_address=$(hostname -I | awk '{print $1}')
 certbot_cert_dir="/etc/letsencrypt/live/$hostname"
 
 
-# Function to update OpenPanel configuration
+# check and renew ssl
+renew_ssl_check() {
+    mkdir -p /var/www/html/.well-known/acme-challenge/
+    chown -R www-data:www-data /var/www/html/
+    echo "1" | certbot certonly --webroot -w /var/www/html -d $hostname
+}
+
+# update OpenPanel configuration
 update_openpanel_config() {
     local config_file="/usr/local/panel/conf/panel.config"
 
@@ -85,8 +92,8 @@ update_openpanel_config() {
         echo "ssl is now enabled and force_domain value in $config_file is set to '$hostname'."
         echo "Restarting the panel services to apply the newly generated SSL and force domain $hostname."
 
-        service panel restart
-        service admin restart
+        service panel reload
+        service admin reload
 
         echo ""
         echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
@@ -104,7 +111,11 @@ update_openpanel_config() {
 if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
     if [ -d "$certbot_cert_dir" ]; then
         echo "SSL certificate already exists for $hostname."
-        # just set the panel to use the existing ssl
+        
+        # try renew
+        renew_ssl_check
+
+        # set the panel to use the existing ssl
         update_openpanel_config
     else
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
