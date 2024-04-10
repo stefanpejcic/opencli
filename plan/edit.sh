@@ -192,8 +192,10 @@ if [ "$docker_image" == "nginx" ]; then
   docker_image="openpanel_nginx"
 elif [ "$docker_image" == "litespeed" ]; then
   docker_image="openpanel_litespeed"
-else
+elif [ "$docker_image" == "apache" ]; then
   docker_image="openpanel_apache"
+else
+  docker_image="${11}"
 fi
 
 # Check if the old plan exists in the database
