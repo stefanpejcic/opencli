@@ -148,29 +148,33 @@ fi
 
 list_users () {
 local users="$1"
+plan_id="$2"
 
-opencli plan-usage "$users" --json
+count=$(opencli plan-usage "$users" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
 
-
-
-
-
-if n
-
-exit
-
-elif user 
-
-echo successfully updated plan X to Y, you curently have 10 usetrs on the paln, to apply limits to all of them run comand: `opencli plan-apply 4 --all`
-
-else
-echo "Updated plan '$old_plan_name' to '$new_plan_name'"
-fi
+    if [ "$count" -eq 0 ]; then
+        echo "Updated plan '$old_plan_name' to '$new_plan_name'"
+        # Perform action A
+    else
+        echo "successfully updated plan '$new_plan_name', you curently have $count users on the plan, to apply limits to all of them run comand: opencli plan-apply $plan_id --all"
+        # Perform action B
+    fi
 }
 
 
 
+get_plan_name() {
+    local name="$1"
+    local sql='SELECT id FROM plans WHERE name="$name";'
+    local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
+    plan_id="$result"
+    echo $plan_id
+}
+
+get_plan_name "$new_plan_name"
+echo $plan_id
+
 
 # Call the update_plan function with the provided values
 update_plan "$old_plan_name" "$new_plan_name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
-list_users "$new_plan_name"
+list_users "$new_plan_name" "$plan_id"
