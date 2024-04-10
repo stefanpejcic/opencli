@@ -167,7 +167,7 @@ list_users () {
     if [ "$count" -eq 0 ]; then
         echo "Updated plan id $plan_id"
     else    
-        echo "successfully updated plan id '$plan_id', you curently have $count users on the plan, to apply limits to all of them run comand: opencli plan-apply $plan_id --all"
+        echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
     fi
 }
 
