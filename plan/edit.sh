@@ -4,8 +4,8 @@
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
 # Usage: opencli plan-edit old_plan_name new_plan_name new_description new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth new_storage_file
 # Author: Radovan Jecmenica
-# Created: 06.11.2023
-# Last Modified: 17.01.2024
+# Created: 10.04.2024
+# Last Modified: 10.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
