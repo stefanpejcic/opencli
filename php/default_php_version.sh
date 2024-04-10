@@ -29,6 +29,18 @@
 # THE SOFTWARE.
 ################################################################################
 
+# Check if username argument is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <username> [--update <new_php_version>]"
+    exit 1
+fi
+
+username="$1"
+config_file="/usr/local/panel/core/users/$username/server_config.yml"
+
+
+
+
 # Function to update PHP version in the configuration file
 update_php_version() {
     local new_php_version="$1"
@@ -36,6 +48,10 @@ update_php_version() {
 
     # Use sed to update the PHP version in the configuration file
     sed -i "s/\(default_php_version:\s*\)php[0-9.]\+/\\1php$new_php_version/" "$config_file"
+
+    # set the php version to be used on terminal!
+    docker exec $username bash -c "update-alternatives --set php /usr/bin/php$new_php_version"
+    
 }
 
 # Function to validate the PHP version format
@@ -47,14 +63,7 @@ validate_php_version() {
     fi
 }
 
-# Check if username argument is provided
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <username> [--update <new_php_version>]"
-    exit 1
-fi
 
-username="$1"
-config_file="/usr/local/panel/core/users/$username/server_config.yml"
 
 # Check if the configuration file exists
 if [ ! -e "$config_file" ]; then
