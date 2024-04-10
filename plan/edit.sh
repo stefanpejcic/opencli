@@ -64,7 +64,6 @@ ram="${ram}g"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
-    echo "Updated plan '$old_plan_name' to '$new_plan_name'"
     docker network prune -f
   else
     echo "Failed to update plan '$old_plan_name' to '$new_plan_name'"
@@ -129,12 +128,6 @@ check_cpu_cores "$cpu"
 # Check available RAM before creating the plan
 check_available_ram "$ram"
 
-# Check if docker_image is either "nginx" or "apache"
-if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ] && [ "$docker_image" != "litespeed" ]; then
-  echo "docker_image must be 'nginx' or 'apache'"
-  exit 1
-fi
-
 # Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
   docker_image="openpanel_nginx"
@@ -155,8 +148,28 @@ fi
 
 list_users () {
 local users="$1"
-opencli plan-usage "$users"
+
+opencli plan-usage "$users" --json
+
+
+
+
+
+if n
+
+exit
+
+elif user 
+
+echo successfully updated plan X to Y, you curently have 10 usetrs on the paln, to apply limits to all of them run comand: `opencli plan-apply 4 --all`
+
+else
+echo "Updated plan '$old_plan_name' to '$new_plan_name'"
+fi
 }
+
+
+
 
 # Call the update_plan function with the provided values
 update_plan "$old_plan_name" "$new_plan_name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
