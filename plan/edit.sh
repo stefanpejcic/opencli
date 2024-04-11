@@ -65,11 +65,36 @@ ram="${ram}g"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
-    docker network prune -f
+
+    # Construct SQL query to select plan name based on ID
+    local sql="SELECT name FROM plans WHERE id='$plan_id'"
+    
+    # Execute MySQL query
+    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+    
+    # Extract plan name from query result
+    local new_plan_name=$(echo "$result" | awk 'NR>1')
+    
+      count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
+  
+      if [ "$count" -eq 0 ]; then
+          echo "Updated plan id $plan_id"
+      else    
+          echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
+      fi
+    
   else
     echo "Failed to update plan id '$plan_id'"
     exit 1
   fi
+
+}
+
+
+get_network_name(){
+
+    local sql="SELECT name FROM plans WHERE id="$name");"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 
 }
 
@@ -147,30 +172,6 @@ if [ -z "$existing_plan" ]; then
   exit 1
 fi
 
-list_users () {
-  local plan_id="$1"
-  
-  # Construct SQL query to select plan name based on ID
-  local sql="SELECT name FROM plans WHERE id='$plan_id'"
-  
-  # Execute MySQL query
-  local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-  
-  # Extract plan name from query result
-  local new_plan_name=$(echo "$result" | awk 'NR>1')
-  
-
-
-
-    count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-
-    if [ "$count" -eq 0 ]; then
-        echo "Updated plan id $plan_id"
-    else    
-        echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
-    fi
-}
 
 # Call the update_plan function with the provided values
 update_plan "$plan_id" "$new_plan_name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
-list_users "$plan_id"
