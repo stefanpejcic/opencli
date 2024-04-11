@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: server/stats.sh
 # Description: Count Domains, Websites and Users
-# Usage: opencli server-stats --total --json --save
+# Usage: opencli server-stats --json --save
 # Author: Stefan Pejcic
 # Created: 04.04.2024
 # Last Modified: 04.04.2024
@@ -54,15 +54,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            print_usage
-            ;;
     esac
 done
-
-
-print_usage() {
-
-}
 
 if [ "$json_output" = true ]; then
     echo "{"
