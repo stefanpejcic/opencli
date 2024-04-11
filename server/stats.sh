@@ -5,7 +5,7 @@
 # Usage: opencli server-stats --json --save
 # Author: Stefan Pejcic
 # Created: 04.04.2024
-# Last Modified: 04.04.2024
+# Last Modified: 11.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
