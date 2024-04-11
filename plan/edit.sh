@@ -32,7 +32,11 @@
 # DB
 source /usr/local/admin/scripts/db.sh
 
-OPENCLI_PLAN_APPLY=0
+CPU_NEEDS_UPDATE=0
+RAM_NEEDS_UPDATE=0
+NETWORK_NEEDS_UPDATE=0
+DISK_NEEDS_UPDATE=0
+
 DEBUG=false
 
 for arg in "$@"; do
@@ -61,14 +65,21 @@ edit_docker_network() {
 
 
 
-check_if_we_need_to_edit_docker_containers(){
+check_if_we_need_to_edit_docker_containers() {
 
 if [ "$old_cpu" == "$cpu" ] && [ "$old_ram" === "$ram" ]; then
-  echo "CPU & RAM limits are not changed."
-else
-  echo "CPU or RAM limits are changed, applying new limits."
+    echo "CPU & RAM limits are not changed."
+elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" != "$ram" ]; then
+    echo "Both CPU or RAM limits are changed, applying new limits."
+    CPU_NEEDS_UPDATE=1
+    RAM_NEEDS_UPDATE=1
+elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" === "$ram" ]; then
+    echo "CPU limits are changed."
+    CPU_NEEDS_UPDATE=1
+elif [ "$old_cpu" == "$cpu" ] && [ "$old_ram" != "$ram" ]; then
+  echo "RAM limits are changed."
     #UPDATE RAM AND CPU TO EXISTING COTAINERS
-    OPENCLI_PLAN_APPLY=1
+    RAM_NEEDS_UPDATE=1
 fi
 
 # BANDWIDTH CHANGE OR PLAN NAME CHANGE
@@ -80,7 +91,7 @@ elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_na
 elif [ "$old_plan_name" != "$new_plan_name" ];
     echo "Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
-    OPENCLI_PLAN_APPLY=1
+    NETWORK_NEEDS_UPDATE=1
 fi
 
 # STORAGE FILE
@@ -89,8 +100,15 @@ if [ "$old_storage_file" == "$storage_file" ]; then
 elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
     echo "Disk limit increased, will update all existing docker containers storage file."
     #INCREASE CONTAINERS SIZE
-    OPENCLI_PLAN_APPLY=1
+    DISKS_NEEDS_UPDATE=1
 fi
+
+
+if [ "$CPU_NEEDS_UPDATE" -eq 1 ] || [ "$RAM_NEEDS_UPDATE" -eq 1 ] || [ "$NETWORK_NEEDS_UPDATE" -eq 1 ] || [ "$DISK_NEEDS_UPDATE" -eq 1 ]; then
+    opencli plan-apply $plan_id -
+fi
+
+
 
 
 
@@ -232,11 +250,11 @@ fi
           echo "Updated plan id $plan_id"
       else    
           echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
-          check_if_we_need_to_edit_docker_containers
+          check_if_we_need_to_edit_docker_containers        
       fi
     
   else
-    echo "Failed to update plan id '$plan_id'"
+    echo "ERROR: Failed to update plan id '$plan_id'"
     exit 1
   fi
 
@@ -248,7 +266,7 @@ check_cpu_cores() {
   local available_cores=$(nproc)
   
   if [ "$cpu" -gt "$available_cores" ]; then
-    echo "Error: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
+    echo "ERROR: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
     exit 1
   fi
 }
@@ -256,7 +274,7 @@ check_cpu_cores() {
 check_available_ram() {
   local available_ram=$(free -g | awk '/^Mem:/{print $2}')
   if [ "$ram" -gt "$available_ram" ]; then
-    echo "Error: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
+    echo "ERROR: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
     exit 1
   fi
 }
@@ -268,7 +286,7 @@ check_plan_exists() {
   echo "$result"
 }
 
-if [ "$#" -ne 13 ]; then
+if [ "$#" -lt 13 ]; then
     echo "Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
@@ -290,7 +308,6 @@ storage_file="${13}"
 
 check_cpu_cores "$cpu"
 check_available_ram "$ram"
-check_disk_increase ""
 
 if [ "$docker_image" == "nginx" ]; then
   docker_image="openpanel_nginx"
