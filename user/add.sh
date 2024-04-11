@@ -235,7 +235,9 @@ fi
 
 # create storage file
 if [ "$storage_file" -eq 0 ]; then
+    if [ "$DEBUG" = true ]; then
     echo "Storage file size is 0. Skipping storage file creation."
+    fi
 else
     fallocate -l ${storage_file}g /home/storage_file_$username
     mkfs.ext4 -N $inodes /home/storage_file_$username
@@ -249,7 +251,9 @@ chmod g+s /home/$username
 
 # mount storage file
 if [ "$storage_file" -eq 0 ]; then
+    if [ "$DEBUG" = true ]; then
     echo "No mounting needed.."
+    fi
 else
     mount -o loop /home/storage_file_$username /home/$username
 fi
