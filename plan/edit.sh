@@ -32,33 +32,184 @@
 # DB
 source /usr/local/admin/scripts/db.sh
 
+OPENCLI_PLAN_APPLY=0
+DEBUG=false
+
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        *)
+            ;;
+    esac
+done
+
+
+
+
+
+# Apply rate limit using tc command for the gateway of existing Docker network
+edit_docker_network() {
+    local name="$1"
+    local bandwidth="$2"
+    gateway_interface=$(docker network inspect "$name" -f '{{(index .IPAM.Config 0).Gateway}}')
+    sudo tc qdisc change dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+}
+
+
+
+
+
+check_if_we_need_to_edit_docker_containers(){
+
+if [ "$old_cpu" == "$cpu" ] && [ "$old_ram" === "$ram" ]; then
+  echo "CPU & RAM limits are not changed."
+else
+  echo "CPU or RAM limits are changed, applying new limits."
+    #UPDATE RAM AND CPU TO EXISTING COTAINERS
+    OPENCLI_PLAN_APPLY=1
+fi
+
+# BANDWIDTH CHANGE OR PLAN NAME CHANGE
+if [ "$old_bandwidth" == "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
+    echo "Port speed and plan name have not changed, skipping renaming docker network."
+elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
+    echo "Port speed limit is changed, applying new bandwidth limit to the docker network."
+    edit_docker_network "$old_plan_name" "$bandwidth"
+elif [ "$old_plan_name" != "$new_plan_name" ];
+    echo "Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
+    #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
+    OPENCLI_PLAN_APPLY=1
+fi
+
+# STORAGE FILE
+if [ "$old_storage_file" == "$storage_file" ]; then
+    echo "Disk limit is not changed, nothing to do."
+elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
+    echo "Disk limit increased, will update all existing docker containers storage file."
+    #INCREASE CONTAINERS SIZE
+    OPENCLI_PLAN_APPLY=1
+fi
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Function to update values in the database
 update_plan() {
   local plan_id="$1"
-  local new_plan_name="$2"
-  local description="$3"
-  local domains_limit="$4"
-  local websites_limit="$5"
-  local disk_limit="$6"
-  local inodes_limit="$7"
-  local db_limit="$8"
-  local cpu="$9"
-  local ram="${10}"
-  local docker_image="${11}"
-  local bandwidth="${12}"
-  local storage_file="${13}"
 
-# Format disk_limit and storage_file with 'GB' 
-disk_limit="${disk_limit} GB"
-storage_file="${storage_file} GB"
+  # Get old paln data, and if different, we will initiate the `opencli plan-apply` script
+  sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth, storage_file FROM plans WHERE id='$plan_id'"
+  result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
+  
+  old_plan_name=$(echo "$result" | awk '{print $1}')
+  old_disk_limit=$(echo "$result" | awk '{print $2}')
+  old_inodes_limit=$(echo "$result" | awk '{print $3}')
+  old_cpu=$(echo "$result" | awk '{print $4}')
+  old_ram=$(echo "$result" | awk '{print $5}')
+  old_bandwidth=$(echo "$result" | awk '{print $6}')
+  old_storage_file=$(echo "$result" | awk '{print $7}')
+   
+  new_plan_name="$2"
+  description="$3"
+  domains_limit="$4"
+  websites_limit="$5"
+  int_disk_limit="$6"
+  inodes_limit="$7"
+  db_limit="$8"
+  cpu="$9"
+  int_ram="${10}"
+  docker_image="${11}"
+  bandwidth="${12}"
+  int_storage_file="${13}"
 
-# Ensure inodes_limit is not less than 500000
-if [ "$inodes_limit" -lt 250000 ]; then
-    inodes_limit=250000
+  # Format disk_limit and storage_file with 'GB' 
+  disk_limit="${int_disk_limit} GB"
+  storage_file="${int_storage_file} GB"
+  
+  # format without GB for old limits
+  int_old_disk_limit=${old_disk_limit%" GB"}
+  int_old_storage_file=${old_storage_file%" GB"}
+  int_old_ram=${old_ram%"g"}
+  
+  # Ensure inodes_limit is not less than 500000
+  if [ "$inodes_limit" -lt 250000 ]; then
+      inodes_limit=250000
+  fi
+
+  # Format ram with 'g' at the end
+  ram="${ram}g"
+
+
+if [ "$DEBUG" = true ]; then
+  echo "+===================================+"
+  echo "| PLAN ID: $plan_id"
+  echo "+===================================+"
+
+  echo "Old Plan Name: $old_plan_name"
+  echo "Old Disk Limit: $old_disk_limit"
+  echo "Old Inodes Limit: $old_inodes_limit"
+  echo "Old CPU: $old_cpu"
+  echo "Old RAM: $old_ram"
+  echo "Old Bandwidth: $old_bandwidth"
+  echo "Old Storage File: $old_storage_file"
+  echo "+===================================+"
+  echo "New Plan Name: $new_plan_name"
+  echo "New Disk Limit: $disk_limit"
+  echo "New Inodes Limit: $inodes_limit"
+  echo "New CPU: $cpu"
+  echo "New RAM: $ram"
+  echo "New Bandwidth: $bandwidth"
+  echo "New Storage File: $storage_file"
+  echo "+===================================+"
 fi
 
-# Format ram with 'g' at the end
-ram="${ram}g"
+
+
+
+### contruct opencli plan-apply command if needed!
+
+
+# STORAGE FILE
+if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
+    echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
+    exit 1
+elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
+    echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_disk_limit to ∞."
+    exit 1
+elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
+    echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
+    exit 1
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   # Update the plan in the 'plans' table
   local sql="UPDATE plans SET name='$new_plan_name', description='$description', domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
@@ -81,20 +232,13 @@ ram="${ram}g"
           echo "Updated plan id $plan_id"
       else    
           echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
+          check_if_we_need_to_edit_docker_containers
       fi
     
   else
     echo "Failed to update plan id '$plan_id'"
     exit 1
   fi
-
-}
-
-
-get_network_name(){
-
-    local sql="SELECT name FROM plans WHERE id="$name");"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 
 }
 
@@ -109,7 +253,6 @@ check_cpu_cores() {
   fi
 }
 
-# Function to check available RAM
 check_available_ram() {
   local available_ram=$(free -g | awk '/^Mem:/{print $2}')
   if [ "$ram" -gt "$available_ram" ]; then
@@ -118,8 +261,6 @@ check_available_ram() {
   fi
 }
 
-
-# Function to check if a plan exists
 check_plan_exists() {
   local id="$1"
   local sql="SELECT id FROM plans WHERE id='$id';"
@@ -127,7 +268,6 @@ check_plan_exists() {
   echo "$result"
 }
 
-# Check for command-line arguments
 if [ "$#" -ne 13 ]; then
     echo "Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
@@ -148,13 +288,10 @@ docker_image="${11}"
 bandwidth="${12}"
 storage_file="${13}"
 
-# Check available CPU cores before creating the plan
 check_cpu_cores "$cpu"
-
-# Check available RAM before creating the plan
 check_available_ram "$ram"
+check_disk_increase ""
 
-# Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
   docker_image="openpanel_nginx"
 elif [ "$docker_image" == "litespeed" ]; then
@@ -165,13 +302,10 @@ else
   docker_image="${11}"
 fi
 
-# Check if the old plan exists in the database
 existing_plan=$(check_plan_exists "$plan_id")
 if [ -z "$existing_plan" ]; then
   echo "Plan with id '$plan_id' does not exist."
   exit 1
 fi
 
-
-# Call the update_plan function with the provided values
 update_plan "$plan_id" "$new_plan_name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
