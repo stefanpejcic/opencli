@@ -249,7 +249,7 @@ chmod g+s /home/$username
 
 # mount storage file
 if [ "$storage_file" -eq 0 ]; then
-    # nista
+    echo "No mounting needed.."
 else
     mount -o loop /home/storage_file_$username /home/$username
 fi
