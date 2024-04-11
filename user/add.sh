@@ -233,15 +233,26 @@ else
 fi
 
 
-# Create a directory with the user's username under /home/
+# create storage file
+if [ "$storage_file" -eq 0 ]; then
+    echo "Storage file size is 0. Skipping storage file creation."
+else
+    fallocate -l ${storage_file}g /home/storage_file_$username
+    mkfs.ext4 -N $inodes /home/storage_file_$username
+fi
 
-fallocate -l ${storage_file}g /home/storage_file_$username
-mkfs.ext4 -N $inodes /home/storage_file_$username
+# Create a directory with the user's username under /home/
 mkdir /home/$username
 chown 1000:33 /home/$username
 chmod 755 /home/$username
 chmod g+s /home/$username
-mount -o loop /home/storage_file_$username /home/$username
+
+# mount storage file
+if [ "$storage_file" -eq 0 ]; then
+    # nista
+else
+    mount -o loop /home/storage_file_$username /home/$username
+fi
 
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
