@@ -270,7 +270,7 @@ do
             echo "Error: New RAM value exceeds the server limit, not enough physical memory - $numNram > $maxRam."
         else
             docker update --memory="$Nram" --memory-swap="$Nram" "$container_name" > /dev/null
-            echo "RAM changed from ${numOram}GB to ${numNram}GB."
+            echo "RAM limit set to ${numNram}GB."
             echo ""
         fi
     fi
@@ -280,7 +280,7 @@ do
             echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
         else
             docker update --cpus="$Ncpu" "$container_name" > /dev/null
-            echo "CPU changed from $Ocpu cores to $Ncpu cores."
+            echo "CPU limit set to $Ncpu cores."
             echo ""
         fi
     fi
