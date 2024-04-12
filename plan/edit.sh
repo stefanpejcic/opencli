@@ -255,8 +255,9 @@ fi
             # do it!
             if [ ${#flags[@]} -gt 0 ]; then
                 echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. Applying new limits to all users on this plan:"
-                echo "If you navigate away form this page, you an still track progress uing command: 'tail -f /tmp/opencli_plan_apply_$timestamp.log'"
+                echo "If you navigate away form this page, you an still track progress using command:"
                 timestamp=$(date +"%Y%m%d_%H%M%S")
+                echo "'tail -f /tmp/opencli_plan_apply_$timestamp.log'"
                 if [ "$DEBUG" = true ]; then
                     echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
                     nohup opencli plan-apply $plan_id ${flags[@]} --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
