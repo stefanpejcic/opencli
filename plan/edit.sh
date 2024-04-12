@@ -258,7 +258,7 @@ fi
                 echo ""
                 echo "Even if you leave this page, the process will continue. You can track progress using the command:"
                 timestamp=$(date +"%Y%m%d_%H%M%S")
-                echo "'tail -f /tmp/opencli_plan_apply_$timestamp.log'"
+                echo "tail -f /tmp/opencli_plan_apply_$timestamp.log"
                 if [ "$DEBUG" = true ]; then
                     echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
                     nohup opencli plan-apply $plan_id ${flags[@]} --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
