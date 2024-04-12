@@ -208,14 +208,45 @@ fi
 
 # STORAGE FILE
 if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
-    echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
-    exit 0
+
+    # Construct SQL query to select plan name based on ID
+    local sql="SELECT name FROM plans WHERE id='$plan_id'"
+    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+    local new_plan_name=$(echo "$result" | awk 'NR>1')
+    count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
+    if [ "$count" -eq 0 ]; then
+        pass
+    else    
+        echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
+        exit 0
+    fi
+
+
+
 elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
-    echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
-    exit 0
+    # Construct SQL query to select plan name based on ID
+    local sql="SELECT name FROM plans WHERE id='$plan_id'"
+    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+    local new_plan_name=$(echo "$result" | awk 'NR>1')
+    count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
+    if [ "$count" -eq 0 ]; then
+        pass
+    else    
+        echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
+        exit 0
+    fi
 elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
-    echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
-    exit 0
+        # Construct SQL query to select plan name based on ID
+        local sql="SELECT name FROM plans WHERE id='$plan_id'"
+        local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+        local new_plan_name=$(echo "$result" | awk 'NR>1')
+        count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
+        if [ "$count" -eq 0 ]; then
+            pass
+        else    
+           echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
+        exit 0
+        fi
 fi
 
 
