@@ -86,7 +86,7 @@ elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_na
     echo "Port speed limit is changed, applying new bandwidth limit to the docker network."
     edit_docker_network "$old_plan_name" "$bandwidth"
 elif [ "$old_plan_name" != "$new_plan_name" ]; then
-    echo "Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
+    echo "WARNING: Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
     flags+=( "--net" )
 fi
@@ -95,15 +95,9 @@ fi
 if [ "$old_storage_file" == "$storage_file" ]; then
     echo "Disk limit is not changed, nothing to do."
 elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
-    echo "Disk limit increased, will update all existing docker containers storage file."
+    echo "WARNING: Disk limit increased, will update all existing docker containers storage file."
     #INCREASE CONTAINERS SIZE
     flags+=( "--dsk" )
-fi
-
-# Check if there are any flags
-if [ ${#flags[@]} -gt 0 ]; then
-    echo "Running command: opencli plan-apply $plan_id ${flags[@]}"
-    opencli plan-apply $plan_id "${flags[@]}"
 fi
 
 }
@@ -235,10 +229,21 @@ fi
       count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
   
       if [ "$count" -eq 0 ]; then
-          echo "Updated plan id $plan_id"
+          echo "Successfully updated plan id $plan_id"
       else    
-          echo "Plan ID '$plan_id' has been updated. You currently have $count users on this plan. To apply new limits, execute the following command: opencli plan-apply $plan_id --all"
-          check_if_we_need_to_edit_docker_containers        
+          check_if_we_need_to_edit_docker_containers
+            # do it!
+            if [ ${#flags[@]} -gt 0 ]; then
+                    echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. Applying new limits to all users on this plan:"
+                if [ "$DEBUG" = true ]; then
+                    opencli plan-apply $plan_id ${flags[@]} --all --debug
+                    echo "DEBUG: Passed flags: ${flags[@]}"
+                else
+                    opencli plan-apply $plan_id ${flags[@]} --all
+                fi
+            else
+                echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. New limits have been applied."
+            fi
       fi
     
   else
@@ -275,7 +280,7 @@ check_plan_exists() {
 }
 
 if [ "$#" -lt 13 ]; then
-    echo "Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
+    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
 
@@ -309,7 +314,7 @@ fi
 
 existing_plan=$(check_plan_exists "$plan_id")
 if [ -z "$existing_plan" ]; then
-  echo "Plan with id '$plan_id' does not exist."
+  echo "ERROR: Plan with id '$plan_id' does not exist."
   exit 1
 fi
 
