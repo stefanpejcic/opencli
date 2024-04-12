@@ -170,13 +170,6 @@ local bandwidth="$2"
 totalc="${#usernames[@]}"
 counter=0
 
-
-if [ "$debug" = true ]; then
-    echo "DEBUG: Usernames: ${usernames[@]}"
-fi
-
-
-
 for container_name in "${usernames[@]}"
 do
     # Debug echo
@@ -449,8 +442,8 @@ do
                     echo "DEBUG: Docker network '$new_plan_name' already exists, attempting to connect container..."
                 fi
                     docker network connect "$new_plan_name" "$container_name"
+                    echo " Container $container_name successfully connected to network '$new_plan_name'."
                 if $debug; then
-                    echo "DEBUG: Container $container_name successfully connected to network '$new_plan_name'."
                     #skripta za rewrite nginx vhosts za tog usera!
                     opencli nginx-update_vhosts $container_name --nginx-reload
                 else
