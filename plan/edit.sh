@@ -209,13 +209,13 @@ fi
 # STORAGE FILE
 if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
     echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
-    exit 1
+    exit 0
 elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
     echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
-    exit 1
+    exit 0
 elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
     echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
-    exit 1
+    exit 0
 fi
 
 
@@ -284,7 +284,7 @@ check_cpu_cores() {
   
   if [ "$cpu" -gt "$available_cores" ]; then
     echo "ERROR: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
-    exit 1
+    exit 0
   fi
 }
 
@@ -292,7 +292,7 @@ check_available_ram() {
   local available_ram=$(free -g | awk '/^Mem:/{print $2}')
   if [ "$ram" -gt "$available_ram" ]; then
     echo "ERROR: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
-    exit 1
+    exit 0
   fi
 }
 
