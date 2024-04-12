@@ -6,7 +6,7 @@
 # Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 10 500000 1 1 1 openpanel_nginx 500 10
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 10.04.2024
+# Last Modified: 12.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -236,8 +236,8 @@ fi
             if [ ${#flags[@]} -gt 0 ]; then
                     echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. Applying new limits to all users on this plan:"
                 if [ "$DEBUG" = true ]; then
+                echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
                     opencli plan-apply $plan_id ${flags[@]} --all --debug
-                    echo "DEBUG: Passed flags: ${flags[@]}"
                 else
                     opencli plan-apply $plan_id ${flags[@]} --all
                 fi
