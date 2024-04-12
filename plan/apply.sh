@@ -169,7 +169,12 @@ local bandwidth="$2"
 
 totalc="${#usernames[@]}"
 counter=0
-echo "Working on containers: ${usernames[@]}"
+
+
+if [ "$debug" = true ]; then
+    echo "DEBUG: Usernames: ${usernames[@]}"
+fi
+
 
 
 for container_name in "${usernames[@]}"
@@ -186,39 +191,39 @@ do
 
     # Check if the container exists in db
     if [ -z "$current_plan_id" ]; then
-        echo "Error: Docker container for user '$container_name' not found in the database."
+        echo "Error: Docker container for user '$container_name' exited."
         continue
     fi
 
 
     if docker inspect "$container_name" >/dev/null 2>&1; then
         if $debug; then
-            echo "Container $container_name exists!"
+            echo "DEBUG: Container $container_name exists!"
         fi
     else
-        echo "Error: Docker container for user $container_name was not found! (This is normal for suspended accounts.)"
+        echo "Error: Docker container for user '$container_name' is not running! (Is account suspended?)"
         continue
     fi
 
     # Fetch limits for the current plan
-    current_plan_limits=$(get_plan_limits "$current_plan_id")
+#    current_plan_limits=$(get_plan_limits "$current_plan_id")
 
     ##echo "Current plan limits:('$current_plan_limits')."
 
     # Check if the current plan limits were retrieved
-    if [ -z "$current_plan_limits" ]; then
-        echo "Warning: Unable to fetch old plan limits for plan with ID ('$current_plan_id')."
-    fi
+#    if [ -z "$current_plan_limits" ]; then
+#        echo "Warning: Unable to fetch old plan limits for plan with ID ('$current_plan_id')."
+#    fi
 
     # Fetch limits for the new plan
-    new_plan_limits=$(get_plan_limits "$new_plan_id")
+#    new_plan_limits=$(get_plan_limits "$new_plan_id")
     ##echo "New plan limits:('$new_plan_limits')."
 
     # Check if the new plan limits were retrieved
-    if [ -z "$new_plan_limits" ]; then
-        echo "Error: Unable to fetch limits for the new plan with ID('$new_plan_id')."
-        continue
-    fi
+#    if [ -z "$new_plan_limits" ]; then
+#        echo "Error: Unable to fetch limits for the new plan with ID('$new_plan_id')."
+#        continue
+#    fi
 
 
 
@@ -438,20 +443,20 @@ do
             echo "container already connected to network: ('$new_plan_name')"
         else
             # Check if DEBUG is true and the Docker network exists
-            if [ "$debug" = true ] && docker network inspect "$new_plan_name" >/dev/null 2>&1; then
-                # Docker network exists, DEBUG is true so show message
-                echo "Docker network '$new_plan_name' already exists, attempting to connect container..."
-                # Connect the container to the new Docker network
-                docker network connect "$new_plan_name" "$container_name"
-                echo "Container $container_name successfully connected to network '$new_plan_name'."
-                #skripta za rewrite nginx vhosts za tog usera!
-                opencli nginx-update_vhosts $container_name --nginx-reload
-
-            elif [ "$debug" != true ] && docker network inspect "$new_plan_name" >/dev/null 2>&1; then
-                # Docker network exists, but DEBUG is not true so we dont show anything
-                docker network connect "$new_plan_name" "$container_name"
-                echo "Container $container_name successfully connected to network '$new_plan_name'."
-                opencli nginx-update_vhosts $container_name --nginx-reload
+            if docker network inspect "$new_plan_name" >/dev/null 2>&1; then
+            
+                if $debug; then
+                    echo "DEBUG: Docker network '$new_plan_name' already exists, attempting to connect container..."
+                fi
+                    docker network connect "$new_plan_name" "$container_name"
+                if $debug; then
+                    echo "DEBUG: Container $container_name successfully connected to network '$new_plan_name'."
+                    #skripta za rewrite nginx vhosts za tog usera!
+                    opencli nginx-update_vhosts $container_name --nginx-reload
+                else
+                    opencli nginx-update_vhosts $container_name --nginx-reload > /dev/null
+                fi
+   
             else
                 # Docker network does not exist, we need to create it..
                 echo "Docker network '"$new_plan_name"' does not exist. Creating..."
@@ -459,13 +464,6 @@ do
                 echo "connecting container to network '"$new_plan_name"'..."
                 docker network connect "$new_plan_name" "$container_name"
                 opencli nginx-update_vhosts $container_name --nginx-reload
-
-                #skripta za rewrite nginx vhosts za tog usera!
-                #if $debug; then
-                #    opencli nginx-update_vhosts $container_name --nginx-reload
-                #else
-                #    opencli nginx-update_vhosts $container_name --nginx-reload > /dev/null
-                #fi
             fi
         fi
 
@@ -476,9 +474,21 @@ do
     echo ""
     fi
     #Menja ID
-    query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
-    echo "Finished applying new values for container $container_name ($counter/$totalc)"
+    #query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
+    #mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
+    #echo "Finished applying new values for container $container_name ($counter/$totalc)"
 done
+echo ""
 echo "+=============================================================================+"
-echo "Applying new values COMPLETED!"
+echo ""
+echo "COMPLETED!"
+
+if [ "$debug" = true ]; then
+    echo "DEBUG: Deleting unused docker networks"
+    docker network prune -f
+else
+    docker network prune -f >/dev/null 2>&1
+fi
+
+#cleanup
+find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; > /dev/null
