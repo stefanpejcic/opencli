@@ -254,12 +254,14 @@ fi
           check_if_we_need_to_edit_docker_containers
             # do it!
             if [ ${#flags[@]} -gt 0 ]; then
-                    echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. Applying new limits to all users on this plan:"
+                echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. Applying new limits to all users on this plan:"
+                echo "If you navigate away form this page, you an still track progress uing command: 'tail -f /tmp/opencli_plan_apply_$timestamp.log'"
+                timestamp=$(date +"%Y%m%d_%H%M%S")
                 if [ "$DEBUG" = true ]; then
-                echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
-                    opencli plan-apply $plan_id ${flags[@]} --all --debug
+                    echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
+                    nohup opencli plan-apply $plan_id ${flags[@]} --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
                 else
-                    opencli plan-apply $plan_id ${flags[@]} --all
+                    nohup opencli plan-apply $plan_id ${flags[@]} --all > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
                 fi
             else
                 echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. New limits have been applied."
