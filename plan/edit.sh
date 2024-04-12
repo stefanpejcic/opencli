@@ -32,10 +32,7 @@
 # DB
 source /usr/local/admin/scripts/db.sh
 
-CPU_NEEDS_UPDATE=0
-RAM_NEEDS_UPDATE=0
-NETWORK_NEEDS_UPDATE=0
-DISK_NEEDS_UPDATE=0
+flags=()
 
 DEBUG=false
 
@@ -67,19 +64,19 @@ edit_docker_network() {
 
 check_if_we_need_to_edit_docker_containers() {
 
-if [ "$old_cpu" == "$cpu" ] && [ "$old_ram" === "$ram" ]; then
+if [ "$old_cpu" == "$cpu" ] && [ "$old_ram" == "$ram" ]; then
     echo "CPU & RAM limits are not changed."
 elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" != "$ram" ]; then
     echo "Both CPU or RAM limits are changed, applying new limits."
-    CPU_NEEDS_UPDATE=1
-    RAM_NEEDS_UPDATE=1
-elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" === "$ram" ]; then
+    flags+=( "--cpu" )
+    flags+=( "--ram" )
+elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" == "$ram" ]; then
     echo "CPU limits are changed."
-    CPU_NEEDS_UPDATE=1
+    flags+=( "--cpu" )
 elif [ "$old_cpu" == "$cpu" ] && [ "$old_ram" != "$ram" ]; then
   echo "RAM limits are changed."
     #UPDATE RAM AND CPU TO EXISTING COTAINERS
-    RAM_NEEDS_UPDATE=1
+    flags+=( "--ram" )
 fi
 
 # BANDWIDTH CHANGE OR PLAN NAME CHANGE
@@ -88,10 +85,10 @@ if [ "$old_bandwidth" == "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name
 elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
     echo "Port speed limit is changed, applying new bandwidth limit to the docker network."
     edit_docker_network "$old_plan_name" "$bandwidth"
-elif [ "$old_plan_name" != "$new_plan_name" ];
+elif [ "$old_plan_name" != "$new_plan_name" ]; then
     echo "Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
-    NETWORK_NEEDS_UPDATE=1
+    flags+=( "--net" )
 fi
 
 # STORAGE FILE
@@ -100,25 +97,16 @@ if [ "$old_storage_file" == "$storage_file" ]; then
 elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
     echo "Disk limit increased, will update all existing docker containers storage file."
     #INCREASE CONTAINERS SIZE
-    DISKS_NEEDS_UPDATE=1
+    flags+=( "--dsk" )
 fi
 
-
-if [ "$CPU_NEEDS_UPDATE" -eq 1 ] || [ "$RAM_NEEDS_UPDATE" -eq 1 ] || [ "$NETWORK_NEEDS_UPDATE" -eq 1 ] || [ "$DISK_NEEDS_UPDATE" -eq 1 ]; then
-    opencli plan-apply $plan_id -
+# Check if there are any flags
+if [ ${#flags[@]} -gt 0 ]; then
+    echo "Running command: opencli plan-apply $plan_id ${flags[@]}"
+    opencli plan-apply $plan_id "${flags[@]}"
 fi
-
-
-
-
 
 }
-
-
-
-
-
-
 
 
 
@@ -137,12 +125,12 @@ update_plan() {
   result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
   
   old_plan_name=$(echo "$result" | awk '{print $1}')
-  old_disk_limit=$(echo "$result" | awk '{print $2}')
-  old_inodes_limit=$(echo "$result" | awk '{print $3}')
-  old_cpu=$(echo "$result" | awk '{print $4}')
-  old_ram=$(echo "$result" | awk '{print $5}')
-  old_bandwidth=$(echo "$result" | awk '{print $6}')
-  old_storage_file=$(echo "$result" | awk '{print $7}')
+  int_old_disk_limit=$(echo "$result" | awk '{print $2}')
+  old_inodes_limit=$(echo "$result" | awk '{print $4}')
+  old_cpu=$(echo "$result" | awk '{print $5}')
+  old_ram=$(echo "$result" | awk '{print $6}')
+  old_bandwidth=$(echo "$result" | awk '{print $7}')
+  int_old_storage_file=$(echo "$result" | awk '{print $8}')
    
   new_plan_name="$2"
   description="$3"
@@ -162,8 +150,8 @@ update_plan() {
   storage_file="${int_storage_file} GB"
   
   # format without GB for old limits
-  int_old_disk_limit=${old_disk_limit%" GB"}
-  int_old_storage_file=${old_storage_file%" GB"}
+  old_disk_limit="${int_old_disk_limit} GB"
+  old_storage_file="${int_old_storage_file} GB"
   int_old_ram=${old_ram%"g"}
   
   # Ensure inodes_limit is not less than 500000
@@ -209,7 +197,7 @@ if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
     echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
     exit 1
 elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
-    echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_disk_limit to ∞."
+    echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
     exit 1
 elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
     echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
