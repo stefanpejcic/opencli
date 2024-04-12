@@ -55,7 +55,7 @@ edit_docker_network() {
     local name="$1"
     local bandwidth="$2"
     gateway_interface=$(docker network inspect "$name" -f '{{(index .IPAM.Config 0).Gateway}}')
-    sudo tc qdisc change dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+    tc qdisc change dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
 }
 
 
@@ -65,37 +65,54 @@ edit_docker_network() {
 check_if_we_need_to_edit_docker_containers() {
 
 if [ "$old_cpu" == "$cpu" ] && [ "$old_ram" == "$ram" ]; then
-    echo "CPU & RAM limits are not changed."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: CPU & RAM limits are not changed."
+    fi
 elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" != "$ram" ]; then
-    echo "Both CPU or RAM limits are changed, applying new limits."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Both CPU or RAM limits are changed, applying new limits."
+    fi
     flags+=( "--cpu" )
     flags+=( "--ram" )
 elif [ "$old_cpu" != "$cpu" ] && [ "$old_ram" == "$ram" ]; then
-    echo "CPU limits are changed."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: CPU limits are changed."
+    fi
     flags+=( "--cpu" )
 elif [ "$old_cpu" == "$cpu" ] && [ "$old_ram" != "$ram" ]; then
-  echo "RAM limits are changed."
-    #UPDATE RAM AND CPU TO EXISTING COTAINERS
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: RAM limits are changed."
+    fi
     flags+=( "--ram" )
 fi
 
 # BANDWIDTH CHANGE OR PLAN NAME CHANGE
 if [ "$old_bandwidth" == "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
-    echo "Port speed and plan name have not changed, skipping renaming docker network."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Port speed and plan name have not changed, skipping renaming docker network."
+    fi
 elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
-    echo "Port speed limit is changed, applying new bandwidth limit to the docker network."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Port speed limit is changed, applying new bandwidth limit to the docker network."
+    fi
     edit_docker_network "$old_plan_name" "$bandwidth"
 elif [ "$old_plan_name" != "$new_plan_name" ]; then
-    echo "WARNING: Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
+    fi
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
     flags+=( "--net" )
 fi
 
 # STORAGE FILE
 if [ "$old_storage_file" == "$storage_file" ]; then
-    echo "Disk limit is not changed, nothing to do."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Disk limit is not changed, nothing to do."
+    fi
 elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
-    echo "WARNING: Disk limit increased, will update all existing docker containers storage file."
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Disk limit increased, will update all existing docker containers storage file."
+    fi
     #INCREASE CONTAINERS SIZE
     flags+=( "--dsk" )
 fi
@@ -150,6 +167,9 @@ update_plan() {
   
   # Ensure inodes_limit is not less than 500000
   if [ "$inodes_limit" -lt 250000 ]; then
+    if [ "$DEBUG" = true ]; then
+        echo "DEBUG: Inodes limit can not be lower than 250k."
+    fi
       inodes_limit=250000
   fi
 
