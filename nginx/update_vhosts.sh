@@ -98,7 +98,7 @@ while read -r domain; do
   nginx_conf_file="/etc/nginx/sites-available/$domain.conf"
 
   if [ -f "$nginx_conf_file" ]; then
-    sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_ip;/g" "$nginx_conf_file"
+    sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_ip;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_ip;/g" "$nginx_conf_file"
     echo "Updated Nginx configuration for domain: $domain"
   else
     echo "Nginx configuration file not found for domain: $domain"
