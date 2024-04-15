@@ -5,7 +5,7 @@
 # Usage: opencli nginx-update_vhosts <username> [-nginx-reload]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 15.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
