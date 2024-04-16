@@ -68,11 +68,21 @@ check_update() {
             # Incrementally update from local_version to remote_version
             while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
                 local_version=$(get_next_version "$local_version")
-                echo "Updating to version $local_version"
-                wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+
+                # Check if skip_versions file exists and if remote version matches
+                if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
+                    if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
+                        echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
+                    else
+                        echo "Updating to version $local_version"
+                        wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                    fi
+                else
+                    echo "Updating to version $local_version"
+                    wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                fi
             done
-
-
+            
         else
             # If autoupdate is "on" or force_update is true, check if local_version is less than remote_version
             if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
@@ -82,8 +92,19 @@ check_update() {
                 # Incrementally update from local_version to remote_version
                 while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
                     local_version=$(get_next_version "$local_version")
-                    echo "Updating to version $local_version"
-                    wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+
+                    # Check if skip_versions file exists and if remote version matches
+                    if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
+                        if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
+                            echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
+                        else
+                            echo "Updating to version $local_version"
+                            wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                        fi
+                    else
+                        echo "Updating to version $local_version"
+                        wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                    fi
                 done
                 
             else
