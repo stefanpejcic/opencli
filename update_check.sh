@@ -90,6 +90,13 @@ update_check() {
         write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
         echo '{"status": "Local version is greater", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     else
+        # Check if skip_versions file exists and if remote version matches
+        if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
+            if grep -q "$remote_version" "/etc/openpanel/upgrade/skip_versions"; then
+                echo '{"status": "Skipped version", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
+                exit 0
+            fi
+        fi
         write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
         echo '{"status": "Update available", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     fi
