@@ -240,8 +240,14 @@ if [ "$storage_file" -eq 0 ]; then
     echo "Storage file size is 0. Skipping storage file creation."
     fi
 else
-    fallocate -l ${storage_file}g /home/storage_file_$username
-    mkfs.ext4 -N $inodes /home/storage_file_$username
+    if [ "$DEBUG" = true ]; then
+        fallocate -l ${storage_file}g /home/storage_file_$username
+        mkfs.ext4 -N $inodes /home/storage_file_$username
+    else
+        fallocate -l ${storage_file}g /home/storage_file_$username 2>/dev/null
+        mkfs.ext4 -N $inodes /home/storage_file_$username 2>/dev/null
+    fi
+
 fi
 
 # Create a directory with the user's username under /home/
