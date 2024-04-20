@@ -244,8 +244,8 @@ else
         fallocate -l ${storage_file}g /home/storage_file_$username
         mkfs.ext4 -N $inodes /home/storage_file_$username
     else
-        fallocate -l ${storage_file}g /home/storage_file_$username 2>/dev/null
-        mkfs.ext4 -N $inodes /home/storage_file_$username 2>/dev/null
+        fallocate -l ${storage_file}g /home/storage_file_$username > /dev/null 2>&1
+        mkfs.ext4 -N $inodes /home/storage_file_$username > /dev/null 2>&1
     fi
 
 fi
@@ -262,7 +262,13 @@ if [ "$storage_file" -eq 0 ]; then
     echo "No mounting needed.."
     fi
 else
-    mount -o loop /home/storage_file_$username /home/$username
+    
+    if [ "$DEBUG" = true ]; then
+        mount -o loop /home/storage_file_$username /home/$username
+    else
+        mount -o loop /home/storage_file_$username /home/$username >/dev/null 2>&1
+    fi
+    
 fi
 
 ## Function to create a Docker network with bandwidth limiting
