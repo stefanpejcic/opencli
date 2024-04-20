@@ -69,7 +69,8 @@ done
 
 
 #1. check for forbidden usernames
-forbidden_usernames=("test" "restart" "reboot" "shutdown" "exec" "root" "admin" "ftp" "lsws" "litespeed" "1000" "vsftpd" "apache2" "apache" "nginx" "php" "mysql" "mysqld" "www-data" "openpanel")
+readarray -t forbidden_usernames < /usr/local/admin/scripts/helpers/forbidden_usernames.txt
+
 
 is_username_forbidden() {
     local check_username="$1"
