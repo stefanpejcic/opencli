@@ -6,7 +6,7 @@
 # Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 10 500000 1 1 1 openpanel_nginx 500 10
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 12.04.2024
+# Last Modified: 25.04.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -358,11 +358,11 @@ check_cpu_cores "$cpu"
 check_available_ram "$ram"
 
 if [ "$docker_image" == "nginx" ]; then
-  docker_image="openpanel_nginx"
+  docker_image="openpanel/nginx"
 elif [ "$docker_image" == "litespeed" ]; then
-  docker_image="openpanel_litespeed"
+  docker_image="openpanel/litespeed"
 elif [ "$docker_image" == "apache" ]; then
-  docker_image="openpanel_apache"
+  docker_image="openpanel/apache"
 else
   docker_image="${11}"
 fi
