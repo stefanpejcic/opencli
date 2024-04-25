@@ -338,14 +338,14 @@ fi
 
 # Create the docker container
 if [ "$DEBUG" = true ]; then
-    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+    docker run --runtime=sysbox-runc --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
       -v /home/$username:/home/$username \
       --restart unless-stopped \
       --hostname $hostname $docker_image
 else
-    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+    docker run --runtime=sysbox-runc --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
       -v /home/$username:/home/$username \
