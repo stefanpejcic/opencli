@@ -184,11 +184,11 @@ check_plan_exists() {
 
 # Determine the appropriate table name based on the docker_image value
 if [ "$docker_image" == "nginx" ]; then
-  docker_image="openpanel_nginx"
+  docker_image="openpanel/nginx"
 elif [ "$docker_image" == "litespeed" ]; then
-  docker_image="openpanel_litespeed"
+  docker_image="openpanel/litespeed"
 elif [ "$docker_image" == "apache" ]; then
-  docker_image="openpanel_apache"
+  docker_image="openpanel/apache"
 else
   docker_image="${10}"
 fi
