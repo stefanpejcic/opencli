@@ -332,6 +332,12 @@ else
   web_server="nginx"
 fi
 
+#0.1.7
+if [ "$DEBUG" = true ]; then
+    echo "web server: $web_server"
+    echo ""
+    echo "path: $path"
+fi
 # then create a container
 
 
