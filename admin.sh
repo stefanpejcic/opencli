@@ -33,7 +33,16 @@ get_force_domain() {
 }
 
 get_public_ip() {
-    ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
+    ip=$(curl -s https://ip.openpanel.co)
+    
+    # If curl fails, try wget
+    if [ -z "$ip" ]; then
+        ip=$(wget -qO- https://ip.openpanel.co)
+    fi
+    
+    if [ -z "$ip" ]; then
+        ip=$(hostname -I)
+    fi
     echo "$ip"
 }
 
