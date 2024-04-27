@@ -266,7 +266,7 @@ else
     if [ "$DEBUG" = true ]; then
         mount -o loop /home/storage_file_$username /home/$username
     else
-        mount -o loop /home/storage_file_$username /home/$username >/dev/null 2>&1
+        mount -o loop /home/storage_file_$username /home/$username > /dev/null 2>&1
     fi
     
 fi
