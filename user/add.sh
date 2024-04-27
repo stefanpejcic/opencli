@@ -342,21 +342,41 @@ fi
 
 
 
+
+
 # Create the docker container
 if [ "$DEBUG" = true ]; then
-    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
-      -v /home/$username/var/crons:/var/spool/cron/crontabs \
-      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-      -v /home/$username:/home/$username \
-      --restart unless-stopped \
-      --hostname $hostname $docker_image
+    if [ "$disk_limit" -ne 0 ]; then
+        docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+          -v /home/$username/var/crons:/var/spool/cron/crontabs \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+          -v /home/$username:/home/$username \
+          --restart unless-stopped \
+          --hostname $hostname $docker_image
+    else
+        docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
+          -v /home/$username/var/crons:/var/spool/cron/crontabs \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+          -v /home/$username:/home/$username \
+          --restart unless-stopped \
+          --hostname $hostname $docker_image
+    fi
 else
-    docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
-      -v /home/$username/var/crons:/var/spool/cron/crontabs \
-      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-      -v /home/$username:/home/$username \
-      --restart unless-stopped \
-      --hostname $hostname $docker_image > /dev/null 2>&1
+    if [ "$disk_limit" -ne 0 ]; then
+        docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
+          -v /home/$username/var/crons:/var/spool/cron/crontabs \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+          -v /home/$username:/home/$username \
+          --restart unless-stopped \
+          --hostname $hostname $docker_image  > /dev/null 2>&1
+    else
+        docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
+          -v /home/$username/var/crons:/var/spool/cron/crontabs \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+          -v /home/$username:/home/$username \
+          --restart unless-stopped \
+          --hostname $hostname $docker_image  > /dev/null 2>&1
+    fi
 fi
 
 
