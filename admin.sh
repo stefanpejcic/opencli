@@ -40,11 +40,13 @@ get_public_ip() {
         ip=$(wget -qO- https://ip.openpanel.co)
     fi
     
-    if [ -z "$ip" ]; then
-        ip=$(hostname -I)
+    # Check if IP is empty or not a valid IPv4
+    if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        ip=$(hostname -I | awk '{print $1}')
     fi
     echo "$ip"
 }
+
 
 detect_service_status() {
 if systemctl is-active --quiet $service_name; then
