@@ -10,11 +10,14 @@ lsws
 litespeed
 1000
 vsftpd
+httpd
 apache2
 apache
+docker
 nginx
 php
 mysql
 mysqld
 www-data
 openpanel
+openadmin
