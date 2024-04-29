@@ -496,15 +496,15 @@ fi
 
 
 # Define the path to the main configuration file
-config_file="/usr/local/panel/conf/panel.config"
+panel_config_file="/usr/local/panel/conf/panel.config"
 
 # Use grep and awk to extract the value of default_php_version
-default_php_version=$(grep -E "^default_php_version=" "$config_file" | awk -F= '{print $2}')
+default_php_version=$(grep -E "^default_php_version=" "$panel_config_file" | awk -F= '{print $2}')
 
 # Check if default_php_version is empty (in case the panel.config file doesn't exist)
 if [ -z "$default_php_version" ]; then
   if [ "$DEBUG" = true ]; then
-    echo "Default PHP version not found in $config_file using the fallback default version.."
+    echo "Default PHP version not found in $panel_config_file using the fallback default version.."
   fi
   default_php_version="php8.2"
 fi
