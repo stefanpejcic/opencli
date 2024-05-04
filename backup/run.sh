@@ -1115,14 +1115,11 @@ for container_name in $(docker ps --format '{{.Names}}'); do
         
 done
 
-
+        
 # Update log with end time, total execution time, and status
 end_time=$(date -u +"%a %b %d %T UTC %Y")
 total_exec_time=$(($(date -u +"%s") - $(date -u -d "$start_time" +"%s")))
 status="Completed"
-
-# Update the initial log content
-sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time/" -e "s/status=In progress../status=$status/" "$log_file"
 
 
         echo ""
@@ -1132,6 +1129,11 @@ sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_ti
         echo ""
         echo "------------------------------------------------------------------------"
         echo ""
+
+# Update the initial log content
+sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time/" -e "s/status=In progress../status=$status/" "$log_file"
+
+
 
 # write notification to notifications center
 write_notification "Backup Job ID: $NUMBER finished" "Accounts: $total_containers - Total execution time: $total_exec_time"
