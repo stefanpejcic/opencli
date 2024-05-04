@@ -43,6 +43,7 @@ APACHE_SSL_CONF=false
 DOMAIN_ACCESS_REPORTS=false
 TIMEZONE=false
 SSH_PASS=false
+DOCKER=false
 
 
 NUMBER=$1
@@ -57,6 +58,9 @@ for arg in "$@"; do
             ;;
         --files)
             FILES=true
+            ;;
+        --docker)
+            DOCKER=true
             ;;
         --entrypoint)
             ENTRYPOINT=true
@@ -228,10 +232,29 @@ ssh_list_sql_files() {
 # Main Restore Function
 perform_restore_of_selected_files() {
 
+
+
     if [ "$FILES" = true ]; then
         local_destination="/home/$CONTAINER_NAME"
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/files/ ."
         run_restore "$remote_path_to_download" "$local_destination"
+        #bash restore.sh 1 20240131131407 nesto --files
+    fi
+
+
+    if [ "$DOCKER" = true ]; then
+    # OVO JE SVE TODO
+    	#1. import image
+     #   local_destination="/tmp/$CONTAINER_NAME"
+    #    remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker_image/ ."
+    #    run_restore "$remote_path_to_download" "$local_destination"
+	# docker load < $2.tar.gz
+     	#2. run new container
+      	#3. stop old
+        #4. rename both
+	#5. rm old
+        #docker stop $CONTAINER_NAME
+	#docker rename $CONTAINER_NAME ${CONTAINER_NAME}_RENAMED
         #bash restore.sh 1 20240131131407 nesto --files
     fi
 
