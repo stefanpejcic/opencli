@@ -5,7 +5,7 @@
 # Usage: opencli backup-schedule [--debug]
 # Author: Stefan Pejcic
 # Created: 02.02.2024
-# Last Modified: 02.02.2024
+# Last Modified: 04.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -53,7 +53,7 @@ for file in "$json_dir"*.json; do
         destination=$(jq -r '.destination' "$file")
         schedule=$(jq -r '.schedule' "$file")
         type=$(jq -r '.type | .[]' "$file")
-        filters=$(jq -r '.filters | .[]' "$file")
+        filters=$(jq -r '.filters | map(. + "") | join(" ")' "$file")
 
         # Convert schedule to cron format
         case "$schedule" in
@@ -81,9 +81,9 @@ for file in "$json_dir"*.json; do
         elif [[ "$type" =~ "accounts" ]]; then
             # If there are filters, add flags for each filter; otherwise, add --all
             if [ -n "$filters" ]; then
-                IFS=',' read -ra filter_array <<< "$filters"
+                IFS=' ' read -ra filter_array <<< "$filters"
                 for filter in "${filter_array[@]}"; do
-                    flag+=" --${filter// /}"  # Strip spaces
+                    flag+=" --$filter"
                 done
             else
                 flag="--all"
@@ -94,8 +94,8 @@ for file in "$json_dir"*.json; do
         fi
 
         if [ "$DEBUG" = true ]; then
-        echo "$cron_schedule opencli backup-run $(basename "$file" .json) $flag"
+            echo "$cron_schedule opencli backup-run $(basename "$file" .json) $flag"
         fi
-        echo "$cron_schedule opencli backup-run $(basename "$file" .json) $flag" >> /etc/crontab
+            echo "$cron_schedule opencli backup-run $(basename "$file" .json) $flag" >> /etc/crontab
     fi
 done
