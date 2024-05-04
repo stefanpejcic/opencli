@@ -231,36 +231,41 @@ delete_backup_job() {
     last_log="${log_dir}${last_number_log}.json"
     # Check if last_log exists
     if [ ! -f "$last_log" ]; then
-        echo "Error: Log file not found."
-        exit 1
+        rm "$job_file"
+        echo "Backup job $1 deleted successfully." 
+    else
+        # Check if last_log contains valid data
+        log_content=$(head -6 "$last_log")
+        if [ -z "$log_content" ]; then
+            # Delete the job file
+            rm "$job_file"
+            echo "Backup job $1 deleted successfully."            
+            :
+            #echo "DEBUG: Log file is empty."
+        else            
+            # Extract status and process_id from log content
+            status=$(echo "$log_content" | grep -Po 'status=\K\S+')
+            process_id=$(echo "$log_content" | grep -Po 'process_id=\K\S+')
+        
+            # Check if status is Completed
+            if [ "$status" != "Completed" ]; then
+                :
+                #echo "DEBUG: Backup status is not Completed."
+                # Check if process with given pid is running
+                if ! ps -p "$process_id" > /dev/null; then
+                    #echo "DEBUG: Process with PID $process_id is not running."
+                    # Delete the job file
+                    rm "$job_file"
+                    echo "Backup job $1 deleted successfully."
+                fi
+            else
+                # Delete the job file
+                rm "$job_file"
+                echo "Backup job $1 deleted successfully."
+            fi
+        
+        fi
     fi
-
-    # Check if last_log contains valid data
-    log_content=$(head -6 "$last_log")
-    if [ -z "$log_content" ]; then
-        echo "Error: Log file is empty."
-        exit 1
-    fi
-
-    # Extract status and process_id from log content
-    status=$(echo "$log_content" | grep -Po 'status=\K\S+')
-    process_id=$(echo "$log_content" | grep -Po 'process_id=\K\S+')
-
-    # Check if status is Completed
-    if [ "$status" != "Completed" ]; then
-        echo "Error: Backup status is not Completed."
-        exit 1
-    fi
-
-    # Check if process with given pid is running
-    if ! ps -p "$process_id" > /dev/null; then
-        echo "Error: Process with PID $process_id is not running."
-        exit 1
-    fi
-
-    # Delete the job file
-    rm "$job_file"
-    echo "Backup job $1 deleted successfully."
 }
 
 # Main script
