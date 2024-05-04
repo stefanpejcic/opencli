@@ -39,7 +39,7 @@ if [ -e "$config_file" ]; then
         if [ "$debug_value" = "no" ]; then
             DEBUG=false
         elif [ "$debug_value" = "yes" ]; then
-            echo "Debug mode is enabled in server configuration."
+            echo "DEBUG: Debug mode is enabled in server configuration."
             DEBUG=true
         fi
     fi
@@ -50,12 +50,12 @@ if [ -e "$config_file" ]; then
     if [ -n "$workplace_dir" ]; then
         local_temp_dir="$workplace_dir"
         if [ "$DEBUG" = true ]; then
-        echo "Using $local_temp_dir as a workplace directory to store temporary backup files."
+        echo "DEBUG: Using $local_temp_dir as a workplace directory to store temporary backup files."
         fi
     else
         local_temp_dir="/tmp/openpanel_backup_temp_dir/"
         if [ "$DEBUG" = true ]; then
-        echo "Workplace directory is not set, using $local_temp_dir as a workplace directory to store temporary backup files."
+        echo "DEBUG: Workplace directory is not set, using $local_temp_dir as a workplace directory to store temporary backup files."
         fi
     fi
 
@@ -71,13 +71,13 @@ if [ -e "$config_file" ]; then
             exit 1
         else
             if [ "$DEBUG" = true ]; then
-            echo "Server load ($one_minute_load) is below the average load limit ($avg_load_limit). Proceeding..."
+            echo "DEBUG: Server load ($one_minute_load) is below the average load limit ($avg_load_limit). Proceeding..."
             fi
         fi
         
     else
         if [ "$DEBUG" = true ]; then
-        echo "Error: 'avg_load_limit' setting not found in $config_file. backup will start regardless of the current server load."
+        echo "DEBUG: Error: 'avg_load_limit' setting not found in $config_file. backup will start regardless of the current server load."
         fi
         
     fi
@@ -105,7 +105,7 @@ APACHE_SSL_CONF=false
 DOMAIN_ACCESS_REPORTS=false
 TIMEZONE=false
 SSH_PASS=false
-
+DOCKER=false
 # settings
 LOG_FILE="/usr/local/admin/logs/notifications.log"
 
@@ -163,6 +163,9 @@ for arg in "$@"; do
             ;;
         --timezone)
             TIMEZONE=true
+            ;;
+        --docker)
+            DOCKER=true
             ;;
         --all)
             # Set all flags to true if all flag is present
@@ -272,21 +275,21 @@ fi
 
 if [ "$DEBUG" = true ]; then
 # backupjob json
-echo "Status: $status"
-echo "Destination ID: $destination"
-echo "Directory: $directory"
-echo "Types: ${types[@]}"
+echo "DEBUG: Status: $status"
+echo "DEBUG: Destination ID: $destination"
+echo "DEBUG: Directory: $directory"
+echo "DEBUG: Types: ${types[@]}"
 #echo "Schedule: $schedule"
-echo "Retention: $retention"
-echo "Filters: ${filters[@]}"
+echo "DEBUG: Retention: $retention"
+echo "DEBUG: Filters: ${filters[@]}"
 # destination json
-echo "Destination Hostname: $dest_hostname"
-echo "Destination Password: $dest_password"
-echo "Destination SSH Port: $dest_ssh_port"
-echo "Destination SSH User: $dest_ssh_user"
-echo "Destination SSH Key Path: $dest_ssh_key_path"
-echo "Destination Directory Name: $dest_destination_dir_name"
-echo "Destination Storage Limit: $dest_storage_limit"
+echo "DEBUG: Destination Hostname: $dest_hostname"
+echo "DEBUG: Destination Password: $dest_password"
+echo "DEBUG: Destination SSH Port: $dest_ssh_port"
+echo "DEBUG: Destination SSH User: $dest_ssh_user"
+echo "DEBUG: Destination SSH Key Path: $dest_ssh_key_path"
+echo "DEBUG: Destination Directory Name: $dest_destination_dir_name"
+echo "DEBUG: Destination Storage Limit: $dest_storage_limit"
 fi
 
 
@@ -335,7 +338,7 @@ copy_files() {
         mkdir -p "$local_temp_dir"
 
         if [ "$DEBUG" = true ]; then
-        echo "Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir"
+        echo "DEBUG: Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir"
         fi
 
 
@@ -358,7 +361,7 @@ copy_files() {
         ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
 
         if [ "$DEBUG" = true ]; then
-        echo "ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path'"
+        echo "DEBUG: ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path'"
         fi
 
         
@@ -367,7 +370,7 @@ copy_files() {
         if [[ "$source_path" == /home/* ]]; then
             if ! command -v parallel &> /dev/null; then
                 if [ "$DEBUG" = true ]; then
-                    echo "parallel is not installed. Installing moreutils..."
+                    echo "DEBUG: parallel is not installed. Installing moreutils..."
                     sudo apt-get install -y moreutils
                 else
                     sudo apt-get install -y moreutils > /dev/null 2>&1
@@ -381,7 +384,7 @@ copy_files() {
 
         if [ "$DEBUG" = true ]; then
         # Print commands for debugging
-        echo "rsync -e 'ssh -i $dest_ssh_key_path -p $dest_ssh_port' -r -p $source_path $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
+        echo "DEBUG: rsync -e 'ssh -i $dest_ssh_key_path -p $dest_ssh_port' -r -p $source_path $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
         fi
 
     else
@@ -694,6 +697,43 @@ backup_timezone(){
 }
 
 
+
+
+backup_docker_container(){
+    docker commit $container_name $container_name
+    if [ $? -eq 0 ]; then
+        if [ "$DEBUG" = true ]; then
+            echo "DEBUG: image has been created, proceeding with saving image to .tar.gz file."
+        fi
+        docker save $container_name | gzip > $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
+        if [ $? -eq 0 ]; then
+            if [ "$DEBUG" = true ]; then
+                echo "DEBUG: deleting the image and uploading the $container_name_$TIMESTAMP.tar.gz file to destination."
+            fi
+            docker image rm $container_name
+            if [ $? -eq 0 ]; then
+                copy_files "$BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz" "/docker_image/"
+                if [ $? -eq 0 ]; then
+                    if [ "$DEBUG" = true ]; then
+                        echo "DEBUG: deleting local file."
+                    fi
+                    rm $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
+                else
+                    echo "ERROR: Failed to copy backup file to destination."
+                fi
+            else
+                echo "ERROR: Failed to delete docker image."
+            fi
+        else
+            echo "ERROR: Failed to save docker image."
+        fi
+    else
+        echo "ERROR: Failed to commit docker container."
+    fi
+}
+
+
+
 backup_ssh_conf_and_pass(){
     copy_files "docker:$container_name:/etc/shadow" "/docker/"
     copy_files "docker:$container_name:/etc/passwd" "/docker/"
@@ -730,10 +770,25 @@ perform_backup() {
     BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
 
     mkdir -p "$BACKUP_DIR"
+
+
+    if [ "$DOCKER" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo ""
+            echo "DEBUG: ## Saving docker container."
+            echo ""
+        fi
+        backup_docker_container
+        type+="IMAGE,"
+    fi
+
+
     
     if [ "$FILES" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up user files."
+            echo ""
+            echo "DEBUG: ## Backing up user files."
+            echo ""
         fi
         backup_files
         type+="FILES,"
@@ -741,7 +796,9 @@ perform_backup() {
 
     if [ "$ENTRYPOINT" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up user services."
+            echo ""
+            echo "DEBUG: ## Backing up user services."
+            echo ""
         fi
         export_entrypoint_file
         type+="ENTRYPOINT,"
@@ -749,7 +806,9 @@ perform_backup() {
 
     if [ "$WEBSERVER_CONF" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up webserver configuration file."
+            echo ""
+            echo "DEBUG: ## Backing up webserver configuration file."
+            echo ""
         fi
         export_webserver_main_conf_file
         type+="WEBSERVER_CONF,"
@@ -757,7 +816,9 @@ perform_backup() {
 
     if [ "$MYSQL_CONF" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up MySQL configuration."
+            echo ""
+            echo "DEBUG: ## Backing up MySQL configuration."
+            echo ""
         fi
         backup_mysql_conf_file
         type+="MYSQL_CONF,"
@@ -765,7 +826,9 @@ perform_backup() {
 
     if [ "$TIMEZONE" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up timezone settings."
+            echo ""
+            echo "DEBUG: ## Backing up timezone settings."
+            echo ""
         fi
         backup_timezone
         type+="TIMEZONE,"
@@ -773,7 +836,9 @@ perform_backup() {
 
     if [ "$PHP_VERSIONS" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up installed PHP versions and their .ini files."
+            echo ""
+            echo "DEBUG: ## Backing up installed PHP versions and their .ini files."
+            echo ""
         fi
         backup_php_versions_in_container
         type+="PHP_VERSIONS,"
@@ -781,7 +846,9 @@ perform_backup() {
 
     if [ "$CRONTAB" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up Cron Jobs."
+            echo ""
+            echo "DEBUG: ## Backing up Cron Jobs."
+            echo ""
         fi
         backup_crontab_for_root_user
         type+="CRONTAB,"
@@ -789,21 +856,27 @@ perform_backup() {
 
     if [ "$MYSQL_DATA" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up MySQL databases."
+            echo ""
+            echo "DEBUG: ## Backing up MySQL databases."
+            echo ""
         fi
         backup_mysql_databases
         
         type+="MYSQL_DATA,"
         
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up MySQL users."
+            echo ""
+            echo "DEBUG: ## Backing up MySQL users."
+            echo ""
         fi
         backup_mysql_users
     fi
 
     if [ "$USER_DATA" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing list of domains and websites for user."
+            echo ""
+            echo "DEBUG: ## Backing list of domains and websites for user."
+            echo ""
         fi
         export_user_data_from_database
         type+="USER_DATA,"
@@ -811,7 +884,9 @@ perform_backup() {
 
     if [ "$CORE_USERS" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up configuration files for the account."
+            echo ""
+            echo "DEBUG: ## Backing up configuration files for the account."
+            echo ""
         fi
         users_local_files_in_core_users
         type+="CORE_USERS,"
@@ -819,7 +894,9 @@ perform_backup() {
 
     if [ "$STATS_USERS" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up user resource usage statistics."
+            echo ""
+            echo "DEBUG: ## Backing up user resource usage statistics."
+            echo ""
         fi
         users_local_files_in_stats_users
         type+="STATS_USERS,"
@@ -827,7 +904,9 @@ perform_backup() {
 
     if [ "$APACHE_SSL_CONF" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up VirtualHosts files and SSL Certificates."
+            echo ""
+            echo "DEBUG: ## Backing up VirtualHosts files and SSL Certificates."
+            echo ""
         fi
         backup_apache_conf_and_ssl
         type+="APACHE_SSL_CONF,"
@@ -835,7 +914,9 @@ perform_backup() {
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up generated HTML reports from domains access logs."
+            echo ""
+            echo "DEBUG: ## Backing up generated HTML reports from domains access logs."
+            echo ""
         fi
         backup_domain_access_reports
         type+="DOMAIN_ACCESS_REPORTS,"
@@ -843,7 +924,9 @@ perform_backup() {
 
     if [ "$SSH_PASS" = true ]; then
         if [ "$DEBUG" = true ]; then
-            echo "## Backing up SSH users."
+            echo ""
+            echo "DEBUG: ## Backing up SSH users."
+            echo ""
         fi
         backup_ssh_conf_and_pass
         type+="SSH_PASS,"
@@ -959,8 +1042,8 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
 
     if [ "$DEBUG" = true ]; then
         # Print for debugging
-        echo "Oldest Date: $oldest_date_formatted"
-        echo "Oldest Destination Directory: $oldest_destination_directory"
+        echo "DEBUG: Oldest Date: $oldest_date_formatted"
+        echo "DEBUG: Oldest Destination Directory: $oldest_destination_directory"
     fi
 
 
@@ -989,16 +1072,19 @@ total_containers=$(docker ps -q | wc -l)
 for container_name in $(docker ps --format '{{.Names}}'); do
 
         ((container_count++))
-        
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo ""
         echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
+        echo ""
         user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
         user_indexes="/usr/local/admin/backups/index/$NUMBER/$container_name/"
         number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
 
         if [ "$DEBUG" = true ]; then
         # Print commands for debugging
-        echo "Users index file: $user_index_file"
-        echo "Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
+        echo "DEBUG: Users index file: $user_index_file"
+        echo "DEBUG: Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
         fi
 
 
@@ -1038,7 +1124,14 @@ status="Completed"
 # Update the initial log content
 sed -i -e "s/end_time=/end_time=$end_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time/" -e "s/status=In progress../status=$status/" "$log_file"
 
-echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
+
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo ""
+        echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo ""
 
 # write notification to notifications center
 write_notification "Backup Job ID: $NUMBER finished" "Accounts: $total_containers - Total execution time: $total_exec_time"
