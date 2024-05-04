@@ -59,10 +59,10 @@ determine_flag() {
     local flags=""
     case "$1" in
         "configuration") flags="--conf";;
-        "partial")
+        "accounts")
             flags="--docker --files --user_data"
             ;;
-        "accounts")
+        "partial")
             if [ -n "$2" ]; then
                 IFS=' ' read -ra filter_array <<< "$2"
                 for filter in "${filter_array[@]}"; do
