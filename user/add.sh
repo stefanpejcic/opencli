@@ -343,17 +343,23 @@ fi
 
 
 
-
 # Create the docker container
 if [ "$DEBUG" = true ]; then
+    echo "Starting docker run command"
     if [ "$disk_limit" -ne 0 ]; then
+        echo "Run with disk size of ${disk_limit}G."
         docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
           --restart unless-stopped \
           --hostname $hostname $docker_image
+
+        echo "Command used is:"
+        echo "docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus=$cpu --memory=$ram -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available -v /home/$username:/home/$username --restart unless-stopped --hostname $hostname $docker_image"
+        echo ""
     else
+        echo "Run with NO disk size limit."
         docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
