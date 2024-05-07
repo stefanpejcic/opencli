@@ -168,12 +168,6 @@ check_cpu_cores "$cpu"
 # Check available RAM before creating the plan
 check_available_ram "$ram"
 
-# Check if docker_image is either "nginx" or "apache"
-if [ "$docker_image" != "nginx" ] && [ "$docker_image" != "apache" ] && [ "$docker_image" != "litespeed" ]; then
-  echo "docker_image must be 'nginx' or 'apache'"
-  exit 1
-fi
-
 # Function to check if the plan name already exists in the database
 check_plan_exists() {
   local name="$1"
