@@ -31,7 +31,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-
 DEBUG=false # Default value for DEBUG
 SINGLE_USER=false
 OPENPANEL_DIR="/usr/local/panel/"
@@ -49,154 +48,59 @@ for arg in "$@"; do
     esac
 done
 
-if [ -z "$username" ]; then
-    # If no username provided, process logs for all active users
-    usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
-else
-    # If username provided, process logs only for that user
-    usernames=("$username")
-fi
-
-
-
-
-
 configure_goaccess() {
-
     # GoAccess
-    tar -xzvf ${OPENPANEL_DIR}conf/GeoLite2-City_20231219.tar.gz -C ${OPENPANEL_DIR}conf/ > /dev/null
+    tar -xzvf "${OPENPANEL_DIR}conf/GeoLite2-City_20231219.tar.gz" -C "${OPENPANEL_DIR}conf/" > /dev/null
     mkdir -p /usr/local/share/GeoIP/GeoLite2-City_20231219
-    cp -r ${OPENPANEL_DIR}conf/GeoLite2-City_20231219/* /usr/local/share/GeoIP/GeoLite2-City_20231219 
+    cp -r "${OPENPANEL_DIR}conf/GeoLite2-City_20231219/"* /usr/local/share/GeoIP/GeoLite2-City_20231219 
 }
 
+# Main function to process logs for each user
+process_logs() {
+    local username="$1"
+    local excluded_ips_file="/usr/local/panel/core/users/$username/domains/excluded_ips_for_goaccess"
+    local container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
+    local excluded_ips=""
 
-
-
-configure_goaccess()
-
-# Iterate through users
-for username in $usernames; do
-
-    # Check if the excluded IPs file exists for the current user
-    excluded_ips_file="/usr/local/panel/core/users/$username/domains/excluded_ips_for_goaccess"
-    # exclude docker container private ip also
-    container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
-  if [ "$DEBUG" = true ]; then 
     if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
-        echo "Excluded IPs file found for user $username, excluding them along with private IP $container_ip"
-        excluded_ips=$(cat "$excluded_ips_file")
-
-        # Get the domains for the current user
-        domains=$(opencli domains-user "$username")
-        
-        for domain in $domains; do
-            log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/var/log/nginx/stats/${username}/"
-            html_output="${output_dir}/${domain}.html"
-
-            # Ensure the output directory exists
-            mkdir -p "$output_dir"
-
-            # Run goaccess command with exclusion flags
-            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
-            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
-            	-e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES \
-                -a -o html --log-format COMBINED - > $html_output
-
-            # Replace "Dashboard" with the domain name in the HTML file
-            sed -i "s/Dashboard/$domain/g" "$html_output"
-
-            echo "Processed domain $domain for user $username with IP exclusions"
-        done
-    else
-        echo "No excluded IPs file found for user $username. Only private IP $container_ip will be excluded from report."
-
-        # Get the domains for the current user
-        domains=$(opencli domains-user "$username")
-
-        # Check if the result contains "No domains found for user '$username'"
-        if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
-            echo "No domains found for user $username. Skipping."
-        else
-            # Iterate through each domain and run goaccess command
-            for domain in $domains; do
-            log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/var/log/nginx/stats/${username}/"
-            html_output="${output_dir}/${domain}.html"
-
-            # Ensure the output directory exists
-            mkdir -p "$output_dir"
-
-            # Run goaccess command
-            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
-            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
-            	-e "$container_ip" --ignore-panel=KEYPHRASES \
-                -a -o html --log-format COMBINED - > $html_output
-
-            # Replace "Dashboard" with the domain name in the HTML file
-            sed -i "s/Dashboard/$domain/g" "$html_output"
-
-            echo "Processed domain $domain for user $username"
-            done
-        fi
+        excluded_ips=$(<"$excluded_ips_file")
     fi
-  else
-    if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
-      excluded_ips=$(cat "$excluded_ips_file")
 
-        # Get the domains for the current user
-        domains=$(opencli domains-user "$username")
-        
-        for domain in $domains; do
-            log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/var/log/nginx/stats/${username}/"
-            html_output="${output_dir}/${domain}.html"
+    local domains=$(opencli domains-user "$username")
 
-            # Ensure the output directory exists
-            mkdir -p "$output_dir"
-
-            # Run goaccess command with exclusion flags
-            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
-            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
-            	-e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES \
-                -a -o html --log-format COMBINED - > $html_output
-
-
-
-            # Replace "Dashboard" with the domain name in the HTML file
-            sed -i "s/Dashboard/$domain/g" "$html_output" > /dev/null 2>&1
-        done
+    if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
+        echo "No domains found for user $username. Skipping."
     else
-        # Get the domains for the current user
-        domains=$(opencli domains-user "$username")
 
-        # Check if the result contains "No domains found for user '$username'"
-        if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
-            continue
-        else
-            # Iterate through each domain and run goaccess command
-            for domain in $domains; do
-            log_file="/var/log/nginx/domlogs/${domain}.log"
-            output_dir="/var/log/nginx/stats/${username}/"
-            html_output="${output_dir}/${domain}.html"
-
-            # Ensure the output directory exists
+        for domain in $domains; do
+            local log_file="/var/log/nginx/domlogs/${domain}.log"
+            local output_dir="/var/log/nginx/stats/${username}/"
+            local html_output="${output_dir}/${domain}.html"
+            local sed_command="s/Dashboard/$domain/g"
+    
             mkdir -p "$output_dir"
-
-            # Run goaccess command
-            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
-            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
-            	-e "$container_ip" --ignore-panel=KEYPHRASES \
-                -a -o html --log-format COMBINED - > $html_output
-
-            # Replace "Dashboard" with the domain name in the HTML file
-            sed -i "s/Dashboard/$domain/g" "$html_output" > /dev/null 2>&1
-            done
-        fi
+    
+            cat $log_file | docker run --memory="256m" --cpus="0.5" -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb --rm -i -e LANG=EN allinurl/goaccess -e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES -a -o html --log-format COMBINED - > $html_output
+    
+            sed -i "$sed_command" "$html_output" > /dev/null 2>&1
+    
+            if [ "$DEBUG" = true ]; then
+                echo "Processed domain $domain for user $username with IP exclusions"
+            else
+                echo "Processed domain $domain for user $username"
+            fi
+        done
+        
     fi
-  fi
-done
+}
+
+configure_goaccess
+
+if [ "$SINGLE_USER" = true ]; then
+    process_logs "$username"
+else
+    usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+    for username in $usernames; do
+        process_logs "$username"
+    done
+fi
