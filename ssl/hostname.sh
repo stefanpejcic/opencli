@@ -46,15 +46,42 @@ if ! systemctl status panel &> /dev/null; then
     echo ""
     echo -e "Run ${YELLOW}'service panel status'${RESET} to check if panel is active."
     echo -e "and ${YELLOW}'tail /var/log/openpanel/user/error.log'${RESET} if service status is ${RED}failed${RESET}."
-    exit 1
+
+    # Restart the service
+    systemctl restart panel
+
+    echo -e "${GREEN}Service restarted.${RESET}"
+
+    # Check status again after restart
+    if ! systemctl status panel &> /dev/null; then
+        echo -e "${RED}ERROR: Failed to start OpenPanel service after restart.${RESET}"
+        exit 1
+    else
+        echo -e "${GREEN}OpenPanel service is now running.${RESET}"
+        exit 0
+    fi
 fi
+
 
 if ! systemctl status admin &> /dev/null; then
     echo -e "${RED}ERROR: AdminPanel service not found or not running. Check AdminPanel service status and ensure it's running.${RESET}"
     echo ""
     echo -e "Run ${YELLOW}'service admin status'${RESET} to check if admin is active."
     echo -e "and ${YELLOW}'tail /var/log/openpanel/admin/error.log'${RESET} if service status is ${RED}failed${RESET}."
-    exit 1
+
+    # Restart the service
+    systemctl restart admin
+
+    echo -e "${GREEN}Service restarted.${RESET}"
+
+    # Check status again after restart
+    if ! systemctl status admin &> /dev/null; then
+        echo -e "${RED}ERROR: Failed to start AdminPanel service after restart.${RESET}"
+        exit 1
+    else
+        echo -e "${GREEN}AdminPanel service is now running.${RESET}"
+        exit 0
+    fi
 fi
 
 
