@@ -307,10 +307,13 @@ create_docker_network() {
 # Check if DEBUG is true and the Docker network exists
 if [ "$DEBUG" = true ] && docker network inspect "$name" >/dev/null 2>&1; then
     # Docker network exists, DEBUG is true so show message
-    echo "Docker network '$name' already exists."
-elif [ "$DEBUG" != true ] && docker network inspect "$name" >/dev/null 2>&1; then
+    echo "Docker network '$name' exists."
+elif [ "$DEBUG" = false ] && docker network inspect "$name" >/dev/null 2>&1; then
     # Docker network exists, but DEBUG is not true so we dont show anything
     :
+elif [ "$DEBUG" = false ]
+    # Docker network does not exist, we need to create it but dont show any output..
+    create_docker_network "$name" "$bandwidth"  >/dev/null 2>&1
 else
     # Docker network does not exist, we need to create it..
     echo "Docker network '$name' does not exist. Creating..."
