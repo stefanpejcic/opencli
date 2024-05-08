@@ -34,6 +34,7 @@
 
 DEBUG=false # Default value for DEBUG
 SINGLE_USER=false
+OPENPANEL_DIR="/usr/local/panel/"
 
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
@@ -56,6 +57,22 @@ else
     usernames=("$username")
 fi
 
+
+
+
+
+configure_goaccess() {
+
+    # GoAccess
+    tar -xzvf ${OPENPANEL_DIR}conf/GeoLite2-City_20231219.tar.gz -C ${OPENPANEL_DIR}conf/ > /dev/null
+    mkdir -p /usr/local/share/GeoIP/GeoLite2-City_20231219
+    cp -r ${OPENPANEL_DIR}conf/GeoLite2-City_20231219/* /usr/local/share/GeoIP/GeoLite2-City_20231219 
+}
+
+
+
+
+configure_goaccess()
 
 # Iterate through users
 for username in $usernames; do
@@ -81,7 +98,11 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command with exclusion flags
-            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES
+            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
+            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
+            	-e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES \
+                -a -o html --log-format COMBINED - > $html_output
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
@@ -108,7 +129,11 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command
-            goaccess "$log_file" -a -o "$html_output" -e "$container_ip" --ignore-panel=KEYPHRASES
+            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
+            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
+            	-e "$container_ip" --ignore-panel=KEYPHRASES \
+                -a -o html --log-format COMBINED - > $html_output
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output"
@@ -133,7 +158,13 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command with exclusion flags
-            goaccess "$log_file" -a -o "$html_output" -e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES > /dev/null 2>&1
+            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
+            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
+            	-e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES \
+                -a -o html --log-format COMBINED - > $html_output
+
+
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output" > /dev/null 2>&1
@@ -156,7 +187,11 @@ for username in $usernames; do
             mkdir -p "$output_dir"
 
             # Run goaccess command
-            goaccess "$log_file" -a -o "$html_output" -e "$container_ip" --ignore-panel=KEYPHRASES > /dev/null 2>&1
+            cat $log_file | docker run --rm -i -e LANG=EN allinurl/goaccess \
+            	-v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+            	--geoip-database /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb \
+            	-e "$container_ip" --ignore-panel=KEYPHRASES \
+                -a -o html --log-format COMBINED - > $html_output
 
             # Replace "Dashboard" with the domain name in the HTML file
             sed -i "s/Dashboard/$domain/g" "$html_output" > /dev/null 2>&1
