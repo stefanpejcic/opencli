@@ -311,7 +311,7 @@ if [ "$DEBUG" = true ] && docker network inspect "$name" >/dev/null 2>&1; then
 elif [ "$DEBUG" = false ] && docker network inspect "$name" >/dev/null 2>&1; then
     # Docker network exists, but DEBUG is not true so we dont show anything
     :
-elif [ "$DEBUG" = false ]
+elif [ "$DEBUG" = false ]; then
     # Docker network does not exist, we need to create it but dont show any output..
     create_docker_network "$name" "$bandwidth"  >/dev/null 2>&1
 else
