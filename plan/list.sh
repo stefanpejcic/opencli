@@ -54,9 +54,24 @@ done
 # DB
 source /usr/local/admin/scripts/db.sh
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
 # Fetch all plan data from the plans table
 if [ "$json_output" ]; then
     # For JSON output without --table option
+    ensure_jq_installed
     plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT * FROM plans;" | tail -n +2)
     json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], domains_limit: .[3], websites_limit: .[4], disk_limit: .[5], inodes_limit: .[6], db_limit: .[7], cpu: .[8], ram: .[9], docker_image: .[10], bandwidth: .[11]})')
     echo "Plans:"
