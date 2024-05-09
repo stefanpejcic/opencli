@@ -64,8 +64,23 @@ done
 # Source database configuration
 source /usr/local/admin/scripts/db.sh
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
 # Fetch user data based on the provided plan name
 if [ "$json_output" = true ]; then
+    ensure_jq_installed
     users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" | tail -n +2)
     if [ -n "$users_data" ]; then
         json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]})')
