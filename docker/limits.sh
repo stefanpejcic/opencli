@@ -87,6 +87,9 @@ EOF
 
     # Restart Docker
     systemctl restart docker
+
+    # echo what the route expects:
+    echo "Docker limits updated successfully"
 }
 
 # Main script logic
