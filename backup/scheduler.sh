@@ -99,9 +99,24 @@ process_backup_job() {
     fi
 }
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
 # Remove previous backup schedules
 sed -i '/opencli backup-run/d' /etc/crontab
+
+ensure_jq_installed
 
 # Process one job if run_id is provided, otherwise process and schedule all jobs
 if [ "$run_id" ]; then
