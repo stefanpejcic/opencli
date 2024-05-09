@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/docker#update-images
 # Author: Radovan Jecmenica, Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 08.12.2024
+# Last Modified: 09.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -39,12 +39,23 @@ for arg in "$@"; do
     esac
 done
 
+# Check if OpenPanel Nginx image has updates
+nginx_update=$(docker pull openpanel/nginx 2>&1 | grep -i "Status: Image is up to date" | wc -l)
 
-if [ "$DEBUG" = true ]; then
- docker pull openpanel/nginx
- docker pull openpanel/apache
+# Check if OpenPanel Apache image has updates
+apache_update=$(docker pull openpanel/apache 2>&1 | grep -i "Status: Image is up to date" | wc -l)
+
+# If both images are already up to date, inform the user
+if [ "$nginx_update" -eq 1 ] && [ "$apache_update" -eq 1 ]; then
+    echo "OpenPanel Nginx and Apache images are already up to date."
+# If updates are available for either image, pull them
 else
- docker pull openpanel/nginx > /dev/null 2>&1
- docker pull openpanel/apache > /dev/null 2>&1
+    if [ "$nginx_update" -ne 1 ]; then
+        echo "Newer OpenPanel Nginx image is available, updating.."
+        docker pull openpanel/nginx
+    fi
+    if [ "$apache_update" -ne 1 ]; then
+        echo "Newer OpenPanel Apache image is available, updating.."
+        docker pull openpanel/apache
+    fi
 fi
-
