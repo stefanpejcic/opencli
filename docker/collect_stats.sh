@@ -38,6 +38,22 @@ current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 sync
 echo 1 > /proc/sys/vm/drop_caches
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
+ensure_jq_installed
+
 # Loop through the Docker containers and extract data
 docker stats --no-stream --format '{{json .}}' | while read -r container_stats; do
   # Extract relevant data from the JSON
