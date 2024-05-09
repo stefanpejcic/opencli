@@ -75,7 +75,11 @@ EOF
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
   "storage-driver": "devicemapper",
-  "cgroup-parent": "docker_limit.slice"
+  "cgroup-parent": "docker_limit.slice",
+  "log-driver": "local",
+  "log-opts": {
+    "max-size": "5m"
+  }
 }
 EOF
 
