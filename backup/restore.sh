@@ -127,6 +127,7 @@ for arg in "$@"; do
 done
 
 
+
 # Check if the correct number of command line arguments is provided
 if [ "$#" -lt 3 ]; then
     echo "Usage: opencli backup-restore <PATH_ON_DESTINATION> <USERNAME> [--all]"
@@ -148,7 +149,21 @@ read_dest_json_file() {
     jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
 }
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
+ensure_jq_installed
 # Extract data from the destination JSON file
 dest_data=$(read_dest_json_file "$DEST_JSON_FILE")
 
