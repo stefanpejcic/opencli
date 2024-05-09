@@ -45,6 +45,19 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
 # Check if a username is provided as an argument
 if [ -z "$username" ]; then
@@ -62,8 +75,8 @@ if ! mkdir -p "$directory"; then
     exit 1
 fi
 
+get_available_php_versions() {
 # Run the command to fetch PHP versions and store them in a JSON file
-
 if docker exec "$username" apt-get update > /dev/null 2>&1 && \
     available_versions=$(docker exec "$username" bash -c "apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print \$1}' | grep -vFf <(dpkg -l | awk '/^ii/ {print \$2}')"
     ); then
@@ -101,3 +114,6 @@ else
     echo "Error: Failed to run the update command in a Docker container for user $username."
     exit 1
 fi
+}
+ensure_jq_installed
+get_available_php_versions
