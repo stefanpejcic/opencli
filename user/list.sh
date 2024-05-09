@@ -78,11 +78,24 @@ if [ "$total_users" = true ]; then
     
 exit 0
 fi
-
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
 # Get users information
 if [ "$json_output" = true ]; then
     # For JSON output without --table option
+    ensure_jq_installed
     users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;" | tail -n +2)
     json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]})' )
     echo "$json_output"
