@@ -54,6 +54,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
 # Check if the login log file exists for the user
 login_log_file="/home/$username/.lastlogin"
 if [ ! -f "$login_log_file" ]; then
@@ -63,6 +77,7 @@ fi
 
 # Display the content of the login log file
 if [ "$json_output" = true ]; then
+    ensure_jq_installed
     # Format data as JSON
     json_data=$(awk 'BEGIN {print "["} {if(NR>1)print ","; split($0, arr, " - "); split(arr[1], ipArr, ": "); split(arr[2], countryArr, ": "); split(arr[3], timeArr, ": "); print "{\n\t\"ip\": \""ipArr[2]"\",\n\t\"country\": \""countryArr[2]"\",\n\t\"time\": \""timeArr[2] "\"\n}"} END {print "\n]"}' "$login_log_file")
 
