@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/rename.sh
-# Description: Assing or remove dedicated IP to a user.
+# Description: Rename username.
 # Usage: opencli user-rename <old_username> <new_username>
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
