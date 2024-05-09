@@ -66,6 +66,20 @@ get_server_ip() {
     fi
 }
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
 # Function to generate SSL
 generate_ssl() {
     domain_url=$1
@@ -203,6 +217,7 @@ if [ "$delete_flag" = true ]; then
 else
     # Generate SSL only if the check passed
     check_ssl_validity "$domain_url"
+    ensure_jq_installed
     get_server_ip "$domain_url"
     generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
