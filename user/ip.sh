@@ -65,6 +65,19 @@ check_ip_validity() {
         exit 1
     fi
 }
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 # Function to check if the IP is used by another user
 check_ip_usage() {
     CHECK_IP=$1
@@ -229,7 +242,7 @@ update_dns_zone_file() {
 
 
 
-
+ensure_jq_installed
 # Check if the action is 'delete'
 if [ "$ACTION" = "delete" ]; then
     current_ip "$USERNAME" 
