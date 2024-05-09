@@ -1087,6 +1087,11 @@ total_containers=$(docker ps -q | wc -l)
 # Loop through all accounts
 for container_name in $(docker ps --format '{{.Names}}'); do
 
+    # Check if container name is in the excluded list
+    if grep -Fxq "$container_name" /usr/local/admin/scripts/helpers/excluded_from_backups.txt; then
+        continue  # Skip this container
+    fi
+
         ((container_count++))
         echo ""
         echo "------------------------------------------------------------------------"
