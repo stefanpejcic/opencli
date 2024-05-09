@@ -4,7 +4,7 @@
 # Description: Downloads docker images from hub.openpanel.co
 # Usage: opencli docker-update_images
 # Docs: https://docs.openpanel.co/docs/admin/scripts/docker#update-images
-# Author: Radovan Jecmenica, Stefan Pejcic
+# Author: Radovan Jecmenica
 # Created: 30.11.2023
 # Last Modified: 09.05.2024
 # Company: openpanel.co
