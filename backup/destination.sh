@@ -55,7 +55,19 @@ for arg in "$@"; do
 done
 
 
-
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
 # Check if the directory exists
 if [ ! -d "$backup_dir" ]; then
@@ -427,11 +439,13 @@ case "$1" in
     ;;
   delete)
     shift  # Remove the first argument "delete"
+    ensure_jq_installed
     validate_parameters_for_delete "$1"
     delete_backup "$1"
     ;;
   validate)
     shift  # Remove the first argument "validate"
+    ensure_jq_installed
     validate_parameters_for_delete "$1"
     validate_ssh_connection "$1"
     ;;
