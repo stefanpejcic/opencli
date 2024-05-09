@@ -55,7 +55,6 @@ ensure_jq_installed() {
 
 
 read_dest_json_file() {
-    ensure_jq_installed
     local dest_json_file="$1"
     jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
 }
@@ -106,7 +105,7 @@ if [ ! -f "$job_json_file" ]; then
     echo "Error: Job JSON file not found at $job_json_file"
     exit 1
 fi
-
+ensure_jq_installed
 # Parse the JSON file and extract the 'destination' field
 destination_id=$(jq -r '.destination' "$job_json_file")
 dest_json_file="/usr/local/admin/backups/destinations/$destination_id.json"
