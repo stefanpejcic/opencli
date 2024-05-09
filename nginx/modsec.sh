@@ -327,7 +327,20 @@ if [ "$SEARCH_RULES" -eq 1 ]; then
         done < <(grep -Rohs 'id:[0-9]*' $SEARCH_DIR | sort | uniq)
     fi
 else
-
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+ensure_jq_installed
 
 # TODO: GET RULE INFO FROM https://coreruleset.org/docs/rules/rules/
 for dir in $SEARCH_DIR; do
