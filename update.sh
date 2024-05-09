@@ -150,6 +150,20 @@ get_next_version() {
 
     echo "${array[*]}"
 }
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
 
+ensure_jq_installed
 # Call the function to check for updates, pass any additional arguments to it
 check_update "$@"
