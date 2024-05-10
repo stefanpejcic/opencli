@@ -238,10 +238,10 @@ data=$(read_json_file "$JSON_FILE")
 # Assign variables to extracted values
 status=$(echo "$data" | awk 'NR==1')
 destination=$(echo "$data" | awk 'NR==2')
-directory=$(echo "$data" | awk 'NR==3')
-types=($(echo "$data" | awk 'NR>=4 && NR<=6'))
-retention=$(echo "$data" | awk 'NR==7')
-filters=$(echo "$data" | awk 'NR==8')
+dest_destination_dir_name=$(echo "$data" | awk 'NR==3')
+types=($(echo "$data" | awk 'NR==4'))
+retention=$(echo "$data" | awk 'NR==6')
+filters=$(echo "$data" | awk 'NR==7')
 
 # Check if the status is "off" and --force-run flag is not provided
 if [ "$status" == "off" ] && [ "$FORCE_RUN" == false ]; then
@@ -262,7 +262,7 @@ fi
 read_dest_json_file() {
     ensure_jq_installed
     local dest_json_file="$1"
-    jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .destination_dir_name, .storage_limit' "$dest_json_file"
+    jq -r '.hostname, .password, .ssh_port, .ssh_user, .ssh_key_path, .storage_limit' "$dest_json_file"
 }
 
 # Extract data from the destination JSON file
@@ -274,8 +274,7 @@ dest_password=$(echo "$dest_data" | awk 'NR==2')
 dest_ssh_port=$(echo "$dest_data" | awk 'NR==3')
 dest_ssh_user=$(echo "$dest_data" | awk 'NR==4')
 dest_ssh_key_path=$(echo "$dest_data" | awk 'NR==5')
-dest_destination_dir_name=$(echo "$dest_data" | awk 'NR==6')
-dest_storage_limit=$(echo "$dest_data" | awk 'NR==7')
+dest_storage_limit=$(echo "$dest_data" | awk 'NR==6')
 
 # Check if the destination hostname is local
 if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
@@ -600,9 +599,11 @@ export_user_data_from_database() {
     backup_file="$BACKUP_DIR/user_data_dump.sql"
     
     # Use mysqldump to export data from the 'sites', 'domains', and 'users' tables
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" users -w "id='$user_id'" >> "$backup_file"
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" domains -w "user_id='$user_id'" >> "$backup_file"
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" sites -w "domain_id IN (SELECT domain_id FROM domains WHERE user_id='$user_id')" >> "$backup_file"
+
+    mysqldump --defaults-extra-file="$config_file" "$mysql_database" users --where="username='$container_name'" --no-create-info --complete-insert --skip-extended-insert > $backup_file
+    ####mysqldump --defaults-extra-file="/etc/my.cnf" "panel" users --where="username='stefan'" --no-create-info --complete-insert --skip-extended-insert > users_data.sql
+    ######mysqldump -u your_username -p your_password your_database users --where="username='$USERNAME'" --no-create-info --complete-insert --skip-extended-insert | sed 's/VALUES (2/VALUES (NULL/' > users_data.sql
+
     copy_files "$BACKUP_DIR/user_data_dump.sql" "/"
     rm $BACKUP_DIR/user_data_dump.sql
     echo "User '$container_name' data exported to $backup_file successfully."
@@ -1080,61 +1081,148 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
 
 
 
-container_count=0
-# Get the total number of running containers
-total_containers=$(docker ps -q | wc -l)
 
-# Loop through all accounts
-for container_name in $(docker ps --format '{{.Names}}'); do
 
-    # Check if container name is in the excluded list
-    if grep -Fxq "$container_name" /usr/local/admin/scripts/helpers/excluded_from_backups.txt; then
-        continue  # Skip this container
-    fi
 
+
+
+run_backup_for_server_configuration_only() {
+
+CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
+
+    # backup server data only
+    backup_mysql_panel_database
+    backup_sqlite_admin_database
+    backup_nginx_data
+    backup_docker_deamon
+
+
+
+    
+    # docker conf
+    backup_docker_deamon(){
+        cp /etc/docker/daemon.json ${CONF_DESTINATION_DIR}/docker_daemon.json
+    }
+
+    
+    
+    # panel db
+    backup_mysql_panel_database() {
+        # Read the MySQL password from the host configuration file
+        mysql_password=$(awk -F "=" '/password/ {print $2}' /usr/local/admin/db.cnf | tr -d '" ')
+        docker exec openpanel_mysql sh -c "mysqldump --user=root --password='$mysql_password' panel > /tmp/mysql_openpanel_backup.sql"
+        docker cp openpanel_mysql:/tmp/mysql_openpanel_backup.sql ${NGINX_DESTINATION_DIR}/mysql_openpanel_backup.sql
+        docker exec openpanel_mysql rm /tmp/mysql_openpanel_backup.sql
+    }
+
+    # admin db
+    backup_sqlite_admin_database() {
+        cp /usr/local/admin/users.db ${NGINX_DESTINATION_DIR}/sqlite_openadmin_backup.db
+    }
+    
+    # nginx domains
+    backup_nginx_data() {
+        NGINX_DESTINATION_DIR="${CONF_DESTINATION_DIR}/nginx/"
+        mkdir -p $NGINX_DESTINATION_DIR
+        cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites_available
+        cp -r /etc/nginx/sites-enabled ${NGINX_DESTINATION_DIR}sites_enabled
+        cp /etc/nginx/nginx.conf ${NGINX_DESTINATION_DIR}
+    }
+    
+}
+
+run_backup_for_user_data() {
+
+    # backup user data only
+
+    container_count=0
+    # Get the total number of running containers
+    total_containers=$(docker ps -q | wc -l)
+    
+    # Loop through all accounts
+    for container_name in $(docker ps --format '{{.Names}}'); do
+    
         ((container_count++))
-        echo ""
-        echo "------------------------------------------------------------------------"
-        echo ""
-        echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
-        echo ""
-        user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
-        user_indexes="/usr/local/admin/backups/index/$NUMBER/$container_name/"
-        number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
+     
+            excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
+    
+            # Check if container name is in the excluded list
+            if [ -f "$excluded_file" ]; then
+                if grep -Fxq "$container_name" "$excluded_file"; then
+                    echo ""
+                    echo "------------------------------------------------------------------------"
+                    echo ""
+                    echo "Skipping backup for excluded user: $container_name (Account: $container_count/$total_containers)"
+                    echo ""
+                    continue  # Skip this container
+                fi
+            fi
 
-        if [ "$DEBUG" = true ]; then
-        # Print commands for debugging
-        echo "DEBUG: Users index file: $user_index_file"
-        echo "DEBUG: Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
-        fi
 
-
-            backup_for_user_started
-            copy_files "$user_index_file" "/"
-            perform_backup "$container_name"
-            backup_for_user_finished
-            
-
-    if [ "$LOCAL" != true ]; then
-            ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
-    else
-            rm "$directory/$container_name/$TIMESTAMP/$TIMESTAMP.index"
-    fi
-
-            copy_files "$user_index_file" "/"
-            
-
-        # Compare with retention
-        if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
-            # Action A
-            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention, will delete oldest user backup after generating a new one."
-            #retention_for_user_files_delete_oldest_files_for_job_id
-        else
-            # Action B
-            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached, no rotation is needed."
-        fi
+           
+            echo ""
+            echo "------------------------------------------------------------------------"
+            echo ""
+            echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
+            echo ""
+            user_index_file="/usr/local/admin/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
+            user_indexes="/usr/local/admin/backups/index/$NUMBER/$container_name/"
+            number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
         
-done
+            if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
+                number_of_backups_in_this_job_that_user_has=0
+            fi
+        
+            if [ "$DEBUG" = true ]; then
+            # Print commands for debugging
+            echo "DEBUG: Users index file: $user_index_file"
+            echo "DEBUG: Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
+            fi
+    
+    
+                backup_for_user_started
+                copy_files "$user_index_file" "/"
+                perform_backup "$container_name"
+                backup_for_user_finished
+                
+    
+        if [ "$LOCAL" != true ]; then
+                ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+        else
+                rm "$directory/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+        fi
+    
+                copy_files "$user_index_file" "/"
+                
+    
+            # Compare with retention
+            if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
+                # Action A
+                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention, will delete oldest user backup after generating a new one."
+                #retention_for_user_files_delete_oldest_files_for_job_id
+            else
+                # Action B
+                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached, no rotation is needed."
+            fi
+            
+    done
+
+
+}
+
+
+# Check if the first element of the array is "accounts" or "partial"
+if [[ ${types[0]} == "accounts" || ${types[0]} == "partial" ]]; then
+    run_backup_for_user_data
+elif [[ ${types[0]} == "configuration" ]]; then
+    run_backup_for_server_configuration_only
+else
+    echo "ERROR: Backup type is unknown, supported types are 'accounts' 'partial' and 'configuration'."
+    exit 1
+fi
+
+
+
 
         
 # Update log with end time, total execution time, and status
