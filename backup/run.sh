@@ -1104,18 +1104,7 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
 run_backup_for_server_configuration_only() {
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
-
-    # backup server data only
-    backup_openpanel_conf
-    backup_mysql_panel_database
-    backup_sqlite_admin_database
-    backup_nginx_data
-    backup_docker_daemon
-    backup_etc_ufw
-    backup_server_logs
-    backup_named_conf
-    backup_backup_jobs
-
+    
     backup_openpanel_conf() {
         echo ""
         echo "## Backing up MySQL database for OpenPanel."
@@ -1198,6 +1187,23 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         cp -r /etc/nginx/sites-enabled ${NGINX_DESTINATION_DIR}sites_enabled
         cp /etc/nginx/nginx.conf ${NGINX_DESTINATION_DIR}
     }
+
+
+
+
+    # backup server data only
+    backup_openpanel_conf
+    backup_mysql_panel_database
+    backup_sqlite_admin_database
+    backup_nginx_data
+    backup_docker_daemon
+    backup_etc_ufw
+    backup_server_logs
+    backup_named_conf
+    backup_backup_jobs
+
+
+
     
 }
 
@@ -1206,15 +1212,28 @@ run_backup_for_user_data() {
     # backup user data only
 
     container_count=0
-    # Get the total number of running containers
-    total_containers=$(docker ps -q | wc -l)
+   
+    # Get the total number of users
+    output=$(opencli user-list --json)
+    total_containers=$(echo "$output" | jq -c '.[] | select(.username | test("^[^_]*$"))' | wc -l)
     
-    # Loop through all accounts
-    for container_name in $(docker ps --format '{{.Names}}'); do
-
-        #### TODO: da koristi mysql bazu i usere mesto docker ps!
+    # Loop through each JSON object
+    echo "$output" | jq -c '.[]' | while IFS= read -r line; do
+        # Extract the username from the current JSON object
+        container_name=$(echo "$line" | jq -r '.username')
         
         ((container_count++))
+        
+            # suspended users
+            if [[ "$container_name" =~ [_] ]]; then
+                container_name="${container_name#*_}"
+                echo ""
+                echo "------------------------------------------------------------------------"
+                echo ""
+                echo "Skipping backup for suspended user: $container_name (Account: $container_count/$total_containers)"
+                echo ""
+                continue  # Skip this container
+            fi
      
             excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
     
