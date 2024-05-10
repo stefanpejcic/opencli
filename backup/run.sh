@@ -599,15 +599,30 @@ export_user_data_from_database() {
     backup_file="$BACKUP_DIR/user_data_dump.sql"
     
     # Use mysqldump to export data from the 'sites', 'domains', and 'users' tables
+    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" users -w "username='$container_name'" | sed -e 's/VALUES ([0-9]*/VALUES (NULL/' -e 's/[0-9]);*/NULL);/'  > "$backup_file"
 
-    mysqldump --defaults-extra-file="$config_file" "$mysql_database" users --where="username='$container_name'" --no-create-info --complete-insert --skip-extended-insert > $backup_file
-    ####mysqldump --defaults-extra-file="/etc/my.cnf" "panel" users --where="username='stefan'" --no-create-info --complete-insert --skip-extended-insert > users_data.sql
+    # GET ID PLANA OD USERA!
+    plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT plan_id FROM users WHERE username='$container_name';" -N)
+
+    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" plans -w "id='$plan_id'" | sed -e 's/VALUES ([0-9]*/VALUES (NULL/' >> "$backup_file"
+
+
+    
+    # FORRRR za svaki domen usera SAJTOVE
+
+
+
     ######mysqldump -u your_username -p your_password your_database users --where="username='$USERNAME'" --no-create-info --complete-insert --skip-extended-insert | sed 's/VALUES (2/VALUES (NULL/' > users_data.sql
 
+
+    
+    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" domains -w "user_id='$user_id'" >> "$backup_file"
+    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" sites -w "domain_id IN (SELECT domain_id FROM domains WHERE user_id='$user_id')" >> "$backup_file"
     copy_files "$BACKUP_DIR/user_data_dump.sql" "/"
     rm $BACKUP_DIR/user_data_dump.sql
     echo "User '$container_name' data exported to $backup_file successfully."
 }
+
 
 
 backup_domain_access_reports() {
