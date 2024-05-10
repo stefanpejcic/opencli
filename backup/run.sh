@@ -1106,16 +1106,63 @@ run_backup_for_server_configuration_only() {
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
     # backup server data only
+    backup_openpanel_conf
     backup_mysql_panel_database
     backup_sqlite_admin_database
     backup_nginx_data
-    backup_docker_deamon
+    backup_docker_daemon
+    backup_etc_ufw
+    backup_server_logs
+    backup_named_conf
+    backup_backup_jobs
 
+    backup_openpanel_conf() {
+        echo ""
+        echo "## Backing up MySQL database for OpenPanel."
+        echo ""
+        mkdir -p ${CONF_DESTINATION_DIR}/panel/
+        cp -r /usr/local/panel/conf ${CONF_DESTINATION_DIR}/panel/conf
+        cp -r /usr/local/panel/translations ${CONF_DESTINATION_DIR}/panel/translations
+    }
+
+    backup_named_conf() {
+        echo ""
+        echo "## Backing up BIND9 service configuration and DNS zones for all domains.."
+        echo ""
+        cp -r /etc/bind ${CONF_DESTINATION_DIR}/bind
+    }
+    
+    # firewall rules
+    backup_etc_ufw(){
+        echo ""
+        echo "## Backing up firewall rules."
+        echo ""
+        cp -r /etc/ufw ${CONF_DESTINATION_DIR}/ufw
+    }
+
+    backup_server_logs(){
+        echo ""
+        echo "## Backing up logs for both OpenAdmin and OpenPanel."
+        echo ""
+        cp -r /usr/local/admin/logs ${CONF_DESTINATION_DIR}/admin_logs
+        cp -r /var/log/openpanel ${CONF_DESTINATION_DIR}/openpanel_logs
+    }
+
+    backup_backup_jobs(){
+        echo ""
+        echo "## Backing up OpenPanel BackupJobs and Destinations."
+        echo ""
+        cp -r /usr/local/admin/backups ${CONF_DESTINATION_DIR}/admin_backups
+        # TODO: ssh kljuceve bekap isto!
+    }
 
 
     
     # docker conf
-    backup_docker_deamon(){
+    backup_docker_daemon(){
+        echo ""
+        echo "## Backing up Docker configuration."
+        echo ""
         cp /etc/docker/daemon.json ${CONF_DESTINATION_DIR}/docker_daemon.json
     }
 
@@ -1123,7 +1170,9 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
     
     # panel db
     backup_mysql_panel_database() {
-        # Read the MySQL password from the host configuration file
+        echo ""
+        echo "## Backing up MySQL database for OpenPanel."
+        echo ""
         mysql_password=$(awk -F "=" '/password/ {print $2}' /usr/local/admin/db.cnf | tr -d '" ')
         docker exec openpanel_mysql sh -c "mysqldump --user=root --password='$mysql_password' panel > /tmp/mysql_openpanel_backup.sql"
         docker cp openpanel_mysql:/tmp/mysql_openpanel_backup.sql ${NGINX_DESTINATION_DIR}/mysql_openpanel_backup.sql
@@ -1132,11 +1181,17 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
     # admin db
     backup_sqlite_admin_database() {
+        echo ""
+        echo "## Backing up SQLite database for OpenAdmin."
+        echo ""
         cp /usr/local/admin/users.db ${NGINX_DESTINATION_DIR}/sqlite_openadmin_backup.db
     }
     
     # nginx domains
     backup_nginx_data() {
+        echo ""
+        echo "## Backing up Nginx web server configuration and domain files."
+        echo ""
         NGINX_DESTINATION_DIR="${CONF_DESTINATION_DIR}/nginx/"
         mkdir -p $NGINX_DESTINATION_DIR
         cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites_available
@@ -1156,7 +1211,9 @@ run_backup_for_user_data() {
     
     # Loop through all accounts
     for container_name in $(docker ps --format '{{.Names}}'); do
-    
+
+        #### TODO: da koristi mysql bazu i usere mesto docker ps!
+        
         ((container_count++))
      
             excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
@@ -1228,8 +1285,26 @@ run_backup_for_user_data() {
 
 # Check if the first element of the array is "accounts" or "partial"
 if [[ ${types[0]} == "accounts" || ${types[0]} == "partial" ]]; then
+
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    echo "STARTING USER ACCOUNTS BACKUP"
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    
     run_backup_for_user_data
+    
 elif [[ ${types[0]} == "configuration" ]]; then
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    echo "STARTING SERVER CONFIGURATION BACKUP"
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    
     run_backup_for_server_configuration_only
 else
     echo "ERROR: Backup type is unknown, supported types are 'accounts' 'partial' and 'configuration'."
