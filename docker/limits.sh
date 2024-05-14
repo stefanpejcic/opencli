@@ -74,6 +74,7 @@ EOF
     # Create or update the Docker daemon configuration file
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
+  "experimental": true,
   "storage-driver": "devicemapper",
   "cgroup-parent": "docker_limit.slice",
   "log-driver": "local",
