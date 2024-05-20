@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: ssl/domain.sh
-# Description: Create a new user with the provided plan_id.
+# Description: Generate or Delete SSL for a domain.
 # Usage: opencli ssl-domain [-d] <domain_url>
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 27.11.2023
+# Last Modified: 20.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
