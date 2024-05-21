@@ -344,6 +344,11 @@ fi
 # then create a container
 
 
+change_default_email () {
+    hostname=$(hostname)
+    sed -i "s/^from\s\+.*/from       \${new_username}@\${hostname}/" /etc/msmtprc
+}
+
 
 
 # Create the docker container
@@ -487,6 +492,8 @@ if [ -n "$uid_1000_user" ]; then
   echo "$username:$password" | docker exec -i "$username" chpasswd
   docker exec $username usermod -aG www-data $username
   docker exec $username chmod -R g+w /home/$username
+  
+  change_default_email
 
   if [ "$DEBUG" = true ]; then
     echo "User $uid_1000_user renamed to $username with password: $password"
