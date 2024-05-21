@@ -102,6 +102,9 @@ for extension in "${extensions_to_install[@]}"; do
 done
 
 
+### Settings limits for FPM service
+echo "## Setting recommended limits for PHP-FPM service"
+
 docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
 docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
@@ -115,8 +118,35 @@ docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit
 echo "post_max_size = 1024M"
 docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
+ echo "sendmail_path = '/usr/bin/msmtp -t'"
+docker exec "$container_name" bash -c "sed -i 's/^;sendmail_path = .*/sendmail_path=\"\/usr\/bin\/msmtp -t\"/' /etc/php/$php_version/fpm/php.ini"
+ wait $!
 echo "max_execution_time = 600"
 docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
+
+
+### Settings limits for CLI version
+echo "## Setting recommended limits for PHP-CLI"
+
+docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/cli.ini"
+ wait $!
+docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/cli.ini"
+ wait $!
+echo "upload_max_filesize = 1024M"
+docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
+ wait $!
+echo "max_input_time = -1"
+docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/cli/php.ini"
+ wait $!
+echo "post_max_size = 1024M"
+docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
+ wait $!
+ echo "sendmail_path = '/usr/bin/msmtp -t'"
+docker exec "$container_name" bash -c "sed -i 's/^;sendmail_path = .*/sendmail_path=\"\/usr\/bin\/msmtp -t\"/' /etc/php/$php_version/cli/php.ini"
+ wait $!
+echo "max_execution_time = 600"
+docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
+
 
 
 
