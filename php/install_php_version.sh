@@ -119,9 +119,9 @@ echo "post_max_size = 1024M"
 docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
  wait $!
  echo "sendmail_path = '/usr/bin/msmtp -t'"
-docker exec "$container_name" bash -c "sed -i 's/^;sendmail_path = .*/sendmail_path=\"\/usr\/bin\/msmtp -t\"/' /etc/php/$php_version/fpm/php.ini"
+docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/fpm/php.ini"
  wait $!
-echo "max_execution_time = 600"
+ echo "max_execution_time = 600"
 docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
 
 
@@ -142,11 +142,10 @@ echo "post_max_size = 1024M"
 docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
  wait $!
  echo "sendmail_path = '/usr/bin/msmtp -t'"
-docker exec "$container_name" bash -c "sed -i 's/^;sendmail_path = .*/sendmail_path=\"\/usr\/bin\/msmtp -t\"/' /etc/php/$php_version/cli/php.ini"
+docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/cli/php.ini"
  wait $!
 echo "max_execution_time = 600"
 docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
-
 
 
 
