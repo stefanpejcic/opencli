@@ -5,7 +5,7 @@
 # Usage: opencli user-rename <old_username> <new_username>
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 03.01.2024
+# Last Modified: 21.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -231,6 +231,10 @@ edit_nginx_files_on_host_server() {
 }
 
 
+change_default_email () {
+    hostname=$(hostname)
+    sed -i "s/^from\s\+.*/from       \${new_username}@\${hostname}/" /etc/msmtprc
+}
 
 
 
@@ -354,3 +358,4 @@ replace_username_in_phpfpm_configs "$old_username" "$new_username"
 edit_nginx_files_on_host_server "$old_username" "$new_username"
 update_firewall_rules "$IP_TO_USE"
 rename_user_in_db "$old_username" "$new_username"
+change_default_email
