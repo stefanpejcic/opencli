@@ -56,11 +56,70 @@ for arg in "$@"; do
     esac
 done
 
+
+dummy_func_tobe_removed(){
+
 if [ "$DEBUG" = true ]; then
 
 else
 
 fi
+
+}
+
+
+# Function to read users from users.list files and create them
+create_user() {
+    command='echo -e "$PASS\n$PASS" | adduser -h $FOLDER -s /sbin/nologin $UID_OPT $GROUP_OPT $NAME'
+    docker exec -it openadmin_ftp sh -c "$command"
+    mkdir -p $FOLDER
+    chown 1000:33 $FOLDER
+}
+
+
+# Function to delete a user - WILL BE SEPARATED IN ANOTHER FILE!
+delete_user() {
+    docker exec -it openadmin_ftp sh -c "deluser $username && rm -rf $folder"
+    echo "Success: FTP user '$username' deleted successfully."
+}
+
+
+
+# user@domain or user@openpanel_username
+if [[ ! $username == *"@"* ]]; then
+    echo "Error: FTP username must include '@' symbol in the format 'user@domain.com' or 'user@openpanel'."
+    exit 1
+fi
+
+# check if ftp user exists
+user_exists() {
+    local user="$1"
+    grep -q "^$user\|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
+}
+
+mkdir -p /etc/openpanel/ftp/users/
+touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
+
+# Check if user already exists
+if user_exists "$username"; then
+    echo "Error: FTP User '$username' already exists."
+    exit 1
+fi
+
+# check folder path is under the openpanel_username home folder
+if [[ $directory != /home/$openpanel_username* ]]; then
+    echo "ERROR: Invalid folder '$directory' - folder must start with '/home/$openpanel_username/'."
+    exit 1
+else
+
+# If user does not exist, add them to the file
+echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${username}/users.list
+
+# and in the ftp container:
+create_user
+
+# Output success message
+echo "Success: FTP user '$username' created successfully."
 
 
 
@@ -69,6 +128,11 @@ EXAMPLES
 
 user1|password1|/home/user1
 user2|password2|/home/user2
+
+
+
+
+# to be supported in future:
 
 user1|password1|/home/user1|1001|1001
 user2|password2|/home/user2|1002|1002
