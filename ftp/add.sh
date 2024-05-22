@@ -44,7 +44,6 @@ openpanel_username="$4"
 DEBUG=false  # Default value for DEBUG
 
 
-
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
     case $arg in
@@ -57,47 +56,87 @@ for arg in "$@"; do
 done
 
 
-dummy_func_tobe_removed(){
-
-if [ "$DEBUG" = true ]; then
-
-else
-
-fi
-
-}
-
 
 # Function to read users from users.list files and create them
 create_user() {
-    command='echo -e "$PASS\n$PASS" | adduser -h $FOLDER -s /sbin/nologin $UID_OPT $GROUP_OPT $NAME'
-    docker exec -it openadmin_ftp sh -c "$command"
-    mkdir -p $FOLDER
-    chown 1000:33 $FOLDER
+    docker exec -it openadmin_ftp sh -c 'echo -e "${password}\n${password}" | adduser -h $directory -s /sbin/nologin $username > /dev/null 2>&1'
+
+    # Check if the command was successful
+    if [ $? -eq 0 ]; then
+        mkdir -p $directory
+        chown 1000:33 $directory
+        echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
+        echo "Success: FTP user '$username' created successfully."
+    else
+        if [ "$DEBUG" = true ]; then
+            echo "ERROR: Failed to create FTP user with command:"     
+            echo ""
+            echo "docker exec -it openadmin_ftp sh -c 'echo -e ${password}\n${password} | adduser -h $directory -s /sbin/nologin $username'"
+            echo ""
+            echo "Run the command manually to check for errors."
+        else
+            echo "ERROR: Failed to create FTP user. To debug run this command on terminal: opencli ftp-add $username $password '$directory' $openpanel_username --debug"  
+        fi
+        exit 1
+    fi
 }
 
 
-# Function to delete a user - WILL BE SEPARATED IN ANOTHER FILE!
+# Function to delete a user - WILL BE SEPARATED IN the future!
 delete_user() {
-    docker exec -it openadmin_ftp sh -c "deluser $username && rm -rf $folder"
+    docker exec -it openadmin_ftp sh -c "deluser $username && rm -rf $directory"
     echo "Success: FTP user '$username' deleted successfully."
 }
 
 
 
-# user@domain or user@openpanel_username
-if [[ ! $username == *"@"* ]]; then
-    echo "Error: FTP username must include '@' symbol in the format 'user@domain.com' or 'user@openpanel'."
+# test
+
+# user.openpanel_username
+if [[ ! $username == *".${openpanel_username}" ]]; then
+    echo "ERROR: FTP username must end with openpanel username, example: '$username.$openpanel_username'"
     exit 1
 fi
+
+
+# Check if password length is at least 8 characters
+if [ ${#password} -lt 8 ]; then
+    echo "ERROR: Password is too short. It must be at least 8 characters long."
+    exit 1
+fi
+
+# Check if password contains at least one uppercase letter
+if ! [[ $password =~ [A-Z] ]]; then
+    echo "ERROR: Password must contain at least one uppercase letter."
+    exit 1
+fi
+
+# Check if password contains at least one lowercase letter
+if ! [[ $password =~ [a-z] ]]; then
+    echo "ERROR: Password must contain at least one lowercase letter."
+    exit 1
+fi
+
+# Check if password contains at least one digit
+if ! [[ $password =~ [0-9] ]]; then
+    echo "ERROR: Password must contain at least one digit."
+    exit 1
+fi
+
+# Check if password contains at least one special character
+if ! [[ $password =~ [[:punct:]] ]]; then
+    echo "ERROR: Password must contain at least one special character."
+    exit 1
+fi
+
 
 # check if ftp user exists
 user_exists() {
     local user="$1"
-    grep -q "^$user\|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
+    grep -Fq "$user|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
 }
 
-mkdir -p /etc/openpanel/ftp/users/
+mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
 touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
 
 # Check if user already exists
@@ -110,17 +149,17 @@ fi
 if [[ $directory != /home/$openpanel_username* ]]; then
     echo "ERROR: Invalid folder '$directory' - folder must start with '/home/$openpanel_username/'."
     exit 1
-else
+fi
 
-# If user does not exist, add them to the file
-echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${username}/users.list
+
+
+
+
+
+
 
 # and in the ftp container:
 create_user
-
-# Output success message
-echo "Success: FTP user '$username' created successfully."
-
 
 
 : '
