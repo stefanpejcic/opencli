@@ -28,9 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# set aliases
-ln -s /usr/local/admin/scripts/version /usr/local/admin/scripts/v
-
 # Make all bash scripts in this directory executable for root only
 chown root:root /usr/local/admin/scripts/*
 
