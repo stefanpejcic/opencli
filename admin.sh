@@ -57,9 +57,9 @@ if systemctl is-active --quiet $service_name; then
         ip=$(get_public_ip)
         admin_url="http://${ip}:2087/"
     fi
-    echo -e "${GREEN}●${RESET} AdminPanel is running and is available on: $admin_url"
+    echo -e "${GREEN}●${RESET} OpenAdmin is running and is available on: $admin_url"
 else
-     echo -e "${RED}×${RESET} AdminPanel is not running. To enable it run 'opencli admin on' "
+     echo -e "${RED}×${RESET} OpenAdmin is not running. To enable it run 'opencli admin on' "
 fi
 }
 
@@ -222,13 +222,13 @@ update_config() {
 case "$1" in
     "on")
         # Enable admin panel service
-        echo "Enabling the AdminPanel..."
+        echo "Enabling the OpenAdmin..."
         systemctl enable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
     "off")
         # Disable admin panel service
-        echo "Disabling the AdminPanel..."
+        echo "Disabling the OpenAdmin..."
         systemctl disable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
