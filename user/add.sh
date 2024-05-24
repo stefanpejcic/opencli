@@ -30,10 +30,7 @@
 ################################################################################
 
 if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username> <password|generate> <email> <plan_id> [--debug]"
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_id> [--debug]"
     exit 1
 fi
 
@@ -107,7 +104,7 @@ is_username_forbidden() {
 }
 
 if is_username_forbidden "$username"; then
-    echo "Error: The username '$username' is not allowed. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
+    echo "Error: The username '$username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
     exit 1
 fi
 
@@ -161,7 +158,6 @@ if [ -z "$cpu_ram_info" ]; then
 fi
 
 # Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
-#disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}')
 disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
 cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
 ram=$(echo "$cpu_ram_info" | awk '{print $2}')
