@@ -5,7 +5,7 @@
 # Usage: opencli <COMMAND-NAME>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 30.11.2023
+# Last Modified: 24.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -39,6 +39,11 @@ script_dir="/usr/local/admin/scripts"
 
 # Get the binary name from the first argument
 binary_name="$1"
+
+# '-v' is alias for '--version'
+if [ "$binary_name" = "-v" ]; then
+  binary_name="--version"
+fi
 
 # Replace '-' with '/' in the binary name
 binary_command="${binary_name//-//}"
