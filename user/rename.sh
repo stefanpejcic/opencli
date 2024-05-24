@@ -49,7 +49,7 @@ for arg in "$@"; do
 done
 
 #1. check for forbidden usernames
-readarray -t forbidden_usernames < /usr/local/admin/scripts/helpers/forbidden_usernames.txt
+readarray -t forbidden_usernames < /etc/openpanel/openadmin/config/forbidden_usernames.txt
 
 ensure_jq_installed() {
     # Check if jq is installed
