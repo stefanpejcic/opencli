@@ -5,7 +5,7 @@
 # Usage: opencli <COMMAND-NAME>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 24.05.2024
+# Last Modified: 25.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -45,11 +45,20 @@ if [ "$binary_name" = "-v" ]; then
   binary_name="--version"
 fi
 
+
+
 # Replace '-' with '/' in the binary name
 binary_command="${binary_name//-//}"
 
 # Build the full path to the binary
 binary_path="$script_dir/$binary_command"
+
+
+if [ "$binary_name" = "blacklist" ]; then
+  binary_path="/usr/ipset-blacklist.sh"
+fi
+
+
 
 # Check if the binary exists and is executable
 if [ -x "$binary_path" ]; then
@@ -63,6 +72,6 @@ if [ -x "$binary_path" ]; then
     "$binary_path"
   fi
 else
-  echo "Error: Command '$binary_command' not found or not executable in '$script_dir'"
+  echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist or not executable."
   exit 1
 fi
