@@ -341,9 +341,11 @@ fi
 
 
 change_default_email () {
+    # set default sender email address
     hostname=$(hostname)
-    sed -i "s/^from\s\+.*/from       \${username}@\${hostname}/" /etc/msmtprc
+    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"
 }
+
 
 
 
@@ -492,9 +494,6 @@ if [ -n "$uid_1000_user" ]; then
   echo "$username:$password" | docker exec -i "$username" chpasswd
   docker exec $username usermod -aG www-data $username
   docker exec $username chmod -R g+w /home/$username
-  
-  change_default_email
-
   if [ "$DEBUG" = true ]; then
     echo "User $uid_1000_user renamed to $username with password: $password"
   fi
@@ -514,6 +513,8 @@ else
   fi
 fi
 
+
+change_default_email
 
 
 if [ "$DEBUG" = true ]; then
