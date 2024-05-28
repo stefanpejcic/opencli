@@ -342,7 +342,7 @@ fi
 
 change_default_email () {
     hostname=$(hostname)
-    sed -i "s/^from\s\+.*/from       \${new_username}@\${hostname}/" /etc/msmtprc
+    sed -i "s/^from\s\+.*/from       \${username}@\${hostname}/" /etc/msmtprc
 }
 
 
