@@ -356,6 +356,7 @@ if [ "$DEBUG" = true ]; then
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
+          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image
 
@@ -368,6 +369,7 @@ if [ "$DEBUG" = true ]; then
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
+          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image
     fi
@@ -377,6 +379,7 @@ else
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
+          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image  > /dev/null 2>&1
     else
@@ -384,6 +387,7 @@ else
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
+          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image  > /dev/null 2>&1
     fi
