@@ -490,7 +490,7 @@ if [ -n "$uid_1000_user" ]; then
     echo "Renaming user $uid_1000_user to $username and setting its password..."
   fi
 
-  docker exec $username usermod -l $username -d /home/$username -m $uid_1000_user
+  docker exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1
   echo "$username:$password" | docker exec -i "$username" chpasswd
   docker exec $username usermod -aG www-data $username
   docker exec $username chmod -R g+w /home/$username
