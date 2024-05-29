@@ -11,6 +11,43 @@ RESET='\033[0m'
 
 
 
+
+# Display usage information
+usage() {
+    echo "Usage: opencli admin <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  on                                            Enable and start the OpenAdmin service."
+    echo "  off                                           Stop and disable the OpenAdmin service."
+    echo "  log                                           Display the last 25 lines of the OpenAdmin error log."
+    echo "  list                                          List all current admin users."
+    echo "  new <user> <pass>                             Add a new user with the specified username and password."
+    echo "  password <user> <pass>                        Reset the password for the specified admin user."
+    echo "  rename <old> <new>                            Change the admin username."
+    echo "  suspend <user>                                Suspend admin user."
+    echo "  unsuspend <user>                              Unsuspend admin user."
+    echo "  notifications <command> <param> [value]       Control notification preferences."
+    echo ""
+    echo "  Notifications Commands:"
+    echo "    get <param>                                 Get the value of the specified notification parameter."
+    echo "    update <param> <value>                      Update the specified notification parameter with the new value."
+    echo ""
+    echo "Examples:"
+    echo "  opencli admin on"
+    echo "  opencli admin off"
+    echo "  opencli admin log"
+    echo "  opencli admin list"
+    echo "  opencli admin new newuser newpassword"
+    echo "  opencli admin password admin newpassword"
+    echo "  opencli admin rename olduser newuser"
+    echo "  opencli admin suspend username"
+    echo "  opencli admin unsuspend username"
+    echo "  opencli admin notifications get ssl"
+    echo "  opencli admin notifications update ssl true"
+    exit 1
+}
+
+
 read_config() {
     config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
     echo "$config"
@@ -241,6 +278,10 @@ case "$1" in
         systemctl disable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
+    "help")
+        # Show usage
+        usage
+        ;;
     "password")
         # Reset password for admin user
         user_flag="$2"
@@ -300,7 +341,7 @@ case "$command" in
         ;;
     update)
         if [ "$#" -ne 4 ]; then
-            echo "Usage: $0 notifications update <parameter_name> <new_value>"
+            echo "Usage: opencli admin notifications update <parameter_name> <new_value>"
             exit 1
         fi
         new_value="$4"
@@ -320,7 +361,8 @@ case "$command" in
         esac
         ;;
     *)
-        echo "Invalid command. Usage: $0 [get|update] <parameter_name> [new_value]"
+        echo "Invalid command."
+        usage
         exit 1
         ;;
 esac
