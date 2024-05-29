@@ -2,6 +2,7 @@
 
 CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
 service_name="admin"
+admin_logs_file="/var/log/openpanel/admin/error.log"
 #logins_file_path="/usr/local/admin/config.py"
 db_file_path="/usr/local/admin/users.db"
 GREEN='\033[0;32m'
@@ -221,10 +222,18 @@ update_config() {
 
 case "$1" in
     "on")
-        # Enable admin panel service
+        # Enable and check
         echo "Enabling the OpenAdmin..."
         systemctl enable --now $service_name > /dev/null 2>&1
         detect_service_status
+        ;;
+    "log")
+        # tail logs
+        echo "OpenAdmin error log:"
+        systemctl enable --now $service_name > /dev/null 2>&1
+        echo ""
+        tail -25 $admin_logs_file
+        echo ""
         ;;
     "off")
         # Disable admin panel service
