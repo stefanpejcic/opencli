@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/change_plan.sh
 # Description: Change plan for a user and apply new plan limits.
-# Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_ID>
+# Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 17.11.2023
+# Last Modified: 30.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -30,15 +30,12 @@
 
 # Check if the correct number of parameters is provided
 if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username> <new_plan_id>"
+    echo "Usage: opencli user-change-plan <username> <new_plan_name>"
     exit 1
 fi
 
 container_name=$1
-new_plan_id=$2
+new_plan_name=$2
 
 debug=false
 for arg in "$@"
@@ -67,6 +64,14 @@ get_plan_limits() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 }
 
+
+get_new_plan_id() {
+    local plan_name="$1"
+    local query="SELECT id FROM plans WHERE name = '$plan_name'"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
+}
+
+
 # Function to fetch single plan limit for a given plan ID and resource type
 get_plan_limit() {
     local plan_id="$1"
@@ -88,7 +93,7 @@ get_plan_name() {
 current_plan_id=$(get_current_plan_id "$container_name")
 
 current_plan_name=$(get_plan_name "$current_plan_id")
-new_plan_name=$(get_plan_name "$new_plan_id")
+new_plan_id=$(get_new_plan_id "$new_plan_name")
 
 # Check if the container exists
 if [ -z "$current_plan_id" ]; then
