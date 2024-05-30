@@ -358,7 +358,6 @@ if [ "$DEBUG" = true ]; then
         echo "Run with disk size of ${disk_limit}G."
         docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
@@ -371,7 +370,6 @@ if [ "$DEBUG" = true ]; then
         echo "Run with NO disk size limit."
         docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
@@ -381,15 +379,16 @@ else
     if [ "$disk_limit" -ne 0 ]; then
         docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image  > /dev/null 2>&1
     else
+
+    ####           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+
         docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /home/$username:/home/$username \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
