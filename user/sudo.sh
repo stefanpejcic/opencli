@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#sudo
 # Author: Stefan Pejcic
 # Created: 1/.05.2024
-# Last Modified: 10.05.2024
+# Last Modified: 30.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -49,7 +49,7 @@ fi
 
 if [ "$action" == "enable" ]; then
     docker exec "$container_id" sed -i "s/SUDO=\"[^\"]*\"/SUDO=\"YES\"/" "$entrypoint_path"
-    docker exec "$container_id" usermod -aG sudo -u "$username"
+    #docker exec "$container_id" usermod -aG sudo -u "$username"
     echo "SUDO enabled for user $username."
 elif [ "$action" == "disable" ]; then
     docker exec "$container_id" sed -i "s/SUDO=\"[^\"]*\"/SUDO=\"NO\"/" "$entrypoint_path"
