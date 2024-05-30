@@ -56,11 +56,11 @@ elif [ "$action" == "disable" ]; then
     docker exec "$container_id" sed -i "/^sudo:.*$username/d" /etc/group
     echo "SUDO disabled for user $username."
 elif [ "$action" == "status" ]; then
-    status=$(docker exec "$container_id" grep -o 'SUDO="[^"]*"' "$entrypoint_path" | cut -d'"' -f2)
+    status=$(docker exec "$container_id" grep -m 1 -o 'SUDO="[^"]*"' "$entrypoint_path" | cut -d'"' -f2)
     if [ "$status" == "YES" ]; then
-        echo "SUDO is enabled."
+        echo "SUDO is enabled for user ${username}."
     elif [ "$status" == "NO" ]; then
-        echo "SUDO is disabled."
+        echo "SUDO is disabled for user ${username}."
     else
         echo "Unknown status."
         exit 1
