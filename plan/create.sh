@@ -140,10 +140,7 @@ check_available_ram() {
 
 # Check for command-line arguments
 if [ "$#" -ne 12 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
+    echo "Usage: opencli plan-create name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
 
@@ -161,6 +158,12 @@ ram="$9"
 docker_image="${10}"
 bandwidth="${11}"
 storage_file="${12}"
+
+# added in 0.1.9 because WHMCS needs plan_name instead of plan_id
+name="${name,,}"
+name="${name// /_}"
+
+
 
 # Check available CPU cores before creating the plan
 check_cpu_cores "$cpu"
