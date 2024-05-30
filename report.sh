@@ -59,7 +59,6 @@ check_services_status() {
   echo "=== Services Status ===" >> "$output_file"
   run_command "systemctl status nginx" "Nginx Status"
   run_command "systemctl status docker" "Docker Status"
-  run_command "systemctl status mysql" "MySQL Status"
   run_command "systemctl status ufw" "UFW Status"
   run_command "systemctl status named" "BIND9 Status"
   run_command "systemctl status admin" "Admin Service Status"
@@ -75,6 +74,7 @@ display_openpanel_settings() {
 # Function to display MySQL information
 display_mysql_information() {
   echo "=== MySQL Information ===" >> "$output_file"
+  run_command "docker logs --tail 100 openpanel_mysql" "openpanel_mysql docker container logs"
   run_command "cat /usr/local/admin/config.json" "MySQL login information for OpenPanel and OpenAdmin services"
   run_command "cat /usr/local/admin/db.cnf" "MySQL login information for OpenCLI scripts"
 }
