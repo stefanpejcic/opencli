@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/add.sh
-# Description: Create a new user with the provided plan_id.
-# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_ID>
+# Description: Create a new user with the provided plan_name.
+# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_NAME>
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 28.05.2024
+# Last Modified: 30.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -30,14 +30,14 @@
 ################################################################################
 
 if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_id> [--debug]"
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--debug]"
     exit 1
 fi
 
 username="${1,,}"
 password="$2"
 email="$3"
-plan_id="$4"
+plan_name="$4"
 DEBUG=false  # Default value for DEBUG
 hostname=$(hostname) # Get the hostname dynamically
 
@@ -139,8 +139,8 @@ fi
 
 #Get CPU, DISK, INODES and RAM limits for the plan
 
-# Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_id from the MySQL table
-query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file FROM plans WHERE id = '$plan_id'"
+# Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
+query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file, id FROM plans WHERE name = '$plan_name'"
 
 # Execute the MySQL query and store the results in variables
 cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -153,7 +153,7 @@ fi
 
 # Check if any results were returned
 if [ -z "$cpu_ram_info" ]; then
-    echo "Error: Plan with ID $plan_id not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
+    echo "Error: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
     exit 1
 fi
 
@@ -165,6 +165,7 @@ inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
 bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
 name=$(echo "$cpu_ram_info" | awk '{print $8}')
 storage_file=$(echo "$cpu_ram_info" | awk '{print $9}' | sed 's/ //;s/B//')
+plan_id=$(echo "$cpu_ram_info" | awk '{print $11}')
 disk_size_needed_for_docker_and_storage=$((disk_limit + storage_file))
 
 # Get the available free space on the disk
@@ -204,6 +205,7 @@ docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 
 # Check if DEBUG is true before printing debug messages
 if [ "$DEBUG" = true ]; then
+    echo "PLAN ID: $plan_id" 
     echo "DOCKER_IMAGE: $docker_image"
     echo "DISK: $disk_limit"
     echo "CPU: $cpu"
