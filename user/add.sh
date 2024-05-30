@@ -350,6 +350,12 @@ change_default_email () {
 
 
 
+temp_fix_for_nginx_default_site_missing() {
+ mkdir -p /home/$username/etc/$path/sites-available
+ echo >> /home/$username/etc/$path/sites-available/default
+
+}
+
 
 # Create the docker container
 if [ "$DEBUG" = true ]; then
@@ -359,6 +365,7 @@ if [ "$DEBUG" = true ]; then
         docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username:/home/$username \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image
@@ -371,6 +378,7 @@ if [ "$DEBUG" = true ]; then
         docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username:/home/$username \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image
@@ -380,6 +388,7 @@ else
         docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username:/home/$username \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image  > /dev/null 2>&1
@@ -390,6 +399,7 @@ else
         docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
           -v /home/$username/var/crons:/var/spool/cron/crontabs \
           -v /home/$username:/home/$username \
+          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
           -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
           --restart unless-stopped \
           --hostname $hostname $docker_image  > /dev/null 2>&1
