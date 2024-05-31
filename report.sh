@@ -110,7 +110,7 @@ run_command "free -h" "Memory Information"
 run_command "df -h" "Disk Information"
 
 # Collect application information
-run_command "opencli v" "OpenPanel version"
+run_command "opencli -v" "OpenPanel version"
 run_command "mysql --protocol=tcp --version" "MySQL Version"
 run_command "python3 --version" "Python Version"
 run_command "docker info" "Docker Information"
