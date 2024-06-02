@@ -357,54 +357,50 @@ temp_fix_for_nginx_default_site_missing() {
 }
 
 
-# Create the docker container
-if [ "$DEBUG" = true ]; then
-    echo "Starting docker run command"
+run_docker() {
+    # Get the storage driver used by Docker
+    storage_driver=$(docker info --format '{{.Driver}}')
+    local disk_limit_param=""
     if [ "$disk_limit" -ne 0 ]; then
-        echo "Run with disk size of ${disk_limit}G."
-        docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
-          -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username:/home/$username \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
-          --restart unless-stopped \
-          --hostname $hostname $docker_image
-
-        echo "Command used is:"
-        echo "docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus=$cpu --memory=$ram -v /home/$username/var/crons:/var/spool/cron/crontabs -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available -v /home/$username:/home/$username --restart unless-stopped --hostname $hostname $docker_image"
-        echo ""
+        # Check if the storage driver is overlay or devicemapper
+        if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+            if [ "$DEBUG" = true ]; then
+                echo "Docker is using the overlay storage driver which does not support disk limits on XFS."
+                echo "Run without disk size of ${disk_limit}G."
+            fi
+        elif [ "$storage_driver" == "devicemapper" ]; then
+            if [ "$DEBUG" = true ]; then
+                echo "Docker is using the devicemapper storage driver which supports disk limits."
+                echo "Run with disk size of ${disk_limit}G."
+            fi
+            disk_limit_param="--storage-opt size=${disk_limit}G"
+        else
+            echo "Docker is using a different storage driver: $storage_driver"
+            echo "Run without disk size of ${disk_limit}G."
+        fi
     else
         echo "Run with NO disk size limit."
-        docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
-          -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username:/home/$username \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
-          --restart unless-stopped \
-          --hostname $hostname $docker_image
     fi
-else
-    if [ "$disk_limit" -ne 0 ]; then
-        docker run --network $name -d --name $username -P --storage-opt size=${disk_limit}G --cpus="$cpu" --memory="$ram" \
-          -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username:/home/$username \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
-          --restart unless-stopped \
-          --hostname $hostname $docker_image  > /dev/null 2>&1
+
+    local docker_cmd="docker run --network $name -d --name $username -P $disk_limit_param --cpus=\"$cpu\" --memory=\"$ram\" \
+      -v /home/$username/var/crons:/var/spool/cron/crontabs \
+      -v /home/$username:/home/$username \
+      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
+      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
+      --restart unless-stopped \
+      --hostname $hostname $docker_image"
+
+    if [ "$DEBUG" = true ]; then
+        echo ""
+        echo "docker run command:"
+        echo "$docker_cmd"
+        echo ""
+        $docker_cmd
     else
-
-    ####           -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-
-        docker run --network $name -d --name $username -P --cpus="$cpu" --memory="$ram" \
-          -v /home/$username/var/crons:/var/spool/cron/crontabs \
-          -v /home/$username:/home/$username \
-          -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-          -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
-          --restart unless-stopped \
-          --hostname $hostname $docker_image  > /dev/null 2>&1
+        $docker_cmd > /dev/null 2>&1
     fi
-fi
+}
+
 
 
 
