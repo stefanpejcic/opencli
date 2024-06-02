@@ -40,7 +40,7 @@ email="$3"
 plan_name="$4"
 DEBUG=false  # Default value for DEBUG
 hostname=$(hostname) # Get the hostname dynamically
-
+storage_driver=$(docker info --format '{{.Driver}}')
 
 
 
@@ -205,17 +205,25 @@ docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 
 # Check if DEBUG is true before printing debug messages
 if [ "$DEBUG" = true ]; then
-    echo "PLAN ID: $plan_id" 
-    echo "DOCKER_IMAGE: $docker_image"
-    echo "DISK: $disk_limit"
-    echo "CPU: $cpu"
-    echo "RAM: $ram"
-    echo "INODES: $inodes"
-    echo "STORAGE FILE: $storage_file"
-    echo "BANDWIDTH: $bandwidth"
-    echo "NAME: $name"
-    echo "disk_size_needed_for_docker_and_storage: $disk_size_needed_for_docker_and_storage"
+    echo ""
+    echo "----------------- DEBUG INFORMATION ------------------"
+    echo ""
+    echo "Selected plan limits from database:"
+    echo ""
+    echo "- PLAN ID: $plan_id" 
+    echo "- DOCKER_IMAGE: $docker_image"
+    echo "- DISK QUOTA: $disk_limit"
+    echo "- CPU: $cpu"
+    echo "- RAM: $ram"
+    echo "- INODES: $inodes"
+    echo "- STORAGE FILE: $storage_file"
+    echo "- BANDWIDTH: $bandwidth"
+    echo "- NAME: $name"
+    echo "- TOTAL DISK NEEDED: $disk_size_needed_for_docker_and_storage"
     #echo "RAM Soft Limit: $ram_soft_limit MB"
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
 fi
 
 # Check if the Docker image exists locally, if not we can not create a user on that plan..
@@ -238,12 +246,16 @@ if [ "$storage_file" -eq 0 ]; then
     echo "Storage file size is 0. Skipping storage file creation."
     fi
 else
-    if [ "$DEBUG" = true ]; then
-        fallocate -l ${storage_file}g /home/storage_file_$username
-        mkfs.ext4 -N $inodes /home/storage_file_$username
-    else
-        fallocate -l ${storage_file}g /home/storage_file_$username > /dev/null 2>&1
-        mkfs.ext4 -N $inodes /home/storage_file_$username > /dev/null 2>&1
+    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+        echo "Run without creating /home/storage_file_$username"
+    elif [ "$storage_driver" == "devicemapper" ]; then
+        if [ "$DEBUG" = true ]; then
+            fallocate -l ${storage_file}g /home/storage_file_$username
+            mkfs.ext4 -N $inodes /home/storage_file_$username
+        else
+            fallocate -l ${storage_file}g /home/storage_file_$username > /dev/null 2>&1
+            mkfs.ext4 -N $inodes /home/storage_file_$username > /dev/null 2>&1
+        fi
     fi
 
 fi
@@ -259,14 +271,19 @@ if [ "$storage_file" -eq 0 ]; then
     if [ "$DEBUG" = true ]; then
     echo "No mounting needed.."
     fi
-else
-    
-    if [ "$DEBUG" = true ]; then
-        mount -o loop /home/storage_file_$username /home/$username
-    else
-        mount -o loop /home/storage_file_$username /home/$username > /dev/null 2>&1
-    fi
-    
+elif [ "$disk_limit" -ne 0 ]; then
+        # Check if the storage driver is overlay or devicemapper
+        if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+            if [ "$DEBUG" = true ]; then
+                echo "Run without mounting /home/storage_file_$username"
+            fi
+        elif [ "$storage_driver" == "devicemapper" ]; then
+            if [ "$DEBUG" = true ]; then
+                mount -o loop /home/storage_file_$username /home/$username
+            else
+                mount -o loop /home/storage_file_$username /home/$username > /dev/null 2>&1
+            fi
+        fi
 fi
 
 ## Function to create a Docker network with bandwidth limiting
@@ -382,7 +399,7 @@ run_docker() {
         echo "Run with NO disk size limit."
     fi
 
-    local docker_cmd="docker run --network $name -d --name $username -P $disk_limit_param --cpus=\"$cpu\" --memory=\"$ram\" \
+    local docker_cmd="docker run --network $name -d --name $username -P $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
@@ -392,9 +409,12 @@ run_docker() {
 
     if [ "$DEBUG" = true ]; then
         echo ""
-        echo "docker run command:"
+        echo "------------------------------------------------------"
+        echo ""
+        echo "DOCKER RUN COMMAND:"
         echo "$docker_cmd"
         echo ""
+        echo "------------------------------------------------------"
         $docker_cmd
     else
         $docker_cmd > /dev/null 2>&1
@@ -442,6 +462,14 @@ container_ports=("22" "3306" "7681" "8080")
 # Variable to track whether any ports were opened
 ports_opened=0
 
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+    echo "OPENING PORTS ON FIREWAL FOR THE NEW USER:" 
+    echo ""
+fi
+
 # Loop through the container_ports array and open the ports in UFW if not already open
 for port in "${container_ports[@]}"; do
     host_port=$(extract_host_port "$port")
@@ -477,6 +505,25 @@ if [ $ports_opened -eq 1 ]; then
     fi
 fi
 
+
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+fi
+
+
+
+
+
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+    echo "SETTING SSH USER INSIDE DOCKER CONTIANER:"
+    echo ""
+fi
+
 # Generate a random password if the second argument is "generate"
 if [ "$password" == "generate" ]; then
     password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
@@ -485,9 +532,7 @@ fi
 # Hash password
 hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
 
-if [ "$DEBUG" = true ]; then
-  echo "Checking for user with UID 1000 inside the docker container..."
-fi
+
 
 uid_1000_user=$(docker exec $username getent passwd 1000 | cut -d: -f1)
 
@@ -539,6 +584,15 @@ fi
 
 
 
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+    echo "CREATING CONFIGURATION FILES FOR NEW USER:"
+    echo ""
+fi
+
+
 # Define the path to the main configuration file
 panel_config_file="/usr/local/panel/conf/panel.config"
 
@@ -555,27 +609,29 @@ fi
 
 # Create files and folders needed for the user account
 if [ "$DEBUG" = true ]; then
+    mkdir -p /usr/local/panel/core/users
     mkdir -p /usr/local/panel/core/stats/$username
-    mkdir -p /usr/local/panel/core/users/$username
-    mkdir -p /usr/local/panel/core/users/$username/domains
-    touch /usr/local/panel/core/users/$username/elastic.lock #elasticsearch is not installed
-    touch /usr/local/panel/core/users/$username/redis.lock #redis is not installed
-    touch /usr/local/panel/core/users/$username/memcached.lock #memcached is not installed
+    cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/stats/$username/
     echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
     opencli php-get_available_php_versions $username
 else
+    mkdir -p /usr/local/panel/core/users  > /dev/null 2>&1
     mkdir -p /usr/local/panel/core/stats/$username  > /dev/null 2>&1
-    mkdir -p /usr/local/panel/core/users/$username  > /dev/null 2>&1
-    mkdir -p /usr/local/panel/core/users/$username/domains  > /dev/null 2>&1
-    touch /usr/local/panel/core/users/$username/elastic.lock  > /dev/null 2>&1 #elasticsearch is not installed
-    touch /usr/local/panel/core/users/$username/redis.lock  > /dev/null 2>&1 #redis is not installed
-    touch /usr/local/panel/core/users/$username/memcached.lock  > /dev/null 2>&1 #memcached is not installed
-    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
-    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+    cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/stats/$username/  > /dev/null 2>&1
+    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml  > /dev/null 2>&1
+    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml  > /dev/null 2>&1
     opencli php-get_available_php_versions $username  > /dev/null 2>&1
 fi
 
+
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+    echo "SAVING NEW USER TO DATABASE:"
+    echo ""
+fi
 
 
 # Insert data into MySQL database
