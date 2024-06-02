@@ -401,7 +401,7 @@ run_docker() {
     fi
 }
 
-
+run_docker
 
 
 # Check the status of the created container
