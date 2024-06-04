@@ -3,15 +3,27 @@
 #########################################################################
 ############################### DB LOGIN ################################ 
 #########################################################################
-    # MySQL database configuration
-    config_file="/usr/local/admin/db.cnf"
+# MySQL database configuration
+config_files=("/etc/my.cnf" "/etc/openpanel/openadmin/config/db.cnf" "/usr/local/admin/db.cnf") # for compatibility with openpanel <0.2.0
 
-    # Check if the config file exists
-    if [ ! -f "$config_file" ]; then
-        echo "Config file $config_file not found."
-        exit 1
-    fi
+# Function to check if a config file exists
+check_config_file() {
+    for config_file in "${config_files[@]}"; do
+        if [ -f "$config_file" ]; then
+            echo "Using config file $config_file."
+            return 0
+        fi
+    done
+    return 1
+}
 
-    mysql_database="panel"
+# Check for the config file in the specified order
+if ! check_config_file; then
+    echo "No mysql config files found in the specified locations."
+    exit 1
+fi
+
+# Define the MySQL database name
+mysql_database="panel"
 
 #########################################################################
