@@ -10,7 +10,7 @@ config_files=("/etc/my.cnf" "/etc/openpanel/openadmin/config/db.cnf" "/usr/local
 check_config_file() {
     for config_file in "${config_files[@]}"; do
         if [ -f "$config_file" ]; then
-            echo "Using config file $config_file."
+            #echo "Using config file $config_file."
             return 0
         fi
     done
