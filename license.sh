@@ -30,7 +30,8 @@
 
 
 CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
-
+WHMCS_URL="https://panel.hostio.rs/modules/servers/licensing/verify.php"
+IP_URL="https://ip.openpanel.co"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -81,10 +82,10 @@ get_license_key_and_verify_on_my_openpanel() {
         echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
         exit 1
     else
-        ip_address=$(curl -sS https://ip.openpanel.co)  # Get the public IP address
+        ip_address=$(curl -sS $IP_URL)  # Get the public IP address
         check_token=$(openssl rand -hex 16)  # Generate a random token
         
-        response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php)
+        response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" $WHMCS_URL)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
         
         if [ "$license_status" = "Active" ]; then
@@ -105,10 +106,10 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
         echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
         exit 1
     else
-        ip_address=$(curl -sS https://ip.openpanel.co)  # Get the public IP address
+        ip_address=$(curl -sS $IP_URL)  # Get the public IP address
         check_token=$(openssl rand -hex 16)  # Generate a random token
         
-        response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php)
+        response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" $WHMCS_URL)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
         
         if [ "$license_status" = "Active" ]; then
