@@ -5,7 +5,7 @@
 # Usage: opencli license verify 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 29.05.2024
+# Last Modified: 08.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -84,8 +84,10 @@ get_license_key_and_verify_on_my_openpanel() {
         check_token=$(openssl rand -hex 16)  # Generate a random token
         
         response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php)
-        
-        if [ "$response" = "valid" ]; then
+        license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
+        #echo "curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php"
+        #echo $response
+        if [ "$license_status" = "Active" ]; then
             echo -e "${GREEN}License is valid${RESET}"
         else
             echo -e "${RED}License is invalid${RESET}"
@@ -109,8 +111,13 @@ case "$1" in
         ;;
     "delete")
         # remove the key and reload admin
-        opencli config update key ""
+        opencli config update key "" > /dev/null
         service admin restart
+        ;;
+    "enterprise-"*)
+        # Update the license key "enterprise-"
+        new_key=$1
+        opencli config update key "$new_key" > /dev/null
         ;;
     *)
         echo -e "${RED}Invalid command.${RESET}"
