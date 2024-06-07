@@ -28,6 +28,22 @@
 # THE SOFTWARE.
 ################################################################################
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
+ensure_jq_installed
+
 # Function to apply permissions and ownership changes within a Docker container
 apply_permissions_in_container() {
   local container_name="$1"
@@ -70,7 +86,7 @@ apply_permissions_in_container() {
 if [ "$1" == "--all" ]; then
   if [ $# -eq 1 ]; then
     # Apply changes to all running Docker containers
-    for container in $(docker ps --format '{{.Names}}'); do
+    for container in $(opencli user-list --json | jq -r '.[].username'); do
       apply_permissions_in_container "$container"
     done
   else
