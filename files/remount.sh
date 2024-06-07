@@ -28,9 +28,24 @@
 # THE SOFTWARE.
 ################################################################################
 
+ensure_jq_installed() {
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        # Install jq using apt
+        sudo apt-get update > /dev/null 2>&1
+        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Check if installation was successful
+        if ! command -v jq &> /dev/null; then
+            echo "Error: jq installation failed. Please install jq manually and try again."
+            exit 1
+        fi
+    fi
+}
+
+ensure_jq_installed
 
 # Step 1: List all container names
-container_names=$(docker ps -a --format '{{.Names}}')
+container_names=$(opencli user-list --json | jq -r '.[].username')
 
 # Step 2: Loop through container names and check for storage files
 for container_name in $container_names; do
