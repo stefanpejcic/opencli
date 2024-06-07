@@ -44,6 +44,7 @@ usage() {
     echo "Commands:"
     echo "  key                                           View current license key."
     echo "  verify                                        Verify the license key."
+    echo "  info                                          Display information about the license owner and exparation."
     echo "  delete                                        Delete the license key and downgrade OpenPanel to Community edition."
     exit 1
 }
@@ -85,8 +86,7 @@ get_license_key_and_verify_on_my_openpanel() {
         
         response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
-        #echo "curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php"
-        #echo $response
+        
         if [ "$license_status" = "Active" ]; then
             echo -e "${GREEN}License is valid${RESET}"
         else
@@ -97,6 +97,67 @@ get_license_key_and_verify_on_my_openpanel() {
 }
 
 
+get_license_key_and_verify_on_my_openpanel_then_show_info() {
+    config=$(read_config)
+    license_key=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
+
+    if [ -z "$license_key" ]; then
+        echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
+        exit 1
+    else
+        ip_address=$(curl -sS https://ip.openpanel.co)  # Get the public IP address
+        check_token=$(openssl rand -hex 16)  # Generate a random token
+        
+        response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" https://panel.hostio.rs/modules/servers/licensing/verify.php)
+        license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
+        
+        if [ "$license_status" = "Active" ]; then
+            #echo -e "${GREEN}License is valid${RESET}"
+            registered_name=$(echo "$response" | grep -oP '(?<=<registeredname>).*?(?=</registeredname>)')
+            company_name=$(echo "$response" | grep -oP '(?<=<companyname>).*?(?=</companyname>)')
+            email=$(echo "$response" | grep -oP '(?<=<email>).*?(?=</email>)')
+            #service_id=$(echo "$response" | grep -oP '(?<=<serviceid>).*?(?=</serviceid>)')
+            #product_id=$(echo "$response" | grep -oP '(?<=<productid>).*?(?=</productid>)')
+            product_name=$(echo "$response" | grep -oP '(?<=<productname>).*?(?=</productname>)')
+            reg_date=$(echo "$response" | grep -oP '(?<=<regdate>).*?(?=</regdate>)')
+            next_due_date=$(echo "$response" | grep -oP '(?<=<nextduedate>).*?(?=</nextduedate>)')
+            billing_cycle=$(echo "$response" | grep -oP '(?<=<billingcycle>).*?(?=</billingcycle>)')
+            #valid_domain=$(echo "$response" | grep -oP '(?<=<validdomain>).*?(?=</validdomain>)')
+            valid_ip=$(echo "$response" | grep -oP '(?<=<validip>).*?(?=</validip>)')
+            #valid_directory=$(echo "$response" | grep -oP '(?<=<validdirectory>).*?(?=</validdirectory>)')
+            #config_options=$(echo "$response" | grep -oP '(?<=<configoptions>).*?(?=</configoptions>)')
+            #custom_fields=$(echo "$response" | grep -oP '(?<=<customfields>).*?(?=</customfields>)')
+            #addons=$(echo "$response" | grep -oP '(?<=<addons>).*?(?=</addons>)')
+            #md5_hash=$(echo "$response" | grep -oP '(?<=<md5hash>).*?(?=</md5hash>)')
+
+            echo "Owner: $registered_name"
+            echo "Company Name: $company_name"
+            echo "Email: $email"
+            #echo "Service ID: $service_id"
+            #echo "Product ID: $product_id"
+            echo "License Type: $product_name"
+            echo "Registration Date: $reg_date"
+            echo "Next Due Date: $next_due_date"
+            echo "Billing Cycle: $billing_cycle"
+            #echo "Valid Domain: $valid_domain"
+            echo "Valid IP: $valid_ip"
+            #echo "Valid Directory: $valid_directory"
+            #echo "Config Options: $config_options"
+            #echo "Custom Fields: $custom_fields"
+            #echo "Addons: $addons"
+            #echo "MD5 Hash: $md5_hash"
+        else
+            echo -e "${RED}License is invalid${RESET}"
+            exit 1
+        fi
+    fi
+}
+
+
+
+
+
+
 
 
 case "$1" in
@@ -104,6 +165,10 @@ case "$1" in
         # Display the key
         license_key=$(get_license_key)
         echo $license_key
+        ;;
+    "info")
+        # display license info from whmcs
+        get_license_key_and_verify_on_my_openpanel_then_show_info
         ;;
     "verify")
         # check license on whmcs
@@ -117,7 +182,11 @@ case "$1" in
     "enterprise-"*)
         # Update the license key "enterprise-"
         new_key=$1
-        opencli config update key "$new_key" > /dev/null
+        if opencli config update key "$new_key" > /dev/null; then
+            echo -e "License key ${GREEN}${new_key}${RESET} added."
+        else
+            echo -e "${RED}Failed to save the license key.${RESET}"
+        fi
         ;;
     *)
         echo -e "${RED}Invalid command.${RESET}"
