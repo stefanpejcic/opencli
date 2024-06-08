@@ -30,7 +30,7 @@
 
 
 CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
-WHMCS_URL="https://panel.hostio.rs/modules/servers/licensing/verify.php"
+WHMCS_URL="https://my.openpanel.co/modules/servers/licensing/verify.php"
 IP_URL="https://ip.openpanel.co"
 
 GREEN='\033[0;32m'
