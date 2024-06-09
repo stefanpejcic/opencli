@@ -5,7 +5,7 @@
 # Usage: opencli docker-collect_stats
 # Author: Petar Curic, Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 09.96.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,13 +28,10 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Define the output directory
 output_dir="/usr/local/panel/core/stats"
-
-# Get the current date and time in the desired format
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
-# fix bug with high ram usage reported for containers
+# Fix bug with high RAM usage reported for containers
 sync
 echo 1 > /proc/sys/vm/drop_caches
 
@@ -54,29 +51,36 @@ ensure_jq_installed() {
 
 ensure_jq_installed
 
-# Loop through the Docker containers and extract data
-docker stats --no-stream --format '{{json .}}' | while read -r container_stats; do
-  # Extract relevant data from the JSON
-  cpu_percent=$(echo "$container_stats" | jq -r '.CPUPerc' | sed 's/%//')
-  mem_percent=$(echo "$container_stats" | jq -r '.MemPerc' | sed 's/%//')
-  net_io=$(echo "$container_stats" | jq -r '.NetIO' | awk '{print $1}' | sed 's/B//')
-  block_io=$(echo "$container_stats" | jq -r '.BlockIO' | awk '{print $1}' | sed 's/B//')
+# Function to process each container's stats
+process_container_stats() {
+    local container_stats="$1"
 
-  # Extract the username (Name field from the Docker stats)
-  username=$(echo "$container_stats" | jq -r '.Name')
+    # Extract relevant data from the JSON
+    cpu_percent=$(echo "$container_stats" | jq -r '.CPUPerc' | sed 's/%//')
+    mem_percent=$(echo "$container_stats" | jq -r '.MemPerc' | sed 's/%//')
+    net_io=$(echo "$container_stats" | jq -r '.NetIO' | awk '{print $1}' | sed 's/B//')
+    block_io=$(echo "$container_stats" | jq -r '.BlockIO' | awk '{print $1}' | sed 's/B//')
 
-  # Define the output file path
-  output_file="$output_dir/$username/$current_datetime.json"
+    # Extract the username (Name field from the Docker stats)
+    username=$(echo "$container_stats" | jq -r '.Name')
 
-  # Create the directory if it doesn't exist
-  mkdir -p "$(dirname "$output_file")"
+    # Define the output file path
+    output_file="$output_dir/$username/$current_datetime.json"
 
-  # Create the JSON data and write it to the output file
-  json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": \"$net_io\", \"block_io\": \"$block_io\"}"
-  # NOTE: net_io and block_io also contain the unit so should be used as strings.
-  echo "$json_data" > "$output_file"
+    # Create the directory if it doesn't exist
+    mkdir -p "$(dirname "$output_file")"
 
-  echo "Data for $username written to $output_file"
+    # Create the JSON data and write it to the output file
+    json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": \"$net_io\", \"block_io\": \"$block_io\"}"
+    # NOTE: net_io and block_io also contain the unit so should be used as strings.
+    echo "$json_data" > "$output_file"
 
-  #echo "$json_data"
-done
+    echo "Data for $username written to $output_file"
+}
+
+export -f process_container_stats
+export output_dir
+export current_datetime
+
+# Loop through the Docker containers and extract data in parallel
+docker stats --no-stream --format '{{json .}}' | xargs -I {} -P 4 bash -c 'process_container_stats "$@"' _ {}
