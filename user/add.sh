@@ -51,17 +51,10 @@ hostname=$(hostname) # Get the hostname dynamically
 storage_driver=$(docker info --format '{{.Driver}}')
 
 
-
-# Parse optional flags to enable debug mode when needed!
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        *)
-            ;;
-    esac
-done
+# Parse optional flags to enable debug mode when needed
+if [ "$5" = "--debug" ]; then
+    DEBUG=true
+fi
 
 
 
