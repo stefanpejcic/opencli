@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD> <EMAIL> <PLAN_NAME>
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> <PLAN_NAME> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -28,6 +28,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
+
+# Constants
+FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
+DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
+PANEL_CONFIG_FILE="/usr/local/panel/conf/panel.config"
+
+
+
 
 if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--debug]"
@@ -58,51 +66,28 @@ done
 
 
 
-
-
-
-
-
-
-
-#1. check for forbidden usernames
-readarray -t forbidden_usernames < /etc/openpanel/openadmin/config/forbidden_usernames.txt
-
-
 is_username_forbidden() {
     local check_username="$1"
+    readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
 
-    # Check if the username is a single word
-    if [[ "$check_username" =~ [[:space:]] ]]; then
-        return 0 # Username contains spaces, forbidden
+    # Check if the username meets all criteria
+    if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
+       [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
+       (( ${#check_username} < 3 || ${#check_username} > 20 )); then
+        return 0
     fi
 
-    # Check if the username contains hyphens or underscores also dont allow usernames that start with storage_file_
-    if [[ "$check_username" =~ [-_] ]]; then
-        return 0 # Username contains hyphens or underscores, forbidden
-    fi
-
-    # Check if the username contains only letters and numbers
-    if [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]]; then
-        return 0 # Username contains characters other than letters and numbers, forbidden
-    fi
-
-    # Check if the username length is within the allowed range
-    local username_length=${#check_username}
-    if ((username_length < 3 || username_length > 20)); then
-        return 0 # Username length is outside the allowed range, forbidden
-    fi
-
-    # Check against the forbidden usernames
+    # Check against forbidden usernames
     for forbidden_username in "${forbidden_usernames[@]}"; do
         if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
-            return 0 # Username is forbidden
+            return 0
         fi
     done
 
-    return 1 # Not forbidden
+    return 1
 }
 
+# Validate username
 if is_username_forbidden "$username"; then
     echo "Error: The username '$username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
     exit 1
@@ -110,9 +95,10 @@ fi
 
 
 
+# Source the database config file
+source "$DB_CONFIG_FILE"
 
-# DB
-source /usr/local/admin/scripts/db.sh
+
 
 # Check if Docker container with the same username exists
 if docker inspect "$username" >/dev/null 2>&1; then
@@ -196,11 +182,6 @@ if [ "$numram" -gt "$max_available_ram_gb" ]; then
     exit 1
 fi
 
-# RAM memory reservation = 90% of RAM allocated
-#ram_no_suffix=${ram_raw%g}  # Remove the 'g' suffix
-#ram_mb=$((ram_no_suffix * 1024))  # Convert GB to MB (1 GB = 1024 MB)
-#ram_soft_limit=$((ram_mb * 90 / 100))
-
 docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 
 # Check if DEBUG is true before printing debug messages
@@ -226,65 +207,50 @@ if [ "$DEBUG" = true ]; then
     echo ""
 fi
 
-# Check if the Docker image exists locally, if not we can not create a user on that plan..
-if [ "$DEBUG" = true ] && docker images -q "$docker_image" > /dev/null 2>&1; then
-    # Docker image exists locally, and debug is true
-    echo "Docker image '$docker_image' exists locally."
-elif [ "$DEBUG" != true ] && docker images -q "$docker_image" > /dev/null 2>&1; then
-    # Docker image exists locally, but DEBUG is not true so dont print anything
-    :
-else
-    # Docker image does not exist locally and debug is true, we print error
-    echo "Docker image '$docker_image' does not exist locally."
+
+
+
+# Check if the Docker image exists locally
+if ! docker images -q "$docker_image" >/dev/null 2>&1; then
+    echo "Error: Docker image '$docker_image' does not exist locally."
     exit 1
 fi
 
 
 # create storage file
-if [ "$storage_file" -eq 0 ]; then
-    if [ "$DEBUG" = true ]; then
-    echo "Storage file size is 0. Skipping storage file creation."
-    fi
-else
+if [ "$storage_file" -ne 0 ]; then
     if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
-        echo "Run without creating /home/storage_file_$username"
+        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$username"
     elif [ "$storage_driver" == "devicemapper" ]; then
         if [ "$DEBUG" = true ]; then
             fallocate -l ${storage_file}g /home/storage_file_$username
             mkfs.ext4 -N $inodes /home/storage_file_$username
         else
-            fallocate -l ${storage_file}g /home/storage_file_$username > /dev/null 2>&1
-            mkfs.ext4 -N $inodes /home/storage_file_$username > /dev/null 2>&1
+            fallocate -l ${storage_file}g /home/storage_file_$username >/dev/null 2>&1
+            mkfs.ext4 -N $inodes /home/storage_file_$username >/dev/null 2>&1
         fi
     fi
-
 fi
 
-# Create a directory with the user's username under /home/
-mkdir /home/$username
+# Create and set permissions for user directory
+mkdir -p /home/$username
 chown 1000:33 /home/$username
 chmod 755 /home/$username
 chmod g+s /home/$username
 
-# mount storage file
-if [ "$storage_file" -eq 0 ]; then
-    if [ "$DEBUG" = true ]; then
-    echo "No mounting needed.."
+# Mount storage file if needed
+if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
+    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$username"
+    elif [ "$storage_driver" == "devicemapper" ]; then
+        mount -o loop /home/storage_file_$username /home/$username
+        mkdir /home/$username/docker
+        chown 1000:33 /home/$username/docker
+        chmod 755 /home/$username/docker
+        chmod g+s /home/$username/docker
     fi
-elif [ "$disk_limit" -ne 0 ]; then
-        # Check if the storage driver is overlay or devicemapper
-        if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
-            if [ "$DEBUG" = true ]; then
-                echo "Run without mounting /home/storage_file_$username"
-            fi
-        elif [ "$storage_driver" == "devicemapper" ]; then
-            if [ "$DEBUG" = true ]; then
-                mount -o loop /home/storage_file_$username /home/$username
-            else
-                mount -o loop /home/storage_file_$username /home/$username > /dev/null 2>&1
-            fi
-        fi
 fi
+
 
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
@@ -524,9 +490,9 @@ if [ "$DEBUG" = true ]; then
     echo ""
 fi
 
-# Generate a random password if the second argument is "generate"
-if [ "$password" == "generate" ]; then
-    password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
+# Generate password if needed
+if [ "$password" = "generate" ]; then
+    password=$(openssl rand -base64 12)
 fi
 
 # Hash password
@@ -592,17 +558,13 @@ if [ "$DEBUG" = true ]; then
     echo ""
 fi
 
-
-# Define the path to the main configuration file
-panel_config_file="/usr/local/panel/conf/panel.config"
-
 # Use grep and awk to extract the value of default_php_version
-default_php_version=$(grep -E "^default_php_version=" "$panel_config_file" | awk -F= '{print $2}')
+default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
 
 # Check if default_php_version is empty (in case the panel.config file doesn't exist)
 if [ -z "$default_php_version" ]; then
   if [ "$DEBUG" = true ]; then
-    echo "Default PHP version not found in $panel_config_file using the fallback default version.."
+    echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
   fi
   default_php_version="php8.2"
 fi
