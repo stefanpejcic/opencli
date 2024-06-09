@@ -106,21 +106,58 @@ if docker inspect "$username" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check if the username already exists in the users table
-username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
-username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
 
-# Check if successful
-if [ $? -ne 0 ]; then
-    echo "Error: Unable to check username existence in the database."
-    exit 1
+# added in 0.2.0
+key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+
+# Check if 'enterprise edition'
+if [ -n "$key_value" ]; then
+    :
+else
+    # Check the number of users from the database
+    user_count_query="SELECT COUNT(*) FROM users"
+    user_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$user_count_query" -sN)
+
+    # Check if successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Unable to get user count from the database. Is mysql running?"
+        exit 1
+    fi
+
+    # Check if the number of users is more than 3
+    if [ "$user_count" -gt 3 ]; then
+        echo "Error: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use. If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
+        exit 1
+    fi
 fi
 
-# count > 0) show error and exit
+
+# Function to check if username already exists in the database
+check_username_exists() {
+    local username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
+    local username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
+
+    # Check if successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Unable to check username existence in the database. Is mysql running?"
+        exit 1
+    fi
+
+    # Return the count of usernames found
+    echo "$username_exists_count"
+}
+
+
+# Check if the username exists in the database
+username_exists_count=$(check_username_exists)
+
+# Check if the username exists
 if [ "$username_exists_count" -gt 0 ]; then
-    echo "Error: Username '$username' already exists."
+    echo "Error: Username '$username' already exists in the database."
     exit 1
 fi
+
+
 
 
 #Get CPU, DISK, INODES and RAM limits for the plan
@@ -561,6 +598,8 @@ fi
 # Use grep and awk to extract the value of default_php_version
 default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
 
+# NEED CHECK IF 8.2 or php8.2 format expected from python!
+
 # Check if default_php_version is empty (in case the panel.config file doesn't exist)
 if [ -z "$default_php_version" ]; then
   if [ "$DEBUG" = true ]; then
@@ -576,14 +615,14 @@ if [ "$DEBUG" = true ]; then
     cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/users/$username/
     echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
-    opencli php-get_available_php_versions $username
+    opencli php-get_available_php_versions $username &
 else
     mkdir -p /usr/local/panel/core/users  > /dev/null 2>&1
     mkdir -p /usr/local/panel/core/stats/$username  > /dev/null 2>&1
     cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/users/$username/  > /dev/null 2>&1
     echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
-    opencli php-get_available_php_versions $username  > /dev/null 2>&1
+    opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
 fi
 
 
