@@ -144,17 +144,18 @@ fi
 
 echo "## Setting recommended extensions.."
 
-# Check if each extension is already installed
-for extension in "${extensions_to_install[@]}"; do
-  if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
-    echo "## $extension is already installed."
+# uodate just once, then start extensions
+apt-get update
+
+# Install php extensions in parallel using xargs
+printf "%s\n" "${extensions_to_install[@]}" | xargs -n 1 -P 8 -I {} bash -c '
+  if ! echo "$docker_containers" | grep -q {}; then
+    docker exec "$container_name" bash -c "apt-get install -y {}"
+    echo "## PHP extension {} is now successfully installed."
   else
-    # Install the extension
-    docker exec "$container_name" bash -c "apt-get update && apt-get install -y $extension"
-    wait $!
-    echo "## PHP extension $extension is now successfully installed."
+    echo "## {} is already installed."
   fi
-done
+'
 
 
 ### Settings limits for FPM service
