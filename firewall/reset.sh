@@ -5,7 +5,7 @@
 #              Use: opencli firewall-reset
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 09.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -59,7 +59,7 @@ extract_host_port() {
 }
 
 # Define the list of container ports to check and open
-container_ports=("21" "22" "3306" "7681" "8080")
+container_ports=("22" "3306" "7681" "8080")
 
 # Variable to track whether any ports were opened
 ports_opened=0
