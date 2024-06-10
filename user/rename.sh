@@ -116,24 +116,16 @@ fi
 
 
 ########### KRAJ PROVERA, RA PROMENU
-
-umount /home/storage_file_$old_username
-mv /home/storage_file_$old_username /home/storage_file_$new_username
-mv /home/$old_username /home/$new_username
-mount -o loop /home/storage_file_$new_username /home/$new_username
+# since overlay has no storage files, lets just do  > /dev/null 2>&1
+umount /home/storage_file_$old_username > /dev/null 2>&1
+mv /home/storage_file_$old_username /home/storage_file_$new_username > /dev/null 2>&1
+mv /home/$old_username /home/$new_username > /dev/null 2>&1
+mount -o loop /home/storage_file_$new_username /home/$new_username > /dev/null 2>&1
 
 
 # Check if the container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
     # Rename the Docker container
-
-        #################
-        #### hostnamectl set-hostname $new_username && \
-        ####
-        #### ZA HOSTNAME TREBA OVO INTEGRISATI
-        #### https://github.com/moby/moby/issues/8902#issuecomment-241129543
-        #################
-
 
 # ove treba za nginx 1 za apache 2 da se radi!!!
         
@@ -168,11 +160,11 @@ else
 fi
 
 if [ "$DEBUG" = true ]; then
-mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" 
-rm /usr/local/panel/core/users/$new_username/data.json
+    mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" 
+    rm /usr/local/panel/core/users/$new_username/data.json
 else
-mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" > /dev/null 2>&1
-rm /usr/local/panel/core/users/$new_username/data.json > /dev/null 2>&1
+    mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" > /dev/null 2>&1
+    rm /usr/local/panel/core/users/$new_username/data.json > /dev/null 2>&1
 fi
 
 ensure_jq_installed
@@ -233,7 +225,7 @@ edit_nginx_files_on_host_server() {
 
 change_default_email () {
     hostname=$(hostname)
-    sed -i "s/^from\s\+.*/from       \${new_username}@\${hostname}/" /etc/msmtprc
+    docker exec "$new_username" bash -c "sed -i 's/^from\s\+.*/from       ${new_username}@${hostname}/' /etc/msmtprc"
 }
 
 
@@ -339,12 +331,18 @@ rename_user_in_db() {
 replace_username_in_phpfpm_configs() {
     old_username="$1" # Assuming $1 is the old username
     new_username="$2" # Assuming $2 is the new username
-
-    # change user in www.conf file for each php-fpm verison
-    docker exec $old_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \;
-
-    # restart version
-    docker exec $old_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+    
+    if [ "$DEBUG" = true ]; then
+        # change user in www.conf file for each php-fpm verison
+        docker exec $new_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \;
+        # restart version
+        docker exec $new_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+    else
+        # change user in www.conf file for each php-fpm verison
+        docker exec $new_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \; > /dev/null 2>&1
+        # restart version
+        docker exec $new_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done' > /dev/null 2>&1
+    fi    
 }
 
 
