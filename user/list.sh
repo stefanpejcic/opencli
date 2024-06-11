@@ -31,10 +31,7 @@
 
 # this should be edited to not print full sh file path..
 print_usage() {
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name [--json] [--total]"
+    echo "Usage: opencli user-list [--json] [--total]"
     exit 1
 }
 
