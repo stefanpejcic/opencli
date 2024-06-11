@@ -295,8 +295,8 @@ if [ "$DOMAIN_OPTION" -eq 1 ]; then
         USERNAME=$(echo "$OWNER_INFO" | awk -F': ' '{print $NF}')
 
         # Display the domain-specific WAF configuration
-        if [ -f "/usr/local/panel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf" ]; then
-            disabled_rules_list=$(cat "/usr/local/panel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf")
+        if [ -f "/etc/openpanel/openpanel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf" ]; then
+            disabled_rules_list=$(cat "/etc/openpanel/openpanel/core/users/$USERNAME/domains/$DOMAIN_NAME-waf.conf")
             echo "Disabled rules: $disabled_rules_list"
         else
             echo "No disabled rules."
