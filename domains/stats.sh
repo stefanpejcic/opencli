@@ -58,7 +58,7 @@ configure_goaccess() {
 # Main function to process logs for each user
 process_logs() {
     local username="$1"
-    local excluded_ips_file="/usr/local/panel/core/users/$username/domains/excluded_ips_for_goaccess"
+    local excluded_ips_file="/etc/openpanel/openpanel/core/users/$username/domains/excluded_ips_for_goaccess"
     local container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
     local excluded_ips=""
 
