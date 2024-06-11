@@ -34,7 +34,7 @@ CONFIRM_FLAG=$3
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 ALL_DOMAINS=$(opencli domains-user $USERNAME)
 NGINX_CONF_PATH="/etc/nginx/sites-available/"
-JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
 DEBUG=false  # Default value for DEBUG
 
 # Check if DEBUG flag is set
@@ -84,7 +84,7 @@ check_ip_usage() {
     ALL_USERS=$(ls /usr/local/panel/core/users)
     for USER in $ALL_USERS; do
         if [ "$USER" != "$USERNAME" ]; then
-            USER_JSON="/usr/local/panel/core/users/$USER/ip.json"
+            USER_JSON="/etc/openpanel/openpanel/core/users/$USER/ip.json"
             if [ -e "$USER_JSON" ]; then
                 USER_IP=$(jq -r '.ip' "$USER_JSON")
                 if [ "$USER_IP" = "$CHECK_IP" ]; then
@@ -105,7 +105,7 @@ check_ip_usage() {
 
 #Function to delete user's IP configuration
 delete_ip_config() {
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USER/ip.json"
     if [ -e "$JSON_FILE" ]; then
         rm -f "$JSON_FILE"
         echo "IP configuration deleted for user $USERNAME."
@@ -117,7 +117,7 @@ delete_ip_config() {
 
 update_nginx_conf() {
     USERNAME=$1
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
     NGINX_CONF_PATH="/etc/nginx/sites-available"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     ALL_DOMAINS=$(opencli domains-user $USERNAME)
@@ -158,7 +158,7 @@ update_nginx_conf() {
 create_ip_file() {
     USERNAME=$1
     IP=$2
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
     echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
     if [ "$DEBUG" = true ]; then
         echo "IP file created/updated for user $USERNAME with IP $IP."
@@ -185,7 +185,7 @@ update_firewall_rules() {
 
 current_ip () {
     USERNAME=$1
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     # Check if the JSON file for the user exists
     if [ "$DEBUG" = true ]; then
@@ -207,7 +207,7 @@ current_ip () {
 
 update_dns_zone_file() {
     USERNAME=$1
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     ALL_DOMAINS=$(opencli domains-user $USERNAME)
     ZONE_FILE="/etc/bind/zones"
