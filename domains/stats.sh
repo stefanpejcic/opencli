@@ -8,7 +8,7 @@
 #        opencli domains-stats <USERNAME> --debug
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 25.01.2024
+# Last Modified: 11.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -33,7 +33,7 @@
 
 DEBUG=false # Default value for DEBUG
 SINGLE_USER=false
-OPENPANEL_DIR="/usr/local/panel/"
+OPENPANEL_CONF_DIR="/etc/openpanel/goaccess"
 
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
@@ -50,9 +50,9 @@ done
 
 configure_goaccess() {
     # GoAccess
-    tar -xzvf "${OPENPANEL_DIR}conf/GeoLite2-City_20231219.tar.gz" -C "${OPENPANEL_DIR}conf/" > /dev/null
+    tar -xzvf "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219.tar.gz" -C "${OPENPANEL_CONF_DIR}/" > /dev/null
     mkdir -p /usr/local/share/GeoIP/GeoLite2-City_20231219
-    cp -r "${OPENPANEL_DIR}conf/GeoLite2-City_20231219/"* /usr/local/share/GeoIP/GeoLite2-City_20231219 
+    cp -r "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219/"* /usr/local/share/GeoIP/GeoLite2-City_20231219 
 }
 
 # Main function to process logs for each user
