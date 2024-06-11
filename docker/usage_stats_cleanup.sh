@@ -5,7 +5,7 @@
 # Use: opencli docker-usage_stats_cleanup
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 11.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -29,10 +29,10 @@
 ################################################################################
 
 # Define the directory where the JSON files are stored
-stats_dir="/usr/local/panel/core/stats"
+stats_dir="/etc/openpanel/openpanel/core/stats"
 
 # Get the resource_usage_retention value from panel.config
-panel_config="/usr/local/panel/conf/panel.config"
+panel_config="/etc/openpanel/openpanel/conf/openpanel.config"
 resource_usage_retention=$(grep -Eo "resource_usage_retention=[0-9]+" "$panel_config" | cut -d'=' -f2)
 
 if [[ -z $resource_usage_retention ]]; then
