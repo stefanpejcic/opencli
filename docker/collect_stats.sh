@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-output_dir="/usr/local/panel/core/stats"
+output_dir="/etc/openpanel/openpanel/core/stats"
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
 # Fix bug with high RAM usage reported for containers
