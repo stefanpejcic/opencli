@@ -160,17 +160,17 @@ else
 fi
 
 if [ "$DEBUG" = true ]; then
-    mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" 
-    rm /usr/local/panel/core/users/$new_username/data.json
+    mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" 
+    rm /etc/openpanel/openpanel/core/users/$new_username/data.json
 else
-    mv /usr/local/panel/core/users/"$old_username" /usr/local/panel/core/users/"$new_username" > /dev/null 2>&1
-    rm /usr/local/panel/core/users/$new_username/data.json > /dev/null 2>&1
+    mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
+    rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
 fi
 
 ensure_jq_installed
 
 server_shared_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-json_file="/usr/local/panel/core/users/$new_username/ip.json"
+json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
 
 if [ "$DEBUG" = true ]; then
     if [ -e "$json_file" ]; then
