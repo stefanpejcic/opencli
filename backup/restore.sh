@@ -135,7 +135,7 @@ if [ "$#" -lt 3 ]; then
 fi
 
 
-DEST_JSON_FILE="/usr/local/admin/backups/destinations/$NUMBER.json"
+DEST_JSON_FILE="/etc/openpanel/openadmin/config/backups/destinations/$NUMBER.json"
 
 # Check if the destination JSON file exists
 if [ ! -f "$DEST_JSON_FILE" ]; then
@@ -371,7 +371,7 @@ perform_restore_of_selected_files() {
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER"
         userpath="$remote_path_to_download/mysql/users"
         dbpath="$remote_path_to_download/mysql/databases"
-        local_destination="/usr/local/panel/core/users/$CONTAINER_NAME/mysql/"
+        local_destination="/etc/openpanel/openpanel/core/users/$CONTAINER_NAME/mysql/"
 	    path_in_docker_container="docker:$CONTAINER_NAME:/tmp/"
 
         Mstatus=$(docker exec "$CONTAINER_NAME" bash -c "service mysql status | grep -i copyright")
@@ -400,14 +400,14 @@ perform_restore_of_selected_files() {
     fi
 
     if [ "$CORE_USERS" = true ]; then
-        local_destination="/usr/local/panel/core/users/$CONTAINER_NAME/"
+        local_destination="/etc/openpanel/openpanel/core/users/$CONTAINER_NAME/"
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/core/."
         run_restore "$remote_path_to_download" "$local_destination"
 	#bash restore.sh 1 20240202115324 nesto --core-users
     fi
 
     if [ "$STATS_USERS" = true ]; then
-        local_destination="/usr/local/panel/core/stats/$CONTAINER_NAME/"
+        local_destination="/etc/openpanel/openpanel/core/stats/$CONTAINER_NAME/"
         remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/stats/."
         run_restore "$remote_path_to_download" "$local_destination"
 	#bash restore.sh 1 20240202115324 nesto --stats-users
