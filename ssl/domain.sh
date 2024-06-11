@@ -53,7 +53,7 @@ get_server_ip() {
     echo "Username: $username"
 
     current_username=$username
-    dedicated_ip_file_path="/usr/local/panel/core/users/${current_username}/ip.json"
+    dedicated_ip_file_path="/etc/openpanel/openpanel/core/users/{current_username}/ip.json"
 
     if [ -e "$dedicated_ip_file_path" ]; then
         # If the file exists, read the IP from it
