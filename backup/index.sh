@@ -62,7 +62,7 @@ read_dest_json_file() {
 
 
 job_id=$1
-log_dir="/usr/local/admin/backups/logs/$job_id"
+log_dir="/var/log/openpanel/admin/backups/$job_id"
 log_file=$(ls "$log_dir"/*.log 2>/dev/null | sort -V | tail -n 1)
 process_id=$(grep "process_id=" "$log_file" | awk -F'=' '{print $2}') 
 
