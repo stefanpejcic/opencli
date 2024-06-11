@@ -29,7 +29,7 @@
 ################################################################################
 
 
-CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
+CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 WHMCS_URL="https://my.openpanel.co/modules/servers/licensing/verify.php"
 IP_URL="https://ip.openpanel.co"
 
