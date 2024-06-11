@@ -30,7 +30,7 @@
 
 # Function to read config values from panel.config file
 read_config() {
-    config_file="/usr/local/panel/conf/panel.config"
+    config_file="/etc/openpanel/openpanel/conf/openpanel.config"
     if [ -f "$config_file" ]; then
         while IFS='=' read -r key value; do
             case "$key" in
