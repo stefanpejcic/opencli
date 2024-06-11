@@ -32,7 +32,7 @@
 # Constants
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
-PANEL_CONFIG_FILE="/usr/local/panel/conf/panel.config"
+PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
 
 
@@ -603,18 +603,18 @@ fi
 
 # Create files and folders needed for the user account
 if [ "$DEBUG" = true ]; then
-    mkdir -p /usr/local/panel/core/users
-    mkdir -p /usr/local/panel/core/stats/$username
-    cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/users/$username/
-    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
-    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+    mkdir -p /etc/openpanel/openpanel/core/users
+    mkdir -p /etc/openpanel/openpanel/core/stats/$username
+    cp -r /etc/openpanel/openadmin/skeleton/ /etc/openpanel/openpanel/core/users/$username/
+    echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
+    echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
     opencli php-get_available_php_versions $username &
 else
-    mkdir -p /usr/local/panel/core/users  > /dev/null 2>&1
-    mkdir -p /usr/local/panel/core/stats/$username  > /dev/null 2>&1
-    cp -r /etc/openpanel/openadmin/skeleton/ /usr/local/panel/core/users/$username/  > /dev/null 2>&1
-    echo "web_server: $web_server" > /usr/local/panel/core/users/$username/server_config.yml
-    echo "default_php_version: $default_php_version" >> /usr/local/panel/core/users/$username/server_config.yml
+    mkdir -p /etc/openpanel/openpanel/core/users  > /dev/null 2>&1
+    mkdir -p /etc/openpanel/openpanel/core/stats/$username  > /dev/null 2>&1
+    cp -r /etc/openpanel/openadmin/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
+    echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
+    echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
     opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
 fi
 
