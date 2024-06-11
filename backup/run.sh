@@ -107,7 +107,7 @@ TIMEZONE=false
 SSH_PASS=false
 DOCKER=false
 # settings
-LOG_FILE="/usr/local/admin/logs/notifications.log"
+LOG_FILE="/var/log/openpanel/admin/notifications.log"
 
 # Set a trap for CTRL+C to properly exit
 trap "echo CTRL+C Pressed!; read -p 'Press Enter to exit...'; exit 1;" SIGINT SIGTERM
@@ -250,7 +250,7 @@ if [ "$status" == "off" ] && [ "$FORCE_RUN" == false ]; then
 fi
 
 
-DEST_JSON_FILE="/usr/local/admin/backups/destinations/$destination.json"
+DEST_JSON_FILE="/etc/openpanel/openadmin/config/backups/destinations/$destination.json"
 
 # Check if the destination JSON file exists
 if [ ! -f "$DEST_JSON_FILE" ]; then
@@ -423,7 +423,7 @@ copy_files() {
 
 # Function to log messages to the user-specific log file for the user
 log_user() {
-    local user_log_file="/usr/local/panel/core/users/$1/backup.log"
+    local user_log_file="/etc/openpanel/openpanel/core/users/$1/backup.log"
     local log_message="$2"
     # Ensure the log directory exists
     mkdir -p "$(dirname "$user_log_file")"
@@ -530,13 +530,13 @@ copy_files "docker:$container_name:/etc/entrypoint.sh" "docker/"
 users_local_files_in_core_users() {
 mkdir -p "$BACKUP_DIR/core/"
 #cp -r /usr/local/panel/core/users/$container_name/ $BACKUP_DIR/core/
-copy_files "/usr/local/panel/core/users/$container_name/" "core/"
+copy_files "/etc/openpanel/openpanel/core/users/$container_name/" "core/"
 }
 
 users_local_files_in_stats_users() {
 mkdir -p "$BACKUP_DIR/stats/"
 #cp -r /usr/local/panel/core/stats/$container_name/ $BACKUP_DIR/stats/
-copy_files "/usr/local/panel/core/stats/$container_name/" "stats/"
+copy_files "/etc/openpanel/openpanel/core/stats/$container_name/" "stats/"
 }
 
 
