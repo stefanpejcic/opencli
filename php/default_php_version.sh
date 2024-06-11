@@ -36,7 +36,7 @@ if [ $# -lt 1 ]; then
 fi
 
 username="$1"
-config_file="/usr/local/panel/core/users/$username/server_config.yml"
+config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
 
 
 
