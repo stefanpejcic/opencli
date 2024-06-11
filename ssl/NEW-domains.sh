@@ -79,6 +79,26 @@ ensure_jq_installed() {
     fi
 }
 
+
+install_lego() {
+    echo "Lego is not installed. Installing lego..."
+    # Download lego binary from https://github.com/go-acme/lego/releases
+    wget https://github.com/go-acme/lego/releases/download/v4.17.3/lego_v4.17.3_linux_amd64.tar.gz -O /tmp/lego.tar.gz
+
+    # Extract the tarball
+    tar -xzf /tmp/lego.tar.gz -C /tmp
+
+    # Move the lego binary to /usr/local/bin
+    sudo mv /tmp/lego /usr/local/bin/lego
+
+    # Clean up
+    rm /tmp/lego.tar.gz
+
+    echo "Lego installed successfully."
+}
+
+
+
 # Function to generate SSL
 generate_ssl() {
     domain_url=$1
@@ -95,7 +115,7 @@ generate_ssl() {
         exit 1
     fi
     
-    ssl_file="/home/$username/.ssl/$domain_url"
+    ssl_file="/etc/openpanel/lego/$username/$domain_url"
     
     if [ -f "$ssl_file" ]; then
         HTTP_01=false
@@ -105,6 +125,15 @@ generate_ssl() {
         HTTP_01=true
         DNS_01=false
     fi
+
+
+    # Check if lego is installed
+    if ! command -v lego &> /dev/null; then
+        install_lego
+    fi
+    
+    
+
     
     if [ "$HTTP_01" = true ]; then
         lego -a --email webmaster@$domain_url \
@@ -118,13 +147,14 @@ generate_ssl() {
             
             lego -a --email webmaster@$domain_url \
             --dns "$DNS_PROVIDER" \
-            --path /etc/openpanel/nginx/.lego/ \
+            --path /etc/openpanel/lego/$username/$domain_url/ \
             --domains $domain_url run
         else
             EXEC_PATH=/usr/local/admin/scripts/ssl/bind-verify.sh \
             lego -a --email webmaster@$domain_url \
             --dns exec \
-            --path /etc/openpanel/nginx/.lego/ \
+            ####### dry run --server=https://acme-staging-v02.api.letsencrypt.org/directory \
+            --path /etc/openpanel/lego/$username/$domain_url/ \
             --domains $domain_url run
         fi
     else
