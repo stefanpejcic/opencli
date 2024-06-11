@@ -30,7 +30,7 @@
 ################################################################################
 
 
-config_file="/usr/local/admin/backups/config.ini"
+config_file="/etc/openpanel/openadmin/backups/config.ini"
 
 # Function to get the current configuration value for a parameter
 get_config() {
