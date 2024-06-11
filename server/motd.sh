@@ -12,7 +12,7 @@
 ##########################################################################################
 
 VERSION=$(cat /usr/local/panel/version)
-CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
+CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 OUTPUT_FILE='/etc/openpanel/skeleton/motd'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
