@@ -30,10 +30,7 @@
 
 # Check if the correct number of command-line arguments is provided
 if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username> [-y]"
+    echo "Usage: opencli user-delete <username> [-y]"
     exit 1
 fi
 
@@ -183,8 +180,8 @@ rm -rf /home/$username
 rm -rf /home/storage_file_$username
 
 
-rm -rf /usr/local/panel/core/stats/$username
-rm -rf /usr/local/panel/core/users/$username
+rm -rf /etc/openpanel/openpanel/core/stats/$username
+rm -rf /etc/openpanel/openpanel/core/users/$username
 rm -rf /home/$username/home/$username/backup/$username
 
 echo "User $username deleted."
