@@ -4,7 +4,7 @@
 ############################### DB LOGIN ################################ 
 #########################################################################
 # MySQL database configuration
-config_files=("/etc/my.cnf" "/etc/openpanel/openadmin/config/db.cnf" "/usr/local/admin/db.cnf") # for compatibility with openpanel <0.2.0
+config_files=("/etc/my.cnf" "/etc/openpanel/mysql/db.cnf" "/usr/local/admin/db.cnf") # for compatibility with openpanel <0.2.0
 
 # Function to check if a config file exists
 check_config_file() {
