@@ -104,7 +104,7 @@ renew_ssl_check() {
 
 # update OpenPanel configuration
 update_openpanel_config() {
-    local config_file="/usr/local/panel/conf/panel.config"
+    local config_file="/etc/openpanel/openpanel/conf/openpanel.config"
 
     if grep -q "ssl=" "$config_file"; then
         # Enable https:// for the OpenPanel
