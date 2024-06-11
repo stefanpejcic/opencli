@@ -29,7 +29,7 @@
 ################################################################################
 
 
-LOG_FILE="/usr/local/admin/logs/notifications.log"
+LOG_FILE="/var/log/openpanel/admin/notifications.log"
 
 # Function to get the last message content from the log file
 get_last_message_content() {
