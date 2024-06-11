@@ -30,7 +30,7 @@
 ################################################################################
 
 # Create directory if it doesn't exist
-output_dir="/usr/local/admin/logs/reports"
+output_dir="/var/log/openpanel/admin/reports"
 mkdir -p "$output_dir"
 
 output_file="$output_dir/system_info_$(date +'%Y%m%d%H%M%S').txt"
@@ -68,15 +68,14 @@ check_services_status() {
 # Function to display OpenPanel settings
 display_openpanel_settings() {
   echo "=== OpenPanel Settings ===" >> "$output_file"
-  run_command "cat /usr/local/panel/conf/panel.config" "OpenPanel Configuration file:"
+  run_command "cat /etc/openpanel/openpanel/conf/openpanel.config" "OpenPanel Configuration file:"
 }
 
 # Function to display MySQL information
 display_mysql_information() {
   echo "=== MySQL Information ===" >> "$output_file"
   run_command "docker logs --tail 100 openpanel_mysql" "openpanel_mysql docker container logs"
-  run_command "cat /usr/local/admin/config.json" "MySQL login information for OpenPanel and OpenAdmin services"
-  run_command "cat /usr/local/admin/db.cnf" "MySQL login information for OpenCLI scripts"
+  run_command "cat /etc/openpanel/mysql/db.cnf" "MySQL login information for OpenCLI scripts"
 }
 
 # Default values
@@ -99,7 +98,7 @@ for arg in "$@"; do
 done
 
 # Create directory if it doesn't exist
-output_dir="/usr/local/admin/static/reports"
+output_dir="/var/log/openpanel/admin/reports"
 mkdir -p "$output_dir"
 
 # Collect system information
