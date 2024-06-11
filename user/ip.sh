@@ -81,7 +81,7 @@ ensure_jq_installed() {
 # Function to check if the IP is used by another user
 check_ip_usage() {
     CHECK_IP=$1
-    ALL_USERS=$(ls /usr/local/panel/core/users)
+    ALL_USERS=$(ls /etc/openpanel/openpanel/core/users)
     for USER in $ALL_USERS; do
         if [ "$USER" != "$USERNAME" ]; then
             USER_JSON="/etc/openpanel/openpanel/core/users/$USER/ip.json"
