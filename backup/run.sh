@@ -1173,7 +1173,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         echo "## Backing up SQLite database for OpenAdmin."
         echo ""
-        cp /usr/local/admin/users.db ${NGINX_DESTINATION_DIR}/sqlite_openadmin_backup.db
+        cp /etc/openpanel/openadmin/users.db ${NGINX_DESTINATION_DIR}/sqlite_openadmin_backup.db
     }
     
     # nginx domains
