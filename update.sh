@@ -57,7 +57,6 @@ check_update() {
         echo "Forcing updates, ignoring autopatch and autoupdate settings."
     fi
 
-    # Read the user settings from /usr/local/panel/conf/panel.config
     local autopatch
     local autoupdate
 
@@ -66,8 +65,8 @@ check_update() {
         autopatch="on"
         autoupdate="on"
     else
-        autopatch=$(awk -F= '/^autopatch=/{print $2}' /usr/local/panel/conf/panel.config)
-        autoupdate=$(awk -F= '/^autoupdate=/{print $2}' /usr/local/panel/conf/panel.config)
+        autopatch=$(awk -F= '/^autopatch=/{print $2}' /etc/openpanel/openpanel/conf/openpanel.config)
+        autoupdate=$(awk -F= '/^autoupdate=/{print $2}' /etc/openpanel/openpanel/conf/openpanel.config)
     fi
 
     # Only proceed if autopatch or autoupdate is set to "on"
