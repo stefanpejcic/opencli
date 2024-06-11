@@ -225,7 +225,7 @@ delete_backup_job() {
     fi
 
     # Check if job is running
-    log_dir="/usr/local/admin/backups/logs/$1"
+    log_dir="/var/log/openpanel/admin/backups/$1"
     last_number_log=$(ls -1 "$log_dir"*.json 2>/dev/null | grep -oP '\d+' | sort -n | tail -n 1)
     echo $last_number_log
     last_log="${log_dir}${last_number_log}.json"
