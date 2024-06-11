@@ -31,16 +31,13 @@
 
 # Check if username is provided as an argument
 if [ $# -eq 0 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username>"
+    echo "Usage: opencli ssl-user <username>"
     exit 1
 fi
 
 # Set the username and file path
 username="$1"
-file_path="/usr/local/panel/core/users/$username/.ssl"
+file_path="/etc/openpanel/openpanel/core/users/$username/.ssl"
 mkdir -p "$(dirname "$file_path")"
 
 # Get list of user domains
