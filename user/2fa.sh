@@ -35,10 +35,7 @@ RESET='\033[0m'
 
 # Check if username is provided as an argument
 if [ $# -eq 0 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <username> [disable]"
+    echo "Usage: opencli user-2fa <username> [disable]"
     exit 1
 fi
 
