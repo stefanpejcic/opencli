@@ -6,7 +6,7 @@
 #        opencli webserver-get_webserver_for_user <USERNAME> --update
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 10.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -36,7 +36,7 @@ fi
 username="$1"
 
 # Construct the path to the configuration file
-config_file="/usr/local/panel/core/users/$username/server_config.yml"
+config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
 
 # Check if the --update flag is provided
 if [ "$2" == "--update" ]; then
