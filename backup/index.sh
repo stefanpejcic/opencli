@@ -95,10 +95,10 @@ done
 
 
 
-INDEX_DIR="/usr/local/admin/backups/index/$job_id/"
+INDEX_DIR="/etc/openpanel/openadmin/config/backups/index/$job_id/"
 
 # Define the path to the JSON file
-job_json_file="/usr/local/admin/backups/jobs/$job_id.json"
+job_json_file="/etc/openpanel/openadmin/config/backups/jobs/$job_id.json"
 
 # Check if the JSON file exists
 if [ ! -f "$job_json_file" ]; then
@@ -108,7 +108,7 @@ fi
 ensure_jq_installed
 # Parse the JSON file and extract the 'destination' field
 destination_id=$(jq -r '.destination' "$job_json_file")
-dest_json_file="/usr/local/admin/backups/destinations/$destination_id.json"
+dest_json_file="/etc/openpanel/openadmin/config//destinations/$destination_id.json"
 # Extract destination data
 dest_data=$(read_dest_json_file "$dest_json_file")
 
@@ -157,7 +157,7 @@ for container_name in $(docker ps --format '{{.Names}}'); do
     if [ -d "$INDEX_DIR/$container_name" ]; then
     mv "$INDEX_DIR/$container_name" "$INDEX_DIR/$container_name.reindex"
     fi
-    mkdir -p "/usr/local/admin/backups/index/$job_id/$container_name/"
+    mkdir -p "/etc/openpanel/openadmin/config/backups/index/$job_id/$container_name/"
     ((user_count++))
     if [ "$LOCAL" != true ]; then
         echo "Processing user $container_name ($user_count/$total_users)"
