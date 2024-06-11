@@ -5,7 +5,7 @@
 # Usage: opencli admin <setting_name> 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 29.05.2024
+# Last Modified: 11.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,11 +28,10 @@
 # THE SOFTWARE.
 ################################################################################
 
-CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
+CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 service_name="admin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
-#logins_file_path="/usr/local/admin/config.py"
-db_file_path="/usr/local/admin/users.db"
+db_file_path="/etc/openpanel/openadmin/users.db"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
@@ -252,7 +251,7 @@ delete_existing_users() {
 
 
 
-config_file="/usr/local/admin/service/notifications.ini"
+config_file="/etc/openpanel/openadmin/config/notifications.ini"
 
 # Function to get the current configuration value for a parameter
 get_config() {
