@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-logs_dir="/usr/local/admin/backups/logs"
+logs_dir="/var/log/openpanel/admin/backups"
 
 # Check if the logs directory exists
 if [ ! -d "$logs_dir" ]; then
