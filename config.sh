@@ -30,11 +30,11 @@
 ################################################################################
 
 
-config_file="/usr/local/panel/conf/panel.config"
+config_file="/etc/openpanel/openpanel/conf/openpanel.config"
 
 
 ########################## UPDATE NGINX PROXY FILE FOR DOMAINS ##########################
-proxy_conf_file="/usr/local/panel/templates/vhosts/openpanel_proxy.conf"
+proxy_conf_file="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 # Function to update SSL configuration in proxy_conf_file
 update_ssl_config() {
@@ -110,7 +110,7 @@ update_config() {
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
             service panel reload
             # Remove data.json files for all users
-            rm -rf /usr/local/panel/core/users/*/data.json
+            rm -rf /etc/openpanel/openpanel/core/users/*/data.json
         fi
         
     else
