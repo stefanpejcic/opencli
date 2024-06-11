@@ -978,7 +978,7 @@ perform_backup() {
 
 
 # log to the main log file for the job
-log_dir="/usr/local/admin/backups/logs/$NUMBER"
+log_dir="/var/log/openpanel/admin/backups/$NUMBER"
 mkdir -p $log_dir
 log_file="$log_dir/$(( $(ls -l "$log_dir" | grep -c '^-' ) + 1 )).log"
 process_id=$$
