@@ -42,7 +42,7 @@ current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip
 create_ip_file() {
     USERNAME=$1
     IP=$2
-    JSON_FILE="/usr/local/panel/core/users/$USERNAME/ip.json"
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
     echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
 }
 
