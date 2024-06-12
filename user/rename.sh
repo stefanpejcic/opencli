@@ -354,6 +354,16 @@ replace_username_in_phpfpm_configs() {
 
 replace_username_in_phpfpm_configs "$old_username" "$new_username"
 edit_nginx_files_on_host_server "$old_username" "$new_username"
-update_firewall_rules "$IP_TO_USE"
+
+# Check for CSF
+if command -v csf >/dev/null 2>&1; then
+    # do nothing for csf, ports are already opened..
+    FIREWALL="CSF"
+elif command -v ufw >/dev/null 2>&1; then
+    # rename username in ufw comments
+    FIREWALL="UFW"
+    update_firewall_rules "$IP_TO_USE"
+fi
+
 rename_user_in_db "$old_username" "$new_username"
 change_default_email
