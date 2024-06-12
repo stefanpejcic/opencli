@@ -5,7 +5,7 @@
 # Usage: opencli user-delete <USERNAME> [-y]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 16.11.2023
+# Last Modified: 12.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -141,7 +141,6 @@ delete_user_from_database() {
 disable_ports_in_ufw() {
   # Get the line numbers to delete
   line_numbers=$(ufw status numbered | awk -F'[][]' -v user="$username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' |sort -rn)
-                #ufw status numbered | awk '$NF ~ /stefan/' | awk -F '[][]' '/\[/{print "[" $2 "]"}' | sed 's/[][]//g'
 
   # Loop through each line number and delete the corresponding rule
   for line_number in $line_numbers; do
@@ -150,10 +149,31 @@ disable_ports_in_ufw() {
   done
 }
 
+# Function to delete port from tcp_in for CSF
+remove_csf_port() {
+    CSF_CONF="/etc/csf/csf.conf"
+    local PORT=$1
+
+    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
+        sudo sed -i "/^TCP_IN/ s/,\?$PORT,\?//g" $CSF_CONF
+        echo "Port $PORT removed from TCP_IN"
+    else
+        echo "Port $PORT is not in TCP_IN"
+    fi
+}
+
+
 # Confirm actions
 confirm_action
 
-
+# Function to extract the host port from 'docker port' output, used by csf
+extract_host_port() {
+    local port_number="$1"
+    local host_port
+    host_port=$(docker port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+    echo "$host_port"
+}
+    
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
   tc qdisc del dev docker0 root 2>/dev/null
@@ -166,9 +186,44 @@ ip_address=$(docker container inspect -f '{{ .NetworkSettings.IPAddress }}' "$us
 delete_bandwidth_limits "$ip_address"
 
 # Disable ports in UFW, remove Docker container, user data and volume, and delete user from the database
-disable_ports_in_ufw
 
-ufw reload
+# CSF
+if command -v csf >/dev/null 2>&1; then
+    FIREWALL="CSF"
+    container_ports=("22" "3306" "7681" "8080")
+    
+    # Loop through the container_ports array and close the ports on firewall
+    for port in "${container_ports[@]}"; do
+        host_port=$(extract_host_port "$port")
+        if [ -n "$host_port" ]; then
+            if [ "$DEBUG" = true ]; then
+                # Debug mode: Print debug message            
+                echo "Removing port ${host_port} from TCP_IN for port ${port} in $FIREWALL"
+                remove_csf_port ${host_port}
+            else
+                remove_csf_port ${host_port} >/dev/null 2>&1
+            fi
+        else
+            echo "Error: No exposed ports for the container!"
+        fi
+        
+    done
+    if [ "$DEBUG" = true ]; then
+        echo "Reloading ConfigServer Firewall rules.."
+        csf -r
+    else
+    csf -r >/dev/null 2>&1
+    fi
+    
+# UFW
+elif command -v ufw >/dev/null 2>&1; then
+    FIREWALL="UFW"
+    disable_ports_in_ufw
+    ufw reload
+fi
+
+
+
 
 delete_vhosts_files
 
