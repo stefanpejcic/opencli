@@ -370,6 +370,34 @@ temp_fix_for_nginx_default_site_missing() {
 }
 
 
+# Function to add a port to tcp_in for csf
+add_csf_port() {
+    CSF_CONF="/etc/csf/csf.conf"
+    local PORT=$1
+
+    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
+        echo "Port $PORT is already in TCP_IN"
+    else
+        sudo sed -i "/^TCP_IN/ s/\"$/,$PORT\"/" $CSF_CONF
+        echo "Port $PORT added to TCP_IN"
+    fi
+}
+
+# Function to remove a port from tcp_in for cs
+remove_csf_port() {
+    CSF_CONF="/etc/csf/csf.conf"
+    local PORT=$1
+
+    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
+        sudo sed -i "/^TCP_IN/ s/,\?$PORT,\?//g" $CSF_CONF
+        echo "Port $PORT removed from TCP_IN"
+    else
+        echo "Port $PORT is not in TCP_IN"
+    fi
+}
+
+
+
 run_docker() {
     # Get the storage driver used by Docker
     storage_driver=$(docker info --format '{{.Driver}}')
@@ -466,24 +494,45 @@ if [ "$DEBUG" = true ]; then
     echo ""
 fi
 
-# Loop through the container_ports array and open the ports in UFW if not already open
+
+            # Check for CSF
+            if command -v csf >/dev/null 2>&1; then
+                echo "CSF is installed."
+                FIREWALL="CSF"
+            # Check for UFW
+            elif command -v ufw >/dev/null 2>&1; then
+                echo "UFW is installed."
+                FIREWALL="UFW"
+            else
+                echo "Danger! Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
+            fi
+
+
+
+# Loop through the container_ports array and open the ports on firewall
 for port in "${container_ports[@]}"; do
     host_port=$(extract_host_port "$port")
 
     if [ "$DEBUG" = true ]; then
         if [ -n "$host_port" ]; then
-            # Debug mode: Print debug message
-            echo "Opening port ${host_port} for port ${port} in UFW"
-            # Open the port in UFW for debug mode (without redirecting output to /dev/null)
-            ufw allow ${host_port}/tcp  comment "${username}"
-        else
-            # Debug mode: Print debug message
-            echo "Port ${port} not found in container ${container_name}"
+            # Debug mode: Print debug message            
+            echo "Opening port ${host_port} for port ${port} in $FIREWALL"
+    
+            if [ "$FIREWALL" = "CSF" ]; then
+                add_csf_port ${host_port}
+            elif [ "$FIREWALL" = "UFW" ]; then
+                ufw allow ${host_port}/tcp  comment "${username}"
+            fi
+            ports_opened=1
         fi
     else
         if [ -n "$host_port" ]; then
-            # Open the port in UFW (redirect all output to /dev/null)
-            ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
+
+            if [ "$FIREWALL" = "CSF" ]; then
+                add_csf_port ${host_port} >/dev/null 2>&1
+            elif [ "$FIREWALL" = "UFW" ]; then
+                ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
+            fi
             ports_opened=1
         fi
     fi
@@ -492,12 +541,21 @@ done
 # Restart UFW if ports were opened
 if [ $ports_opened -eq 1 ]; then
     if [ "$DEBUG" = true ]; then
-        # Debug mode: Print debug message
-        echo "Restarting UFW"
-        ufw reload
+
+        if [ "$FIREWALL" = "CSF" ]; then
+            echo "Reloading ConfigServer Firewall"
+            csf -r
+        elif [ "$FIREWALL" = "UFW" ]; then
+            echo "Reloading UFW"
+            ufw reload
+        fi
+
     else
-        # Not in debug mode: Reload UFW with output redirection to /dev/null
-        ufw reload >/dev/null 2>&1
+        if [ "$FIREWALL" = "CSF" ]; then
+            csf -r >/dev/null 2>&
+        elif [ "$FIREWALL" = "UFW" ]; then
+            ufw reload >/dev/null 2>&
+        fi        
     fi
 fi
 
