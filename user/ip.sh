@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# TODO: handle csf instead of ufw for dedi ip port rules!
+
 USERNAME=$1
 ACTION=$2
 CONFIRM_FLAG=$3
