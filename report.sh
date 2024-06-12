@@ -29,6 +29,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# todo: ufw flag with firewallflag to cover also csf
+
 # Create directory if it doesn't exist
 output_dir="/var/log/openpanel/admin/reports"
 mkdir -p "$output_dir"
@@ -60,6 +62,7 @@ check_services_status() {
   run_command "systemctl status nginx" "Nginx Status"
   run_command "systemctl status docker" "Docker Status"
   run_command "systemctl status ufw" "UFW Status"
+  run_command "systemctl status csf" "ConfigServer Firewall Status"
   run_command "systemctl status named" "BIND9 Status"
   run_command "systemctl status admin" "Admin Service Status"
   run_command "systemctl status panel" "Panel Service Status"
