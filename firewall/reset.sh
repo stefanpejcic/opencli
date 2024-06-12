@@ -34,11 +34,13 @@
 
 # Check for CSF
 if command -v csf >/dev/null 2>&1; then
-    echo "CSF is installed."
+    echo "Checking ConfigServer Firewall configuration.."
+    echo ""
     FIREWALL="CSF"
 # Check for UFW
 elif command -v ufw >/dev/null 2>&1; then
-    echo "UFW is installed."
+    echo ""
+    echo "Checking UFW configuration.."
     FIREWALL="UFW"
 
     # Export current UFW rules to ports.txt
@@ -70,112 +72,64 @@ ensure_jq_installed() {
     fi
 }
 
-ensure_jq_installed
-
-# Step 1: List all container names
-container_names=$(opencli user-list --json | jq -r '.[].username')
-# Function to extract the host port from 'docker port' output for a specific container
-extract_host_port() {
-    local container_name="$1"
-    local port_number="$2"
-    local host_port
-    host_port=$(docker port "$container_name" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
-    echo "$host_port"
-}
-
-# Define the list of container ports to check and open
-container_ports=("22" "3306" "7681" "8080")
 
 # Variable to track whether any ports were opened
 ports_opened=0
 
-
 if [ "$FIREWALL" = "CSF" ]; then
     CSF_CONF="/etc/csf/csf.conf"
+
+    # Check if Docker port range is already open
+    docker_ports_opened=$(grep "TCP_IN = .*32768:60999" "$CSF_CONF")
+    if [ -z "$docker_ports_opened" ]; then
+        # Open Docker port range
+        sed -i 's/TCP_IN = "\(.*\)"/TCP_IN = "\1,32768:60999"/' "$CSF_CONF" # prepend ,
+        echo "Docker port range (32768:60999) opened in CSF."
+        ports_opened=1
+    else
+        echo "Docker port range (32768:60999) is already open in $CSF_CONF"
+    fi     
+elif [ "$FIREWALL" = "UFW" ]; then
+    ensure_jq_installed
     
-    # delete ALL docker ports from TCP_IN of csf conf
-    remove_docker_ports() {
-      local ports="$1"
-      local new_ports=""
-    
-      # Iterate through the list of ports
-      IFS=',' read -ra ADDR <<< "$ports"
-      for port in "${ADDR[@]}"; do
-        # Trim leading and trailing whitespace
-        port=$(echo "$port" | tr -d '[:space:]')
-        # Check if the port is not within the Docker port range
-        if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 32768 ] || [ "$port" -gt 65535 ]; then
-          # Append the port to the new ports list
-          if [ -z "$new_ports" ]; then
-            new_ports="$port"
-          else
-            new_ports="$new_ports,$port"
-          fi
-        fi
-      done
-    
-      echo $new_ports
+    # Step 1: List all container names
+    container_names=$(opencli user-list --json | jq -r '.[].username')
+    # Function to extract the host port from 'docker port' output for a specific container
+    extract_host_port() {
+        local container_name="$1"
+        local port_number="$2"
+        local host_port
+        host_port=$(docker port "$container_name" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+        echo "$host_port"
     }
 
-
-    # Read the current TCP_IN setting
-    TCP_IN=$(grep "^TCP_IN" $CSF_CONF | cut -d'=' -f2 | tr -d ' ')
-
-    echo "Existing CSF TCP_IN: $TCP_IN"
+    # Define the list of container ports to check and open manually 1 by 1 in ufw..
+    container_ports=("22" "3306" "7681" "8080")
+    # Loop through the list of container names
+    for container_name in $container_names; do
+        for port in "${container_ports[@]}"; do
+            host_port=$(extract_host_port "$container_name" "$port")
     
-    # Remove Docker-related ports from TCP_IN
-    NEW_TCP_IN=$(remove_docker_ports "$TCP_IN")
-    
-    echo "New CSF TCP_IN value after removing all docker ports: $NEW_TCP_IN"
-    
-    # Update the CSF configuration file with the new TCP_IN value
-    sed -i "s/^TCP_IN = .*/TCP_IN = $NEW_TCP_IN/" $CSF_CONF
-
-    echo "Docker-related ports have been removed from TCP_IN of csf.conf"
+            if [ -n "$host_port" ]; then
+                    # Remove existing UFW rules with comments containing the host port
+                    ufw status numbered | grep "comment ${host_port}" | while read -r rule; do
+                        rule_number=$(echo "$rule" | cut -d'[' -f1)
+                        if [ -n "$rule_number" ]; then
+                            echo "Deleting existing rule: $rule"
+                            ufw delete "$rule_number"
+                        fi
+                    done
+                    # Open the port in UFW with a comment containing the container name
+                    echo "Opening port ${host_port} for port ${port} in UFW for container ${container_name}"
+                    ufw allow ${host_port}/tcp comment "${container_name}"
+                    ports_opened=1
+            else
+                echo "Port ${port} not found in container ${container_name}"
+            fi
+        done
+    done
 
 fi
-
-# Function to add a port to tcp_in for csf
-add_csf_port() {
-    CSF_CONF="/etc/csf/csf.conf"
-    local PORT=$1
-    sed -i "s/TCP_IN\s*=.*/&,$PORT/" "$CSF_CONF"
-    echo "Port $PORT added to TCP_IN"
-}
-
-
-# Loop through the list of container names
-for container_name in $container_names; do
-    for port in "${container_ports[@]}"; do
-        host_port=$(extract_host_port "$container_name" "$port")
-
-        if [ -n "$host_port" ]; then
-               
-            if [ "$FIREWALL" = "UFW" ]; then
-                # Remove existing UFW rules with comments containing the host port
-                ufw status numbered | grep "comment ${host_port}" | while read -r rule; do
-                    rule_number=$(echo "$rule" | cut -d'[' -f1)
-                    if [ -n "$rule_number" ]; then
-                        echo "Deleting existing rule: $rule"
-                        ufw delete "$rule_number"
-                    fi
-                done
-    
-                # Open the port in UFW with a comment containing the container name
-                echo "Opening port ${host_port} for port ${port} in UFW for container ${container_name}"
-                ufw allow ${host_port}/tcp comment "${container_name}"
-                
-            elif [ "$FIREWALL" = "CSF" ]; then
-                add_csf_port ${host_port}
-            fi
-            ports_opened=1
-            
-        else
-            echo "Port ${port} not found in container ${container_name}"
-        fi
-    done
-done
-
 
 # Restart UFW if ports were opened
 if [ $ports_opened -eq 1 ]; then
