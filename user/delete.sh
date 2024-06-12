@@ -191,30 +191,8 @@ delete_bandwidth_limits "$ip_address"
 if command -v csf >/dev/null 2>&1; then
     FIREWALL="CSF"
     container_ports=("22" "3306" "7681" "8080")
-    
-    # Loop through the container_ports array and close the ports on firewall
-    for port in "${container_ports[@]}"; do
-        host_port=$(extract_host_port "$port")
-        if [ -n "$host_port" ]; then
-            if [ "$DEBUG" = true ]; then
-                # Debug mode: Print debug message            
-                echo "Removing port ${host_port} from TCP_IN for port ${port} in $FIREWALL"
-                remove_csf_port ${host_port}
-            else
-                remove_csf_port ${host_port} >/dev/null 2>&1
-            fi
-        else
-            echo "Error: No exposed ports for the container!"
-        fi
-        
-    done
-    if [ "$DEBUG" = true ]; then
-        echo "Reloading ConfigServer Firewall rules.."
-        csf -r
-    else
-    csf -r >/dev/null 2>&1
-    fi
-    
+    #we use range, so not need to rm rules for account delete..
+
 # UFW
 elif command -v ufw >/dev/null 2>&1; then
     FIREWALL="UFW"
