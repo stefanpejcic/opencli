@@ -383,20 +383,6 @@ add_csf_port() {
     fi
 }
 
-# Function to remove a port from tcp_in for cs
-remove_csf_port() {
-    CSF_CONF="/etc/csf/csf.conf"
-    local PORT=$1
-
-    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
-        sudo sed -i "/^TCP_IN/ s/,\?$PORT,\?//g" $CSF_CONF
-        echo "Port $PORT removed from TCP_IN"
-    else
-        echo "Port $PORT is not in TCP_IN"
-    fi
-}
-
-
 
 run_docker() {
     # Get the storage driver used by Docker
@@ -519,7 +505,9 @@ for port in "${container_ports[@]}"; do
             echo "Opening port ${host_port} for port ${port} in $FIREWALL"
     
             if [ "$FIREWALL" = "CSF" ]; then
-                add_csf_port ${host_port}
+                # range is already opened..
+                ports_opened=0
+                #add_csf_port ${host_port}
             elif [ "$FIREWALL" = "UFW" ]; then
                 ufw allow ${host_port}/tcp  comment "${username}"
             fi
@@ -527,9 +515,10 @@ for port in "${container_ports[@]}"; do
         fi
     else
         if [ -n "$host_port" ]; then
-
             if [ "$FIREWALL" = "CSF" ]; then
-                add_csf_port ${host_port} >/dev/null 2>&1
+                # range is already opened..
+                ports_opened=0
+                #add_csf_port ${host_port} >/dev/null 2>&1
             elif [ "$FIREWALL" = "UFW" ]; then
                 ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
             fi
@@ -543,8 +532,9 @@ if [ $ports_opened -eq 1 ]; then
     if [ "$DEBUG" = true ]; then
 
         if [ "$FIREWALL" = "CSF" ]; then
-            echo "Reloading ConfigServer Firewall"
-            csf -r
+            :
+            #echo "Reloading ConfigServer Firewall"
+            #csf -r
         elif [ "$FIREWALL" = "UFW" ]; then
             echo "Reloading UFW"
             ufw reload
@@ -552,7 +542,8 @@ if [ $ports_opened -eq 1 ]; then
 
     else
         if [ "$FIREWALL" = "CSF" ]; then
-            csf -r >/dev/null 2>&
+            :
+            #csf -r >/dev/null 2>&
         elif [ "$FIREWALL" = "UFW" ]; then
             ufw reload >/dev/null 2>&
         fi        
