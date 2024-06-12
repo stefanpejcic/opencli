@@ -54,6 +54,49 @@ fi
 
 
 
+function open_port_csf() {
+    local port=$1
+    local csf_conf="/etc/csf/csf.conf"
+    
+    # Check if port is already open
+    port_opened=$(grep "TCP_IN = .*${port}" "$csf_conf")
+    if [ -z "$port_opened" ]; then
+        # Open port
+        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
+        echo "Port ${port} opened in CSF."
+        ports_opened=1
+    else
+        echo "Port ${port} is already open in CSF."
+    fi
+}
+
+
+# Function to extract port number from a file
+function extract_port_from_file() {
+    local file_path=$1
+    local pattern=$2
+    local port=$(grep -Po "(?<=${pattern}[ =])\d+" "$file_path")
+    echo "$port"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -75,21 +118,39 @@ ensure_jq_installed() {
 
 # Variable to track whether any ports were opened
 ports_opened=0
+echo "Opening ports:"
+echo ""
 
+# Check and open ports
 if [ "$FIREWALL" = "CSF" ]; then
-    CSF_CONF="/etc/csf/csf.conf"
-
-    # Check if Docker port range is already open
-    docker_ports_opened=$(grep "TCP_IN = .*32768:60999" "$CSF_CONF")
-    if [ -z "$docker_ports_opened" ]; then
-        # Open Docker port range
-        sed -i 's/TCP_IN = "\(.*\)"/TCP_IN = "\1,32768:60999"/' "$CSF_CONF" # prepend ,
-        echo "Docker port range (32768:60999) opened in CSF."
-        ports_opened=1
-    else
-        echo "Docker port range (32768:60999) is already open in $CSF_CONF"
-    fi     
+    open_port_csf 53 #dns
+    open_port_csf 80 #http
+    open_port_csf 443 #https
+    
+    ######for emails we wil add:
+    # open_port_csf 25
+    # open_port_csf 587
+    # open_port_csf 465
+    # open_port_csf 993
+    
+    open_port_csf $(extract_port_from_file "/etc/openpanel/openpanel/conf/openpanel.config" "port") #openpanel
+    # openadmin port (2087) is not opened automatically!
+    open_port_csf $(extract_port_from_file "/etc/ssh/sshd_config" "Port") #ssh
+    open_port_csf 32768:60999 #docker
+        
 elif [ "$FIREWALL" = "UFW" ]; then
+    ufw allow 80/tcp #http
+    ufw allow 53  #dns
+    ufw allow 443/tcp # https
+    
+    ######for emails we wil add:
+    # ufw allow 25/tcp
+    # ufw allow 587/tcp
+    # ufw allow 465/tcp
+    # ufw allow 993/tcp
+    
+    ufw allow $(extract_port_from_file "/etc/openpanel/openpanel/conf/openpanel.config" "port")/tcp #openpanel
+
     ensure_jq_installed
     
     # Step 1: List all container names
@@ -102,6 +163,10 @@ elif [ "$FIREWALL" = "UFW" ]; then
         host_port=$(docker port "$container_name" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
         echo "$host_port"
     }
+
+    echo ""
+    echo "Opening docker ports for OpenPanel users:"
+    echo ""
 
     # Define the list of container ports to check and open manually 1 by 1 in ufw..
     container_ports=("22" "3306" "7681" "8080")
@@ -140,3 +205,5 @@ if [ $ports_opened -eq 1 ]; then
         csf -r
     fi
 fi
+
+echo ""
