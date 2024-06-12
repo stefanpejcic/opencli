@@ -652,16 +652,12 @@ fi
 
 # Create files and folders needed for the user account
 if [ "$DEBUG" = true ]; then
-    mkdir -p /etc/openpanel/openpanel/core/users
-    mkdir -p /etc/openpanel/openpanel/core/stats/$username
-    cp -r /etc/openpanel/openadmin/skeleton/ /etc/openpanel/openpanel/core/users/$username/
+    cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/
     echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
     opencli php-get_available_php_versions $username &
 else
-    mkdir -p /etc/openpanel/openpanel/core/users  > /dev/null 2>&1
-    mkdir -p /etc/openpanel/openpanel/core/stats/$username  > /dev/null 2>&1
-    cp -r /etc/openpanel/openadmin/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
+    cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
     echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
     opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
