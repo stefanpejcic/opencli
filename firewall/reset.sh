@@ -101,6 +101,8 @@ if [ "$FIREWALL" = "CSF" ]; then
       # Iterate through the list of ports
       IFS=',' read -ra ADDR <<< "$ports"
       for port in "${ADDR[@]}"; do
+        # Trim leading and trailing whitespace
+        port=$(echo "$port" | tr -d '[:space:]')
         # Check if the port is not within the Docker port range
         if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 32768 ] || [ "$port" -gt 65535 ]; then
           # Append the port to the new ports list
@@ -112,17 +114,22 @@ if [ "$FIREWALL" = "CSF" ]; then
         fi
       done
     
-      echo "$new_ports"
+      echo $new_ports
     }
+
 
     # Read the current TCP_IN setting
     TCP_IN=$(grep "^TCP_IN" $CSF_CONF | cut -d'=' -f2 | tr -d ' ')
+
+    echo "Existing CSF TCP_IN: $TCP_IN"
     
     # Remove Docker-related ports from TCP_IN
     NEW_TCP_IN=$(remove_docker_ports "$TCP_IN")
     
+    echo "New CSF TCP_IN value after removing all docker ports": $NEW_TCP_IN"
+    
     # Update the CSF configuration file with the new TCP_IN value
-    sed -i "s/^TCP_IN = .*/TCP_IN = \"$NEW_TCP_IN\"/" $CSF_CONF
+    sed -i "s/^TCP_IN = .*/TCP_IN = $NEW_TCP_IN/" $CSF_CONF
 
     echo "Docker-related ports have been removed from TCP_IN of csf.conf"
     # dont reload yet, we will do that later!
@@ -133,13 +140,8 @@ fi
 add_csf_port() {
     CSF_CONF="/etc/csf/csf.conf"
     local PORT=$1
-
-    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
-        echo "Port $PORT is already in TCP_IN"
-    else
-        sudo sed -i "/^TCP_IN/ s/\"$/,$PORT\"/" $CSF_CONF
-        echo "Port $PORT added to TCP_IN"
-    fi
+    sed -i "s/TCP_IN\s*=.*/&,$PORT/" "$CSF_CONF"
+    echo "Port $PORT added to TCP_IN"
 }
 
 
