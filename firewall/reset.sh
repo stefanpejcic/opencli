@@ -31,8 +31,30 @@
 
 
 
-# Export current UFW rules to ports.txt
-ufw status > ports.txt
+
+# Check for CSF
+if command -v csf >/dev/null 2>&1; then
+    echo "CSF is installed."
+    FIREWALL="CSF"
+# Check for UFW
+elif command -v ufw >/dev/null 2>&1; then
+    echo "UFW is installed."
+    FIREWALL="UFW"
+
+    # Export current UFW rules to ports.txt
+    ufw status > ports.txt
+    
+else
+    echo "Error: Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
+    exit 1
+fi
+
+
+
+
+
+
+
 
 ensure_jq_installed() {
     # Check if jq is installed
