@@ -483,11 +483,11 @@ fi
 
             # Check for CSF
             if command -v csf >/dev/null 2>&1; then
-                echo "CSF is installed."
+                #echo "CSF is installed."
                 FIREWALL="CSF"
             # Check for UFW
             elif command -v ufw >/dev/null 2>&1; then
-                echo "UFW is installed."
+                #echo "UFW is installed."
                 FIREWALL="UFW"
             else
                 echo "Danger! Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
@@ -545,7 +545,7 @@ if [ $ports_opened -eq 1 ]; then
             :
             #csf -r >/dev/null 2>&
         elif [ "$FIREWALL" = "UFW" ]; then
-            ufw reload >/dev/null 2>&
+            ufw reload >/dev/null 2>&1
         fi        
     fi
 fi
