@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# TODO: edit to also backup csf rules!
+
 # check for server wide options
 config_file="/etc/openpanel/openadmin/config/backups/config.ini"
 
