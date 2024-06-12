@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: firewall/reset.sh
-# Description: Resets all firewall rules and opens all exposed ports for Docker containers.
+# Description: Deletes all docker related ports from CSF/UFW and opens exposed ports.
 #              Use: opencli firewall-reset
 # Author: Stefan Pejcic
 # Created: 01.11.2023
