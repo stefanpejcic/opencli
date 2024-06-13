@@ -61,7 +61,7 @@ current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 ################################################################################
 
 # Define the output directory
-output_dir="/usr/local/panel/core/stats"
+output_dir="/etc/openpanel/openpanel/core/stats"
 
 # Get the current date and time in the desired format
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
