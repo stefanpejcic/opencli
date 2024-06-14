@@ -387,7 +387,6 @@ case "$1" in
             new_username="$2"
             new_password="$3"
             add_new_user "$new_username" "$new_password"
-        fi
         ;;
     "notifications")
         # COntrol notification preferences
