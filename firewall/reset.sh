@@ -71,6 +71,7 @@ function open_port_csf() {
 }
 
 
+
 # Function to extract port number from a file
 function extract_port_from_file() {
     local file_path=$1
@@ -80,8 +81,17 @@ function extract_port_from_file() {
 }
 
 
-
-
+function open_out_port_csf() {
+        port="3306"
+        local csf_conf="/etc/csf/csf.conf"
+        # Check if port is already open
+        port_opened=$(grep "TCP_OUT = .*${port}" "$csf_conf")
+        if [ -z "$port_opened" ]; then
+            # Open port
+            sed -i "s/TCP_OUT = \"\(.*\)\"/TCP_OUT = \"\1,${port}\"/" "$csf_conf"
+            ports_opened=1
+        fi
+}
 
 
 
@@ -137,6 +147,8 @@ if [ "$FIREWALL" = "CSF" ]; then
     # openadmin port (2087) is not opened automatically!
     open_port_csf $(extract_port_from_file "/etc/ssh/sshd_config" "Port") #ssh
     open_port_csf 32768:60999 #docker
+    
+    open_out_port_csf
         
 elif [ "$FIREWALL" = "UFW" ]; then
     ufw allow 80/tcp #http

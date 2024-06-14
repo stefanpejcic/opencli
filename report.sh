@@ -53,7 +53,7 @@ run_opencli() {
 # Function to display UFW rules if --ufw flag is provided
 run_ufw_rules() {
   echo "=== Firewall Rules ===" >> "$output_file"
-  run_command "cat /etc/ufw/user.rules" "Server IPv4 Firewall Rules"
+  run_command "csf -l" "Firewall Rules"
 }
 
 # Function to check the status of services
