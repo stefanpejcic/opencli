@@ -29,7 +29,7 @@
 ################################################################################
 
 CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-service_name="admin"
+service_name="openadmin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
 DB_FILE_PATH="/etc/openpanel/openadmin/users.db"
 GREEN='\033[0;32m'
@@ -114,7 +114,7 @@ get_public_ip() {
 
 
 detect_service_status() {
-if systemctl is-active --quiet $service_name; then
+if docker inspect -f '{{.State.Running}}' $service_name 2>/dev/null; then
     if [ "$(get_ssl_status)" == true ]; then
         hostname=$(get_force_domain)
         admin_url="https://${hostname}:2087/"
@@ -320,13 +320,12 @@ case "$1" in
     "on")
         # Enable and check
         echo "Enabling the OpenAdmin..."
-        systemctl enable --now $service_name > /dev/null 2>&1
+        docker start $service_name > /dev/null 2>&1
         detect_service_status
         ;;
     "log")
         # tail logs
         echo "OpenAdmin error log:"
-        systemctl enable --now $service_name > /dev/null 2>&1
         echo ""
         tail -25 $admin_logs_file
         echo ""
@@ -334,7 +333,7 @@ case "$1" in
     "off")
         # Disable admin panel service
         echo "Disabling the OpenAdmin..."
-        systemctl disable --now $service_name > /dev/null 2>&1
+        docker stop $service_name > /dev/null 2>&1
         detect_service_status
         ;;
     "help")
