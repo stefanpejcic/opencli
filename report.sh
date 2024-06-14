@@ -59,13 +59,10 @@ run_ufw_rules() {
 # Function to check the status of services
 check_services_status() {
   echo "=== Services Status ===" >> "$output_file"
-  run_command "systemctl status nginx" "Nginx Status"
+  run_command "docker compose ls" "OpenPanel Stack"
   run_command "systemctl status docker" "Docker Status"
-  run_command "systemctl status ufw" "UFW Status"
   run_command "systemctl status csf" "ConfigServer Firewall Status"
   run_command "systemctl status named" "BIND9 Status"
-  run_command "systemctl status admin" "Admin Service Status"
-  run_command "systemctl status panel" "Panel Service Status"
 }
 
 # Function to display OpenPanel settings
