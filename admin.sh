@@ -153,16 +153,7 @@ add_new_user() {
                 echo "User '$username' created."
             fi
         else
-            out_password_hash=$(docker exec -it openadmin bash -c "python3 /usr/local/admin/core/users/hash $password")
-sqlite_command="CREATE TABLE IF NOT EXISTS user (
-    id INTEGER PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
-    is_active BOOLEAN DEFAULT 1 NOT NULL
-); INSERT INTO user (username, password_hash) VALUES ('$username', '$out_password_hash');"
-
-            output=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"" 2>&1)
+            output=$(docker exec -it openadmin bash -c "opencli admin new $username $password" 2>&1)
             if [ $? -ne 0 ]; then
                 echo "User not created: $output"
             else
