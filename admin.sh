@@ -132,10 +132,11 @@ fi
 add_new_user() {
     local username="$1"
     local password="$2"
-    local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
-
+    local display_logins="$3"
+    
     if [ -f /.dockerenv ]; then
         user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
+        local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
     else
         sqlite_command="SELECT COUNT(*) FROM user WHERE username='$username';"
         user_exists=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"")
@@ -152,7 +153,7 @@ add_new_user() {
                 echo "User '$username' created."
             fi
         else
-            out_password_hash=$(docker exec -it openadmin bash -c "$password_hash")
+            out_password_hash=$(docker exec -it openadmin bash -c "python3 /usr/local/admin/core/users/hash $password")
 sqlite_command="CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
@@ -165,7 +166,22 @@ sqlite_command="CREATE TABLE IF NOT EXISTS user (
             if [ $? -ne 0 ]; then
                 echo "User not created: $output"
             else
-                echo "User '$username' created."
+
+                if [ -n "$display_logins" ]; then
+                    echo ""
+                    printf "=%.0s"  $(seq 1 63)
+                    echo ""
+                    echo "OPENADMIN LOGIN INFORMATION:"
+                    echo ""
+                    echo "- USERNAME: $username"
+                    echo "- PASSWORD: $new_password"
+                    echo ""
+                    printf "=%.0s"  $(seq 1 63)
+                    echo ""
+                else
+                    echo "User '$username' created."
+                fi
+            
             fi
         fi
     fi
@@ -383,9 +399,18 @@ case "$1" in
         ;;       
     "new")
         # Add a new user
-        new_username="$2"
-        new_password="$3"
-        add_new_user "$new_username" "$new_password"
+        if [ "$3" = "generate" ]; then
+            # generate random user on first run via docker-compose.yml
+            wget -O /tmp/generate.sh https://gist.githubusercontent.com/stefanpejcic/ac968b785a12ee8494243359afd9c50f/raw/8c50c8e56c98d68e070ef3bad47a247d4e23c583/random_username_generator_docker.sh > /dev/null 2>&1
+            source /tmp/generate.sh
+            new_username=($random_name)
+            new_password=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 16)
+            add_new_user "$new_username" "$new_password" "PLEASE"
+        else
+            new_username="$2"
+            new_password="$3"
+            add_new_user "$new_username" "$new_password"
+        fi
         ;;
     "notifications")
         # COntrol notification preferences
