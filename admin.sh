@@ -166,22 +166,7 @@ sqlite_command="CREATE TABLE IF NOT EXISTS user (
             if [ $? -ne 0 ]; then
                 echo "User not created: $output"
             else
-
-                if [ -n "$display_logins" ]; then
-                    echo ""
-                    printf "=%.0s"  $(seq 1 63)
-                    echo ""
-                    echo "OPENADMIN LOGIN INFORMATION:"
-                    echo ""
-                    echo "- USERNAME: $username"
-                    echo "- PASSWORD: $new_password"
-                    echo ""
-                    printf "=%.0s"  $(seq 1 63)
-                    echo ""
-                else
-                    echo "User '$username' created."
-                fi
-            
+                echo "User '$username' created."            
             fi
         fi
     fi
@@ -399,14 +384,6 @@ case "$1" in
         ;;       
     "new")
         # Add a new user
-        if [ "$3" = "generate" ]; then
-            # generate random user on first run via docker-compose.yml
-            wget -O /tmp/generate.sh https://gist.githubusercontent.com/stefanpejcic/ac968b785a12ee8494243359afd9c50f/raw/8c50c8e56c98d68e070ef3bad47a247d4e23c583/random_username_generator_docker.sh > /dev/null 2>&1
-            source /tmp/generate.sh
-            new_username=($random_name)
-            new_password=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 16)
-            add_new_user "$new_username" "$new_password" "PLEASE"
-        else
             new_username="$2"
             new_password="$3"
             add_new_user "$new_username" "$new_password"
