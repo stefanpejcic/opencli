@@ -133,16 +133,40 @@ add_new_user() {
     local username="$1"
     local password="$2"
     local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
+
+    if [ -f /.dockerenv ]; then
+        user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    else
+        sqlite_command="SELECT COUNT(*) FROM user WHERE username='$username';"
+        user_exists=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"")
+    fi
 
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        output=$(sqlite3 $DB_FILE_PATH 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
-        if [ $? -ne 0 ]; then
-        echo "User not created: $output"
+        if [ -f /.dockerenv ]; then
+            output=$(sqlite3 $DB_FILE_PATH 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
+            if [ $? -ne 0 ]; then
+                echo "User not created: $output"
+            else
+                echo "User '$username' created."
+            fi
         else
-        echo "User '$username' created."
+            out_password_hash=$(docker exec -it openadmin bash -c "$password_hash")
+sqlite_command="CREATE TABLE IF NOT EXISTS user (
+    id INTEGER PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    is_active BOOLEAN DEFAULT 1 NOT NULL
+); INSERT INTO user (username, password_hash) VALUES ('$username', '$out_password_hash');"
+
+            output=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"" 2>&1)
+            if [ $? -ne 0 ]; then
+                echo "User not created: $output"
+            else
+                echo "User '$username' created."
+            fi
         fi
     fi
 }
@@ -196,10 +220,18 @@ update_password() {
 }
 
 
-
+# handles both in and out of contianer!
 list_current_users() {
-users=$(sqlite3 "$DB_FILE_PATH" "SELECT username, role, is_active FROM user;")
-echo "$users"
+
+    if [ -f /.dockerenv ]; then
+        list_users=$(sqlite3 "$DB_FILE_PATH" "SELECT username, role, is_active FROM user;")
+    else
+        sqlite_command="SELECT username, role, is_active FROM user;"
+        list_users=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"")
+        #echo "DEBUG Docker command: docker exec -it openadmin bash -c \"sqlite3 \\\"$DB_FILE_PATH\\\" \\\"$sqlite_command\\\"\""
+    fi
+
+    echo "$list_users"
 }
 
 suspend_user() {
