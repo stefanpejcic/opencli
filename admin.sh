@@ -5,7 +5,7 @@
 # Usage: opencli admin <setting_name> 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 11.06.2024
+# Last Modified: 29.05.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,10 +28,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-service_name="openadmin"
+CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
+service_name="admin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
-DB_FILE_PATH="/etc/openpanel/openadmin/users.db"
+#logins_file_path="/usr/local/admin/config.py"
+db_file_path="/usr/local/admin/users.db"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
@@ -114,7 +115,7 @@ get_public_ip() {
 
 
 detect_service_status() {
-if docker inspect -f '{{.State.Running}}' $service_name 2>/dev/null; then
+if systemctl is-active --quiet $service_name; then
     if [ "$(get_ssl_status)" == true ]; then
         hostname=$(get_force_domain)
         admin_url="https://${hostname}:2087/"
@@ -132,33 +133,17 @@ fi
 add_new_user() {
     local username="$1"
     local password="$2"
-    local display_logins="$3"
-    
-    if [ -f /.dockerenv ]; then
-        user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
-        local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
-    else
-        sqlite_command="SELECT COUNT(*) FROM user WHERE username='$username';"
-        user_exists=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"")
-    fi
+    local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        if [ -f /.dockerenv ]; then
-            output=$(sqlite3 $DB_FILE_PATH 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
-            if [ $? -ne 0 ]; then
-                echo "User not created: $output"
-            else
-                echo "User '$username' created."
-            fi
+        output=$(sqlite3 /usr/local/admin/users.db 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
+        if [ $? -ne 0 ]; then
+        echo "User not created: $output"
         else
-            output=$(docker exec -it openadmin bash -c "opencli admin new $username $password" 2>&1)
-            if [ $? -ne 0 ]; then
-                echo "User not created: $output"
-            else
-                echo "User '$username' created."            
-            fi
+        echo "User '$username' created."
         fi
     fi
 }
@@ -172,14 +157,14 @@ add_new_user() {
 update_username() {
     local old_username="$1"
     local new_username="$2"
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$old_username';")
-    local new_user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$new_username';")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$old_username';")
+    local new_user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$new_username';")
 
     if [ "$user_exists" -gt 0 ]; then
         if [ "$new_user_exists" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
-            sqlite3 $DB_FILE_PATH "UPDATE user SET username='$new_username' WHERE username='$old_username';"
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET username='$new_username' WHERE username='$old_username';"
             echo "User '$old_username' renamed to '$new_username'."
         fi
     else
@@ -190,11 +175,11 @@ update_username() {
 # Function to update the password for provided user
 update_password() {
     local username="$1"
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
     local password_hash=$(python3 /usr/local/admin/core/users/hash $new_password) 
 
     if [ "$user_exists" -gt 0 ]; then
-        sqlite3 $DB_FILE_PATH "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
+        sqlite3 /usr/local/admin/users.db "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
         echo "Password for user '$username' changed."
         echo ""
         printf "=%.0s"  $(seq 1 63)
@@ -212,30 +197,22 @@ update_password() {
 }
 
 
-# handles both in and out of contianer!
+
 list_current_users() {
-
-    if [ -f /.dockerenv ]; then
-        list_users=$(sqlite3 "$DB_FILE_PATH" "SELECT username, role, is_active FROM user;")
-    else
-        sqlite_command="SELECT username, role, is_active FROM user;"
-        list_users=$(docker exec -it openadmin bash -c "sqlite3 \"$DB_FILE_PATH\" \"$sqlite_command\"")
-        #echo "DEBUG Docker command: docker exec -it openadmin bash -c \"sqlite3 \\\"$DB_FILE_PATH\\\" \\\"$sqlite_command\\\"\""
-    fi
-
-    echo "$list_users"
+users=$(sqlite3 "$db_file_path" "SELECT username, role, is_active FROM user;")
+echo "$users"
 }
 
 suspend_user() {
     local username="$1"
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local is_admin=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
 
     if [ "$user_exists" -gt 0 ]; then
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot suspend user '$username' with 'admin' role."
         else
-            sqlite3 $DB_FILE_PATH "UPDATE user SET is_active='0' WHERE username='$username';"
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='0' WHERE username='$username';"
             echo "User '$username' suspended successfully."
         fi
     else
@@ -246,10 +223,10 @@ suspend_user() {
 
 unsuspend_user() {
     local username="$1"
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
-            sqlite3 $DB_FILE_PATH "UPDATE user SET is_active='1' WHERE username='$username';"
+            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='1' WHERE username='$username';"
             echo "User '$username' unsuspended successfully."
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
@@ -258,14 +235,14 @@ unsuspend_user() {
 
 delete_existing_users() {
     local username="$1"
-    local user_exists=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local is_admin=$(sqlite3 "$DB_FILE_PATH" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
 
     if [ "$user_exists" -gt 0 ]; then
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
-            sqlite3 $DB_FILE_PATH "DELETE FROM user WHERE username='$username';"            
+            sqlite3 /usr/local/admin/users.db "DELETE FROM user WHERE username='$username';"            
             echo "User '$username' deleted successfully."
         fi
     else
@@ -275,7 +252,7 @@ delete_existing_users() {
 
 
 
-config_file="/etc/openpanel/openadmin/config/notifications.ini"
+config_file="/usr/local/admin/service/notifications.ini"
 
 # Function to get the current configuration value for a parameter
 get_config() {
@@ -312,12 +289,13 @@ case "$1" in
     "on")
         # Enable and check
         echo "Enabling the OpenAdmin..."
-        docker start $service_name > /dev/null 2>&1
+        systemctl enable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
     "log")
         # tail logs
         echo "OpenAdmin error log:"
+        systemctl enable --now $service_name > /dev/null 2>&1
         echo ""
         tail -25 $admin_logs_file
         echo ""
@@ -325,7 +303,7 @@ case "$1" in
     "off")
         # Disable admin panel service
         echo "Disabling the OpenAdmin..."
-        docker stop $service_name > /dev/null 2>&1
+        systemctl disable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
     "help")
@@ -339,7 +317,7 @@ case "$1" in
 
 
         # Check if the file exists
-        if [ -f "$DB_FILE_PATH" ]; then
+        if [ -f "$db_file_path" ]; then
             if [ "$new_password" ]; then
                 # Use provided username
                 update_password "$user_flag"
@@ -349,7 +327,7 @@ case "$1" in
              #   update_password "admin"
             fi
         else
-            echo "Error: File $DB_FILE_PATH does not exist, password not changed for user."
+            echo "Error: File $db_file_path does not exist, password not changed for user."
         fi
                 
         ;;
@@ -375,9 +353,9 @@ case "$1" in
         ;;       
     "new")
         # Add a new user
-            new_username="$2"
-            new_password="$3"
-            add_new_user "$new_username" "$new_password"
+        new_username="$2"
+        new_password="$3"
+        add_new_user "$new_username" "$new_password"
         ;;
     "notifications")
         # COntrol notification preferences
