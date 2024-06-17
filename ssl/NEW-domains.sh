@@ -28,7 +28,13 @@
 # THE SOFTWARE.
 ################################################################################
 
-#!/bin/bash
+
+#
+# docker run goacme/lego -a --email webmaster@rasa.openpanel.site --http --http.webroot /home/dsadassad/rasa.openpanel.site --path /etc/openpanel/nginx/.lego/ --domains rasa.openpanel.site run
+#
+
+
+
 # Function to print usage information
 print_usage() {
     echo "Usage: $0 [-d] <domain_url>"
@@ -80,24 +86,6 @@ ensure_jq_installed() {
 }
 
 
-install_lego() {
-    echo "Lego is not installed. Installing lego..."
-    # Download lego binary from https://github.com/go-acme/lego/releases
-    wget https://github.com/go-acme/lego/releases/download/v4.17.3/lego_v4.17.3_linux_amd64.tar.gz -O /tmp/lego.tar.gz
-
-    # Extract the tarball
-    tar -xzf /tmp/lego.tar.gz -C /tmp
-
-    # Move the lego binary to /usr/local/bin
-    sudo mv /tmp/lego /usr/local/bin/lego
-
-    # Clean up
-    rm /tmp/lego.tar.gz
-
-    echo "Lego installed successfully."
-}
-
-
 
 # Function to generate SSL
 generate_ssl() {
@@ -125,18 +113,9 @@ generate_ssl() {
         HTTP_01=true
         DNS_01=false
     fi
-
-
-    # Check if lego is installed
-    if ! command -v lego &> /dev/null; then
-        install_lego
-    fi
-    
-    
-
     
     if [ "$HTTP_01" = true ]; then
-        lego -a --email webmaster@$domain_url \
+        docker run goacme/lego -a --email webmaster@$domain_url \
         --http --http.webroot /home/$username/$domain_url \
         --path /etc/openpanel/nginx/.lego/ \
         --domains $domain_url run
@@ -145,13 +124,13 @@ generate_ssl() {
         if [ -n "$DNS_PROVIDER" ]; then
             export $(grep -E "^${DNS_PROVIDER}_.*=" "$ssl_file")
             
-            lego -a --email webmaster@$domain_url \
+            docker run goacme/lego -a --email webmaster@$domain_url \
             --dns "$DNS_PROVIDER" \
             --path /etc/openpanel/lego/$username/$domain_url/ \
             --domains $domain_url run
         else
             EXEC_PATH=/usr/local/admin/scripts/ssl/bind-verify.sh \
-            lego -a --email webmaster@$domain_url \
+            docker run goacme/lego -a --email webmaster@$domain_url \
             --dns exec \
             ####### dry run --server=https://acme-staging-v02.api.letsencrypt.org/directory \
             --path /etc/openpanel/lego/$username/$domain_url/ \
@@ -233,7 +212,7 @@ delete_ssl() {
 
     # lego
     # added in 0.2.1
-    lego revoke --domains $domain_url --reason 0
+    docker run goacme/lego revoke --domains $domain_url --reason 0
 
     echo "SSL deletion completed successfully"
 }
