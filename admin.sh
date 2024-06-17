@@ -28,11 +28,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-CONFIG_FILE_PATH='/usr/local/panel/conf/panel.config'
+CONFIG_FILE_PATH='/etc/openpanel/conf/openpanel.config'
 service_name="admin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
 #logins_file_path="/usr/local/admin/config.py"
-db_file_path="/usr/local/admin/users.db"
+db_file_path="/etc/openpanel/openadmin/users.db"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
@@ -139,7 +139,7 @@ add_new_user() {
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        output=$(sqlite3 /usr/local/admin/users.db 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
+        output=$(sqlite3 $db_file_path 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
         if [ $? -ne 0 ]; then
         echo "User not created: $output"
         else
@@ -164,7 +164,7 @@ update_username() {
         if [ "$new_user_exists" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
-            sqlite3 /usr/local/admin/users.db "UPDATE user SET username='$new_username' WHERE username='$old_username';"
+            sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
             echo "User '$old_username' renamed to '$new_username'."
         fi
     else
@@ -179,7 +179,7 @@ update_password() {
     local password_hash=$(python3 /usr/local/admin/core/users/hash $new_password) 
 
     if [ "$user_exists" -gt 0 ]; then
-        sqlite3 /usr/local/admin/users.db "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
+        sqlite3 $db_file_path "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
         echo "Password for user '$username' changed."
         echo ""
         printf "=%.0s"  $(seq 1 63)
@@ -212,7 +212,7 @@ suspend_user() {
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot suspend user '$username' with 'admin' role."
         else
-            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='0' WHERE username='$username';"
+            sqlite3 $db_file_path "UPDATE user SET is_active='0' WHERE username='$username';"
             echo "User '$username' suspended successfully."
         fi
     else
@@ -226,7 +226,7 @@ unsuspend_user() {
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
-            sqlite3 /usr/local/admin/users.db "UPDATE user SET is_active='1' WHERE username='$username';"
+            sqlite3 $db_file_path "UPDATE user SET is_active='1' WHERE username='$username';"
             echo "User '$username' unsuspended successfully."
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
@@ -242,7 +242,7 @@ delete_existing_users() {
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
-            sqlite3 /usr/local/admin/users.db "DELETE FROM user WHERE username='$username';"            
+            sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
             echo "User '$username' deleted successfully."
         fi
     else
