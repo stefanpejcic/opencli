@@ -90,7 +90,7 @@ LINK: ${GREEN}${admin_url}${NC}
 ${BLUE}------------------------------------------------------------${NC}
 ${PURPLE}2.${NC} How to restart OpenAdmin or OpenPanel services?
 
-- OpenPanel: ${RED}service panel restart${NC}
+- OpenPanel: ${RED}docker restart openpanel${NC}
 - OpenAdmin: ${RED}service admin restart${NC}
 ${BLUE}------------------------------------------------------------${NC}
 ${PURPLE}3.${NC} How to reset admin password?
@@ -119,9 +119,14 @@ execute command ${GREEN}opencli config update autoupdate off${NC}
 ${BLUE}------------------------------------------------------------${NC}
 ${PURPLE}9.${NC} Where are the logs?
 
-- OpenPanel: ${GREEN}/var/log/openpanel/user/error.log${NC}
-- OpenAdmin: ${GREEN}/var/log/openpanel/admin/error.log${NC}
-- API: ${GREEN}/var/log/openpanel/admin/api.log${NC}
+- User panel errors: ${GREEN}/var/log/openpanel/user/error.log${NC}
+- User panel access log: ${GREEN}/var/log/openpanel/user/access.log${NC}
+- Admin panel errors: ${GREEN}/var/log/openpanel/admin/error.log${NC}
+- Admin panel access log: ${GREEN}/var/log/openpanel/admin/access.log${NC}
+- Admin panel API access: ${GREEN}/var/log/openpanel/admin/api.log${NC}
+- Admin panel logins: ${GREEN}/var/log/openpanel/admin/api.log${NC}
+- Admin panel alerts: ${GREEN}/var/log/openpanel/admin/notifications.log${NC}
+- Admin panel crons: ${GREEN}/var/log/openpanel/admin/cron.log${NC}
 
 ${BLUE}------------------------------------------------------------${NC}
 "
