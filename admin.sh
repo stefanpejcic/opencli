@@ -57,6 +57,7 @@ usage() {
     echo "  notifications <command> <param> [value]       Control notification preferences."
     echo ""
     echo "  Notifications Commands:"
+    echo "    check                                       Check and write notifications."
     echo "    get <param>                                 Get the value of the specified notification parameter."
     echo "    update <param> <value>                      Update the specified notification parameter with the new value."
     echo ""
@@ -65,11 +66,12 @@ usage() {
     echo "  opencli admin off"
     echo "  opencli admin log"
     echo "  opencli admin list"
-    echo "  opencli admin new newuser newpassword"
-    echo "  opencli admin password admin newpassword"
-    echo "  opencli admin rename olduser newuser"
-    echo "  opencli admin suspend username"
-    echo "  opencli admin unsuspend username"
+    echo "  opencli admin new stefan SuperStrong1"
+    echo "  opencli admin password stefan SuperStrong2"
+    echo "  opencli admin rename stefan pejcic"
+    echo "  opencli admin suspend pejcic"
+    echo "  opencli admin unsuspend pejcic"
+    echo "  opencli admin notifications check"
     echo "  opencli admin notifications get ssl"
     echo "  opencli admin notifications update ssl true"
     exit 1
@@ -364,6 +366,9 @@ case "$1" in
 
 
 case "$command" in
+    check)
+        bash  /usr/local/admin/service/notifications.sh
+        ;;
     get)
         get_config "$param_name"
         ;;
