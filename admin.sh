@@ -5,7 +5,7 @@
 # Usage: opencli admin <setting_name> 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 29.05.2024
+# Last Modified: 18.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-CONFIG_FILE_PATH='/etc/openpanel/conf/openpanel.config'
+CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 service_name="admin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
 #logins_file_path="/usr/local/admin/config.py"
