@@ -766,20 +766,14 @@ backup_docker_container(){
             if [ "$DEBUG" = true ]; then
                 echo "DEBUG: deleting the image and uploading the $container_name_$TIMESTAMP.tar.gz file to destination."
             fi
+            
             docker image rm $container_name
-            if [ $? -eq 0 ]; then
+            
+            if [ "$LOCAL" != true ]; then
                 copy_files "$BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz" "docker_image"
-                if [ $? -eq 0 ]; then
-                    if [ "$DEBUG" = true ]; then
-                        echo "DEBUG: deleting local file."
-                    fi
-                    rm $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
-                else
-                    echo "ERROR: Failed to copy backup file to destination."
-                fi
-            else
-                echo "ERROR: Failed to delete docker image $container_name"
+                rm $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
             fi
+
         else
             echo "ERROR: Failed to save docker image $container_name"
         fi
