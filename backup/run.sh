@@ -1182,7 +1182,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         COMPOSE_DESTINATION_DIR="${CONF_DESTINATION_DIR}/compose/"
         mkdir -p $COMPOSE_DESTINATION_DIR
         cp /root/docker-compose.yml ${COMPOSE_DESTINATION_DIR}docker-compose.yml
-        cp /root/.env ${COMPOSE_DESTINATION_DIR}d.env
+        cp /root/.env ${COMPOSE_DESTINATION_DIR}.env
         # DONT NEED AFTER INSTALL cp /root/initialize.sql ${COMPOSE_DESTINATION_DIR}initialize.sql
     }
 
