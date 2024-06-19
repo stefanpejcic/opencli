@@ -256,6 +256,21 @@ perform_restore_of_selected_files() {
         #bash restore.sh 1 20240131131407 nesto --files
     fi
 
+    if [ "$USER_DATA" = true ]; then
+	    user_id=$(mysql -e "SELECT id FROM users WHERE username='$CONTAINER_NAME';" -N)
+	
+	    if [ -z "$user_id" ]; then
+	        echo "User '$CONTAINER_NAME' does not exist, skip deleting."
+	    else
+     		echo "User already exists!"
+      		 # opencli user-delete <CONTAINER_NAME> -y
+	        exit 1
+	    fi
+    
+        export_user_data_from_database
+    fi
+
+
 
     if [ "$DOCKER" = true ]; then
     # OVO JE SVE TODO
@@ -394,10 +409,6 @@ perform_restore_of_selected_files() {
     fi
    
 
-
-    if [ "$USER_DATA" = true ]; then
-        export_user_data_from_database
-    fi
 
     if [ "$CORE_USERS" = true ]; then
         local_destination="/etc/openpanel/openpanel/core/users/$CONTAINER_NAME/"
