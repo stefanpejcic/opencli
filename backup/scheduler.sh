@@ -120,7 +120,7 @@ ensure_jq_installed
 
 # Process one job if run_id is provided, otherwise process and schedule all jobs
 if [ "$run_id" ]; then
-    file="/usr/local/admin/backups/jobs/$run_id.json"
+    file="/etc/openpanel/openadmin/config/backups/jobs/$run_id.json"
     if [ -f "$file" ]; then
         process_backup_job "$file"
     else
@@ -128,7 +128,7 @@ if [ "$run_id" ]; then
         exit 1
     fi
 else
-    for file in /usr/local/admin/backups/jobs/*.json; do
+    for file in /etc/openpanel/openadmin/config/backups/jobs/*.json; do
         if [ -f "$file" ] && jq -e '.status == "on"' "$file" >/dev/null; then
             process_backup_job "$file"
         fi
