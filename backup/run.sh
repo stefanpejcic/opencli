@@ -973,11 +973,7 @@ perform_backup() {
     
     log_user "$container_name" "Backup completed successfully."
 
-
-
-
 }
-
 
 
 
@@ -1390,13 +1386,25 @@ run_backup_for_user_data() {
 }
 
 
-# Check if the first element of the array is "accounts" or "partial"
-if [[ ${types[0]} == "accounts" || ${types[0]} == "partial" ]]; then
 
+
+# Check if the first element of the array is "accounts" or "partial"
+if [[ ${types[0]} == "accounts"; ]]; then
     echo ""
     echo "------------------------------------------------------------------------"
     echo ""
-    echo "STARTING USER ACCOUNTS BACKUP"
+    echo "STARTING USER ACCOUNTS SNAPSHOTS BACKUP"
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+
+    run_backup_for_user_data
+
+elif [[ ${types[0]} == "partial" ]]; then
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    echo "STARTING USER ACCOUNTS PARTIAL BACKUP"
     echo ""
     echo "------------------------------------------------------------------------"
     echo ""
