@@ -60,7 +60,7 @@ determine_flag() {
     case "$1" in
         "configuration") flags="--conf";;
         "accounts")
-            flags="--docker --files --user_data"
+            flags="--docker --files --user-data --core-users --stats-users"
             ;;
         "partial")
             if [ -n "$2" ]; then
