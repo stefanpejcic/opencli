@@ -426,6 +426,7 @@ copy_files() {
         else
             # Source is a file, handle it appropriately
             cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+            # TODO: cp: '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' and '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' are the same file
         fi
         
     fi
@@ -777,13 +778,13 @@ backup_docker_container(){
                     echo "ERROR: Failed to copy backup file to destination."
                 fi
             else
-                echo "ERROR: Failed to delete docker image."
+                echo "ERROR: Failed to delete docker image $container_name"
             fi
         else
-            echo "ERROR: Failed to save docker image."
+            echo "ERROR: Failed to save docker image $container_name"
         fi
     else
-        echo "ERROR: Failed to commit docker container."
+        echo "ERROR: Failed to commit docker container $container_name"
     fi
 }
 
