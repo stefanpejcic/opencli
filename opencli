@@ -45,7 +45,17 @@ if [ "$binary_name" = "-v" ]; then
   binary_name="--version"
 fi
 
+# for locales downlaod latest script from github
+if [ "$binary_name" = "locale" ]; then
+  shift
 
+  if [ "$#" -gt 0 ]; then
+    bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh) "$@"
+  else
+    bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh)
+  fi
+ exit 0
+fi
 
 # Replace '-' with '/' in the binary name
 binary_command="${binary_name//-//}"
