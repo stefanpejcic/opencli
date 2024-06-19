@@ -1379,11 +1379,12 @@ run_backup_for_user_data() {
                 perform_backup "$container_name"
                 backup_for_user_finished
                 
-    # WHY ?
+   
         if [ "$LOCAL" != true ]; then
                 ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
-        else
-                rm "$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+        #else
+         # WHY ?
+                #rm "$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
         fi
                 #cp index when we ended
                 copy_files "$user_index_file" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
@@ -1414,7 +1415,6 @@ if [[ ${types[0]} == "accounts" ]]; then
     echo ""
     echo "STARTING USER ACCOUNTS SNAPSHOTS BACKUP"
     echo ""
-    echo "------------------------------------------------------------------------"
     echo ""
 
     run_backup_for_user_data
