@@ -243,6 +243,105 @@ ssh_list_sql_files() {
 
 
 
+create_docker_from_tar(){
+
+	# Check if Docker container with the same username exists
+	if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+	    echo "Error: Docker container with the same username '$username' already exists. Aborting."
+	    exit 1
+	fi
+
+
+    # OVO JE SVE TODO
+    	#1. import image
+        local_destination="/tmp/$CONTAINER_NAME"
+        remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/*.tar.gz ."
+        run_restore "$remote_path_to_download" "$local_destination"
+	docker load < $local_destination/*.tar.gz
+
+
+	# Check if the Docker image was imported locally
+	if ! docker images -q "$CONTAINER_NAME" >/dev/null 2>&1; then
+	    echo "Error: Docker image '$CONTAINER_NAME' could not be imported."
+	    exit 1
+	fi
+ #### need to get storage_file   inodes  FROM DB FOR THAT PLAN!
+	storage_driver=$(docker info --format '{{.Driver}}')
+
+	    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+	        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$CONTAINER_NAME"
+	    elif [ "$storage_driver" == "devicemapper" ]; then
+	        if [ "$DEBUG" = true ]; then
+	            fallocate -l ${storage_file}g /home/storage_file_$CONTAINER_NAME
+	            mkfs.ext4 -N $inodes /home/storage_file_$CONTAINER_NAME
+	        else
+	            fallocate -l ${storage_file}g /home/storage_file_$CONTAINER_NAME >/dev/null 2>&1
+	            mkfs.ext4 -N $inodes /home/storage_file_$CONTAINER_NAME >/dev/null 2>&1
+	        fi
+	    fi
+
+		
+		
+		# Create and set permissions for user directory
+		mkdir -p /home/$username
+		chown 1000:33 /home/$username
+		chmod 755 /home/$username
+		chmod g+s /home/$username
+		
+		# Mount storage file if needed
+		if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
+		    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+		        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$username"
+		    elif [ "$storage_driver" == "devicemapper" ]; then
+		        mount -o loop /home/storage_file_$username /home/$username
+		        mkdir /home/$username/docker
+		        chown 1000:33 /home/$username/docker
+		        chmod 755 /home/$username/docker
+		        chmod g+s /home/$username/docker
+		    fi
+		fi
+        #bash restore.sh 1 20240131131407 nesto --files
+
+
+		
+		## Function to create a Docker network with bandwidth limiting
+		create_docker_network() {
+		
+		  for ((i = 18; i < 255; i++)); do
+		    subnet="172.$i.0.0/16"
+		    gateway="172.$i.0.1"
+		
+		    # Check if the subnet is already in use
+		    used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
+		      docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
+		    done)
+		
+		    if [[ $used_subnets =~ $subnet ]]; then
+		      continue  # Skip if the subnet is already in use
+		    fi
+		    # Create the Docker network
+		    docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
+		
+		    # Extract the network interface name for the gateway IP
+		    gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
+		
+		    # Limit the gateway bandwidth
+		    sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+		
+		    found_subnet=1  # Set the flag to indicate success
+		    break
+		  done
+		  if [ $found_subnet -eq 0 ]; then
+		    echo "No available subnet found. Exiting."
+		    exit 1  # Exit with an error code
+		  fi
+		}
+
+
+}
+
+
+
 
 # Main Restore Function
 perform_restore_of_selected_files() {
@@ -260,12 +359,34 @@ perform_restore_of_selected_files() {
 	    user_id=$(mysql -e "SELECT id FROM users WHERE username='$CONTAINER_NAME';" -N)
 	
 	    if [ -z "$user_id" ]; then
-	        echo "User '$CONTAINER_NAME' does not exist, skip deleting."
+	        echo "User '$CONTAINER_NAME' does not exist."
 	    else
      		echo "User already exists!"
       		 # opencli user-delete <CONTAINER_NAME> -y
 	        exit 1
 	    fi
+
+	#HERE GET THE USER PLAN_ID, THEN PLAN_NAME $plan_name
+
+	query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file, id FROM plans WHERE name = '$plan_name'"
+	
+	cpu_ram_info=$(mysql -e "$query" -sN)
+	
+	# Check if the query was successful
+	if [ $? -ne 0 ]; then
+	    echo "Error: Unable to fetch plan information from the database. Is mysql running?"
+	    exit 1
+	fi
+	
+	# Check if any results were returned
+	if [ -z "$cpu_ram_info" ]; then
+	    echo "Error: Plan with name $plan_name not found. We will continue with creating.."
+     	else
+      	echo "Plan already exists, will be used for user"
+	# get id plana i repalce sad pri kreate usera
+	fi
+
+     
     
         export_user_data_from_database
     fi
@@ -273,19 +394,10 @@ perform_restore_of_selected_files() {
 
 
     if [ "$DOCKER" = true ]; then
-    # OVO JE SVE TODO
-    	#1. import image
-     #   local_destination="/tmp/$CONTAINER_NAME"
-    #    remote_path_to_download="/$CONTAINER_NAME/$PATH_ON_REMOTE_SERVER/docker_image/ ."
-    #    run_restore "$remote_path_to_download" "$local_destination"
-	# docker load < $2.tar.gz
-     	#2. run new container
-      	#3. stop old
-        #4. rename both
-	#5. rm old
-        #docker stop $CONTAINER_NAME
-	#docker rename $CONTAINER_NAME ${CONTAINER_NAME}_RENAMED
-        #bash restore.sh 1 20240131131407 nesto --files
+
+    # CHECK IF ALREADY EXISTS FIRST!
+    # THEN CREATE
+	create_docker_from_tar
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
