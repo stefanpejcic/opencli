@@ -422,7 +422,7 @@ copy_files() {
 
         if [ -d "$source_path" ]; then
             # Source is a directory, proceed with copying its contents
-            cp -LTr "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+            cp -LTr "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
         else
             # Source is a file, handle it appropriately
             cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
@@ -1369,7 +1369,6 @@ run_backup_for_user_data() {
     
     
                 backup_for_user_started
-                echo "nankon backup_for_user_started"
                 mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
                 if [ "$LOCAL" = true ]; then
                     mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
