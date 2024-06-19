@@ -283,7 +283,7 @@ dest_storage_limit=$(echo "$dest_data" | awk 'NR==6')
 
 # Check if the destination hostname is local
 if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
-    echo "Destination is local. Backing up files locally to $directory folder"
+    echo "Destination is local. Backing up files locally to $dest_destination_dir_name folder"
     LOCAL=true
     REMOTE=false
 else
@@ -295,21 +295,30 @@ fi
 
 if [ "$DEBUG" = true ]; then
 # backupjob json
-echo "DEBUG: Status: $status"
-echo "DEBUG: Destination ID: $destination"
-echo "DEBUG: Directory: $directory"
-echo "DEBUG: Types: ${types[@]}"
-#echo "Schedule: $schedule"
-echo "DEBUG: Retention: $retention"
-echo "DEBUG: Filters: ${filters[@]}"
-# destination json
-echo "DEBUG: Destination Hostname: $dest_hostname"
-echo "DEBUG: Destination Password: $dest_password"
-echo "DEBUG: Destination SSH Port: $dest_ssh_port"
-echo "DEBUG: Destination SSH User: $dest_ssh_user"
-echo "DEBUG: Destination SSH Key Path: $dest_ssh_key_path"
-echo "DEBUG: Destination Directory Name: $dest_destination_dir_name"
-echo "DEBUG: Destination Storage Limit: $dest_storage_limit"
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    echo "DEBUG: Backup job configuration:"
+    echo ""
+    echo "DEBUG: Status: $status"
+    echo "DEBUG: Destination ID: $destination"
+    echo "DEBUG: Destination Directory Name: $dest_destination_dir_name"
+    echo "DEBUG: Types: ${types[@]}"
+    #echo "Schedule: $schedule"
+    echo "DEBUG: Retention: $retention"
+    echo "DEBUG: Filters: ${filters[@]}"
+    # destination json
+    echo ""
+    echo "------------------------------------------------------------------------"
+    echo ""
+    echo "DEBUG: Backup destination configuration:"
+    echo ""
+    echo "DEBUG: Hostname: $dest_hostname"
+    echo "DEBUG: Password: $dest_password"
+    echo "DEBUG: SSH Port: $dest_ssh_port"
+    echo "DEBUG: SSH User: $dest_ssh_user"
+    echo "DEBUG: SSH Key Path: $dest_ssh_key_path"
+    echo "DEBUG: Storage Limit: $dest_storage_limit"
 fi
 
 
@@ -409,7 +418,16 @@ copy_files() {
 
     else
         # for local lets just use cp for now, no need for paraller either..
-        cp -LTr "$source_path" "$dest_destination_dir_name"
+        mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+
+        if [ -d "$source_path" ]; then
+            # Source is a directory, proceed with copying its contents
+            cp -LTr "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+        else
+            # Source is a file, handle it appropriately
+            cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+        fi
+        
     fi
 
     # Clean up local temp directory if used
@@ -632,7 +650,7 @@ export_user_data_from_database() {
 
 backup_domain_access_reports() {
     mkdir -p $BACKUP_DIR/nginx/stats/
-    if [ -d "$directory" ]; then
+    if [ -d "$dest_destination_dir_name" ]; then
     copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
     else
     echo "No resource usage stats found for user."
@@ -749,7 +767,7 @@ backup_docker_container(){
             fi
             docker image rm $container_name
             if [ $? -eq 0 ]; then
-                copy_files "$BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz" "/docker_image/"
+                copy_files "$BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz" "docker_image"
                 if [ $? -eq 0 ]; then
                     if [ "$DEBUG" = true ]; then
                         echo "DEBUG: deleting local file."
@@ -794,7 +812,7 @@ backup_files() {
     
     mkdir -p "$destination_dir"
 
-    copy_files "/home/$container_name/" "/files/"
+    copy_files "$source_dir" "$destination_dir"
 }
 
 
@@ -1356,18 +1374,24 @@ run_backup_for_user_data() {
     
     
                 backup_for_user_started
-                copy_files "$user_index_file" "/"
+                echo "nankon backup_for_user_started"
+                mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+                if [ "$LOCAL" = true ]; then
+                    mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+                fi
+                #cp index when we started
+                copy_files "$user_index_file" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
                 perform_backup "$container_name"
                 backup_for_user_finished
                 
-    
+    # WHY ?
         if [ "$LOCAL" != true ]; then
                 ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
         else
-                rm "$directory/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+                rm "$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
         fi
-    
-                copy_files "$user_index_file" "/"
+                #cp index when we ended
+                copy_files "$user_index_file" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
                 
     
             # Compare with retention
@@ -1406,7 +1430,6 @@ elif [[ ${types[0]} == "partial" ]]; then
     echo ""
     echo "STARTING USER ACCOUNTS PARTIAL BACKUP"
     echo ""
-    echo "------------------------------------------------------------------------"
     echo ""
     
     run_backup_for_user_data
@@ -1417,7 +1440,6 @@ elif [[ ${types[0]} == "configuration" ]]; then
     echo ""
     echo "STARTING SERVER CONFIGURATION BACKUP"
     echo ""
-    echo "------------------------------------------------------------------------"
     echo ""
     
     run_backup_for_server_configuration_only
@@ -1441,7 +1463,6 @@ status="Completed"
         echo ""
         echo "Backup Job finished at $end_time - Total execution time: $total_exec_time"
         echo ""
-        echo "------------------------------------------------------------------------"
         echo ""
 
 # Update the initial log content
