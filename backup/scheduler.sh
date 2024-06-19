@@ -30,7 +30,7 @@
 
 DEBUG=false
 run_id=""
-json_dir="/usr/local/admin/backups/jobs/"
+json_dir="/etc/openpanel/openadmin/config/backups/jobs/"
 
 for arg in "$@"; do
     case $arg in
