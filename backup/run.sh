@@ -1116,11 +1116,11 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         mkdir -p ${CONF_DESTINATION_DIR}/openpanel
         cp -r /etc/openpanel ${CONF_DESTINATION_DIR}/openpanel
-
         #
         cp -r /usr/local/admin/static/custom ${CONF_DESTINATION_DIR}/openpanel/admin_custom
-        cp -r /usr/local/panel/translations ${CONF_DESTINATION_DIR}/openpanel/translations
         
+        docker cp openpanel:/usr/local/panel/translations/ ${CONF_DESTINATION_DIR}/openpanel/translations        
+        # here also should do the custom files for panel!
     }
 
     backup_named_conf() {
@@ -1155,10 +1155,12 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         echo "## Backing up MySQL database for OpenPanel."
         echo ""
-        mysql_password=$(awk -F "=" '/password/ {print $2}' /usr/local/admin/db.cnf | tr -d '" ')
-        docker exec openpanel_mysql sh -c "mysqldump --user=root --password='$mysql_password' panel > /tmp/mysql_openpanel_backup.sql"
-        docker cp openpanel_mysql:/tmp/mysql_openpanel_backup.sql ${NGINX_DESTINATION_DIR}/mysql_openpanel_backup.sql
-        docker exec openpanel_mysql rm /tmp/mysql_openpanel_backup.sql
+        mkdir -p ${CONF_DESTINATION_DIR}/mysql_data/
+        docker run --rm --volumes-from openpanel_mysql -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
+        
+        #to restore we will use:
+        #
+        # docker run --rm -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar xzvf /backup/mysql_volume_data.tar.gz -C /backup
     }
     
     # nginx domains
