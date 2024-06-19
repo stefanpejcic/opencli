@@ -803,11 +803,11 @@ check_command_success() {
 # Function to backup files
 backup_files() {
     local source_dir="/home/$container_name"
-    local destination_dir="$BACKUP_DIR/files"
+    #local destination_dir="$BACKUP_DIR/files"
     
-    mkdir -p "$destination_dir"
+    #mkdir -p "$destination_dir"
 
-    copy_files "$source_dir" "$destination_dir"
+    copy_files "$source_dir" "files"
 }
 
 
@@ -1413,7 +1413,6 @@ if [[ ${types[0]} == "accounts" ]]; then
     echo "------------------------------------------------------------------------"
     echo ""
     echo "STARTING USER ACCOUNTS SNAPSHOTS BACKUP"
-    echo ""
     echo ""
 
     run_backup_for_user_data
