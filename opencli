@@ -45,10 +45,9 @@ if [ "$binary_name" = "-v" ]; then
   binary_name="--version"
 fi
 
-# for locales downlaod latest script from github
+# https://openpanel.co/docs/changelog/0.2.1/#translations
 if [ "$binary_name" = "locale" ]; then
   shift
-
   if [ "$#" -gt 0 ]; then
     bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh) "$@"
   else
