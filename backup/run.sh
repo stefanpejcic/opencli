@@ -612,7 +612,7 @@ fi
 
 
 export_user_data_from_database() {
-    user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id FROM users WHERE username='$container_name';" -N)
+    user_id=$(mysql -e "SELECT id FROM users WHERE username='$container_name';" -N)
 
     if [ -z "$user_id" ]; then
         echo "ERROR: export_user_data_to_sql: User '$container_name' not found in the database."
@@ -620,30 +620,35 @@ export_user_data_from_database() {
     fi
 
     # Create a single SQL dump file
-    backup_file="$BACKUP_DIR/user_data_dump.sql"
+    backup_file="$BACKUP_DIR/DATA/"
+
+    mkdir -p $backup_file
+
+    # Export User Data
+    mysql -e "SELECT * FROM panel.users WHERE id = $user_id" > $backup_file/users.sql
     
-    # Use mysqldump to export data from the 'sites', 'domains', and 'users' tables
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" users -w "username='$container_name'" | sed -e 's/VALUES ([0-9]*/VALUES (NULL/' -e 's/[0-9]);*/NULL);/'  > "$backup_file"
-
-    # GET ID PLANA OD USERA!
-    plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT plan_id FROM users WHERE username='$container_name';" -N)
-
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert "$mysql_database" plans -w "id='$plan_id'" | sed -e 's/VALUES ([0-9]*/VALUES (NULL/' >> "$backup_file"
-
-
+    # Export User's Plan Data
+    mysql -e "SELECT p.* FROM panel.users u JOIN panel.plans p ON u.plan_id = p.id WHERE u.id = 1" > $backup_file/plans.sql
     
-    # FORRRR za svaki domen usera SAJTOVE
-
-
-
-    ######mysqldump -u your_username -p your_password your_database users --where="username='$USERNAME'" --no-create-info --complete-insert --skip-extended-insert | sed 's/VALUES (2/VALUES (NULL/' > users_data.sql
-
+    # Export Domains Data for User
+    mysql -e "SELECT * FROM panel.domains WHERE user_id = $user_id" > $backup_file/domains.sql
+    
+    # Export Sites Data for User
+    mysql -e "SELECT s.* FROM panel.sites s JOIN panel.domains d ON s.domain_id = d.domain_id WHERE d.user_id = $user_id" > $backup_file/sites.sql
 
     
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" domains -w "user_id='$user_id'" >> "$backup_file"
-    mysqldump --defaults-extra-file="$config_file" --no-create-info --no-tablespaces --skip-extended-insert --single-transaction "$mysql_database" sites -w "domain_id IN (SELECT domain_id FROM domains WHERE user_id='$user_id')" >> "$backup_file"
-    copy_files "$BACKUP_DIR/user_data_dump.sql" "/"
-    rm $BACKUP_DIR/user_data_dump.sql
+    # LATER FOR IMPORT
+    # first drop, then do
+    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/users.sql
+    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/plans.sql
+    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/domains.sql
+    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/sites.sql
+    
+
+
+
+     copy_files "$backup_file/" "DATA"
+    #rm $backup_file # FOR REMOTE WE SHOULD RM!
     echo "User '$container_name' data exported to $backup_file successfully."
 }
 
