@@ -1114,9 +1114,13 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         echo "## Backing up MySQL database for OpenPanel."
         echo ""
-        mkdir -p ${CONF_DESTINATION_DIR}/panel/
-        cp -r /usr/local/panel/conf ${CONF_DESTINATION_DIR}/panel/conf
-        cp -r /usr/local/panel/translations ${CONF_DESTINATION_DIR}/panel/translations
+        mkdir -p ${CONF_DESTINATION_DIR}/openpanel
+        cp -r /etc/openpanel ${CONF_DESTINATION_DIR}/openpanel
+
+        #
+        cp -r /usr/local/admin/static/custom ${CONF_DESTINATION_DIR}/openpanel/admin_custom
+        cp -r /usr/local/panel/translations ${CONF_DESTINATION_DIR}/openpanel/translations
+        
     }
 
     backup_named_conf() {
@@ -1134,30 +1138,14 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         cp -r /etc/ufw ${CONF_DESTINATION_DIR}/ufw
     }
 
-    backup_server_logs(){
-        echo ""
-        echo "## Backing up logs for both OpenAdmin and OpenPanel."
-        echo ""
-        cp -r /usr/local/admin/logs ${CONF_DESTINATION_DIR}/admin_logs
-        cp -r /var/log/openpanel ${CONF_DESTINATION_DIR}/openpanel_logs
-    }
-
-    backup_backup_jobs(){
-        echo ""
-        echo "## Backing up OpenPanel BackupJobs and Destinations."
-        echo ""
-        cp -r /usr/local/admin/backups ${CONF_DESTINATION_DIR}/admin_backups
-        # TODO: ssh kljuceve bekap isto!
-    }
-
-
-    
+   
     # docker conf
     backup_docker_daemon(){
         echo ""
         echo "## Backing up Docker configuration."
         echo ""
         cp /etc/docker/daemon.json ${CONF_DESTINATION_DIR}/docker_daemon.json
+        # this is symlink, check if it follows
     }
 
     
@@ -1172,14 +1160,6 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         docker cp openpanel_mysql:/tmp/mysql_openpanel_backup.sql ${NGINX_DESTINATION_DIR}/mysql_openpanel_backup.sql
         docker exec openpanel_mysql rm /tmp/mysql_openpanel_backup.sql
     }
-
-    # admin db
-    backup_sqlite_admin_database() {
-        echo ""
-        echo "## Backing up SQLite database for OpenAdmin."
-        echo ""
-        cp /etc/openpanel/openadmin/users.db ${NGINX_DESTINATION_DIR}/sqlite_openadmin_backup.db
-    }
     
     # nginx domains
     backup_nginx_data() {
@@ -1190,26 +1170,29 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         mkdir -p $NGINX_DESTINATION_DIR
         cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites_available
         cp -r /etc/nginx/sites-enabled ${NGINX_DESTINATION_DIR}sites_enabled
-        cp /etc/nginx/nginx.conf ${NGINX_DESTINATION_DIR}
     }
 
-
+    # /root/docker-compose.yml
+    backup_docker_compose() {
+        echo ""
+        echo "## Backing up docker compose file for OpenPanel, Nignx and MySQL."
+        echo ""
+        COMPOSE_DESTINATION_DIR="${CONF_DESTINATION_DIR}/compose/"
+        mkdir -p $COMPOSE_DESTINATION_DIR
+        cp /root/docker-compose.yml ${COMPOSE_DESTINATION_DIR}docker-compose.yml
+        cp /root/.env ${COMPOSE_DESTINATION_DIR}d.env
+        # DONT NEED AFTER INSTALL cp /root/initialize.sql ${COMPOSE_DESTINATION_DIR}initialize.sql
+    }
 
 
     # backup server data only
     backup_openpanel_conf
     backup_mysql_panel_database
-    backup_sqlite_admin_database
     backup_nginx_data
     backup_docker_daemon
     backup_etc_ufw
-    backup_server_logs
     backup_named_conf
-    backup_backup_jobs
-
-
-
-    
+    backup_docker_compose
 }
 
 run_backup_for_user_data() {
