@@ -1343,6 +1343,7 @@ run_backup_for_user_data() {
             echo ""
             echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
             echo ""
+            mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
             user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
             user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
             number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
