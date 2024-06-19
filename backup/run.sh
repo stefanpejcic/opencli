@@ -1109,6 +1109,14 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
 run_backup_for_server_configuration_only() {
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
+
+    backup_openadmin_files() {
+        echo ""
+        echo "## Backing up OpenAdmin files."
+        echo ""
+        mkdir -p ${CONF_DESTINATION_DIR}/openadmin
+        cp -r /usr/local/admin/* ${CONF_DESTINATION_DIR}/openadmin  
+    }
     
     backup_openpanel_conf() {
         echo ""
@@ -1189,6 +1197,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
     # backup server data only
     backup_openpanel_conf
+    backup_openadmin_files
     backup_mysql_panel_database
     backup_nginx_data
     backup_docker_daemon
