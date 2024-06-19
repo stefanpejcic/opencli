@@ -409,7 +409,7 @@ copy_files() {
 
     else
         # for local lets just use cp for now, no need for paraller either..
-        cp -LTr "$source_path" "$destination_path"
+        cp -LTr "$source_path" "$dest_destination_dir_name"
     fi
 
     # Clean up local temp directory if used
@@ -1389,7 +1389,7 @@ run_backup_for_user_data() {
 
 
 # Check if the first element of the array is "accounts" or "partial"
-if [[ ${types[0]} == "accounts"; ]]; then
+if [[ ${types[0]} == "accounts" ]]; then
     echo ""
     echo "------------------------------------------------------------------------"
     echo ""
