@@ -201,9 +201,12 @@ NUMBER=$1
 FORCE_RUN=false
 
 # Check if the --force-run flag is provided
-if [ "$#" -eq 2 ] && [ "$2" == "--force-run" ]; then
-    FORCE_RUN=true
-fi
+for arg in "$@"; do
+    if [ "$arg" == "--force-run" ]; then
+        FORCE_RUN=true
+        break
+    fi
+done
 
 JSON_FILE="/etc/openpanel/openadmin/config/backups/jobs/$NUMBER.json"
 
