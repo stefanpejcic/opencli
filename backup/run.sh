@@ -1106,9 +1106,93 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Actuall copy to destination
+copy_files_server_conf_only() {
+    source_path=$1
+    destination_path=$2
+
+    if [ "$LOCAL" != true ]; then
+
+        # Step 1: Create the remote directory
+        ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "mkdir -p $dest_destination_dir_name/$TIMESTAMP/"
+
+        if [ "$DEBUG" = true ]; then
+        echo "DEBUG: ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$TIMESTAMP/'"
+        fi
+
+        
+        # Step 2: Rsync the files
+        # use parallel for home dir files only for now, and only for remote destination
+        if [[ "$source_path" == /home/* ]]; then
+            if ! command -v parallel &> /dev/null; then
+                if [ "$DEBUG" = true ]; then
+                    echo "DEBUG: parallel is not installed. Installing moreutils..."
+                    sudo apt-get install -y moreutils
+                else
+                    sudo apt-get install -y moreutils > /dev/null 2>&1
+                fi
+            fi
+            
+            find /home/$container_name/ -mindepth 1 -maxdepth 1 -print0 | parallel -j 16 | rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$TIMESTAMP/"
+        else
+            rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$TIMESTAMP/"
+        fi
+
+        if [ "$DEBUG" = true ]; then
+        # Print commands for debugging
+        echo "DEBUG: rsync -e 'ssh -i $dest_ssh_key_path -p $dest_ssh_port' -r -p $source_path $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$TIMESTAMP/"
+        fi
+
+    else
+        # for local lets just use cp for now, no need for paraller either..
+        cp -LTr "$source_path" "$destination_path"
+    fi
+
+    # Clean up local temp directory if used
+    [ -n "$1" ] && rm -rf "$1/*"
+}
+
+
+
+
+
+
 run_backup_for_server_configuration_only() {
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
+
+
+
 
     backup_openadmin_files() {
         echo ""
@@ -1204,6 +1288,10 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
     backup_etc_ufw
     backup_named_conf
     backup_docker_compose
+
+
+copy_files_server_conf_only $CONF_DESTINATION_DIR $dest_destination_dir_name
+    
 }
 
 run_backup_for_user_data() {
