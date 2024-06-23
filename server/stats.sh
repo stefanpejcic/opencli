@@ -31,12 +31,21 @@
 
 # Counting number of users
 user_count=$(opencli user-list --total --json)
+if [ $? -ne 0 ]; then
+  user_count=0
+fi
 
 # Counting number of domains
 domain_count=$(opencli domains-all | awk '{ if (NF == 1) print }' | wc -l)
+if [ $? -ne 0 ]; then
+  domain_count=0
+fi
 
 # Counting number of sites
-site_count=$(opencli websites-all |  awk '{ if (NF == 1) print }' | wc -l)
+site_count=$(opencli websites-all | awk '{ if (NF == 1) print }' | wc -l)
+if [ $? -ne 0 ]; then
+  site_count=0
+fi
 
 # Flag variables
 json_output=false
@@ -54,6 +63,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
+            shift
+            ;;
     esac
 done
 
@@ -74,3 +85,4 @@ if [ "$save_to_file" = true ]; then
     json="{\"timestamp\": \"$timestamp\", \"users\": $user_count, \"domains\": $domain_count, \"websites\": $site_count}"
     echo "$json" >> /etc/openpanel/openadmin/usage_stats.json
 fi
+
