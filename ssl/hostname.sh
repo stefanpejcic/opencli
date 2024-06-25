@@ -5,7 +5,7 @@
 # Usage: opencli ssl-hostname
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 16.11.2023
+# Last Modified: 25.06.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -41,26 +41,9 @@ if ! command -v certbot &> /dev/null; then
     exit 1
 fi
 
-if ! systemctl status panel &> /dev/null; then
-    echo -e "${RED}ERROR: OpenPanel service not found or not running. Check OpenPanel service status and ensure it's running.${RESET}"
-    echo ""
-    echo -e "Run ${YELLOW}'service panel status'${RESET} to check if panel is active."
-    echo -e "and ${YELLOW}'tail /var/log/openpanel/user/error.log'${RESET} if service status is ${RED}failed${RESET}."
-
-    # Restart the service
-    systemctl restart panel
-
-    echo -e "${GREEN}Service restarted.${RESET}"
-
-    # Check status again after restart
-    if ! systemctl status panel &> /dev/null; then
-        echo -e "${RED}ERROR: Failed to start OpenPanel service after restart.${RESET}"
-        exit 1
-    else
-        echo -e "${GREEN}OpenPanel service is now running.${RESET}"
-        exit 0
-    fi
-fi
+# Restart the service
+docker restart openpanel &> /dev/null
+echo -e "${GREEN}Restarted OpenPanel.${RESET}"
 
 
 if ! systemctl status admin &> /dev/null; then
@@ -119,8 +102,8 @@ update_openpanel_config() {
         echo "ssl is now enabled and force_domain value in $config_file is set to '$hostname'."
         echo "Restarting the panel services to apply the newly generated SSL and force domain $hostname."
 
-        service panel reload
-        service admin reload
+        docker restart openpanel &> /dev/null
+        service admin reload &> /dev/null
 
         echo ""
         echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
