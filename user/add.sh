@@ -447,12 +447,13 @@ if [ "$container_status" != "running" ]; then
     exit 1
 fi
 
-ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
+
 
 
 
 # Check if DEBUG is true before printing private ip
 if [ "$DEBUG" = true ]; then
+    ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
     echo "IP ADDRESS: $ip_address"
 fi
 
