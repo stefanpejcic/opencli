@@ -45,7 +45,8 @@ chmod +x -R /usr/local/admin/scripts/
 
 
 # Generate a list of commands for the opencli
-opencli commands
+#opencli commands
+# changed to generate manually and then put list here!
 
 # Set autocomplete for all available opencli commands
 echo "# opencli aliases
