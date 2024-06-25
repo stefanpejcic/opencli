@@ -31,7 +31,7 @@
 # Define the scripts directory
 SCRIPTS_DIR="/usr/local/admin/scripts"
 
-rm -rf $SCRIPTS_DIR/.git
+rm -rf $SCRIPTS_DIR/.git $SCRIPTS_DIR/watcher/.git 
 
 # Define the alias file
 ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
