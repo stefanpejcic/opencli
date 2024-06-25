@@ -41,11 +41,6 @@ if ! command -v certbot &> /dev/null; then
     exit 1
 fi
 
-# Restart the service
-docker restart openpanel &> /dev/null
-echo -e "${GREEN}Restarted OpenPanel.${RESET}"
-
-
 if ! systemctl status admin &> /dev/null; then
     echo -e "${RED}ERROR: AdminPanel service not found or not running. Check AdminPanel service status and ensure it's running.${RESET}"
     echo ""
@@ -102,7 +97,8 @@ update_openpanel_config() {
         echo "ssl is now enabled and force_domain value in $config_file is set to '$hostname'."
         echo "Restarting the panel services to apply the newly generated SSL and force domain $hostname."
 
-        docker restart openpanel &> /dev/null
+        cd /root && docker compose down &> /dev/null 
+        cd /root && docker compose up -d &> /dev/null
         service admin reload &> /dev/null
 
         echo ""
