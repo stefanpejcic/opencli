@@ -117,8 +117,8 @@ else
         exit 1
     fi
 
-    # Check if the number of users is more than 3
-    if [ "$user_count" -gt 3 ]; then
+    # Check if the number of users is >= 3
+    if [ "$user_count" -gt 2 ]; then
         echo "Error: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use. If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
         exit 1
     fi
