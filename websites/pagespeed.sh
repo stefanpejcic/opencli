@@ -28,16 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the domain is provided
-if [ -z "$1" ]; then
-  echo "Usage: $0 <domain>"
-  exit 1
-fi
-
-DOMAIN="http://$1"
-
-mkdir -p /etc/openpanel/openpanel/websites/
-
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
   echo "jq could not be found, please install jq to proceed."
@@ -46,8 +36,9 @@ fi
 
 # Function to get page speed
 get_page_speed() {
-  local strategy=$1
-  local encoded_domain=$(printf '%s' "$DOMAIN" | jq -s -R -r @uri)
+  local domain=$1
+  local strategy=$2
+  local encoded_domain=$(printf '%s' "$domain" | jq -s -R -r @uri)
   local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=$encoded_domain&strategy=$strategy")
   
   local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score')
@@ -58,21 +49,43 @@ get_page_speed() {
   echo "{\"performance_score\": $performance_score, \"first_contentful_paint\": \"$first_contentful_paint\", \"speed_index\": \"$speed_index\", \"interactive\": \"$interactive\"}"
 }
 
-# Get desktop and mobile speeds
-DESKTOP_SPEED=$(get_page_speed "desktop")
-MOBILE_SPEED=$(get_page_speed "mobile")
-
-# Save the speeds to a JSON file with timestamp
-TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-FILENAME="/etc/openpanel/openpanel/websites/$(echo "$DOMAIN" | sed 's|https\?://||' | sed 's|/|_|g')_speed.json"
-
-cat <<EOF > "$FILENAME"
+# Function to generate report for a domain
+generate_report() {
+  local domain=$1
+  local desktop_speed=$(get_page_speed "$domain" "desktop")
+  local mobile_speed=$(get_page_speed "$domain" "mobile")
+  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  local filename="/etc/openpanel/openpanel/websites/$(echo "$domain" | sed 's|https\?://||' | sed 's|/|_|g')_speed.json"
+  
+  cat <<EOF > "$filename"
 {
-  "timestamp": "$TIMESTAMP",
-  "domain": "$DOMAIN",
-  "desktop_speed": $DESKTOP_SPEED,
-  "mobile_speed": $MOBILE_SPEED
+  "timestamp": "$timestamp",
+  "domain": "$domain",
+  "desktop_speed": $desktop_speed,
+  "mobile_speed": $mobile_speed
 }
 EOF
 
-echo "Google PageSpeed data saved to $FILENAME"
+  echo "Google PageSpeed data saved to $filename"
+}
+
+# Check if -all flag is provided
+if [[ "$1" == "-all" ]]; then
+  # Fetch list of domains from opencli websites-all
+  domains=$(opencli websites-all)
+
+  # Check if no sites found
+  if [[ -z "$domains" || "$domains" == "No sites found in the database." ]]; then
+    echo "No sites found in the database or opencli command error."
+    exit 1
+  fi
+
+  # Iterate over each domain and generate report
+  for domain in $domains; do
+    generate_report "$domain"
+  done
+
+else
+  echo "Usage: $0 <domain> OR $0 -all"
+  exit 1
+fi
