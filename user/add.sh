@@ -409,7 +409,11 @@ run_docker() {
         echo "Run with NO disk size limit."
     fi
 
-    local docker_cmd="docker run --network $name -d --name $username -P $disk_limit_param --cpus=$cpu --memory=$ram \
+
+    # TODO: for fixed ports! local ports_param="-p 9022:22 -p 33600:3306 -p 33681:7681 -p 33080:8080" #custom ports for 22 3306 7681 8080
+    local ports_param="-P"
+
+    local docker_cmd="docker run --network $name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
