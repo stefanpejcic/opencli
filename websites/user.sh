@@ -113,7 +113,7 @@ get_sites_info_for_user() {
             done <<< "$domains_info"
             
             if [ "$output_format" = "json" ]; then
-                domains_output="{ domains: { $domains_output } }"
+                domains_output="{ $domains_output }"
                 echo "$domains_output"
             fi
         fi
