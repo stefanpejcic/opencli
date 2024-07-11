@@ -6,7 +6,7 @@
 #        opencli config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 11.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -108,7 +108,7 @@ update_config() {
 
         # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
-            service panel reload
+            docker restart openpanel
             # Remove data.json files for all users
             rm -rf /etc/openpanel/openpanel/core/users/*/data.json
         fi
