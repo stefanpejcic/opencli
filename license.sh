@@ -110,7 +110,7 @@ get_license_key_and_verify_on_my_openpanel() {
                 echo -e "${GREEN}License is valid${RESET}"
             fi
             
-            service admin reload # if fails, we'll use restart in the future..
+            service admin restart
 
         else
             # Check if --json flag is present
@@ -241,6 +241,8 @@ case "$1" in
             else
                 echo -e "License key ${GREEN}${new_key}${RESET} added."
             fi
+
+            service admin reload  #might fail!
 
         else
             # Check if --json flag is present
