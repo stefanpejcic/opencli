@@ -45,7 +45,7 @@ usage() {
     echo "Commands:"
     echo "  key                                           View current license key."
     echo "  verify                                        Verify the license key."
-    echo "  info                                          Display information about the license owner and exparation."
+    echo "  info                                          Display information about the license owner and expiration."
     echo "  delete                                        Delete the license key and downgrade OpenPanel to Community edition."
     exit 1
 }
