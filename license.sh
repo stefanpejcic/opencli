@@ -44,6 +44,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  key                                           View current license key."
+    echo "  enterprise-XXXXXXXXXX                         Save the license key."
     echo "  verify                                        Verify the license key."
     echo "  info                                          Display information about the license owner and expiration."
     echo "  delete                                        Delete the license key and downgrade OpenPanel to Community edition."
@@ -101,10 +102,23 @@ get_license_key_and_verify_on_my_openpanel() {
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
         
         if [ "$license_status" = "Active" ]; then
-            echo -e "${GREEN}License is valid${RESET}"
+
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+                  echo "License is valid"
+            else
+                echo -e "${GREEN}License is valid${RESET}"
+            fi
+            
             service admin reload # if fails, we'll use restart in the future..
+
         else
-            echo -e "${RED}License is invalid${RESET}"
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+                  echo "License is invalid"
+            else
+                echo -e "${RED}License is invalid${RESET}"
+            fi
             exit 1
         fi
     fi
@@ -154,20 +168,7 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
 
             # Check if --json flag is present
             if [[ " $@ " =~ " --json " ]]; then
-              declare -A data=(
-                ["Owner"]=$registered_name
-                ["Company Name"]=$company_name
-                ["Email"]=$email
-                ["License Type"]=$product_name
-                ["Registration Date"]=$reg_date
-                ["Next Due Date"]=$next_due_date
-                ["Billing Cycle"]=$billing_cycle
-                ["Valid IP"]=$valid_ip
-              )
-              # Convert associative array to JSON using jq
-              json=$(echo "${data[@]}" | jq -Rs 'split("\n") | map(split(": ")) | map({(.[0]): .[1]}) | add')
-              echo "$json"
-              
+                echo "$response"
             else
                 echo "Owner: $registered_name"
                 echo "Company Name: $company_name"
@@ -212,7 +213,7 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
 case "$1" in
     "key")
         # Display the key
-        license_key=$(get_license_key)
+        license_key=$(get_license_key "$@")
         echo $license_key
         ;;
     "info")
@@ -228,7 +229,7 @@ case "$1" in
         opencli config update key "" > /dev/null
         service admin restart
         ;;
-    "enterprise-"*)
+    "enterprise"*)
         # Update the license key "enterprise-"
         new_key=$1
         if opencli config update key "$new_key" > /dev/null; then
