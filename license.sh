@@ -90,6 +90,7 @@ get_license_key_and_verify_on_my_openpanel() {
         
         if [ "$license_status" = "Active" ]; then
             echo -e "${GREEN}License is valid${RESET}"
+            service admin reload # if fails, we'll use restart in the future..
         else
             echo -e "${RED}License is invalid${RESET}"
             exit 1
