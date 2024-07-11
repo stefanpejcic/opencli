@@ -168,7 +168,9 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
 
             # Check if --json flag is present
             if [[ " $@ " =~ " --json " ]]; then
-                echo "$response"
+                echo '{"Owner": "'"$registered_name"'","Company Name": "'"$company_name"'","Email": "'"$email"'","License Type": "'"$product_name"'","Registration Date": "'"$reg_date"'","Next Due Date": "'"$next_due_date"'","Billing Cycle": "'"$billing_cycle"'","Valid IP": "'"$valid_ip"'"}'
+
+                
             else
                 echo "Owner: $registered_name"
                 echo "Company Name: $company_name"
