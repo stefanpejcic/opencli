@@ -63,9 +63,21 @@ get_license_key() {
     license_key=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
 
     if [ -z "$license_key" ]; then
-        license_key="${RED}No License Key${RESET}"
+        # Check if --json flag is present
+        if [[ " $@ " =~ " --json " ]]; then
+          license_key="No License Key"
+        else
+          license_key="${RED}No License Key${RESET}"
+        fi
+    else
+        # Check if --json flag is present
+        if [[ " $@ " =~ " --json " ]]; then
+          echo "$license_key"
+        else
+          echo -e "${GREEN}$license_key${RESET}"
+        fi
     fi
-    echo -e "${GREEN}$license_key${RESET}"
+    
 }
 
 
@@ -104,7 +116,13 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
     license_key=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
 
     if [ -z "$license_key" ]; then
-        echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
+   
+        # Check if --json flag is present
+        if [[ " $@ " =~ " --json " ]]; then
+          echo "No License Key"
+        else
+          echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
+        fi
         exit 1
     else
         ip_address=$(curl -sS $IP_URL)  # Get the public IP address
@@ -132,24 +150,53 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
             #addons=$(echo "$response" | grep -oP '(?<=<addons>).*?(?=</addons>)')
             #md5_hash=$(echo "$response" | grep -oP '(?<=<md5hash>).*?(?=</md5hash>)')
 
-            echo "Owner: $registered_name"
-            echo "Company Name: $company_name"
-            echo "Email: $email"
-            #echo "Service ID: $service_id"
-            #echo "Product ID: $product_id"
-            echo "License Type: $product_name"
-            echo "Registration Date: $reg_date"
-            echo "Next Due Date: $next_due_date"
-            echo "Billing Cycle: $billing_cycle"
-            #echo "Valid Domain: $valid_domain"
-            echo "Valid IP: $valid_ip"
-            #echo "Valid Directory: $valid_directory"
-            #echo "Config Options: $config_options"
-            #echo "Custom Fields: $custom_fields"
-            #echo "Addons: $addons"
-            #echo "MD5 Hash: $md5_hash"
+
+
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+              declare -A data=(
+                ["Owner"]=$registered_name
+                ["Company Name"]=$company_name
+                ["Email"]=$email
+                ["License Type"]=$product_name
+                ["Registration Date"]=$reg_date
+                ["Next Due Date"]=$next_due_date
+                ["Billing Cycle"]=$billing_cycle
+                ["Valid IP"]=$valid_ip
+              )
+              # Convert associative array to JSON using jq
+              json=$(echo "${data[@]}" | jq -Rs 'split("\n") | map(split(": ")) | map({(.[0]): .[1]}) | add')
+              echo "$json"
+              
+            else
+                echo "Owner: $registered_name"
+                echo "Company Name: $company_name"
+                echo "Email: $email"
+                #echo "Service ID: $service_id"
+                #echo "Product ID: $product_id"
+                echo "License Type: $product_name"
+                echo "Registration Date: $reg_date"
+                echo "Next Due Date: $next_due_date"
+                echo "Billing Cycle: $billing_cycle"
+                #echo "Valid Domain: $valid_domain"
+                echo "Valid IP: $valid_ip"
+                #echo "Valid Directory: $valid_directory"
+                #echo "Config Options: $config_options"
+                #echo "Custom Fields: $custom_fields"
+                #echo "Addons: $addons"
+                #echo "MD5 Hash: $md5_hash"
+            fi
+
+
         else
-            echo -e "${RED}License is invalid${RESET}"
+
+
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+              echo "License is invalid"
+            else
+              echo -e "${RED}License is invalid${RESET}"
+            fi
             exit 1
         fi
     fi
@@ -170,11 +217,11 @@ case "$1" in
         ;;
     "info")
         # display license info from whmcs
-        get_license_key_and_verify_on_my_openpanel_then_show_info
+        get_license_key_and_verify_on_my_openpanel_then_show_info "$@"
         ;;
     "verify")
         # check license on whmcs
-        get_license_key_and_verify_on_my_openpanel
+        get_license_key_and_verify_on_my_openpanel "$@"
         ;;
     "delete")
         # remove the key and reload admin
@@ -185,9 +232,22 @@ case "$1" in
         # Update the license key "enterprise-"
         new_key=$1
         if opencli config update key "$new_key" > /dev/null; then
-            echo -e "License key ${GREEN}${new_key}${RESET} added."
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+                echo "License key ${new_key} added."
+            else
+                echo -e "License key ${GREEN}${new_key}${RESET} added."
+            fi
+
         else
-            echo -e "${RED}Failed to save the license key.${RESET}"
+            # Check if --json flag is present
+            if [[ " $@ " =~ " --json " ]]; then
+                echo "Failed to save the license key ${new_key}"
+            else
+                echo -e "${RED}Failed to save the license key.${RESET}"
+            fi
+
+            
         fi
         ;;
     *)
