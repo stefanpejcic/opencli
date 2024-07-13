@@ -98,6 +98,13 @@ fi
 
 if [ "$binary_name" = "sentinel" ]; then
   binary_path="/usr/local/admin/service/notifications.sh"
+  if [ ! -x "$binary_path" ]; then
+    chmod +x "$binary_path"
+    if [ "$?" -ne 0 ]; then
+      echo "Error: Failed to set executable permission on '$binary_name'."
+      exit 1
+    fi
+  fi
 fi
 
 # Check if the binary exists and is executable
