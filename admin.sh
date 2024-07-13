@@ -254,7 +254,7 @@ delete_existing_users() {
 
 
 
-config_file="/usr/local/admin/service/notifications.ini"
+config_file="/etc/openpanel/openadmin/config/notifications.ini"
 
 # Function to get the current configuration value for a parameter
 get_config() {
