@@ -1,4 +1,6 @@
 #!/bin/bash
+
+OPENCLI_VERSION="202.407.013"
 ################################################################################
 # Script Name: /usr/local/bin/opencli
 # Description: Makes all OpenCLI commands available on the terminal.
@@ -28,9 +30,36 @@
 # THE SOFTWARE.
 ################################################################################
 
+LOG_FILE="/var/log/openpanel/admin/opencli.log" 
+
 # Check if the correct number of arguments is provided
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 <COMMAND> [additional_arguments]"
+  echo ""
+  echo "Usage: opencli <COMMAND> [additional_arguments]"
+  echo ""
+  echo "Suggested commands:"
+  echo "  opencli faq                       Display frequently asked questions and answers."
+  echo "  opencli commands                  List all available OpenCLI commands and their usage."
+  echo ""
+  # Check if the log file exists, ans show most used commands
+  if [ ! -f "$LOG_FILE" ]; then
+    #echo "Log file $LOG_FILE not found."
+    :
+  else
+    echo "Recently used commands:"
+    tail -n 100 "$LOG_FILE" | grep -o 'opencli [^ ]*' | sort | uniq | tail -n 5 | sed 's/^/  /'
+    echo ""
+    echo "Most commonly used commands:"
+    awk -F ' \\| ' '!($2 ~ /^[0-9]+$/) {print "  " $2}' "$LOG_FILE" | sort | uniq | head -n 5
+    echo ""
+  fi
+
+  echo "About:"
+  echo "  Documentation:                    https://dev.openpanel.co/cli/"
+  echo "  Version:                          $OPENCLI_VERSION"
+  echo "  Author:                           Stefan Pejcic <stefan@pejcic.rs>"
+  echo "  License:                          MIT"
+  echo ""
   exit 1
 fi
 
@@ -75,6 +104,9 @@ fi
 if [ -x "$binary_path" ]; then
   # Shift to remove the binary name from the arguments
   shift
+
+  # Log the command to the log file
+  echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"
 
   # Execute the binary with additional arguments if provided
   if [ "$#" -gt 0 ]; then
