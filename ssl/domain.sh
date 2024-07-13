@@ -90,10 +90,6 @@ generate_ssl() {
     # Run Certbot command
     "${certbot_command[@]}"
     echo "SSL generation completed successfully"
-
-    #trigger file reload and recheck all other domains also!
-    opencli ssl-user $current_username  > /dev/null 2>&1
-
 }
 
 # Function to modify Nginx configuration
@@ -175,6 +171,12 @@ revert_nginx_conf() {
     echo "Nginx configuration reversion completed successfully"
 }
 
+
+check_other_domains_by_user_and_reload_ssl_cache{
+    #trigger file reload and recheck all other domains also!
+    opencli ssl-user $current_username  > /dev/null 2>&1
+}
+
 # Main script
 
 # Check the number of arguments
@@ -216,6 +218,7 @@ fi
 if [ "$delete_flag" = true ]; then
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
+    check_other_domains_by_user_and_reload_ssl_cache
 else
     # Generate SSL only if the check passed
     check_ssl_validity "$domain_url"
@@ -223,4 +226,5 @@ else
     get_server_ip "$domain_url"
     generate_ssl "$domain_url" || exit 1
     modify_nginx_conf "$domain_url"
+    check_other_domains_by_user_and_reload_ssl_cache
 fi
