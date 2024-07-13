@@ -49,8 +49,7 @@ get_server_ip() {
         exit 1
     fi
 
-    # Print the result
-    echo "Username: $username"
+    #echo "Username: $username"
 
     current_username=$username
     dedicated_ip_file_path="/etc/openpanel/openpanel/core/users/{current_username}/ip.json"
@@ -58,12 +57,11 @@ get_server_ip() {
     if [ -e "$dedicated_ip_file_path" ]; then
         # If the file exists, read the IP from it
         server_ip=$(jq -r '.ip' "$dedicated_ip_file_path" 2>/dev/null)
-        echo $server_ip
     else
         # Try to get the server's IP using the hostname -I command
         server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-        echo $server_ip
     fi
+    #echo $server_ip
 }
 
 ensure_jq_installed() {
@@ -92,6 +90,10 @@ generate_ssl() {
     # Run Certbot command
     "${certbot_command[@]}"
     echo "SSL generation completed successfully"
+
+    #trigger file reload and recheck all other domains also!
+    opencli ssl-user $current_username  > /dev/null 2>&1
+
 }
 
 # Function to modify Nginx configuration
