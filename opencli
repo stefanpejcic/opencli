@@ -94,27 +94,31 @@ binary_path="$script_dir/$binary_command"
 
 if [ "$binary_name" = "blacklist" ]; then
   binary_path="/usr/ipset-blacklist.sh"
-fi
-
-if [ "$binary_name" = "sentinel" ]; then
+elif [ "$binary_name" = "sentinel" ]; then
   binary_path="/usr/local/admin/service/notifications.sh"
 fi
 
-# Check if the binary exists and is executable
-if [ -x "$binary_path" ]; then
-  # Shift to remove the binary name from the arguments
-  shift
-
-  # Log the command to the log file
-  echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"
-
-  # Execute the binary with additional arguments if provided
-  if [ "$#" -gt 0 ]; then
-    "$binary_path" "$@"
-  else
-    "$binary_path"
-  fi
-else
-  echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist or not executable."
+# Check if the binary exists
+if [ ! -e "$binary_path" ]; then
+  echo "Error: Command '$binary_name' not found - file '$binary_path' does not exist."
   exit 1
+fi
+
+# If the binary exists but is not executable, make it executable
+if [ ! -x "$binary_path" ]; then
+  chmod +x "$binary_path"
+  if [ "$?" -ne 0 ]; then
+    echo "Error: Failed to set executable permission on '$binary_name'."
+    exit 1
+  fi
+fi
+
+# Log the command to the log file
+echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"
+
+# Execute the binary with additional arguments if provided
+if [ "$#" -gt 0 ]; then
+  "$binary_path" "$@"
+else
+  "$binary_path"
 fi
