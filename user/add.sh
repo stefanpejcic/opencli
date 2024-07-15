@@ -355,10 +355,13 @@ fi
 # then create a container
 
 
-change_default_email () {
+change_default_email_and_allow_email_network () {
     # set default sender email address
     hostname=$(hostname)
     docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"
+
+    # add continaer to the mail netowrk, so it can send emails..
+    docker network connect openadmin_mail_network "$username"
 }
 
 
@@ -616,8 +619,7 @@ else
 fi
 
 
-change_default_email
-
+change_default_email_and_allow_email_network
 
 if [ "$DEBUG" = true ]; then
     # change user in www.conf file for each php-fpm verison
