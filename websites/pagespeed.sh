@@ -39,7 +39,7 @@ get_page_speed() {
   local domain=$1
   local strategy=$2
   local encoded_domain=$(printf '%s' "$domain" | jq -s -R -r @uri)
-  local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=$encoded_domain&strategy=$strategy")
+  local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$encoded_domain&strategy=$strategy")
   
   local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score')
   local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue')
