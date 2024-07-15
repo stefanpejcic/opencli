@@ -69,8 +69,14 @@ EOF
   echo "Google PageSpeed data saved to $filename"
 }
 
-# Check if -all flag is provided
-if [[ "$1" == "-all" ]]; then
+mkdir -p /etc/openpanel/openpanel/websites
+
+if [ $# -eq 0 ]; then
+  echo "Usage: $0 <domain> OR $0 -all"
+  exit 1
+elif [ $# -eq 1 ]; then
+  generate_report "$1"
+elif [[ "$1" == "-all" ]]; then
   # Fetch list of domains from opencli websites-all
   domains=$(opencli websites-all)
 
