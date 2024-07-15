@@ -361,7 +361,7 @@ change_default_email_and_allow_email_network () {
     docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"
 
     # add continaer to the mail netowrk, so it can send emails..
-    docker network connect openadmin_mail_network "$username"
+    docker network connect compose_openadmin_mail_network "$username"
 }
 
 
