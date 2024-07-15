@@ -172,7 +172,7 @@ revert_nginx_conf() {
 }
 
 
-check_other_domains_by_user_and_reload_ssl_cache{
+check_other_domains_by_user_and_reload_ssl_cache() {
     #trigger file reload and recheck all other domains also!
     opencli ssl-user $current_username  > /dev/null 2>&1
 }
