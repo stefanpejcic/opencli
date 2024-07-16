@@ -75,7 +75,8 @@ update_check() {
     fi
 
     # Fetch the remote version from https://update.openpanel.co/
-    remote_version=$(curl -s "https://update.openpanel.co/")
+    #remote_version=$(curl -s "https://update.openpanel.co/")
+    remote_version=$(curl -s "https://update.openpanel.co/" | tr -d '\r')
 
     if [ -z "$remote_version" ]; then
         echo '{"error": "Error fetching remote version"}' >&2
