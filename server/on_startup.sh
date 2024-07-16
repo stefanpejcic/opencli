@@ -5,7 +5,7 @@
 # Usage: opencli server-on_startup
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 16.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -59,7 +59,6 @@ opencli files-remount
 
 #reset servisa
 service nginx reload
-service panel restart
 
 # Fix ports
 opencli firewall-reset
