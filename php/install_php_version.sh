@@ -78,16 +78,21 @@ extensions_to_install=(
 echo "## Started installation for PHP version $php_version"
 
 # Check if each extension is already installed
-if docker exec "$container_name" dpkg -l | grep -q "ii  php$php_version-fpm"; then
+if docker exec "$container_name" bash -c 'dpkg -l | grep -q "ii  php${php_version}-fpm"'; then
   echo "## ERROR: PHP $php_version is already installed."
   echo "## Setting recommended extensions.."
 else
+  echo "## PHP $php_version is not installed, starting installation.."  
   # Install the version
-  docker exec "$container_name" bash -c "apt-get update && apt-get install -f &&  dpkg --configure -a && apt-get install -y $php_version"
-  wait $!
+  docker exec "$container_name" bash -c "apt-get update"
+  docker exec "$container_name" bash -c "apt --fix-broken install"
+  docker exec "$container_name" bash -c "dpkg --configure -a"
+  docker exec "$container_name" bash -c "apt-get install -y php$php_version-fpm"
+  #wait $!
+  echo "## Installed, checking if configured properly.."
   # Check if actually installed
-  if docker exec "$container_name" dpkg -l | grep -q "ii  php$php_version-fpm"; then
-    # proeed to extensions..
+  if docker exec "$container_name" bash -c 'dpkg -l | grep -q "ii  php${php_version}"'; then
+    # proceed to extensions..
     echo "## PHP version $php_version is now installed, setting default PHP extensions.."
   else
     echo "## ERROR: PHP $php_version installation failed."  
@@ -100,11 +105,13 @@ apt-get update
 
 # Install php extensions in parallel using xargs
 printf "%s\n" "${extensions_to_install[@]}" | xargs -n 1 -P 8 -I {} bash -c '
-  if ! echo "$docker_containers" | grep -q {}; then
-    docker exec "$container_name" bash -c "apt-get install -y {}"
-    echo "## PHP extension {} is now successfully installed."
-  else
+  if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
     echo "## {} is already installed."
+  else
+    # Install the extension
+    docker exec "$container_name" bash -c "apt-get install -y {}"
+    wait $!
+    echo "## PHP extension $extension is now successfully installed."
   fi
 '
 
@@ -159,6 +166,7 @@ docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_ex
 echo "## Setting service for PHP $php_version"
 docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
 wait $!
+echo "## Restarting all installed PHP versions.."
 docker exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
 
 echo "## PHP version $php_version is successfully installed."
