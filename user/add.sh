@@ -361,9 +361,8 @@ change_default_email_and_allow_email_network () {
     docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"
 
     # add continaer to the mail netowrk, so it can send emails..
-    docker network connect compose_openadmin_mail_network "$username"
+    #########docker network connect compose_openadmin_mail_network "$username"
 }
-
 
 
 temp_fix_for_nginx_default_site_missing() {
@@ -413,8 +412,49 @@ run_docker() {
     fi
 
 
-    # TODO: for fixed ports! local ports_param="-p 9022:22 -p 33600:3306 -p 33681:7681 -p 33080:8080" #custom ports for 22 3306 7681 8080
-    local ports_param="-P"
+    # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
+    find_available_ports() {
+      local found_ports=()
+    
+      for ((port=32768; port<=65535; port++)); do
+        if ! nc -z localhost "$port" >/dev/null 2>&1; then
+          found_ports+=("$port")
+          if [ ${#found_ports[@]} -ge 4 ]; then
+            break
+          fi
+        fi
+      done
+      
+      echo "${found_ports[@]}"
+    }
+    
+    validate_port() {
+      local port=$1
+      if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 32768 ] && [ "$port" -le 65535 ]; then
+        return 0  # Port is valid
+      else
+        return 1  # Port is invalid
+      fi
+    }
+
+
+    # Find available ports
+    AVAILABLE_PORTS=$(find_available_ports)
+    
+    # Split the ports into variables
+    FIRST_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $1}')
+    SECOND_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $2}')
+    THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
+    FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
+    
+    # todo: better validation!
+    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE"; then
+      # for fixed ports! local ports_param="-p 9022:22 -p 33600:3306 -p 33681:7681 -p 33080:8080" #custom ports for 22 3306 7681 8080
+      local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080"
+    else
+      #echo "DEBUG: Error: some ports are invalid."
+      local ports_param="-P"
+    fi
 
     local docker_cmd="docker run --network $name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
@@ -502,6 +542,7 @@ fi
             fi
 
 
+# TODO: edit this for fixed ports!
 
 # Loop through the container_ports array and open the ports on firewall
 for port in "${container_ports[@]}"; do
