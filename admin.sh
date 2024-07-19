@@ -299,6 +299,7 @@ case "$1" in
         echo "OpenAdmin error log:"
         systemctl enable --now $service_name > /dev/null 2>&1
         echo ""
+        service admin restart
         tail -25 $admin_logs_file
         echo ""
         ;;
