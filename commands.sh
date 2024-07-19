@@ -46,7 +46,21 @@ RESET='\033[0m'
 
 
 # Loop through all scripts in the directory and its subdirectories
-find "$SCRIPTS_DIR" -type f -executable ! -name "opencli.sh" ! -name "install" ! -name "opencli" ! -name "db" ! -name "README.md" | while read -r script; do
+find "$SCRIPTS_DIR" -type f -executable \
+  ! -name "opencli.sh" \
+  ! -name "install" \
+  ! -name "install.sh" \
+  ! -name "watcher" \
+  ! -name "watcher.sh" \
+  ! -name "opencli" \
+  ! -name "mysql" \
+  ! -name "mysql.sh" \
+  ! -name "db" \
+  ! -name "db.sh" \
+  ! -name "README.md" \
+  ! -name "aliases.txt" \
+  ! -name "*NEW*" \
+  ! -name "*TODO*" | while read -r script; do
     # Check if the script is executable
     if [ -x "$script" ]; then
         # Get the script name without the directory and extension
