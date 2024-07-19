@@ -89,7 +89,15 @@ generate_ssl() {
 
     # Run Certbot command
     "${certbot_command[@]}"
-    echo "SSL generation completed successfully"
+    status=$?
+    
+    # Check if the Certbot command was successful
+    if [ $status -eq 0 ]; then
+        echo "SSL generation completed successfully"
+    else
+        echo "SSL generation failed with exit status $status"
+        exit 1
+    fi
 }
 
 # Function to modify Nginx configuration
