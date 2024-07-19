@@ -60,6 +60,7 @@ run_ufw_rules() {
 check_services_status() {
   echo "=== Services Status ===" >> "$output_file"
   run_command "docker compose ls" "OpenPanel Stack"
+  run_command "systemctl status admin" "OpenAdmin Service"
   run_command "systemctl status docker" "Docker Status"
   run_command "systemctl status csf" "ConfigServer Firewall Status"
   run_command "systemctl status named" "BIND9 Status"
