@@ -28,24 +28,19 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Define the scripts directory
 SCRIPTS_DIR="/usr/local/admin/scripts"
-
-rm -rf $SCRIPTS_DIR/.git $SCRIPTS_DIR/watcher/.git 
-
-# Define the alias file
 ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
 
-# Ensure the alias file is empty before appending
+# delete .git files
+rm -rf $SCRIPTS_DIR/.git $SCRIPTS_DIR/watcher/.git 
+
+# delete exisitng aliases first
 > "$ALIAS_FILE"
 
-# ANSI escape code for green color
 GREEN='\033[0;32m'
-# ANSI escape code to reset color
 RESET='\033[0m'
 
-
-# Loop through all scripts in the directory and its subdirectories
+# Loop through all scripts from https://github.com/stefanpejcic/openpanel-docker-cli/
 find "$SCRIPTS_DIR" -type f -executable \
   ! -name "opencli.sh" \
   ! -name "install" \
@@ -62,13 +57,9 @@ find "$SCRIPTS_DIR" -type f -executable \
   ! -name "*motd*" \
   ! -name "*NEW*" \
   ! -name "*TODO*" | while read -r script; do
-    # Check if the script is executable
     if [ -x "$script" ]; then
-        # Get the script name without the directory and extension
-        script_name=$(basename "$script" | sed 's/\.sh$//')
-
-        # Get the directory name without the full path
-        dir_name=$(dirname "$script" | sed 's:.*/::')
+        script_name=$(basename "$script" | sed 's/\.sh$//') # strip extension
+        dir_name=$(dirname "$script" | sed 's:.*/::') # folder name without the full path
 
         if [ "$dir_name" = "scripts" ]; then
             dir_name=""
@@ -76,34 +67,23 @@ find "$SCRIPTS_DIR" -type f -executable \
             dir_name="${dir_name}-"
         fi
 
-        # Combine directory name and script name for the alias
         alias_name="${dir_name}${script_name}"
-
-        # Add the "opencli " prefix to the alias
         full_alias="opencli $alias_name"
-
-	# Extract the description from the script if available
-	description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //')
-
-	# Extract the usage from the script if available
-	usage=$(grep -E "^# Usage:" "$script" | sed 's/^# Usage: //')
+	description=$(grep -E "^# Description:" "$script" | sed 's/^# Description: //') # extract description if available
+	usage=$(grep -E "^# Usage:" "$script" | sed 's/^# Usage: //') # extract usage if available
  
-	# Print a message indicating the alias creation
 	echo -e "${GREEN}$full_alias${RESET}` #for $script`"
 
-	# Display the description only if it is found
 	if [ -n "$description" ]; then
-	echo "Description: $description"
+		echo "Description: $description"
 	fi
 	if [ -n "$usage" ]; then
-	echo "Usage: $usage"
+		echo "Usage: $usage"
 	fi
-	#echo ""
+ 
 	echo "------------------------"
-	#echo ""
-
-	# Add the alias and description to the alias file
-	echo "$full_alias" >> "$ALIAS_FILE"
+ 
+	echo "$full_alias" >> "$ALIAS_FILE" # add to file
     fi
 done
 
