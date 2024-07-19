@@ -5,7 +5,7 @@
 # Usage: opencli commands
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
+# Last Modified: 19.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -59,6 +59,7 @@ find "$SCRIPTS_DIR" -type f -executable \
   ! -name "db.sh" \
   ! -name "README.md" \
   ! -name "aliases.txt" \
+  ! -name "*motd*" \
   ! -name "*NEW*" \
   ! -name "*TODO*" | while read -r script; do
     # Check if the script is executable
