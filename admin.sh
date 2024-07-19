@@ -357,13 +357,26 @@ case "$1" in
         # Add a new user
         new_username="$2"
         new_password="$3"
+        # Check if $2 and $3 are provided
+        if [ -z "$new_username" ] || [ -z "$new_password" ]; then
+            #echo "Error: Missing parameters for new admin command."
+            echo "Invalid command."
+            usage
+            exit 1
+        fi
         add_new_user "$new_username" "$new_password"
         ;;
     "notifications")
         # COntrol notification preferences
         command="$2"
         param_name="$3"
-
+        # Check if $2 and $3 are provided
+        if [ -z "$command" ] || [ -z "$param_name" ]; then
+            #echo "Error: Missing parameters for notifications command."
+            echo "Invalid command."
+            usage
+            exit 1
+        fi
 
 case "$command" in
     check)
