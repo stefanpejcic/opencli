@@ -6,7 +6,7 @@
 #        opencli php-domain_php <domain_name> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 19.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -69,7 +69,7 @@ if [ -n "$owner" ]; then
 
     # Determine the web server type for the user
     #echo "Determining the web server type for user: $owner..."
-    web_server_info=$(opencliwebserver-get_webserver_for_user "$owner")
+    web_server_info=$(opencli webserver-get_webserver_for_user "$owner")
     web_server_type=$(echo "$web_server_info" | awk '{print $NF}')
     #echo "Web server info: $web_server_info"
     #echo "Web server type: $web_server_type"
