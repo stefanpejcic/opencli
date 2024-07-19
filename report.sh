@@ -72,6 +72,17 @@ display_openpanel_settings() {
   run_command "cat /etc/openpanel/openpanel/conf/openpanel.config" "OpenPanel Configuration file:"
 }
 
+# admin in 0.2.3
+display_openadmin_settings() {
+  echo "=== OpenAdmin Service ===" >> "$output_file"
+  run_command "python3 -m pip list" "Installed PIP packages:"
+  run_command "service admin status" "Admin service status:"
+  run_command "tail -50 /var/log/openpanel/admin/error.log" "OpenAdmin error log:"
+  #run_command "cd /usr/local/admin/ && " "OpenAdmin force run:"
+  
+}
+
+
 # Function to display MySQL information
 display_mysql_information() {
   echo "=== MySQL Information ===" >> "$output_file"
