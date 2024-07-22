@@ -3,10 +3,10 @@
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
 # Usage: opencli report
-#        opencli report --public [--cli]
+#        opencli report --public [--cli] [--csf|--ufw]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 26.05.2024
+# Last Modified: 20.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -50,11 +50,16 @@ run_opencli() {
   run_command "opencli commands" "Available OpenCLI Commands"
 }
 
-# Function to display UFW rules if --ufw flag is provided
 run_ufw_rules() {
+  echo "=== Firewall Rules ===" >> "$output_file"
+  run_command "ufw status numbered" "Firewall Rules"
+}
+
+run_csf_rules() {
   echo "=== Firewall Rules ===" >> "$output_file"
   run_command "csf -l" "Firewall Rules"
 }
+
 
 # Function to check the status of services
 check_services_status() {
@@ -93,12 +98,15 @@ display_mysql_information() {
 # Default values
 cli_flag=false
 ufw_flag=false
+csf_flag=false
 upload_flag=false
 
 # Parse command line arguments
 for arg in "$@"; do
   if [ "$arg" = "--cli" ]; then
     cli_flag=true
+  elif [ "$arg" = "--csf" ]; then
+    csf_flag=true
   elif [ "$arg" = "--ufw" ]; then
     ufw_flag=true
   elif [ "$arg" = "--public" ]; then
@@ -132,7 +140,10 @@ if [ "$cli_flag" = true ]; then
   run_opencli
 fi
 
-# Display Firewall Rules if --ufw flag is provided
+if [ "$csf_flag" = true ]; then
+  run_csf_rules
+fi
+
 if [ "$ufw_flag" = true ]; then
   run_ufw_rules
 fi
