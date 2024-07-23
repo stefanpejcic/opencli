@@ -144,7 +144,7 @@ if [ "$FIREWALL" = "CSF" ]; then
     # open_port_csf 993
     
     open_port_csf $(extract_port_from_file "/etc/openpanel/openpanel/conf/openpanel.config" "port") #openpanel
-    # openadmin port (2087) is not opened automatically!
+    open_port_csf 2087
     open_port_csf $(extract_port_from_file "/etc/ssh/sshd_config" "Port") #ssh
     open_port_csf 32768:60999 #docker
     
