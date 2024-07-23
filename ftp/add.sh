@@ -59,7 +59,7 @@ done
 
 # Function to read users from users.list files and create them
 create_user() {
-    docker exec -it openadmin_ftp sh -c 'echo -e "${password}\n${password}" | adduser -h $directory -s /sbin/nologin $username > /dev/null 2>&1'
+    docker exec -it openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${directory} -s /sbin/nologin ${username} > /dev/null 2>&1"
 
     # Check if the command was successful
     if [ $? -eq 0 ]; then
