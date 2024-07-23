@@ -133,6 +133,9 @@ echo ""
 
 # Check and open ports
 if [ "$FIREWALL" = "CSF" ]; then
+
+    # TODO: reuse install_csf() from https://github.com/stefanpejcic/OpenPanel/edit/main/version/0.2.3/INSTALL.sh
+    
     open_port_csf 53 #dns
     open_port_csf 80 #http
     open_port_csf 443 #https
@@ -148,7 +151,7 @@ if [ "$FIREWALL" = "CSF" ]; then
     open_port_csf $(extract_port_from_file "/etc/ssh/sshd_config" "Port") #ssh
     open_port_csf 32768:60999 #docker
     
-    open_out_port_csf
+    open_out_port_csf #mysql out
         
 elif [ "$FIREWALL" = "UFW" ]; then
     ufw allow 80/tcp #http
