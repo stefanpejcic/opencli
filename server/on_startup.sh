@@ -62,3 +62,6 @@ service nginx reload
 
 # Fix ports
 opencli firewall-reset
+
+# Get the op version 
+timeout 5 docker cp openpanel:/usr/local/panel/version /usr/local/panel/version > /dev/null 2>&1 #5 sec max
