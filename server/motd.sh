@@ -58,14 +58,8 @@ get_force_domain() {
 }
 
 get_public_ip() {
-    ip=$(curl -s https://ip.openpanel.co)
+    ip=$(curl --silent --max-time 1 -4 https://ip.openpanel.co || wget --timeout=1 -qO- https://ip.openpanel.co || curl --silent --max-time 1 -4 https://ifconfig.me)
     
-    # If curl fails, try wget
-    if [ -z "$ip" ]; then
-        ip=$(wget -qO- https://ip.openpanel.co)
-    fi
-    
-    # Check if IP is empty or not a valid IPv4
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
