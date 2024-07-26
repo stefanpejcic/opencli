@@ -32,7 +32,7 @@
 
 # Check if the correct number of arguments are provided
 if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <username>"
+  echo "Usage: opencli php-ioncube <username>"
   exit 1
 fi
 
