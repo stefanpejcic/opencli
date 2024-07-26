@@ -44,12 +44,15 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
   exit 1
 fi
 
-echo "Checking if installed PHP versions have IonCube Loader extension.."
-echo ""
+#echo "Checking if installed PHP versions for user $container_name have enabled IonCube Loader extension.."
+echo "Downloading latest ioncube loader extensions from https://www.ioncube.com/loaders.php"
 # Download latest ioncube files
 docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
-docker exec -it "$container_name" bash -c "cp -r /tmp/ioncube/ioncube_loader_lin_*.so /usr/lib/php/20*/"
+docker exec -it "$container_name" bash -c 'for dir in /usr/lib/php/20*/; do cp -r /tmp/ioncube/ioncube_loader_lin_*.so "$dir"; done'
 
+
+echo "Listing installed PHP versions for user $container_name "
+echo ""
 # List php versions
 php_versions=$(docker exec -it "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default' | tr -d '\r')
 
@@ -60,10 +63,10 @@ for php_version in $php_versions; do
   # Strip the 'php' part to get the version number
   php_version_number=$(echo "$php_version" | sed 's/php//')
 
-
+  echo "### CHECKING PHP VERSION $php_version_number"
   # Check if already enabled
   if docker exec -it "$container_name" bash -c "$php_version -m | grep -qi ioncube"; then
-      echo "ionCube Loader is already enabled for PHP version $php_version_number"
+      echo "ionCube Loader is already enabled for $php_version"
       continue
   fi
 
@@ -71,21 +74,24 @@ for php_version in $php_versions; do
   ioncube_file="/tmp/ioncube/ioncube_loader_lin_${php_version_number}.so"
   if docker exec -it "$container_name" test -f "$ioncube_file"; then
     echo "IonCube Loader extension is available for PHP version: $php_version_number - enabling.."
-    
-    cli_php_ini="/etc/php/$php_version_number/cli/php.ini"
-    fpm_php_ini="/etc/php/$php_version_number/fpm/php.ini"
-  
-    docker exec -it "$container_name" sh -c "
-      sed -i 's/^;zend_extension=.*/zend_extension=ioncube_loader_lin_$php_version_number.so/' $cli_php_ini
-      sed -i 's/^;zend_extension=.*/zend_extension=ioncube_loader_lin_$php_version_number.so/' $fpm_php_ini
-    "
+    # Function to add zend_extension line if it doesn't exist
+    add_zend_extension_if_not_exists() {
+      local ini_file="$1"
+      local zend_extension_line="zend_extension=ioncube_loader_lin_${php_version_number}.so"
+      
+      # Check if zend_extension line exists, if not, append it
+      if ! docker exec -it "$container_name" grep -q "^zend_extension=.*ioncube_loader_lin_${php_version_number}.so" "$ini_file"; then
+        echo "$zend_extension_line" | docker exec -i "$container_name" tee -a "$ini_file" > /dev/null
+      else
+        docker exec -it "$container_name" sed -i "s|^zend_extension=.*ioncube_loader_lin_${php_version_number}.so|$zend_extension_line|" "$ini_file"
+      fi
+    }
 
-    #fallback if already was enabled..
-    docker exec -it "$container_name" sh -c "
-      sed -i 's/^zend_extension=.*/zend_extension=ioncube_loader_lin_$php_version_number.so/' $cli_php_ini
-      sed -i 's/^zend_extension=.*/zend_extension=ioncube_loader_lin_$php_version_number.so/' $fpm_php_ini
-    "
-  
+    # Update CLI and FPM php.ini files
+    add_zend_extension_if_not_exists "/etc/php/$php_version_number/cli/php.ini"
+    add_zend_extension_if_not_exists "/etc/php/$php_version_number/fpm/php.ini"
+
+
     # Check if the PHP-FPM service is active
     service_status=$(docker exec -it "$container_name" sh -c "service php${php_version_number}-fpm status")
   
