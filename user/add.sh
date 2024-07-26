@@ -415,9 +415,9 @@ run_docker() {
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
       local found_ports=()
-    
       for ((port=32768; port<=65535; port++)); do
-        if ! nc -z localhost "$port" >/dev/null 2>&1; then
+        if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+        #if ! nc -z localhost "$port" >/dev/null 2>&1; then
           found_ports+=("$port")
           if [ ${#found_ports[@]} -ge 4 ]; then
             break
@@ -440,6 +440,7 @@ run_docker() {
 
     # Find available ports
     AVAILABLE_PORTS=$(find_available_ports)
+
     
     # Split the ports into variables
     FIRST_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $1}')
@@ -472,6 +473,9 @@ run_docker() {
         echo "$docker_cmd"
         echo ""
         echo "------------------------------------------------------"
+        echo ""
+        echo "AVAILABLE_PORTS: $AVAILABLE_PORTS"
+        echo ""
         $docker_cmd
     else
         $docker_cmd > /dev/null 2>&1
