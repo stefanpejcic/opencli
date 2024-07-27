@@ -142,12 +142,12 @@ json_output=$(cat <<EOF
   },
   "container": {
     "path": "$container_path",
+    "storage_driver": "$storage_driver",
     "bytes_used": "$container_used",
     "bytes_total": "$container_total",
     "inodes_used": "$inodes_docker_used",
     "inodes_total": "$inodes_docker_total"
-  },
-  "storage_driver": "$storage_driver"
+  }
 }
 EOF
 )
@@ -155,64 +155,22 @@ EOF
 # Output the JSON
 echo "$json_output"
 
-
-
-
-
-
-    
           else
-
-          
-              #echo "/home/$username"
-              
-              echo "storage driver:        $storage_driver"
-              
-              echo "-------------------"
-      
-      
-              # Check if huser has no storage file - and uses just '/'
-              if [ "${columns_last[4]}" == "/" ]; then
-                  # no storage file
-                  echo "DISK USAGE FOR ${columns_last[4]}"
-                  echo "- home_used=${columns_last[3]}"
-                  echo "- home_total=${columns_last[2]}"
-              elif [ "${columns_last[4]}" == "/home/$username" ]; then
-                  echo "DISK USAGE FOR ${columns_last[4]}"
-                  echo "- home_used=${columns_last[3]}"
-                  echo "- home_total=${columns_last[2]}"
-              fi
-                 echo  "- home_limit=$disk_limit"
-
-
-      
-              echo "-------------------"
-      
-              
-              # Check if huser has no storage file - and uses just '/'
-              if [ "${columns_last[4]}" == "/" ]; then
-                  # no storage file
-                  echo "INODES USAGE FOR ${columns_last[4]}"
-                  echo "- inodes_used=${columns_last[1]}"
-                  echo "- inodes_total=${columns_last[0]}"
-              elif [ "${columns_last[4]}" == "/home/$username" ]; then
-                  echo "INODES USAGE FOR ${columns_last[4]}"
-                  echo "- inodes_used=${columns_last[1]}"
-                  echo "- inodes_total=${columns_last[0]}"
-              fi
-      
-      
-              echo "-------------------"
-      
-                  echo "DISK USAGE FOR ${columns_penultimate[4]}"
-                  echo "- container_used=${columns_penultimate[3]}"
-                  echo "- container_total=${columns_penultimate[2]}"
-                  
-                  echo "INODES USAGE FOR ${columns_penultimate[4]}"
-                  echo "- inodes_used=${columns_penultimate[1]}"
-                  echo "- inodes_total=${columns_penultimate[0]}"
-              
-
+            echo "------------- home directory -------------"
+            echo "- home directory:        /home/$username"
+            echo "- mountpoint:            ${columns_last[4]}"
+            echo "- bytes used:            ${columns_last[3]}"
+            echo "- bytes total:           ${columns_last[2]}"
+            echo "- bytes limit:           $disk_limit"
+            echo "- inodes used:           ${columns_last[1]}"
+            echo "- inodes total:          ${columns_last[0]}"
+            echo "---------------- container ---------------"
+            echo "- container directory:   ${columns_penultimate[4]}"
+            echo "- bytes used:            ${columns_penultimate[3]}"
+            echo "- bytes total:           ${columns_penultimate[2]}"
+            echo "- inodes used:           ${columns_penultimate[1]}"
+            echo "- inodes total:          ${columns_penultimate[0]}"
+            echo "- storage driver:        $storage_driver"
           fi
 }
 
