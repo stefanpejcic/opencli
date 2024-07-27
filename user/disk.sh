@@ -131,6 +131,7 @@ check_details_and_show(){
 # Build the JSON output
 json_output=$(cat <<EOF
 {
+  "user": "$username",
   "home": {
     "path": "$home_path",
     "bytes_used": "$home_used",
