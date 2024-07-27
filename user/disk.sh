@@ -199,7 +199,7 @@ check_and_show_summary(){
             # use human readable
             home_actual_size_for_user=$(du -sh /home/${username})
             docker_contianer_acutal_size=$(du -sh ${columns_penultimate[4]})
-            echo "DISK USAGE:"
+            echo "-------------- disk usage --------------"
             echo "- ${home_actual_size_for_user}" # 
             echo "- ${docker_contianer_acutal_size}"
           fi
@@ -214,7 +214,7 @@ display_paths(){
             # Output in JSON format
             echo '{"home_directory": "/home/'"$username"'","docker_container_path": "'"${columns_penultimate[4]}"'"}'
           else
-            echo "PATHS:"
+            echo "-------------- paths --------------"
             echo "- home_directory=/home/$username"
             echo "- docker_container_path=${columns_penultimate[4]}"
             echo "-------------------"
