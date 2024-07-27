@@ -217,7 +217,6 @@ display_paths(){
             echo "-------------- paths --------------"
             echo "- home_directory=/home/$username"
             echo "- docker_container_path=${columns_penultimate[4]}"
-            echo "-------------------"
           fi
 }
 
