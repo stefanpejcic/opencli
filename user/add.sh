@@ -415,6 +415,15 @@ run_docker() {
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
       local found_ports=()
+      
+      
+        if ! command -v lsof >/dev/null 2>&1; then
+            echo "lsof is not installed. Installing lsof..."
+            apt-get install -y lsof >/dev/null 2>&1
+        fi
+
+      
+      
       for ((port=32768; port<=65535; port++)); do
         if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
         #if ! nc -z localhost "$port" >/dev/null 2>&1; then
