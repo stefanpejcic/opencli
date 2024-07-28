@@ -5,7 +5,7 @@
 # Usage: opencli ssl-user <username|--all>
 # Author: Stefan Pejcic
 # Created: 22.11.2023
-# Last Modified: 22.11.2023
+# Last Modified: 28.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
