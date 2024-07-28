@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: ssl/user.sh
-# Description: Check SSL status for all domains owned by user.
+# Description: Check SSL status for all domains owned by user and update cache files.
 # Usage: opencli ssl-user <username|--all>
 # Author: Stefan Pejcic
 # Created: 22.11.2023
