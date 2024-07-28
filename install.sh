@@ -56,4 +56,4 @@ generate_autocomplete() {
 }
 complete -W \"\$(generate_autocomplete)\" opencli" >> ~/.bashrc
 
-source ~/.bashrc
+. ~/.bashrc
