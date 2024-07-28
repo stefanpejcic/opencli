@@ -89,8 +89,7 @@ fi
 
 
 # Source the database config file
-source "$DB_CONFIG_FILE"
-
+. "$DB_CONFIG_FILE"
 
 
 # Check if Docker container with the same username exists
