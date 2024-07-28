@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: ssl/user.sh
 # Description: Check SSL status for all domains owned by user.
-# Usage: opencli ssl-user <username>
+# Usage: opencli ssl-user <username|--all>
 # Author: Stefan Pejcic
 # Created: 22.11.2023
 # Last Modified: 22.11.2023
@@ -30,7 +30,7 @@
 
 # Check if username is provided as an argument
 if [ $# -eq 0 ]; then
-    echo "Usage: opencli ssl-user <username> OR opencli ssl-user -all"
+    echo "Usage: opencli ssl-user <username> OR opencli ssl-user --all"
   exit 1
 fi
 
@@ -72,7 +72,7 @@ process_user_domains(){
 }
 
 
-if [[ "$1" == "-all" ]]; then
+if [[ "$1" == "--all" ]]; then
   # Fetch list of users from opencli user-list --json
   users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 
@@ -82,17 +82,19 @@ if [[ "$1" == "-all" ]]; then
     exit 1
   fi
 
+  # Get total user count
+  total_users=$(echo "$users" | wc -w)
+
   # Iterate over each user
+  current_user_index=1
   for user in $users; do
-    echo "USER: $user"
+    echo "Processing user: $user ($current_user_index/$total_users)"
     process_user_domains "$user"
     echo "------------------------------"
+    ((current_user_index++))
   done
   echo "DONE."
   
 elif [ $# -eq 1 ]; then
   process_user_domains "$1"
-else
-  echo "Usage: $0 <domain> OR $0 -all"
-  exit 1
 fi
