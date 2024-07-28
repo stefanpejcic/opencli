@@ -28,37 +28,71 @@
 # THE SOFTWARE.
 ################################################################################
 
-
 # Check if username is provided as an argument
 if [ $# -eq 0 ]; then
-    echo "Usage: opencli ssl-user <username>"
-    exit 1
+    echo "Usage: opencli ssl-user <username> OR opencli ssl-user -all"
+  exit 1
 fi
 
-# Set the username and file path
-username="$1"
-file_path="/etc/openpanel/openpanel/core/users/$username/.ssl"
-mkdir -p "$(dirname "$file_path")"
+process_user_domains(){
+    # Set the username and file path
+    local username="$1"
+    file_path="/etc/openpanel/openpanel/core/users/$username/.ssl"
+    mkdir -p "$(dirname "$file_path")"
+    
+    # Get list of user domains
+    domains=$(opencli domains-user "$username")
 
-# Get list of user domains
-domains=$(opencli domains-user "$username")
+      # Check if no domains found
+      if [[ -z "$domains" || "$domains" =~ ^No\ domains\ found\ for\ user ]]; then
+        echo "No domains found in the database or opencli command error."
+      else
+       
+        # Get certificates information
+        certificates_info=$(certbot certificates 2>&1)
+        
+        # Process and save the result to a file
+        echo -n > "$file_path"
+        
+        while IFS= read -r domain; do
+            # Extract the expiry date for the current domain
+            expiry_date=$(echo "$certificates_info" | grep -A 5 "Certificate Name: $domain" | grep "Expiry Date" | cut -d ":" -f 2-)
+        
+            # Save the result to the file
+            if [ -z "$expiry_date" ]; then
+                echo "$domain: None" >> "$file_path"
+                echo "$domain: None"
+            else
+                echo "$domain: $expiry_date" >> "$file_path"
+                echo "$domain: $expiry_date"
+            fi
+        done <<< "$domains"
+        
+      fi
+}
 
-# Get certificates information
-certificates_info=$(certbot certificates 2>&1)
 
-# Process and save the result to a file
-echo -n > "$file_path"
+if [[ "$1" == "-all" ]]; then
+  # Fetch list of users from opencli user-list --json
+  users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 
-while IFS= read -r domain; do
-    # Extract the expiry date for the current domain
-    expiry_date=$(echo "$certificates_info" | grep -A 5 "Certificate Name: $domain" | grep "Expiry Date" | cut -d ":" -f 2-)
+  # Check if no sites found
+  if [[ -z "$users" || "$users" == "No users." ]]; then
+    echo "No users found in the database."
+    exit 1
+  fi
 
-    # Save the result to the file
-    if [ -z "$expiry_date" ]; then
-        echo "$domain: None" >> "$file_path"
-        echo "$domain: None"
-    else
-        echo "$domain: $expiry_date" >> "$file_path"
-        echo "$domain: $expiry_date"
-    fi
-done <<< "$domains"
+  # Iterate over each user
+  for user in $users; do
+    echo "USER: $user"
+    process_user_domains "$user"
+    echo "------------------------------"
+  done
+  echo "DONE."
+  
+elif [ $# -eq 1 ]; then
+  process_user_domains "$1"
+else
+  echo "Usage: $0 <domain> OR $0 -all"
+  exit 1
+fi
