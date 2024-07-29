@@ -5,7 +5,7 @@
 # Usage: opencli ssl-user <username|--all> [--generate]
 # Author: Stefan Pejcic
 # Created: 22.11.2023
-# Last Modified: 28.07.2024
+# Last Modified: 29.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -125,10 +125,7 @@ if [ $# -eq 0 ]; then
     echo ""
     echo "Example: Regenerate list of certificates for all users:"
     echo "opencli ssl-user --all"
-    echo ""
-    
-opencli ssl-user <username|--all> [--generate]
-    
+    echo ""    
   exit 1
 elif [[ "$1" == "--all" ]]; then
   # Fetch list of users from opencli user-list --json
