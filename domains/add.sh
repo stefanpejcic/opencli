@@ -24,7 +24,7 @@ else
     exit 1
 fi
 
-# Function to get user ID from the database
+# get user ID from the database
 get_user_id() {
     local user="$1"
     local query="SELECT id FROM users WHERE username = '${user}';"
@@ -33,7 +33,6 @@ get_user_id() {
     echo "$user_id"
 }
 
-# Get the user ID from the database
 user_id=$(get_user_id "$user")
 
 if [ -z "$user_id" ]; then
@@ -43,7 +42,7 @@ fi
 
 
 
-get_server_ipv4(){
+get_server_ipv4() {
 
 	# Get server ipv4 from ip.openpanel.co
 	current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
@@ -60,22 +59,19 @@ get_server_ipv4(){
 
 
 
-clear_cache_for_user(){
-	rm /etc/openpanel/openpanel/core/users/${user}/data.json
+clear_cache_for_user() {
+	rm /etc/openpanel/openpanel/core/users/${user}/data.json >/dev/null 2>&1
 }
 
-make_folder(){
+make_folder() {
 	mkdir -p /home/$user/$domain_name
-	docker exec $user chown $user:www-data
+	docker exec $user bash -c "chown $user:www-data /home/$user/$domain_name"
 	chmod -R g+w /home/$user/$domain_name
-	
 }
 
 
 get_webserver_for_user(){
-
 	    output=$(opencli webserver-get_webserver_for_user $user)
-	
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
 	    elif [[ $output == *apache* ]]; then
@@ -86,11 +82,10 @@ get_webserver_for_user(){
 }
 
 
-vhost_files_create(){
-
+vhost_files_create() {
 
 vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_${ws}_domain.conf"
-vhost_in_docker_file="/etc/$user/$ws/sites-available/${domain_name}.conf"
+vhost_in_docker_file="/etc//$ws/sites-available/${domain_name}.conf"
 logs_dir="/var/log/$ws/domlogs"
 
 docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"
@@ -110,11 +105,12 @@ docker exec -it $user /bin/bash -c "
     $vhost_in_docker_file
 "
 
-docker exec $user bash -c "ln -s /etc/$ws/sites-available/${domain_name}.conf /etc/$ws/sites-enabled/ && service $ws restart"
+docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+
 }
 
 
-create_domain_file(){
+create_domain_file() {
 
 	if [ -f /etc/nginx/modsec/main.conf ]; then
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf_with_modsec"
@@ -126,18 +122,14 @@ mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
 
 cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
 
-docker_ip=$(docker inspect -f {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}) $user"
+docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user)
 
-mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/{domain_name}-block_ips.conf
-
-
-
-    docker_config_content = docker_config_template.replace('<USERNAME>', current_username).replace('<DOMAIN_NAME>', domain_url).replace('<IP>', docker_ip).replace('<LISTEN_IP>', server_ip)
+mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch /etc/openpanel/openpanel/core/users/${user}/domains/{domain_name}-block_ips.conf
 
   sed -i \
     -e 's|<DOMAIN_NAME>|$domain_name|g' \
     -e 's|<USER>|$user|g' \
-    -e 's|<IP>|$LISTEN_IP|g' \
+    -e 's|<IP>|$user_gateway|g' \
     -e 's|<LISTEN_IP>|$current_ip|g' \
     /etc/nginx/sites-available/${domain_name}.conf
     
@@ -160,7 +152,7 @@ add_domain() {
     mysql -e "$insert_query"
 
 
-    result=$(mysql -u "$DB_USER" -p"$DB_PASSWORD" -h "$DB_HOST" -D "$DB_NAME" -se "$query")
+    result=$(mysql -se "$query")
 
 
 
