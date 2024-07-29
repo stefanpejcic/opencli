@@ -92,7 +92,7 @@ docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.
 
 docker cp  $vhost_docker_template $user:$vhost_in_docker_file
 
-user_gateway=$(docker exec $user bash -c "ip route | awk '/default/ {{ print $3 }}'")
+user_gateway=$(docker exec $user bash -c "ip route | grep default | cut -d' ' -f3")
 
 # Execute the sed command inside the Docker container
 docker exec -it $user /bin/bash -c "
@@ -108,9 +108,6 @@ docker exec -it $user /bin/bash -c "
 docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/ && ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
 
 }
-
-
-#TODO: bug inside docker vhost we have set_real_ip_from not correct!
 
 create_domain_file() {
 
