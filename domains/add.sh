@@ -70,10 +70,34 @@ make_folder() {
 }
 
 
+check_and_create_default_file() {
+#extra step needed for nginx
+
+file_exists=$(docker exec "$user" test -e "/etc/nginx/sites-enabled/default" && echo "yes" || echo "no")
+
+if [ "$file_exists" == "no" ]; then
+    echo "Default nginx vhost file does not exist, creating.."
+    
+    # Create the file with the specified content
+    docker exec "$user" sh -c "echo 'server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+        server_name _;
+        deny all;
+        return 444;
+        }' > /etc/nginx/sites-enabled/default"
+fi
+}
+
 get_webserver_for_user(){
 	    output=$(opencli webserver-get_webserver_for_user $user)
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
+	 	check_and_create_default_file
+
+
+
+  
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
 	    else
@@ -88,9 +112,9 @@ vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_${ws}_domain.conf"
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 logs_dir="/var/log/$ws/domlogs"
 
-docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"
+docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
 
-docker cp  $vhost_docker_template $user:$vhost_in_docker_file
+docker cp  $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
 
 user_gateway=$(docker exec $user bash -c "ip route | grep default | cut -d' ' -f3")
 
@@ -105,7 +129,7 @@ docker exec -it $user /bin/bash -c "
     $vhost_in_docker_file
 "
 
-docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/ && ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/ && ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart  >/dev/null 2>&1"
 
 }
 
@@ -136,10 +160,72 @@ sed -i \
     mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
     systemctl reload nginx
-
-
-
 }
+
+
+update_named_conf() {
+
+ZONE_FILE_DIR='/etc/bind/zones/'
+NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
+
+    local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
+
+    # Check if the domain already exists in named.conf.local
+    if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
+        echo "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
+        return
+    fi
+
+    # Append the new zone configuration to named.conf.local
+    echo "$config_line" >> "$NAMED_CONF_LOCAL"
+}
+
+
+
+
+# Function to create a zone file
+create_zone_file() {
+    ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
+    ZONE_FILE_DIR='/etc/bind/zones/'
+    CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+
+    zone_template=$(<"$ZONE_TEMPLATE_PATH")
+
+	# Function to extract value from config file
+	get_config_value() {
+	    local key="$1"
+	    grep -E "^\s*${key}=" "$CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
+	}
+
+
+
+    ns1=$(get_config_value 'ns1')
+    ns2=$(get_config_value 'ns2')
+
+    # Fallback
+    if [ -z "$ns1" ]; then
+        ns1='ns1.openpanel.co'
+    fi
+
+    if [ -z "$ns2" ]; then
+        ns2='ns2.openpanel.co'
+    fi
+
+    # Create zone content
+    zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" -e "s/{ns1}/$ns1/g" -e "s/{ns2}/$ns2/g" -e "s/{server_ip}/$current_ip/g")
+
+    # Ensure the directory exists
+    mkdir -p "$ZONE_FILE_DIR"
+
+    # Write the zone content to the zone file
+    echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
+
+    # Reload BIND service
+    service bind9 reload
+}
+
+
+
 
 
 
@@ -163,13 +249,15 @@ add_domain() {
     if [ "$result" -eq 1 ]; then
     
     	#TODO
-    	clear_cache_for_user
-    	make_folder
-    	get_webserver_for_user
-    	get_server_ipv4
-	vhost_files_create
-	create_domain_file
-    	
+    	clear_cache_for_user # rm cached file for ui
+    	make_folder # create dirs on host server
+    	get_webserver_for_user # nginx or apache
+    	get_server_ipv4 # get outgoing ip
+	vhost_files_create # create file in container
+	create_domain_file # create file on host
+        create_zone_file # create zone
+	update_named_conf # include zone
+	
         echo "Domain $domain_name has been added for user $user."
     else
         echo "Failed to add domain $domain_name for user $user (id:$user_id)."
@@ -177,5 +265,5 @@ add_domain() {
 }
 
 
-echo "Addin domain $domain_name for user ID: $user_id"
+#echo "Addin domain $domain_name for user ID: $user_id"
 add_domain "$user_id" "$domain_name"
