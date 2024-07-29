@@ -105,7 +105,7 @@ docker exec -it $user /bin/bash -c "
     $vhost_in_docker_file
 "
 
-docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/ && ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
 
 }
 
@@ -133,7 +133,7 @@ mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch /etc/open
     -e 's|<LISTEN_IP>|$current_ip|g' \
     /etc/nginx/sites-available/${domain_name}.conf
     
-    
+    mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
     systemctl reload nginx
 
