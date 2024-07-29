@@ -85,7 +85,7 @@ get_webserver_for_user(){
 vhost_files_create() {
 
 vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_${ws}_domain.conf"
-vhost_in_docker_file="/etc//$ws/sites-available/${domain_name}.conf"
+vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 logs_dir="/var/log/$ws/domlogs"
 
 docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"
