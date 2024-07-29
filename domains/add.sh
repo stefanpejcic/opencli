@@ -123,7 +123,7 @@ cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
 
 docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user)
 
-mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch /etc/openpanel/openpanel/core/users/${user}/domains/{domain_name}-block_ips.conf
+mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
 sed -i \
     -e "s|<DOMAIN_NAME>|$domain_name|g" \
