@@ -331,8 +331,12 @@ if $debug; then
 fi
 #Menja ID
 query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
-mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
-
+result=$(mysql -D "$mysql_database" -N -B -e "$query")
+if [ $? -eq 0 ]; then
+    echo "Plan changed successfuly for user $container_name from $current_plan_name to $new_plan_name"
+else
+    echo "Error when changing plan id in the database."
+fi
 
 #skripta za rewrite nginx vhosts za tog usera!
 if $debug; then
@@ -342,3 +346,6 @@ else
 fi
 # Compare limits and list the differences
 #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
+
+
+
