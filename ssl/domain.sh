@@ -28,8 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-#!/bin/bash
-# Function to print usage information
 print_usage() {
     echo "Usage: $0 [-d] <domain_url>"
     echo "Options:"
