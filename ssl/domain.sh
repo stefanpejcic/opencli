@@ -108,10 +108,9 @@ cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
 
 
 #nginx here conf
-
 nginx -t && systemctl reload nginx
 
-
+echo "Custom certificate installed successfully."
 
 }
 
