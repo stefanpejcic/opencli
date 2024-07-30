@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: ssl/domain.sh
 # Description: Generate or Delete SSL for a domain.
-# Usage: opencli ssl-domain [-d] <domain_url>
+# Usage: opencli ssl-domain [-d] <domain_url> [-k path -p path]
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 20.05.2024
+# Last Modified: 30.07.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -76,6 +76,46 @@ ensure_jq_installed() {
     fi
 }
 
+
+
+import_ssl(){
+
+# Verify SSL certificate
+echo "Verifying SSL certificate for domain: $DOMAIN_NAME"
+if ! openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5 > /dev/null; then
+    echo "ERROR: Invalid SSL public certificate."
+    exit 1
+fi
+
+if ! openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5 > /dev/null; then
+    echo "ERROR: Invalid SSL private key."
+    exit 1
+fi
+
+CERT_MODULUS=$(openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5)
+KEY_MODULUS=$(openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5)
+
+if [ "$CERT_MODULUS" != "$KEY_MODULUS" ]; then
+    echo "ERROR: The SSL certificate and key do not match."
+    exit 1
+fi
+
+# Copy the SSL files to the directory
+SSL_DIR="/etc/nginx/ssl/$DOMAIN_NAME"
+mkdir -p "$SSL_DIR"
+cp "$SSL_PRIVATE_KEY_PATH" "$SSL_DIR/privkey.pem"
+cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
+
+
+#nginx here conf
+
+nginx -t && systemctl reload nginx
+
+
+
+}
+
+
 # Function to generate SSL
 generate_ssl() {
     domain_url=$1
@@ -101,10 +141,15 @@ generate_ssl() {
 # Function to modify Nginx configuration
 modify_nginx_conf() {
     domain_url=$1
+    type="$2"
+    
     # Nginx configuration path
     nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
 
     echo "Modifying Nginx configuration for domain: $domain_url"
+
+
+if [ "$type" == "le" ]; then
 
     # Nginx configuration content to be added
     nginx_config_content="
@@ -120,6 +165,22 @@ modify_nginx_conf() {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     "
 
+elif [ "$type" == "custom" ]; then
+
+    nginx_config_content="
+    if (\$scheme != \"https\"){
+        #return 301 https://\$host\$request_uri;
+    } #forceHTTPS
+
+    listen $server_ip:443 ssl http2;
+    server_name $domain_url;
+    ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
+    "
+else
+    echo "ERROR: Invalid certificate type."
+    exit 1
+fi
     # Find the position of the last closing brace
     last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
 
@@ -192,11 +253,11 @@ if [ "$#" -lt 1 ]; then
 fi
 
 # Parse options
-while getopts ":d" opt; do
+while getopts ":d:k:c" opt; do
     case $opt in
-        d)
-            delete_flag=true
-            ;;
+        d) delete_flag=true ;;
+        k) SSL_PRIVATE_KEY_PATH="$OPTARG" ;;
+        c) SSL_PUBLIC_KEY_PATH="$OPTARG" ;;
         \?)
             echo "Invalid option: -$OPTARG"
             print_usage
@@ -222,15 +283,24 @@ fi
 
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
+    #todo#check and delete custom ssls also
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
-    check_other_domains_by_user_and_reload_ssl_cache
 else
-    # Generate SSL only if the check passed
-    check_ssl_validity "$domain_url"
-    ensure_jq_installed
-    get_server_ip "$domain_url"
-    generate_ssl "$domain_url" || exit 1
-    modify_nginx_conf "$domain_url"
-    check_other_domains_by_user_and_reload_ssl_cache
+    
+    if [ -n "$SSL_PRIVATE_KEY_PATH" ] || [ -n "$SSL_PUBLIC_KEY_PATH" ]; then
+        import_ssl "$domain_url" || exit 1
+        type="custom"
+    else
+        ensure_jq_installed
+        get_server_ip "$domain_url"
+        # Generate SSL only if the check passed
+        check_ssl_validity "$domain_url"
+        generate_ssl "$domain_url" || exit 1
+        type="le"
+    fi
+    
+    modify_nginx_conf "$domain_url" "$type"
 fi
+
+check_other_domains_by_user_and_reload_ssl_cache
