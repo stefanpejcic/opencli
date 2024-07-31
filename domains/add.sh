@@ -12,7 +12,7 @@ user="$2"
 
 # Validate domain name (basic validation)
 if ! [[ "$domain_name" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    echo "Invalid domain name: $domain_name"
+    echo "FATAL ERROR: Invalid domain name: $domain_name"
     exit 1
 fi
 
@@ -20,7 +20,7 @@ fi
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     :
 else
-    echo "Domain $domain_name already exists."
+    echo "WARNING: Domain $domain_name already exists."
     exit 1
 fi
 
@@ -36,7 +36,7 @@ get_user_id() {
 user_id=$(get_user_id "$user")
 
 if [ -z "$user_id" ]; then
-    echo "User $user does not exist."
+    echo "FATAL ERROR: user $user does not exist."
     exit 1
 fi
 
