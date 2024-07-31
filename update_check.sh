@@ -88,7 +88,7 @@ update_check() {
     if [ "$local_version" == "$remote_version" ]; then
         echo '{"status": "Up to date", "installed_version": "'"$local_version"'"}'
     elif [ "$local_version" \> "$remote_version" ]; then
-        write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
+        #write_notification "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
         echo '{"status": "Local version is greater", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     else
         # Check if skip_versions file exists and if remote version matches
