@@ -131,7 +131,9 @@ docker exec -it $user /bin/bash -c "
     $vhost_in_docker_file
 "
 
-docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/ && ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart  >/dev/null 2>&1"
+docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
+
+docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
 
 }
 
@@ -162,7 +164,7 @@ sed -i \
     
     mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-    systemctl reload nginx
+    nginx -t && systemctl reload nginx
 }
 
 
