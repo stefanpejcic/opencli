@@ -69,9 +69,8 @@ source /usr/local/admin/scripts/db.sh
 
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
-    docker stop "$username"
-    docker rm "$username"
-    rm -rf /home/$username
+    docker stop "$username"  2>/dev/null
+    docker rm "$username"  2>/dev/null
 }
 
 # Delete all users domains vhosts files from Nginx
@@ -89,19 +88,20 @@ delete_vhosts_files() {
 
     # Disable Nginx virtual hosts, delete SSL and configuration files for each domain
     for domain_name in $domain_names; do
-        # Revoke SSL and delete associated $domain_name-le-ssl.conf file
-        certbot revoke -n --cert-name $domain_name
-        # Delete the SSLs for that domain
-        certbot delete -n --cert-name $domain_name
-        # Disable the virtual host file
-        #sudo a2dissite "$domain_name"
-        # Delete the configuration file
-        sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
-        sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
+
+       if [ -d "/etc/live/letsencrypt/$domain_name" ]; then
+            echo "revoking and deleting existing Let's Encrypt certificate"
+            certbot revoke -n --cert-name $domain_name
+            certbot delete -n --cert-name $domain_name
+            sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
+            sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
+        else
+            echo "Doman had no Let's Encrypt certificate"
+        fi
     done
 
     # Reload Nginx to apply changes
-    systemctl reload nginx
+   nginx -t && systemctl reload nginx
 
     echo "SSL Certificates, Nginx Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
 }
@@ -208,13 +208,12 @@ delete_vhosts_files
 remove_docker_container_and_volume
 
 delete_user_from_database
-umount /home/storage_file_$username
-rm -rf /home/$username
-rm -rf /home/storage_file_$username
+umount /home/storage_file_$username  2>/dev/null
+rm -rf /home/$username  2>/dev/null
+rm -rf /home/storage_file_$username  2>/dev/null
 
 
 rm -rf /etc/openpanel/openpanel/core/stats/$username
 rm -rf /etc/openpanel/openpanel/core/users/$username
-rm -rf /home/$username/home/$username/backup/$username
 
 echo "User $username deleted."
