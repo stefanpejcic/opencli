@@ -83,22 +83,55 @@ if docker exec "$container_name" bash -c 'dpkg -l | grep -q "ii  php${php_versio
   echo "## Setting recommended extensions.."
 else
   echo "## PHP $php_version is not installed, starting installation.."  
-  # Install the version
-  docker exec "$container_name" bash -c "apt-get update"
-  docker exec "$container_name" bash -c "apt --fix-broken install"
-  docker exec "$container_name" bash -c "dpkg --configure -a"
-  docker exec "$container_name" bash -c "apt-get install -y php$php_version-fpm"
-  #wait $!
+  install_php() {
+    docker exec "$container_name" bash -c "
+      apt-get update && 
+      apt --fix-broken install && 
+      dpkg --configure -a && 
+      apt-get install -y php$php_version-fpm
+    "
+  }
+
+  # Retry mechanism
+  retries=5
+  count=0
+  while [ $count -lt $retries ]; do
+    # Check if `apt-get` is currently running and wait if necessary
+    if ! docker exec "$container_name" bash -c "fuser /var/lib/apt/lists/lock >/dev/null 2>&1"; then
+      install_php
+      if [ $? -eq 0 ]; then
+        break
+      else
+        echo "## Installation failed, retrying..."
+        count=$((count + 1))
+        sleep 10  # Wait before retrying
+      fi
+    else
+      echo "## Waiting for apt-get to release the lock..."
+      sleep 5  # Wait before checking again
+    fi
+  done
+  
+
+
+  if [ $count -eq $retries ]; then
+    echo "## ERROR: PHP $php_version installation failed after multiple attempts."
+    exit 1
+  fi
+
   echo "## Installed, checking if configured properly.."
+
+
   # Check if actually installed
-  if docker exec "$container_name" bash -c 'dpkg -l | grep -q "ii  php${php_version}"'; then
-    # proceed to extensions..
+  if docker exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php$php_version\""; then
+    # Proceed to extensions..
     echo "## PHP version $php_version is now installed, setting default PHP extensions.."
   else
-    echo "## ERROR: PHP $php_version installation failed."  
+    echo "## ERROR: PHP $php_version installation failed."
     exit 1
   fi
 fi
+
 
 # uodate just once, then start extensions
 apt-get update
