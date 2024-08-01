@@ -118,12 +118,14 @@ docker cp  $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
 
 user_gateway=$(docker exec $user bash -c "ip route | grep default | cut -d' ' -f3")
 
+php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
+
 # Execute the sed command inside the Docker container
 docker exec -it $user /bin/bash -c "
   sed -i \
     -e 's|<DOMAIN_NAME>|$domain_name|g' \
     -e 's|<USER>|$user|g' \
-    -e 's|<PHP>|$php_version|g' \
+    -e 's|<PHP>|php${php_version}|g' \
     -e 's|172.17.0.1|$user_gateway|g' \
     -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
     $vhost_in_docker_file
