@@ -152,7 +152,7 @@ mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/ && touch /etc/open
 sed -i \
     -e "s|<DOMAIN_NAME>|$domain_name|g" \
     -e "s|<USERNAME>|$user|g" \
-    -e "s|<IP>|$user_gateway|g" \
+    -e "s|<IP>|$docker_ip|g" \
     -e "s|<LISTEN_IP>|$current_ip|g" \
     /etc/nginx/sites-available/${domain_name}.conf
 
