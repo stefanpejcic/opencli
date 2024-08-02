@@ -201,8 +201,17 @@ check_ssl_validity() {
 
     # Run Certbot command to check SSL validity
     if "${certbot_check_command[@]}" | grep -q "Expiry Date:.*VALID"; then
-        echo "SSL is valid. Exiting script."
-        exit 0
+        echo "SSL is valid. Checking if in use by Nginx.."
+
+        nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
+        
+        if grep -q "ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;" "$nginx_conf_path"; then
+            echo "SSL is configured properly for the domain."
+            exit 0
+        else
+            echo "SSL is valid but not in use. Updating Nginx configuration for domain.."
+            modify_nginx_conf "$domain_url" "le"
+        fi
     else
         echo "SSL is not valid. Proceeding with SSL generation."
     fi
@@ -293,7 +302,6 @@ else
     else
         ensure_jq_installed
         get_server_ip "$domain_url"
-        # Generate SSL only if the check passed
         check_ssl_validity "$domain_url"
         generate_ssl "$domain_url" || exit 1
         type="le"
