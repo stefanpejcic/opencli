@@ -32,6 +32,7 @@ LOGROTATE_CONF="/etc/logrotate.d/nginx-domlogs"
 
 cat <<EOF > "$LOGROTATE_CONF"
 /var/log/nginx/domlogs/*.log {
+    su root adm
     size $logrotate_size_limit
     rotate $logrotate_retention
     daily
