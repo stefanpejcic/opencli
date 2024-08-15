@@ -153,7 +153,7 @@ update_nginx_conf() {
     
 
     # Restart Nginx to apply changes
-    systemctl reload nginx
+    docker exec nginx nginx -s reload
 }
 
 # Create or overwrite the JSON file
