@@ -184,8 +184,12 @@ if [ "$type" == "le" ]; then
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     "
 
+    marker="ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;"
+
 elif [ "$type" == "custom" ]; then
 
+    marker="ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;"
+    
     nginx_config_content="
     if (\$scheme != \"https\"){
         #return 301 https://\$host\$request_uri;
@@ -200,6 +204,12 @@ else
     echo "ERROR: Invalid certificate type."
     exit 1
 fi
+
+marker="ssl_certificate /etc/letsencrypt/live/neko.openpanel.site/fullchain.pem;"
+if grep -qF "$marker" "$nginx_conf_path"; then
+    :
+    #echo "Configuration already exists. No changes made."
+else 
     # Find the position of the last closing brace
     last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
 
@@ -207,10 +217,11 @@ fi
     awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
     mv temp_file "$nginx_conf_path"
 
-    echo "Nginx configuration modification completed successfully, reloading.."
-
+    echo "Nginx configuration editedd successfully, reloading.."
 
     docker exec nginx bash -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
+
+fi
     
 }
 
