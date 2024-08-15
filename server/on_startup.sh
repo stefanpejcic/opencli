@@ -28,37 +28,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-ensure_jq_installed() {
-    # Check if jq is installed
-    if ! command -v jq &> /dev/null; then
-        # Install jq using apt
-        sudo apt-get update > /dev/null 2>&1
-        sudo apt-get install -y -qq jq > /dev/null 2>&1
-        # Check if installation was successful
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-ensure_jq_installed
-# Korisnici
-DOCKER_USERS=$(opencli user-list --json | jq -r '.[].username')
-
-# Loop kroz Docker usere i pokreni skript
-for USERNAME in $DOCKER_USERS; do
-    # Run the user-specific script
-    opencli nginx-update_vhosts $USERNAME
-
-done
+#genrate /etc/hosts
+opencli server-recreate_hosts
 
 #mount storage files on reboot
 opencli files-remount
 
-#reset servisa
-service nginx reload
+#reset service
+docker exec nginx nginx -s reload
 
 # Fix ports
 opencli firewall-reset
