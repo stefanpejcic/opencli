@@ -108,7 +108,7 @@ cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
 
 
 #nginx here conf
-nginx -t && systemctl reload nginx
+docker exec nginx bash -c "nginx -t && nginx -s reload"
 
 echo "Custom certificate installed successfully."
 
@@ -120,13 +120,32 @@ generate_ssl() {
     domain_url=$1
 
     echo "Generating SSL for domain: $domain_url"
+
+    mkdir -p /home/${username}/${domain_url}/.well-known/acme-challenge
+    chown -R 1000:33 /home/${username}/${domain_url}/.well-known
     
     # Certbot command for SSL generation
-    certbot_command=("python3" "/usr/bin/certbot" "certonly" "--nginx" "--non-interactive" "--agree-tos" "-m" "webmaster@$domain_url" "-d" "$domain_url")
+    #certbot_command=("python3" "/usr/bin/certbot" "certonly" "--nginx" "--non-interactive" "--agree-tos" "-m" "webmaster@$domain_url" "-d" "$domain_url")
+    certbot_command=(
+        "docker" "run" "--rm" "--network" "host"
+        "-v" "/etc/letsencrypt:/etc/letsencrypt"
+        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+        "certbot/certbot" "certonly" "--webroot"
+        "--webroot-path=/home/${username}/${domain_url}/"
+        "--non-interactive" "--agree-tos"
+        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+    )
+
 
     # Run Certbot command
     "${certbot_command[@]}"
     status=$?
+
+    #rm dir eitherway
+    rm -rf /home/${username}/${domain_url}/.well-known/
     
     # Check if the Certbot command was successful
     if [ $status -eq 0 ]; then
