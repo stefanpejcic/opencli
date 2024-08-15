@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: ssl/hostname.sh
-# Description: Generate an SSL for the hostname and use it to access OpenPanel and AdminPanel.
+# Description: Generate an SSL for the hostname and use it to access OpenPanel and OpenAdmin.
 # Usage: opencli ssl-hostname
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 25.06.2024
+# Last Modified: 15.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
