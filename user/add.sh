@@ -729,6 +729,21 @@ fi
     docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 
 
+# from 0.2.5 panel service is not started until acc is created
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "------------------------------------------------------"
+    echo ""
+    echo "STARTING OPENPANEL SERVICE:"
+    echo ""
+    cd /root && docker compose up -d openpanel 
+else
+    docker compose up -d openpanel > /dev/null 2>&1 &
+fi
+
+
+
+
 
 if [ "$DEBUG" = true ]; then
     echo ""
