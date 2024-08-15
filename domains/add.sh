@@ -149,7 +149,7 @@ mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
 
 cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
 
-docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user)
+#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
 
 mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
 touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
@@ -157,14 +157,14 @@ touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_i
 sed -i \
     -e "s|<DOMAIN_NAME>|$domain_name|g" \
     -e "s|<USERNAME>|$user|g" \
-    -e "s|<IP>|$docker_ip|g" \
+    -e "s|<IP>|$user|g" \
     -e "s|<LISTEN_IP>|$current_ip|g" \
     /etc/nginx/sites-available/${domain_name}.conf
 
     
     mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-    nginx -t && systemctl reload nginx
+    docker exec nginx bash -c "nginx -t && nginx -s reload"
 }
 
 
