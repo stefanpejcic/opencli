@@ -202,11 +202,16 @@ edit_nginx_files_on_host_server() {
         for domain in $ALL_DOMAINS; do
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
+                # Update name
                 sed -i 's#/home/$old_username#/home/$NEW_USERNAME#g' "$DOMAIN_CONF"
+                sed -i 's#/http://$old_username#/http://$NEW_USERNAME#g' "$DOMAIN_CONF"
+                sed -i 's#/https://$old_username#/https://$NEW_USERNAME#g' "$DOMAIN_CONF"
                 echo "Username updated in $DOMAIN_CONF to $NEW_USERNAME."
             fi
         done
+        echo "Reloading nginx.."
+        opencli server-recreate_hosts
+        docker exec nginx bash -c "nginx -t && nginx -s reload"
     else
         # Loop through Nginx configuration files for the user
         for domain in $ALL_DOMAINS; do
@@ -214,12 +219,16 @@ edit_nginx_files_on_host_server() {
             if [ -f "$DOMAIN_CONF" ]; then
                 # Update the server IP using sed
                 sed -i 's#/home/$old_username#/home/$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
+                sed -i 's#/http://$old_username#/http://$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
+                sed -i 's#/https://$old_username#/https://$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
             fi
         done
+        # Restart Nginx to apply changes
+        opencli server-recreate_hosts > /dev/null 2>&1
+        docker exec nginx bash -c "nginx -t && nginx -s reload" > /dev/null 2>&1
     fi
 
-    # Restart Nginx to apply changes
-    systemctl reload nginx
+
 }
 
 
