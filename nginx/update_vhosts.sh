@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: nginx/update_vhosts.sh
-# Description: Update private IP address in all nginx configuration files (domains) for the user.
+# Description: Replace private IP address in all nginx configuration files (domains) for the user with its username *(added in 0.2.5)
 # Usage: opencli nginx-update_vhosts <username> [-nginx-reload]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.04.2024
+# Last Modified: 15.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -74,16 +74,6 @@ if ! docker inspect -f '{{.State.Running}}' "$container_name" &> /dev/null; then
   exit 1
 fi
 
-# Use docker inspect to get the current container's IP address
-container_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container_name")
-
-if [ -z "$container_ip" ]; then
-  echo "Failed to retrieve the current IP address of the container '$container_name'."
-  exit 1
-fi
-
-echo "Container '$container_name' IP Address: $container_ip"
-
 # Run the command to get the list of domains
 domains=$(opencli domains-user "$container_name")
 
@@ -98,7 +88,7 @@ while read -r domain; do
   nginx_conf_file="/etc/nginx/sites-available/$domain.conf"
 
   if [ -f "$nginx_conf_file" ]; then
-    sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_ip;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_ip;/g" "$nginx_conf_file"
+    sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name;/g" "$nginx_conf_file"
     echo "Updated Nginx configuration for domain: $domain"
   else
     echo "Nginx configuration file not found for domain: $domain"
@@ -107,7 +97,7 @@ done <<< "$domains"
 
 # Reload Nginx if the --nginx-reload flag is provided
 if [ "$nginx_reload" = true ]; then
-  systemctl reload nginx
+  docker exec nginx nginx -s reload
   echo "Nginx configuration updated and reloaded."
 else
   echo "Nginx configuration updated. To apply the changes, use '--nginx-reload' flag."
