@@ -176,7 +176,8 @@ if [ "$type" == "le" ]; then
         #return 301 https://\$host\$request_uri;
     } #forceHTTPS
 
-    listen $server_ip:443 ssl http2;
+    listen $server_ip:443 ssl;
+    http2 on;
     server_name $domain_url;
     ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
