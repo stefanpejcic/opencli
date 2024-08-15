@@ -91,8 +91,8 @@ delete_vhosts_files() {
 
        if [ -d "/etc/live/letsencrypt/$domain_name" ]; then
             echo "revoking and deleting existing Let's Encrypt certificate"
-            certbot revoke -n --cert-name $domain_name
-            certbot delete -n --cert-name $domain_name
+            docker exec certbot sh -c "certbot revoke -n --cert-name $domain_name"
+            docker exec certbot sh -c "certbot delete -n --cert-name $domain_name"
             sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
             sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
         else
@@ -101,7 +101,11 @@ delete_vhosts_files() {
     done
 
     # Reload Nginx to apply changes
-   nginx -t && systemctl reload nginx
+    opencli server-recreate_hosts  > /dev/null 2>&1
+    docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
+
+
+   
 
     echo "SSL Certificates, Nginx Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
 }
