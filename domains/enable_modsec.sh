@@ -67,9 +67,4 @@ for username in $usernames; do
     fi
 done
 
-
-
-
-
-
-
+docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
