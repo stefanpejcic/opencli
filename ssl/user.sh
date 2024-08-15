@@ -5,7 +5,7 @@
 # Usage: opencli ssl-user <username|--all> [--generate]
 # Author: Stefan Pejcic
 # Created: 22.11.2023
-# Last Modified: 29.07.2024
+# Last Modified: 15.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -56,7 +56,7 @@ list_expiration_dates_for_ssl(){
         # TODO: add check for paid SSLs!
        
         # Get certificates information
-        certificates_info=$(certbot certificates 2>&1)
+        certificates_info=$(docker exec certbot sh -c "certbot certificates" 2>&1)
         
         # Process and save the result to a file
         echo -n > "$file_path"
