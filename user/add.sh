@@ -724,6 +724,12 @@ else
 fi
 
 
+# add user to hosts file and reload nginx
+    opencli server-recreate_hosts  > /dev/null 2>&1
+    docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
+
+
+
 if [ "$DEBUG" = true ]; then
     echo ""
     echo "------------------------------------------------------"
