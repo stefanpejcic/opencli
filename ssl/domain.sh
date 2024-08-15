@@ -232,7 +232,7 @@ check_ssl_validity() {
     echo "Checking SSL validity for domain: $domain_url"
 
     # Certbot command to check SSL validity
-    certbot_check_command=("python3" "/usr/bin/certbot" "certificates" "--non-interactive" "--cert-name" "$domain_url")
+    certbot_check_command=("docker" "exec" "certbot" "certbot" "certificates" "--non-interactive" "--cert-name" "$domain_url")
 
     # Run Certbot command to check SSL validity
     if "${certbot_check_command[@]}" | grep -q "Expiry Date:.*VALID"; then
