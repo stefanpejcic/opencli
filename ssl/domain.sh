@@ -242,6 +242,7 @@ check_ssl_validity() {
         
         if grep -q "ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;" "$nginx_conf_path"; then
             echo "SSL is configured properly for the domain."
+            check_other_domains_by_user_and_reload_ssl_cache
             exit 0
         else
             echo "SSL is valid but not in use. Updating Nginx configuration for domain.."
