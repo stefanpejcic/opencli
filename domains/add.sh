@@ -262,7 +262,10 @@ add_domain() {
 	create_domain_file # create file on host
         create_zone_file # create zone
 	update_named_conf # include zone
-	
+
+	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
+	cd /root && docker compose up -d nginx openpanel_dns certbot >/dev/null 2>&1
+ 
         echo "Domain $domain_name has been added for user $user."
     else
         echo "Failed to add domain $domain_name for user $user (id:$user_id)."
