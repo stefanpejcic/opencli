@@ -36,13 +36,13 @@ YELLOW='\033[0;33m'
 RESET='\033[0m'
 
 # Check if Certbot and OpenPanel services are available
-if ! command -v certbot &> /dev/null; then
-    echo -e "${RED}ERROR: Certbot command not found. Install Certbot before running this script.${RESET}"
+if ! docker ps --filter "name=certbot" --filter "status=running" --format "{{.Names}}" | grep -q "^certbot$"; then
+    echo -e "${RED}ERROR: Docker container named 'certbot' is not running. Make sure the container is running before executing this script.${RESET}"
     exit 1
 fi
 
 if ! systemctl status admin &> /dev/null; then
-    echo -e "${RED}ERROR: AdminPanel service not found or not running. Check AdminPanel service status and ensure it's running.${RESET}"
+    echo -e "${RED}ERROR: OpenAdmin service not found or not running. Check admin service status and ensure it's running.${RESET}"
     echo ""
     echo -e "Run ${YELLOW}'service admin status'${RESET} to check if admin is active."
     echo -e "and ${YELLOW}'tail /var/log/openpanel/admin/error.log'${RESET} if service status is ${RED}failed${RESET}."
@@ -97,8 +97,7 @@ update_openpanel_config() {
         echo "ssl is now enabled and force_domain value in $config_file is set to '$hostname'."
         echo "Restarting the panel services to apply the newly generated SSL and force domain $hostname."
 
-        cd /root && docker compose down &> /dev/null 
-        cd /root && docker compose up -d &> /dev/null
+        cd /root && docker compose restart nginx &> /dev/null
         service admin reload &> /dev/null
 
         echo ""
@@ -126,22 +125,36 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
     else
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
-        # Stop Nginx
-        service nginx stop
+      certbot_command=(
+        "docker" "run" "--rm" "--network" "host"
+        "-v" "/etc/letsencrypt:/etc/letsencrypt"
+        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+        "certbot/certbot" "certonly" "--webroot"
+        "--webroot-path=/home/${username}/${domain_url}/"
+        "--non-interactive" "--agree-tos"
+        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+    )
 
-        # Run certbot command to obtain a new certificate
-        if certbot certonly --standalone --non-interactive --agree-tos -m admin@$hostname -d "$hostname"; then
-            # Restart Nginx as soon as the ssl is generated
-            service nginx restart
 
-            # Update OpenPanel configuration to use the new ssl
+    # Run Certbot command
+    "${certbot_command[@]}"
+    status=$?
+
+
+        
+        # Check if the Certbot command was successful
+        if [ $status -eq 0 ]; then
             update_openpanel_config
         else
-            # If certbot command fails
-            service nginx restart
-            echo -e "${RED}ERROR: Failed to generate SSL certificate. Check Certbot logs in '/var/log/letsencrypt/' for more details.${RESET}"
-            echo -e  "Is ${YELLOW}A${RESET} record for domain ${YELLOW}$hostname${RESET} pointed to the IP address of this server: ${YELLOW}$ip_address${RESET} ?"
+                # If certbot command fails
+                echo -e "${RED}ERROR: Failed to generate SSL certificate. Check Certbot logs in '/var/log/letsencrypt/' for more details.${RESET}"
+                echo -e  "Is ${YELLOW}A${RESET} record for domain ${YELLOW}$hostname${RESET} pointed to the IP address of this server: ${YELLOW}$ip_address${RESET} ?"
+            exit 1
         fi
+    
     fi
 else
     echo -e "${RED}ERROR: Unable to detect a valid hostname that is FQDN in format sub.domain.tld${RESET}"
