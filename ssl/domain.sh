@@ -107,8 +107,9 @@ cp "$SSL_PRIVATE_KEY_PATH" "$SSL_DIR/privkey.pem"
 cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
 
 
+# TODO: EDIT NGINX CONF HERE@
 #nginx here conf
-docker exec nginx bash -c "nginx -t && nginx -s reload"
+#docker exec nginx bash -c "nginx -t && nginx -s reload"
 
 echo "Custom certificate installed successfully."
 
@@ -206,7 +207,11 @@ fi
     awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
     mv temp_file "$nginx_conf_path"
 
-    echo "Nginx configuration modification completed successfully"
+    echo "Nginx configuration modification completed successfully, reloading.."
+
+
+    docker exec nginx bash -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
+    
 }
 
 # Function to check if SSL is valid
