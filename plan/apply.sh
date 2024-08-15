@@ -442,21 +442,13 @@ do
                     echo "DEBUG: Docker network '$new_plan_name' already exists, attempting to connect container..."
                 fi
                     docker network connect "$new_plan_name" "$container_name"
-                    echo " Container $container_name successfully connected to network '$new_plan_name'."
-                if $debug; then
-                    #skripta za rewrite nginx vhosts za tog usera!
-                    opencli nginx-update_vhosts $container_name --nginx-reload
-                else
-                    opencli nginx-update_vhosts $container_name --nginx-reload > /dev/null
-                fi
-   
+                    echo " Container $container_name successfully connected to network '$new_plan_name'."   
             else
                 # Docker network does not exist, we need to create it..
                 echo "Docker network '"$new_plan_name"' does not exist. Creating..."
                 create_docker_network ""$new_plan_name"" "$Nbandwidth"
                 echo "connecting container to network '"$new_plan_name"'..."
                 docker network connect "$new_plan_name" "$container_name"
-                opencli nginx-update_vhosts $container_name --nginx-reload
             fi
         fi
 
@@ -481,6 +473,15 @@ if [ "$debug" = true ]; then
     docker network prune -f
 else
     docker network prune -f >/dev/null 2>&1
+fi
+
+
+if [ "$debug" = true ]; then
+    #regenerate /etc/hosts
+    opencli server-recreate_hosts && docker exec nginx nginx -s reload
+else
+    opencli server-recreate_hosts > /dev/null
+    docker exec nginx nginx -s reload > /dev/null
 fi
 
 #cleanup
