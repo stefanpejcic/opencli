@@ -164,7 +164,17 @@ sed -i \
     
     mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-    docker exec nginx bash -c "nginx -t && nginx -s reload"
+
+ 	# Check if the 'nginx' container is running
+	if [ $(docker ps -q -f name=nginx) ]; then
+	    echo "Nginx container is running. Testing and reloading nginx..."
+	    docker exec nginx bash -c "nginx -t && nginx -s reload"
+	else
+	    echo "Nginx container does not exist. Running docker compose..."
+	    cd /root && docker compose up -d nginx
+	fi
+
+    
 }
 
 
@@ -226,7 +236,7 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    service bind9 reload
+    cd /root && docker compose up -d bind9
 }
 
 
@@ -264,7 +274,7 @@ add_domain() {
 	update_named_conf # include zone
 
 	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
-	cd /root && docker compose up -d nginx openpanel_dns certbot >/dev/null 2>&1
+	cd /root && docker compose up -d certbot >/dev/null 2>&1
  
         echo "Domain $domain_name has been added for user $user."
     else
