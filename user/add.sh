@@ -738,7 +738,7 @@ if [ "$DEBUG" = true ]; then
     echo ""
     cd /root && docker compose up -d openpanel 
 else
-    docker compose up -d openpanel > /dev/null 2>&1 &
+    cd /root && docker compose up -d openpanel > /dev/null 2>&1 &
 fi
 
 
