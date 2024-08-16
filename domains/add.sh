@@ -167,11 +167,11 @@ sed -i \
 
  	# Check if the 'nginx' container is running
 	if [ $(docker ps -q -f name=nginx) ]; then
-	    echo "Nginx container is running. Testing and reloading nginx..."
-	    docker exec nginx bash -c "nginx -t && nginx -s reload"
+	    #echo "Nginx container is running. Testing and reloading nginx..."
+	    docker exec nginx bash -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
 	else
-	    echo "Nginx container does not exist. Running docker compose..."
-	    cd /root && docker compose up -d nginx
+	    #echo "Nginx container does not exist. Running docker compose..."
+	    cd /root && docker compose up -d nginx  >/dev/null 2>&1
 	fi
 
     
@@ -236,7 +236,7 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    cd /root && docker compose up -d bind9
+    cd /root && docker compose up -d bind9  >/dev/null 2>&1
 }
 
 
