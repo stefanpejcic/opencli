@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 04.06.2024
+# Last Modified: 18.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -357,10 +357,10 @@ fi
 change_default_email_and_allow_email_network () {
     # set default sender email address
     hostname=$(hostname)
-    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"
+    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&
 
     # add continaer to the mail netowrk, so it can send emails..
-    #########docker network connect compose_openadmin_mail_network "$username"
+    docker network connect openmail_network "$username"  >/dev/null 2>&
 }
 
 
@@ -671,7 +671,7 @@ else
   fi
 fi
 
-
+# added in 0.2.5 to allow users to send email, IF mailserver network exists
 change_default_email_and_allow_email_network
 
 if [ "$DEBUG" = true ]; then
