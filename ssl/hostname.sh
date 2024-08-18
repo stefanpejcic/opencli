@@ -142,7 +142,7 @@ fi
 # Create the Nginx configuration file
 cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
-    listen $current_ip;
+    listen 80;
     server_name ${hostname};
     root /usr/share/nginx/html};
     location ^~ /.well-known/acme-challenge/ {
