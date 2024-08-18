@@ -131,11 +131,11 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
         "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
         "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+        "-v" "/home/${username}/${hostname}/:/home/${username}/${hostname}/"
         "certbot/certbot" "certonly" "--webroot"
-        "--webroot-path=/home/${username}/${domain_url}/"
+        "--webroot-path=/home/${username}/${hostname}/"
         "--non-interactive" "--agree-tos"
-        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+        "-m" "webmaster@${hostname}" "-d" "${hostname}"
     )
 
 
