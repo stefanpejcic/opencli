@@ -36,7 +36,7 @@ YELLOW='\033[0;33m'
 RESET='\033[0m'
 
 # Check if Certbot and Nginx services are available
-if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Names}}" | grep -q "^certbot$"; then
+if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Names}}"; then
     DISABLE_AFTERWARDS="YES" # if nginx was off, disable it after generation
     echo -e "${YELLOW}WARNING: Docker container 'nginx' is not running. Starting container...${RESET}"
     cd /root && docker compose up -d nginx
@@ -127,9 +127,7 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
 
-mkdir -p /home/${hostname}/
-chown 33:33 /home/${hostname}/
-
+mkdir -p /usr/share/nginx/html/
 
 # Get server ipv4 from ip.openpanel.co
 current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
@@ -146,11 +144,11 @@ cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
     listen $current_ip;
     server_name ${hostname};
-    root /home/${hostname};
+    root /usr/share/nginx/html};
     location ^~ /.well-known/acme-challenge/ {
         allow all;
         default_type "text/plain";
-        root /home/${hostname};
+        root /usr/share/nginx/html};
     }
     
 }
@@ -164,12 +162,15 @@ docker exec nginx bash -c "nginx -t && nginx -s reload"
         "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
         "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
         "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-        "-v" "/home/${hostname}/:/home/${hostname}/"
+        "-v" "/usr/share/nginx/html/:/usr/share/nginx/html/"
         "certbot/certbot" "certonly" "--webroot"
-        "--webroot-path=/home/${hostname}/"
+        "--webroot-path=/usr/share/nginx/html"
         "--non-interactive" "--agree-tos"
         "-m" "webmaster@${hostname}" "-d" "${hostname}"
     )
+
+
+
 
 
     # Run Certbot command
@@ -177,7 +178,7 @@ docker exec nginx bash -c "nginx -t && nginx -s reload"
     status=$?
 
 # delete file always
-rm -rf /home/${hostname}/
+rm -rf /usr/share/nginx/html
 rm /etc/nginx/sites-enabled/${hostname}.conf
 
 
