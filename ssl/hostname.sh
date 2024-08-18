@@ -130,14 +130,29 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
 mkdir -p /home/${hostname}/
 chown 33:33 /home/${hostname}/
 
+
+# Get server ipv4 from ip.openpanel.co
+current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
+	
+# If site is not available, get the ipv4 from the hostname -I
+if [ -z "$current_ip" ]; then
+    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
+fi
+
+
+
 # Create the Nginx configuration file
 cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
-    listen 80;
-    server_name ${hostname} www.${hostname};
-
-    root /home/${hostname}/;
-    index index.html index.htm;
+    listen $current_ip;
+    server_name ${hostname};
+    root /home/${hostname};
+    location ^~ /.well-known/acme-challenge/ {
+        allow all;
+        default_type "text/plain";
+        root /home/${hostname};
+    }
+    
 }
 EOL
 
