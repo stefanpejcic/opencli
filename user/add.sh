@@ -357,10 +357,11 @@ fi
 change_default_email_and_allow_email_network () {
     # set default sender email address
     hostname=$(hostname)
-    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&
+    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
+    
 
     # add continaer to the mail netowrk, so it can send emails..
-    docker network connect openmail_network "$username"  >/dev/null 2>&
+    docker network connect openmail_network "$username"  >/dev/null 2>&1
 }
 
 
