@@ -127,6 +127,9 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
 
+mkdir -p /home/${hostname}/
+chown 33:33 /home/${hostname}/
+
 # Create the Nginx configuration file
 cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
@@ -159,13 +162,16 @@ docker exec nginx bash -c "nginx -t && nginx -s reload"
     status=$?
 
 # delete file always
+rm -rf /home/${hostname}/
 rm /etc/nginx/sites-enabled/${hostname}.conf
-docker exec nginx bash -c "nginx -t && nginx -s reload"
+
 
 # if certbot was not running, disable it after generation
 if [ "$DISABLE_AFTERWARDS" = "YES" ]; then
     echo -e "${YELLOW}Stopping the Nginx container...${RESET}"
     cd /root && docker compose down nginx
+else
+    docker exec nginx bash -c "nginx -t && nginx -s reload"
 fi
 
 
