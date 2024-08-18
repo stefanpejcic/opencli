@@ -726,8 +726,9 @@ fi
 
 
 # add user to hosts file and reload nginx
-    opencli server-recreate_hosts  > /dev/null 2>&1
-    docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
+opencli server-recreate_hosts  > /dev/null 2>&1
+docker restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
+######docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 
 
 # from 0.2.5 panel service is not started until acc is created
