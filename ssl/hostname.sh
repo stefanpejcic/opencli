@@ -127,7 +127,7 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
 
-mkdir -p /usr/share/nginx/html/
+mkdir -p /usr/share/nginx/html
 
 # Get server ipv4 from ip.openpanel.co
 current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
