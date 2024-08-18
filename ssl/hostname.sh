@@ -35,10 +35,11 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-# Check if Certbot and OpenPanel services are available
-if ! docker ps --filter "name=certbot" --filter "status=running" --format "{{.Names}}" | grep -q "^certbot$"; then
-    echo -e "${RED}ERROR: Docker container named 'certbot' is not running. Make sure the container is running before executing this script.${RESET}"
-    exit 1
+# Check if Certbot and Nginx services are available
+if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Names}}" | grep -q "^certbot$"; then
+    DISABLE_AFTERWARDS="YES" # if nginx was off, disable it after generation
+    echo -e "${YELLOW}WARNING: Docker container 'nginx' is not running. Starting container...${RESET}"
+    cd /root && docker compose up -d nginx
 fi
 
 if ! systemctl status admin &> /dev/null; then
@@ -125,15 +126,29 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
     else
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
+
+# Create the Nginx configuration file
+cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
+server {
+    listen 80;
+    server_name ${hostname} www.${hostname};
+
+    root /home/${hostname}/;
+    index index.html index.htm;
+}
+EOL
+
+docker exec nginx bash -c "nginx -t && nginx -s reload"
+
       certbot_command=(
         "docker" "run" "--rm" "--network" "host"
         "-v" "/etc/letsencrypt:/etc/letsencrypt"
         "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
         "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
         "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-        "-v" "/home/${username}/${hostname}/:/home/${username}/${hostname}/"
+        "-v" "/home/${hostname}/:/home/${hostname}/"
         "certbot/certbot" "certonly" "--webroot"
-        "--webroot-path=/home/${username}/${hostname}/"
+        "--webroot-path=/home/${hostname}/"
         "--non-interactive" "--agree-tos"
         "-m" "webmaster@${hostname}" "-d" "${hostname}"
     )
@@ -143,8 +158,17 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
     "${certbot_command[@]}"
     status=$?
 
+# delete file always
+rm /etc/nginx/sites-enabled/${hostname}.conf
+docker exec nginx bash -c "nginx -t && nginx -s reload"
 
-        
+# if certbot was not running, disable it after generation
+if [ "$DISABLE_AFTERWARDS" = "YES" ]; then
+    echo -e "${YELLOW}Stopping the Nginx container...${RESET}"
+    cd /root && docker compose down nginx
+fi
+
+
         # Check if the Certbot command was successful
         if [ $status -eq 0 ]; then
             update_openpanel_config
