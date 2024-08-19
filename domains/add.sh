@@ -108,15 +108,24 @@ get_webserver_for_user(){
 
 vhost_files_create() {
 
-vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_${ws}_domain.conf"
+if [[ $ws == *apache2* ]]; then
+vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
+elif [[ $ws == *nginx* ]]; then
+vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+fi
+
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+
+
+
 logs_dir="/var/log/$ws/domlogs"
 
 docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
 
-docker cp  $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
+docker cp $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
 
-user_gateway=$(docker exec $user bash -c "ip route | grep default | cut -d' ' -f3")
+user_gateway=$(docker inspect $user | jq -r '.[0].NetworkSettings.Networks | .[] | .Gateway' | head -n 1)
+
 
 php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
 
