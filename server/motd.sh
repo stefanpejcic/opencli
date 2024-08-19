@@ -82,9 +82,9 @@ fi
     echo -e  "OPENPANEL LINK: ${GREEN}${user_url}${RESET}"
     echo -e  ""
     echo -e  "Need assistance or looking to learn more? We've got you covered:"
-    echo -e  "        - 📚 User Docs: https://openpanel.co/docs/user/intro/"
-    echo -e  "        - 💬 Forums: https://community.openpanel.co/"
-    echo -e  "        - 👉 Discord: https://discord.openpanel.co/"
+    echo -e  "        - 📚 User Docs: https://openpanel.com/docs/user/intro/"
+    echo -e  "        - 💬 Forums:    https://community.openpanel.com/"
+    echo -e  "        - 👉 Discord:   https://discord.openpanel.co/"
     echo -e  ""
     echo -e  "================================================================"
 } > $OUTPUT_FILE
