@@ -145,10 +145,9 @@ server {
     listen 80;
     server_name ${hostname};
     root /usr/share/nginx/html;
-    location ^~ /.well-known/acme-challenge/ {
+    location ^~ /.well-known {
         allow all;
         default_type "text/plain";
-        root /usr/share/nginx/html;
     }
     
 }
