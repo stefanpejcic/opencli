@@ -144,11 +144,11 @@ cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
     listen 80;
     server_name ${hostname};
-    root /usr/share/nginx/html};
+    root /usr/share/nginx/html;
     location ^~ /.well-known/acme-challenge/ {
         allow all;
         default_type "text/plain";
-        root /usr/share/nginx/html};
+        root /usr/share/nginx/html;
     }
     
 }
