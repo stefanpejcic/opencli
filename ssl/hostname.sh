@@ -102,7 +102,9 @@ update_openpanel_config() {
         service admin reload &> /dev/null
 
         echo ""
-        echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
+	if ! docker ps --filter "name=openpanel" --filter "status=running" --format "{{.Names}}"; then
+	        echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
+	fi
         echo -e "- AdminPanel is now available on: ${GREEN}https://$hostname:2087${RESET}"
         echo ""
     else
