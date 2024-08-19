@@ -33,10 +33,15 @@ HOSTS_FILE="/etc/hosts"
 # Clear all existing entries
 grep -v 'docker-container' $HOSTS_FILE > "${HOSTS_FILE}.tmp"
 
-# Add Docker container entries to temporary file, so nginx has no 502 errors while running this script
-for container in $(docker ps --format '{{.Names}}'); do # we dont use mysql db so that even if docker compose is down, webistes still work
-    ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container)
+# Loop through each container name
+for container in $(docker ps --format '{{.Names}}'); do 
+   
+    # Extract the first IP address
+    ip=$(docker inspect $container | jq -r '.[0].NetworkSettings.Networks | .[] | .IPAddress' | head -n 1)
+    
+    # Check if the IP address is not empty
     if [ ! -z "$ip" ]; then
+        # Append the IP and container name to the temporary hosts file
         echo "$ip $container # docker-container" >> "${HOSTS_FILE}.tmp"
     fi
 done
