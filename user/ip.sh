@@ -153,7 +153,7 @@ update_nginx_conf() {
     
 
     # Restart Nginx to apply changes
-    docker exec nginx nginx -s reload
+    docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1 
 }
 
 # Create or overwrite the JSON file
@@ -169,19 +169,38 @@ create_ip_file() {
 
 update_firewall_rules() {
     USERNAME=$1
-    # Delete existing rules for the specified user
-    if [ "$DEBUG" = true ];then
-        ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
-        while read -r rule_number; do
-            yes | ufw delete "$rule_number"
-        done
-    else
-        ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
-        while read -r rule_number; do
-            yes | ufw delete "$rule_number"  >/dev/null 2>&1
-        done
-    fi
 
+    # Check for CSF
+    if command -v csf >/dev/null 2>&1; then
+
+    :
+    # TODO
+    #
+    # we need to limit those ports to user ip only, and allow proxy to its nginx only.
+    #
+    #echo "Currently private IP will be used only for websites, other services need to be accessed via domain/shared ip."
+
+
+                
+    # Check for UFW
+    elif command -v ufw >/dev/null 2>&1; then
+        #echo "UFW is installed."
+        
+        if [ "$DEBUG" = true ];then
+            ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
+            while read -r rule_number; do
+                yes | ufw delete "$rule_number"
+            done
+        else
+            ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
+            while read -r rule_number; do
+                yes | ufw delete "$rule_number"  >/dev/null 2>&1
+            done
+        fi
+        
+    else
+        echo "Danger! Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
+    fi
 
 }
 
@@ -287,59 +306,59 @@ ports_opened=0
 
 
 
-
-# Loop through the container_ports array and open the ports in UFW if not already open
-for port in "${container_ports[@]}"; do
-    host_port=$(extract_host_port "$port")
-
-    if [ "$DEBUG" = true ]; then
-        if [ -n "$host_port" ]; then
-            # Open the port in CSF
-            echo "Opening port ${host_port} for port ${port} in CSF"
-            #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-            #ufw allow ${host_port}/tcp  comment "${username}"
-
-                if [ "$ACTION" = "delete" ]; then
-                    ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME"
-                else
-                    IP=$2 # Assuming the IP should be the second argument
-                    ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME"
-                fi
-
-            ports_opened=1
+if command -v csf >/dev/null 2>&1; then
+    :
+    #TODO
+elif command -v ufw >/dev/null 2>&1; then
+    # Loop through the container_ports array and open the ports in UFW if not already open
+    for port in "${container_ports[@]}"; do
+        host_port=$(extract_host_port "$port")
+    
+        if [ "$DEBUG" = true ]; then
+            if [ -n "$host_port" ]; then
+                # Open the port in CSF
+                echo "Opening port ${host_port} for port ${port} in CSF"
+                #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+                #ufw allow ${host_port}/tcp  comment "${username}"
+    
+                echo "CSF not yet ready!"
+    
+                ports_opened=1
+            else
+                echo "Port ${port} not found in container"
+            fi
         else
-            echo "Port ${port} not found in container"
+                if [ -n "$host_port" ]; then
+                # Open the port in CSF
+                echo "Opening port ${host_port} for port ${port} in CSF" >/dev/null 2>&1
+                #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
+                #ufw allow ${host_port}/tcp  comment "${username}"
+    
+                    if [ "$ACTION" = "delete" ]; then
+                        ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
+                    else
+                        IP=$2 # Assuming the IP should be the second argument
+                        ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
+                    fi
+    
+                ports_opened=1
+                fi
+            fi
+    done
+    
+    # Restart UFW if ports were opened
+    if [ "$DEBUG" = true ]; then
+        if [ $ports_opened -eq 1 ]; then
+            echo "Restarting UFW"
+            ufw reload
         fi
     else
-            if [ -n "$host_port" ]; then
-            # Open the port in CSF
-            echo "Opening port ${host_port} for port ${port} in CSF" >/dev/null 2>&1
-            #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
-            #ufw allow ${host_port}/tcp  comment "${username}"
-
-                if [ "$ACTION" = "delete" ]; then
-                    ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
-                else
-                    IP=$2 # Assuming the IP should be the second argument
-                    ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
-                fi
-
-            ports_opened=1
-            fi
+        if [ $ports_opened -eq 1 ]; then
+            ufw reload >/dev/null 2>&1
         fi
-done
-
-# Restart UFW if ports were opened
-if [ "$DEBUG" = true ]; then
-    if [ $ports_opened -eq 1 ]; then
-        echo "Restarting UFW"
-        ufw reload
-    fi
-else
-    if [ $ports_opened -eq 1 ]; then
-        ufw reload >/dev/null 2>&1
     fi
 fi
+
 
 if [ $? -eq 0 ]; then
     echo "IP successfully changed for user $USERNAME to: $IP_TO_CHANGE"
