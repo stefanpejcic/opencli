@@ -178,7 +178,6 @@ if [ "$type" == "le" ]; then
 
     listen $server_ip:443 ssl;
     http2 on;
-    server_name $domain_url;
     ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
@@ -197,7 +196,6 @@ elif [ "$type" == "custom" ]; then
     } #forceHTTPS
 
     listen $server_ip:443 ssl http2;
-    server_name $domain_url;
     ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
     "
