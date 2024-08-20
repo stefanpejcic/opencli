@@ -92,13 +92,13 @@ while read -r domain; do
     sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name;/g" "$nginx_conf_file"
 
     # Replace 'listen <IP>:80;' with 'listen 80;'
-    sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:80;/listen 80;/' "$nginx_conf_file"
+    #########sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:80;/listen 80;/' "$nginx_conf_file"
     
     # Replace 'listen <IP>:443 ssl http2;' with 'listen 443 ssl http2;'
-    sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:443 ssl http2;/listen 443 ssl http2;/' "$nginx_conf_file"
+    #########sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:443 ssl http2;/listen 443 ssl http2;/' "$nginx_conf_file"
     
     # Replace 'listen <IP>; (without port)' with 'listen 80;'
-    sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+;/listen 80;/' "$nginx_conf_file"
+    #########sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+;/listen 80;/' "$nginx_conf_file"
     
         
     echo "Updated Nginx configuration for domain: $domain"
