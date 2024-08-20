@@ -176,7 +176,7 @@ if [ "$type" == "le" ]; then
         #return 301 https://\$host\$request_uri;
     } #forceHTTPS
 
-    listen 443 ssl;
+    listen $server_ip:443 ssl;
     http2 on;
     server_name $domain_url;
     ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
@@ -196,7 +196,7 @@ elif [ "$type" == "custom" ]; then
         #return 301 https://\$host\$request_uri;
     } #forceHTTPS
 
-    listen 443 ssl http2;
+    listen $server_ip:443 ssl http2;
     server_name $domain_url;
     ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
