@@ -98,6 +98,11 @@ delete_vhosts_files() {
         else
             echo "Doman had no Let's Encrypt certificate"
         fi
+
+    echo "Deleting files /etc/nginx/sites-available/$domain_name.conf and /etc/nginx/sites-enabled/$domain_name.conf"
+    rm /etc/nginx/sites-available/$domain_name.conf
+    rm /etc/nginx/sites-enabled/$domain_name.conf
+
     done
 
     # Reload Nginx to apply changes
