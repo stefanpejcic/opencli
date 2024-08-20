@@ -97,6 +97,9 @@ while read -r domain; do
     # Replace 'listen <IP>:443 ssl http2;' with 'listen 443 ssl http2;'
     #########sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:443 ssl http2;/listen 443 ssl http2;/' "$nginx_conf_file"
     
+    replacement="\\1 ssl;\nhttp2 on;"
+    sed -i -E "s/(.*:443) ssl http2;/$replacement/" $nginx_conf_file
+    
     # Replace 'listen <IP>; (without port)' with 'listen 80;'
     #########sed -i -E 's/listen [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+;/listen 80;/' "$nginx_conf_file"
     
