@@ -28,15 +28,20 @@
 # THE SOFTWARE.
 ################################################################################
 
+
 print_usage() {
-    echo "Usage: $0 [-d] <domain_url>"
-    echo "Options:"
-    echo "  -d     Delete SSL for the specified domain"
-    echo "  <domain_url>   Domain URL for SSL operations"
+    echo "Usage: opencli ssl-domain [-d] <domain_url> [-k <key_path> -p <cert_path>]"
+    echo ""
+    echo " opencli ssl-domain <domain_url>                                 Generate and use SSL for the specified domain"
+    echo " opencli ssl-domain -d <domain_url>                              Delete SSL and disable https for domain"
+    echo " opencli ssl-domain <domain_url> -k <key_path> -p <cert_path>    Add custom SSL certificate and enable https"
+    echo ""
+    
 }
 
+
+
 get_server_ip() {
-    # Your command
     domain_url=$1
     result=$(opencli domains-whoowns $domain_url)
 
@@ -46,8 +51,6 @@ get_server_ip() {
         echo "rezultat: $result"
         exit 1
     fi
-
-    #echo "Username: $username"
 
     current_username=$username
     dedicated_ip_file_path="/etc/openpanel/openpanel/core/users/{current_username}/ip.json"
@@ -61,6 +64,8 @@ get_server_ip() {
     fi
     #echo $server_ip
 }
+
+
 
 ensure_jq_installed() {
     # Check if jq is installed
@@ -80,40 +85,56 @@ ensure_jq_installed() {
 
 import_ssl(){
 
-# Verify SSL certificate
-echo "Verifying SSL certificate for domain: $DOMAIN_NAME"
-if ! openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5 > /dev/null; then
-    echo "ERROR: Invalid SSL public certificate."
-    exit 1
-fi
+    # Verify SSL certificate
+    echo "Verifying SSL certificate for domain: $DOMAIN_NAME"
+    if ! openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5 > /dev/null; then
+        echo "ERROR: Invalid SSL public certificate."
+        exit 1
+    fi
+    
+    if ! openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5 > /dev/null; then
+        echo "ERROR: Invalid SSL private key."
+        exit 1
+    fi
+    
+    CERT_MODULUS=$(openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5)
+    KEY_MODULUS=$(openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5)
+    
+    if [ "$CERT_MODULUS" != "$KEY_MODULUS" ]; then
+        echo "ERROR: The SSL certificate and key do not match."
+        exit 1
+    fi
+    
+    # Copy the SSL files to the directory
+    SSL_DIR="/etc/nginx/ssl/$DOMAIN_NAME"
+    mkdir -p "$SSL_DIR"
+    cp "$SSL_PRIVATE_KEY_PATH" "$SSL_DIR/privkey.pem"
+    cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
+    
+    
+    
+    # check if domain already has ssl in nginx conf file
+    marker_for_letsencrypt="ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;"
+    marker_for_custom_ssl="ssl_certificate_key /etc/nginx/ssl/$DOMAIN_NAME/privkey.pem;"
+    nginx_conf_path="/etc/nginx/sites-available/$DOMAIN_NAME.conf"
+    
+    
+    if grep -qF "$marker_for_custom_ssl" "$nginx_conf_path"; then
+        echo "Custom SSL certificate already in use by the domain. Removing and re-adding configuration again..."
+    elif grep -qF "$marker_for_letsencrypt" "$nginx_conf_path"; then
+        echo "Let's Encrypt SSL certificate already in use by the domain. Editing the configuration to use custom SSL instead..."
+    else
+        echo "No existing SSL configuration found for the domain. Editing the configuration to use custom SSL..."
+    fi
+    
+    revert_nginx_conf "$DOMAIN_NAME" # remove existing ssl 
 
-if ! openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5 > /dev/null; then
-    echo "ERROR: Invalid SSL private key."
-    exit 1
-fi
-
-CERT_MODULUS=$(openssl x509 -noout -modulus -in "$SSL_PUBLIC_KEY_PATH" | openssl md5)
-KEY_MODULUS=$(openssl rsa -noout -modulus -in "$SSL_PRIVATE_KEY_PATH" | openssl md5)
-
-if [ "$CERT_MODULUS" != "$KEY_MODULUS" ]; then
-    echo "ERROR: The SSL certificate and key do not match."
-    exit 1
-fi
-
-# Copy the SSL files to the directory
-SSL_DIR="/etc/nginx/ssl/$DOMAIN_NAME"
-mkdir -p "$SSL_DIR"
-cp "$SSL_PRIVATE_KEY_PATH" "$SSL_DIR/privkey.pem"
-cp "$SSL_PUBLIC_KEY_PATH" "$SSL_DIR/fullchain.pem"
-
-
-# TODO: EDIT NGINX CONF HERE@
-#nginx here conf
-#docker exec nginx bash -c "nginx -t && nginx -s reload"
-
-echo "Custom certificate installed successfully."
+    # after deleting ssl from conf, we down do modify_nginx_conf to add the ssl!
 
 }
+
+
+
 
 
 # Function to generate SSL
@@ -157,6 +178,9 @@ generate_ssl() {
     fi
 }
 
+
+
+
 # Function to modify Nginx configuration
 modify_nginx_conf() {
     domain_url=$1
@@ -195,7 +219,8 @@ elif [ "$type" == "custom" ]; then
         #return 301 https://\$host\$request_uri;
     } #forceHTTPS
 
-    listen $server_ip:443 ssl http2;
+    listen $server_ip:443 ssl;
+    http2 on;
     ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
     "
@@ -204,7 +229,6 @@ else
     exit 1
 fi
 
-marker="ssl_certificate /etc/letsencrypt/live/neko.openpanel.site/fullchain.pem;"
 if grep -qF "$marker" "$nginx_conf_path"; then
     :
     #echo "Configuration already exists. No changes made."
@@ -223,6 +247,8 @@ else
 fi
     
 }
+
+
 
 # Function to check if SSL is valid
 check_ssl_validity() {
@@ -252,40 +278,55 @@ check_ssl_validity() {
     fi
 }
 
+
+
 # Function to delete SSL
 delete_ssl() {
     domain_url=$1
 
     echo "Deleting SSL for domain: $domain_url"
 
-    # Certbot delete command
-    delete_command=("python3" "/usr/bin/certbot" "delete" "--cert-name" "$domain_url" "--non-interactive")
-
-    # Run Certbot delete command
+    # Let's Encrypt SSL
+    certbot_check_command=("docker" "exec" "certbot" "certbot" "delete" "--cert-name" "$domain_url" "--non-interactive")
     "${delete_command[@]}"
+
+    # Custom SSL
+    rm "/etc/nginx/ssl/$domain_url/privkey.pem"
+    rm "/etc/nginx/ssl/$domain_url/fullchain.pem"
 
     echo "SSL deletion completed successfully"
 }
+
+
+
 # Function to revert Nginx configuration
 revert_nginx_conf() {
     domain_url=$1
-
-    # Nginx configuration path
     nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
 
-    echo "Reverting Nginx configuration for domain: $domain_url"
+    echo "Editing Nginx configuration to not use SSL for domain: $domain_url"
 
-    # Use sed to remove the added content from the Nginx configuration file
+    # Let's Encrypt SSL
     sed -i '/if (\$scheme != "https"){/,/ssl_dhparam \/etc\/letsencrypt\/ssl-dhparams.pem;/d' "$nginx_conf_path"
+
+    # Custom SSL
+    sed -i '/if (\$scheme != "https"){/,/ssl_certificate_key \/etc\/nginx\/ssl\/\$domain_url\/privkey.pem;/d' "$nginx_conf_path"
 
     echo "Nginx configuration reversion completed successfully"
 }
+
+
+
 
 
 check_other_domains_by_user_and_reload_ssl_cache() {
     #trigger file reload and recheck all other domains also!
     opencli ssl-user $current_username  > /dev/null 2>&1
 }
+
+
+
+
 
 # Main script
 
@@ -326,7 +367,6 @@ fi
 
 # Perform actions based on options
 if [ "$delete_flag" = true ]; then
-    #todo#check and delete custom ssls also
     delete_ssl "$domain_url"
     revert_nginx_conf "$domain_url"
 else
