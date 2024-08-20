@@ -33,8 +33,8 @@ print_usage() {
     echo "Usage: opencli ssl-domain [-d] <domain_url> [-k <key_path> -p <cert_path>]"
     echo ""
     echo " opencli ssl-domain <domain_url>                                 Generate and use SSL for the specified domain"
-    echo " opencli ssl-domain -d <domain_url>                              Delete SSL and disable https for domain"
     echo " opencli ssl-domain <domain_url> -k <key_path> -p <cert_path>    Add custom SSL certificate and enable https"
+    echo " opencli ssl-domain -d <domain_url>                              Delete SSL and disable https for domain"
     echo ""
     
 }
