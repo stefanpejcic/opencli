@@ -63,44 +63,10 @@ while [[ "$#" -gt 2 ]]; do
     shift
 done
 
-container_name="$1"
-
-case "$2" in
-    install)
-        echo "Installing the Varnish cache server for user $container_name"
-        install_varnish_for_user
-        start_varnish_for_user
-        #todo: check port 6081 for user localhost
-        process_all_domains_nginx_conf
-        ;;
-    start)
-        echo "Starting varnish for user $container_name"
-        start_varnish_for_user
-        ;;
-    restart)
-        echo "Restarting varnish server for user $container_name"
-        stop_varnish_for_user
-        process_all_domains_nginx_conf
-        ;;
-    stop)
-        echo "Stopping varnish server for user $container_name"
-        stop_mailserver_if_running
-        ;;
-    uninstall)
-        echo "Uninstalling varnish server for user $container_name"
-        uninstall_varnish_for_user
-        ;;
-    *)
-        usage
-        ;;
-esac
 
 
 
-
-
-
-
+# INSTALL
 install_varnish_for_user(){
    if [ "$DEBUG" = true ]; then
         echo ""
@@ -117,7 +83,7 @@ install_varnish_for_user(){
 # TODO: open tcp out!!!!!
 
 
-
+# UNINSTALL
 uninstall_varnish_for_user(){
    if [ "$DEBUG" = true ]; then
         echo ""
@@ -130,6 +96,7 @@ uninstall_varnish_for_user(){
 }
 
 
+# START
 start_varnish_for_user(){
    if [ "$DEBUG" = true ]; then
         echo ""
@@ -141,7 +108,7 @@ start_varnish_for_user(){
   fi
 }
 
-
+# STOP
 stop_varnish_for_user(){
    if [ "$DEBUG" = true ]; then
         echo ""
@@ -153,7 +120,7 @@ stop_varnish_for_user(){
   fi
 }
 
-
+# UPDATE NGINX
 process_all_domains_nginx_conf(){
 
 ALL_DOMAINS=$(opencli domains-user $container_name)
@@ -173,13 +140,92 @@ NGINX_CONF_PATH="/etc/nginx/sites-available/"
             fi
         done
 
+    # Restart Nginx to apply changes
+    docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1 
 
+}
 
+# REMOVE NGINX
+remove_from_all_domains_nginx_conf(){
+
+ALL_DOMAINS=$(opencli domains-user $container_name)
+NGINX_CONF_PATH="/etc/nginx/sites-available/"
+  
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- DISABLING VARNISH CACHE FOR ALL DOMAINS OWNED BY USER ------------------"
+      echo ""
+  fi
+
+        for domain in $ALL_DOMAINS; do
+            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
+            if [ -f "$DOMAIN_CONF" ]; then
+                sed -i -e 's|proxy_pass http://\(\$container_name\):6081;|proxy_pass http://\1;|g' -e 's|proxy_pass https://\(\$container_name\):6081;|proxy_pass https://\1;|g' "$DOMAIN_CONF"
+                echo "Varnish disabled for domain $domain"
+            fi
+        done
+
+}
+
+# RELOAD NGINX
+restart_nginx_service(){
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- RELOADING NGINX CONFIGURATION ------------------"
+      echo ""
+      docker exec nginx bash -c "nginx -t && nginx -s reload"
+  else
+      docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1 
+  fi
 }
 
 
 
 
+# MAIN
+container_name="$1"
+
+case "$2" in
+    install)
+        echo "Installing the Varnish cache server for user $container_name"
+        install_varnish_for_user                          # install service 
+        start_varnish_for_user                            # start service 
+        #########      todo: check port 6081 for user localhost      #########
+        process_all_domains_nginx_conf                    # include in nginx conf
+        restart_nginx_service                             # serve with varnish
+        ;;
+    start)
+        echo "Starting varnish for user $container_name"
+        start_varnish_for_user                            # start service 
+        process_all_domains_nginx_conf                    # include in nginx conf
+        restart_nginx_service                             # serve with varnish
+        ;;
+    restart)
+        echo "Restarting varnish server for user $container_name"
+        stop_varnish_for_user                             # stop service
+        remove_from_all_domains_nginx_conf                # remove from nginx conf
+        restart_nginx_service                             # serve with nginx
+        start_varnish_for_user                            # start service 
+        process_all_domains_nginx_conf                    # include in nginx conf
+        restart_nginx_service                             # serve with varnish
+        ;;
+    stop)
+        echo "Stopping varnish server for user $container_name"
+        remove_from_all_domains_nginx_conf                # remove from nginx conf
+        restart_nginx_service                             # serve with nginx
+        stop_varnish_for_user                             # stop service
+        ;;
+    uninstall)
+        echo "Uninstalling varnish server for user $container_name"
+        remove_from_all_domains_nginx_conf                # remove from nginx conf
+        restart_nginx_service                             # serve with nginx
+        stop_varnish_for_user                             # stop service
+        uninstall_varnish_for_user                        # remove
+        ;;
+    *)
+        usage                                             # show help
+        ;;
+esac
 
 
 
