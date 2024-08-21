@@ -99,9 +99,11 @@ install_varnish_for_user(){
         docker exec $container_name bash -c "apt-get update && apt-get install varnish -y"
         # must be after install or prompt
         docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish 
+        docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/default/varnish.vcl
   else
        docker exec $container_name bash -c "apt-get update && apt-get install varnish -y" >/dev/null 2>&1
        docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish >/dev/null 2>&1
+       docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/default/varnish.vcl >/dev/null 2>&1
   fi
 }
 
