@@ -87,6 +87,32 @@ fi
 
 
 
+# FIREWALL
+setup_firewall(){
+
+    if command -v csf >/dev/null 2>&1; then
+        echo "Checking ConfigServer Firewall configuration.."
+        echo ""
+        port="6081"
+        local csf_conf="/etc/csf/csf.conf"
+        port_opened=$(grep "TCP_OUT = .*${port}" "$csf_conf")
+        if [ -z "$port_opened" ]; then
+            sed -i "s/TCP_OUT = \"\(.*\)\"/TCP_OUT = \"\1,${port}\"/" "$csf_conf"
+            ports_opened=1
+        fi
+    elif command -v ufw >/dev/null 2>&1; then
+        echo ""
+        echo "Checking UFW configuration.."
+        # TODO
+        # ufw allow from 192.168.1.0/24 to any port 6081
+        # ufw deny 6081
+        # ufw reload
+    else
+        echo "Error: Neither CSF nor UFW are installed, make sure outgoing port 6081 is opened on external firewall."
+    fi
+
+}
+
 
 
 
@@ -98,12 +124,12 @@ install_varnish_for_user(){
         echo ""
         docker exec $container_name bash -c "apt-get update && apt-get install varnish -y"
         # must be after install or prompt
-        docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish 
-        docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/default/varnish.vcl
+        docker cp /etc/openpanel/varnish/default $container_name:/etc/varnish/default
+        docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/varnish/default.vcl
   else
        docker exec $container_name bash -c "apt-get update && apt-get install varnish -y" >/dev/null 2>&1
-       docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish >/dev/null 2>&1
-       docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/default/varnish.vcl >/dev/null 2>&1
+       docker cp /etc/openpanel/varnish/default $container_name:/etc/varnish/default >/dev/null 2>&1
+       docker cp /etc/openpanel/varnish/default.vcl $container_name:/etc/varnish/default.vcl >/dev/null 2>&1
   fi
 }
 
@@ -261,7 +287,8 @@ fi
 case "$action" in
     install)
         echo "Installing the Varnish cache server for user $container_name"
-        install_varnish_for_user                          # install service 
+        install_varnish_for_user                          # install service
+        setup_firewall                                    # out_tcp 6081
         start_varnish_for_user                            # start service 
         #########      todo: check port 6081 for user localhost      #########
         process_all_domains_nginx_conf                    # include in nginx conf
