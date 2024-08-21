@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/memcached.sh
 # Description: Check and enable/disable Memcached for user.
-# Usage: opencli user-varnish <USERNAME> [install|start|purge|restart|stop|uninstall] 
+# Usage: opencli user-varnish <USERNAME> <install|start|purge|restart|stop|uninstall> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#varnish
 # Author: Stefan Pejcic
 # Created: 21.08.2024
@@ -36,6 +36,7 @@ usage() {
     echo "Commands:"
     echo "  install    - Installs the Varnish server and its dependencies."
     echo "  start      - Starts the Varnish server."
+    echo "  purge      - Removes all cache from Varnish server."
     echo "  restart    - Restarts the Varnish server."
     echo "  stop       - Stops the Varnish server."
     echo "  uninstall  - Uninstalls the Varnish server and reverts to Nginx/Apache."
@@ -43,6 +44,7 @@ usage() {
     echo "Examples:"
     echo "  opencli user-varnish <username> install    # Install the varnish server"
     echo "  opencli user-varnish <username> start      # Start the varnish server"
+    echo "  opencli user-varnish <username> purge      # Purge all cache"
     echo "  opencli user-varnish <username> restart    # Restart the varnish server"
     echo "  opencli user-varnish <username> stop       # Stop the varnish server"
     echo "  opencli user-varnish <username> uninstall  # Uninstall the varnish server"
