@@ -99,7 +99,7 @@ install_varnish_for_user(){
         docker exec $container_name bash -c "apt-get install varnish -y"
         docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish
   else
-       docker exec $container_name -c "apt-get install varnish -y" >/dev/null 2>&1
+       docker exec $container_name bash -c "apt-get install varnish -y" >/dev/null 2>&1
        docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish >/dev/null 2>&1
   fi
 }
