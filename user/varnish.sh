@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/memcached.sh
 # Description: Check and enable/disable Memcached for user.
-# Usage: opencli user-memcached [check|enable|disable] <USERNAME>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#memcached
+# Usage: opencli user-varnish <USERNAME> [install|start|restart|stop|uninstall] 
+# Docs: https://docs.openpanel.co/docs/admin/scripts/users#varnish
 # Author: Stefan Pejcic
-# Created: 01.10.2023
-# Last Modified: 23.01.2024
+# Created: 21.08.2024
+# Last Modified: 21.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
