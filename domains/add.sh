@@ -153,24 +153,37 @@ create_domain_file() {
 	else
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf"
 	fi
+	
+	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
+	
+	cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
+	
+	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
+	
+	mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
+	touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
-mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
+	# VARNISH
+ 	# added in 0.2.6
+	if docker exec "$user" test -f /etc/default/varnish; then
+	    echo "Detected Varnish for user, setting Nginx to use port 6081 to proxy to Varnish."
+		sed -i \
+		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
+		    -e "s|<USERNAME>|$user|g" \
+		    -e "s|<IP>:6081|$user|g" \
+		    -e "s|<LISTEN_IP>|$current_ip|g" \
+		    /etc/nginx/sites-available/${domain_name}.conf
+	else
+	    #echo "Varnish not detected for user."
+		sed -i \
+		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
+		    -e "s|<USERNAME>|$user|g" \
+		    -e "s|<IP>|$user|g" \
+		    -e "s|<LISTEN_IP>|$current_ip|g" \
+		    /etc/nginx/sites-available/${domain_name}.conf
+		    
+	fi
 
-cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
-
-#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
-
-mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
-touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
-
-sed -i \
-    -e "s|<DOMAIN_NAME>|$domain_name|g" \
-    -e "s|<USERNAME>|$user|g" \
-    -e "s|<IP>|$user|g" \
-    -e "s|<LISTEN_IP>|$current_ip|g" \
-    /etc/nginx/sites-available/${domain_name}.conf
-
-    
     mkdir -p /etc/nginx/sites-enabled/
     ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
 
