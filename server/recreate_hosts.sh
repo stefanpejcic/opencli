@@ -45,7 +45,7 @@ for arg in "$@"; do
 done
 
 # Clear all existing entries
-grep -v 'docker-container' $HOSTS_FILE > "${HOSTS_FILE}.tmp"
+grep -v -e 'docker-container' -e '^# INFO:' "$HOSTS_FILE" > "${HOSTS_FILE}.tmp"
 
 # Loop through each container name
 for container in $(docker ps --format '{{.Names}}'); do 
@@ -62,14 +62,14 @@ done
 
 
 if [ "$AFTER_DOCKER" = true ]; then
-    echo "# Docker restart detected, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
-    echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+   echo "" >> "${HOSTS_FILE}.tmp"
+   echo "# INFO: Docker restart detected, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 elif [ "$AFTER_REBOOT" = true ]; then
-   echo "# Server Reboot detected, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
-   echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+   echo "" >> "${HOSTS_FILE}.tmp"
+   echo "# INFO: Server Reboot detected, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 else
-   echo "# Manual trigger, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
-   echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+   echo "" >> "${HOSTS_FILE}.tmp"
+   echo "# INFO: Manual trigger, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 fi
 
 
