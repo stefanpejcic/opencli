@@ -92,7 +92,7 @@ while read -r domain; do
   
   	# VARNISH
    	# added in 0.2.6
-  	if docker exec "$user" test -f /etc/default/varnish; then
+  	if docker exec "$container_name" test -f /etc/default/varnish; then
   	    echo "Detected Varnish for user, setting Nginx to use port 6081 to proxy to Varnish."
         sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name:6081;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name:6081;/g" "$nginx_conf_file"
   	else
