@@ -29,7 +29,7 @@
 ################################################################################
 
 #genrate /etc/hosts
-opencli server-recreate_hosts
+opencli server-recreate_hosts --after-reboot
 
 #mount storage files on reboot
 opencli files-remount
