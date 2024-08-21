@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/memcached.sh
 # Description: Check and enable/disable Memcached for user.
-# Usage: opencli user-varnish <USERNAME> <install|start|purge|restart|stop|uninstall> [--debug]
+# Usage: opencli user-varnish <USERNAME> <install|start|test|purge|restart|stop|uninstall> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#varnish
 # Author: Stefan Pejcic
 # Created: 21.08.2024
@@ -31,11 +31,12 @@
 
 
 usage() {
-    echo "Usage: opencli user-varnish <username> {install|start|restart|stop|uninstall}"
+    echo "Usage: opencli user-varnish <username> {install|start|restart|test|purge|stop|uninstall}"
     echo
     echo "Commands:"
     echo "  install    - Installs the Varnish server and its dependencies."
     echo "  start      - Starts the Varnish server."
+    echo "  test       - Check response from Varnish server."
     echo "  purge      - Removes all cache from Varnish server."
     echo "  restart    - Restarts the Varnish server."
     echo "  stop       - Stops the Varnish server."
@@ -44,6 +45,7 @@ usage() {
     echo "Examples:"
     echo "  opencli user-varnish <username> install    # Install the varnish server"
     echo "  opencli user-varnish <username> start      # Start the varnish server"
+    echo "  opencli user-varnish <username> test       # Test if cache used in response"
     echo "  opencli user-varnish <username> purge      # Purge all cache"
     echo "  opencli user-varnish <username> restart    # Restart the varnish server"
     echo "  opencli user-varnish <username> stop       # Stop the varnish server"
@@ -104,9 +106,9 @@ start_varnish_for_user(){
         echo ""
         echo "----------------- STARTING VARNISH ------------------"
         echo ""
-        docker exec bash -c $container_name "pkill varnish; service varnish start"
+        docker exec bash -c $container_name "pkill varnish; service varnish start; /etc/init.d/varnish start"
   else
-        docker exec bash -c $container_name "pkill varnish; service varnish start" >/dev/null 2>&1
+        docker exec bash -c $container_name "pkill varnish; service varnish start; /etc/init.d/varnish start" >/dev/null 2>&1
   fi
 }
 
@@ -129,12 +131,36 @@ purge_varnish_cache_for_user(){
         echo ""
         echo "----------------- PURGE VARNISH CACHE ------------------"
         echo ""
-        docker exec bash -c $container_name "varnishadm 'ban req.url ~ /'"
+        docker exec bash -c $container_name "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'"
   else
-        docker exec bash -c $container_name "varnishadm 'ban req.url ~ /'" >/dev/null 2>&1
+        docker exec bash -c $container_name "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'" >/dev/null 2>&1
   fi
 }
 
+
+# TEST VARNISH CACHE
+test_cache_for_user(){
+    URL="http://localhost:6081"
+    response=$(docker exec $container_name bash -c "curl -ILs $URL")
+
+   if [ "$DEBUG" = true ]; then
+        echo ""
+        echo "----------------- TESTING VARNISH CACHE ------------------"
+        echo ""
+  fi
+
+
+    if echo "$response" | grep -q "Varnish"; then
+        echo "Varnish is currently used for user domains."
+    else
+        echo "Varnish not currently detected for user domains."
+    fi
+    
+    if [ "$DEBUG" = true ]; then
+        docker exec $container_name bash -c "curl -ILs $URL"
+    fi
+    
+}
 
 
 # UPDATE NGINX
@@ -214,8 +240,13 @@ case "$2" in
     start)
         echo "Starting varnish for user $container_name"
         start_varnish_for_user                            # start service 
+        test_cache_for_user                               # test before adding to nginx
         process_all_domains_nginx_conf                    # include in nginx conf
         restart_nginx_service                             # serve with varnish
+        ;;
+    test)
+        echo "Testing varnish cache for user $container_name"
+        test_cache_for_user                               # test cache
         ;;
     purge)
         echo "Purge varnish cache for all domains owned by user $container_name"
