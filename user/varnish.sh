@@ -120,6 +120,21 @@ stop_varnish_for_user(){
   fi
 }
 
+
+# PURGE CACHE
+purge_varnish_cache_for_user(){
+   if [ "$DEBUG" = true ]; then
+        echo ""
+        echo "----------------- PURGE VARNISH CACHE ------------------"
+        echo ""
+        docker exec bash -c $container_name "varnishadm 'ban req.url ~ /'"
+  else
+        docker exec bash -c $container_name "varnishadm 'ban req.url ~ /'" >/dev/null 2>&1
+  fi
+}
+
+
+
 # UPDATE NGINX
 process_all_domains_nginx_conf(){
 
@@ -199,6 +214,10 @@ case "$2" in
         start_varnish_for_user                            # start service 
         process_all_domains_nginx_conf                    # include in nginx conf
         restart_nginx_service                             # serve with varnish
+        ;;
+    purge)
+        echo "Purge varnish cache for all domains owned by user $container_name"
+        purge_varnish_cache_for_user                      # purge cache 
         ;;
     restart)
         echo "Restarting varnish server for user $container_name"
