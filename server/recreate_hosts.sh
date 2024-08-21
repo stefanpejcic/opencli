@@ -29,6 +29,20 @@
 ################################################################################
 
 HOSTS_FILE="/etc/hosts"
+AFTER_DOCKER=false
+AFTER_REBOOT=false
+
+# log if systemd service or @reboot
+for arg in "$@"; do
+  case "$arg" in
+    --after-docker)
+      AFTER_DOCKER=true
+      ;;
+    --after-reboot)
+      AFTER_REBOOT=true
+      ;;
+  esac
+done
 
 # Clear all existing entries
 grep -v 'docker-container' $HOSTS_FILE > "${HOSTS_FILE}.tmp"
@@ -46,10 +60,19 @@ for container in $(docker ps --format '{{.Names}}'); do
     fi
 done
 
+
+if [ "$AFTER_DOCKER" = true ]; then
+    echo "# Docker restart detected, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+    echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+elif [ "$AFTER_REBOOT" = true ]; then
+   echo "# Server Reboot detected, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+   echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+else
+   echo "# Manual trigger, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+   echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
+fi
+
+
 # now move to /etc/host
 mv "${HOSTS_FILE}.tmp" $HOSTS_FILE
 chmod 644 $HOSTS_FILE
-
-
-
-
