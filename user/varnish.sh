@@ -60,12 +60,32 @@ fi
 
 DEBUG=false  # Default value for DEBUG
 
-while [[ "$#" -gt 2 ]]; do
-    case $3 in
-        --debug) DEBUG=true ;;
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --debug)
+            DEBUG=true
+            ;;
+        install|start|restart|test|purge|stop|uninstall)
+            action="$1"
+            ;;
+        *)
+            container_name="$1"
+            ;;
     esac
     shift
 done
+
+
+if [ -z "$action" ] || [ -z "$container_name" ]; then
+    usage
+fi
+
+
+
+
+
+
+
 
 
 
@@ -76,10 +96,10 @@ install_varnish_for_user(){
         echo ""
         echo "----------------- INSTALLING VARNISH ------------------"
         echo ""
-        docker exec bash -c $container_name "apt-get install varnish -y"
+        docker exec $container_name bash -c "apt-get install varnish -y"
         docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish
   else
-       docker exec bash -c $container_name "apt-get install varnish -y" >/dev/null 2>&1
+       docker exec $container_name -c "apt-get install varnish -y" >/dev/null 2>&1
        docker cp /etc/openpanel/varnish/default $container_name:/etc/default/varnish >/dev/null 2>&1
   fi
 }
@@ -93,9 +113,9 @@ uninstall_varnish_for_user(){
         echo ""
         echo "----------------- UNINSTALLING VARNISH ------------------"
         echo ""
-        docker exec bash -c $container_name "apt-get remove varnish -y"
+        docker exec $container_name bash -c "apt-get remove varnish -y"
   else
-       docker exec bash -c $container_name "apt-get remove varnish -y" >/dev/null 2>&1
+       docker exec $container_name bash -c "apt-get remove varnish -y" >/dev/null 2>&1
   fi
 }
 
@@ -106,9 +126,9 @@ start_varnish_for_user(){
         echo ""
         echo "----------------- STARTING VARNISH ------------------"
         echo ""
-        docker exec bash -c $container_name "pkill varnish; service varnish start; /etc/init.d/varnish start"
+        docker exec $container_name bash -c "pkill varnish; service varnish start; /etc/init.d/varnish start"
   else
-        docker exec bash -c $container_name "pkill varnish; service varnish start; /etc/init.d/varnish start" >/dev/null 2>&1
+        docker exec $container_name bash -c "pkill varnish; service varnish start; /etc/init.d/varnish start" >/dev/null 2>&1
   fi
 }
 
@@ -118,9 +138,9 @@ stop_varnish_for_user(){
         echo ""
         echo "----------------- STOPPING VARNISH ------------------"
         echo ""
-        docker exec bash -c $container_name "pkill varnish; service varnish stop"
+        docker exec $container_name bash -c "pkill varnish; service varnish stop"
   else
-        docker exec bash -c $container_name "pkill varnish; service varnish stop" >/dev/null 2>&1
+        docker exec $container_name bash -c "pkill varnish; service varnish stop" >/dev/null 2>&1
   fi
 }
 
@@ -131,9 +151,9 @@ purge_varnish_cache_for_user(){
         echo ""
         echo "----------------- PURGE VARNISH CACHE ------------------"
         echo ""
-        docker exec bash -c $container_name "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'"
+        docker exec $container_name bash -c "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'"
   else
-        docker exec bash -c $container_name "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'" >/dev/null 2>&1
+        docker exec $container_name bash -c "/etc/init.d/varnish start ; varnishadm 'ban req.url ~ /'" >/dev/null 2>&1
   fi
 }
 
@@ -226,9 +246,13 @@ restart_nginx_service(){
 
 
 # MAIN
-container_name="$1"
 
-case "$2" in
+if $DEBUG; then
+      echo "----------------- DEBUG MODE IS ENABLED ------------------"
+fi
+
+
+case "$action" in
     install)
         echo "Installing the Varnish cache server for user $container_name"
         install_varnish_for_user                          # install service 
