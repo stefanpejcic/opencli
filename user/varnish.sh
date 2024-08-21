@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
-# Script Name: user/memcached.sh
-# Description: Check and enable/disable Memcached for user.
+# Script Name: user/varnish.sh
+# Description: Configure and manage Varnish Cache for user.
 # Usage: opencli user-varnish <USERNAME> <install|start|test|purge|restart|stop|uninstall> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#varnish
 # Author: Stefan Pejcic
