@@ -54,7 +54,7 @@ usage() {
 }
 
 
-if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+if [ "$#" -lt 2 ] || [ "$#" -gt 5 ]; then
     usage
 fi
 
