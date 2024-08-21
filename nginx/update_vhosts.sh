@@ -5,7 +5,7 @@
 # Usage: opencli nginx-update_vhosts <username> [-nginx-reload]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.08.2024
+# Last Modified: 21.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -89,7 +89,16 @@ while read -r domain; do
 
   if [ -f "$nginx_conf_file" ]; then
     # Replace 'proxy_pass http(s)://<IP>;' with 'proxy_pass http(s)://<CONTAINER_NAME>;'
-    sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name;/g" "$nginx_conf_file"
+  
+  	# VARNISH
+   	# added in 0.2.6
+  	if docker exec "$user" test -f /etc/default/varnish; then
+  	    echo "Detected Varnish for user, setting Nginx to use port 6081 to proxy to Varnish."
+        sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name:6081;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name:6081;/g" "$nginx_conf_file"
+  	else
+  	    #echo "Varnish not detected for user."
+        sed -i "s/proxy_pass http:\/\/[0-9.]\+;/proxy_pass http:\/\/$container_name;/g; s/proxy_pass https:\/\/[0-9.]\+;/proxy_pass https:\/\/$container_name;/g" "$nginx_conf_file"
+  	fi
     
     replacement="\\1 ssl;\n    http2 on;"
     sed -i -E "s/(.*:443) ssl http2;/$replacement/" $nginx_conf_file
