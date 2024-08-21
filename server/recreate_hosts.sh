@@ -62,13 +62,13 @@ done
 
 
 if [ "$AFTER_DOCKER" = true ]; then
-    echo "# Docker restart detected, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+    echo "# Docker restart detected, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
     echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
 elif [ "$AFTER_REBOOT" = true ]; then
-   echo "# Server Reboot detected, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+   echo "# Server Reboot detected, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
    echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
 else
-   echo "# Manual trigger, recreating /etc/hosts file with command: $0 $@" >> "$TEMP_FILE"
+   echo "# Manual trigger, recreating /etc/hosts file with command: $0 $@" >> "${HOSTS_FILE}.tmp"
    echo "# Execution time: $(date)" >> "${HOSTS_FILE}.tmp"
 fi
 
