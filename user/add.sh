@@ -400,11 +400,41 @@ run_docker() {
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
       local found_ports=()
-      
-      
-        if ! command -v lsof >/dev/null 2>&1; then
-            echo "lsof is not installed. Installing lsof..."
-            apt-get install -y lsof >/dev/null 2>&1
+                  
+
+    # Check if jq is installed
+    if ! command -v lsof &> /dev/null; then
+    echo "lsof is not installed but needed for setting ports. Installing lsof..."
+        # Detect the package manager and install jq
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y lsof > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y lsof > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y lsof > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install lsof manually and try again."
+            exit 1
+        fi
+
+        # Check if installation was successful
+        if ! command -v lsof &> /dev/null; then
+            echo "Error: lsof installation failed. Please install lsof manually and try again."
+            exit 1
+        fi
+    fi
+
+
+
+
+
+
+
+
+
+
+            
         fi
 
       
