@@ -93,7 +93,9 @@ fi
 
 
 # Check if Docker container with the same username exists
-if docker inspect "$username" >/dev/null 2>&1; then
+container_id=$(docker ps -a --filter "name=$username" --format "{{.ID}}")
+
+if [ -n "$container_id" ]; then
     echo "Error: Docker container with the same username '$username' already exists. Aborting."
     exit 1
 fi
@@ -188,8 +190,8 @@ current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
 
 # Compare the available free space with the disk limit of the plan
 if [ "$current_free_space" -lt "$disk_size_needed_for_docker_and_storage" ]; then
-    echo "Error: Insufficient disk space. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
-    exit 1
+    echo "Warning: Insufficient disk space. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
+   #### exit 1
 fi
 
 # Get the maximum available CPU cores on the server
@@ -248,9 +250,6 @@ fi
 
 # create storage file
 if [ "$storage_file" -ne 0 ]; then
-    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
-        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$username"
-    elif [ "$storage_driver" == "devicemapper" ]; then
         if [ "$DEBUG" = true ]; then
             fallocate -l ${storage_file}g /home/storage_file_$username
             mkfs.ext4 -N $inodes /home/storage_file_$username
@@ -258,7 +257,6 @@ if [ "$storage_file" -ne 0 ]; then
             fallocate -l ${storage_file}g /home/storage_file_$username >/dev/null 2>&1
             mkfs.ext4 -N $inodes /home/storage_file_$username >/dev/null 2>&1
         fi
-    fi
 fi
 
 # Create and set permissions for user directory
@@ -269,15 +267,12 @@ chmod g+s /home/$username
 
 # Mount storage file if needed
 if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
-    if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
-        [ "$DEBUG" = true ] && echo "Run without creating /home/storage_file_$username"
-    elif [ "$storage_driver" == "devicemapper" ]; then
         mount -o loop /home/storage_file_$username /home/$username
+        echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab
         mkdir /home/$username/docker
         chown 1000:33 /home/$username/docker
         chmod 755 /home/$username/docker
         chmod g+s /home/$username/docker
-    fi
 fi
 
 
@@ -391,22 +386,12 @@ run_docker() {
     storage_driver=$(docker info --format '{{.Driver}}')
     local disk_limit_param=""
     if [ "$disk_limit" -ne 0 ]; then
-        # Check if the storage driver is overlay or devicemapper
-        if [ "$storage_driver" == "overlay" ] || [ "$storage_driver" == "overlay2" ]; then
+    
             if [ "$DEBUG" = true ]; then
-                echo "Docker is using the overlay storage driver which does not support disk limits on XFS."
-                echo "Run without disk size of ${disk_limit}G."
-            fi
-        elif [ "$storage_driver" == "devicemapper" ]; then
-            if [ "$DEBUG" = true ]; then
-                echo "Docker is using the devicemapper storage driver which supports disk limits."
                 echo "Run with disk size of ${disk_limit}G."
             fi
             disk_limit_param="--storage-opt size=${disk_limit}G"
-        else
-            echo "Docker is using a different storage driver: $storage_driver"
-            echo "Run without disk size of ${disk_limit}G."
-        fi
+
     else
         echo "Run with NO disk size limit."
     fi
