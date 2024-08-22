@@ -16,6 +16,29 @@ get_config_value() {
 if ! command -v logrotate &> /dev/null; then
     echo "logrotate is not installed. Installing.."
     apt-get install logrotate -y
+
+
+        # Detect the package manager and install logrotate
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y -qq logrotate > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q logrotate > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q logrotate > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install logrotate manually and try again."
+            exit 1
+        fi
+
+        # Check if installation was successful
+        if ! command -v logrotate &> /dev/null; then
+            echo "Error: logrotate installation failed. Please install logrotate manually and try again."
+            exit 1
+        fi
+
+
+    
 fi
 
 logrotate_enable=$(get_config_value "logrotate_enable" "$logrotate_enable")
