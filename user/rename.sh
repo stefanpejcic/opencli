@@ -115,12 +115,12 @@ fi
 
 
 
-########### KDONE CHECKS, RUN THE REMOUNT
+########### DONE CHECKS, RUN THE REMOUNT
 umount /home/storage_file_$old_username > /dev/null 2>&1
 mv /home/storage_file_$old_username /home/storage_file_$new_username > /dev/null 2>&1
 mv /home/$old_username /home/$new_username > /dev/null 2>&1
 mount -o loop /home/storage_file_$new_username /home/$new_username > /dev/null 2>&1
-sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/c\/home\/storage_file_$new_username \/home\/$new_username ext4 loop 0 0" /etc/fstab
+sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/c\/home\/storage_file_$new_username \/home\/$new_username ext4 loop 0 0" /etc/fstab  > /dev/null 2>&1
 
 
 # Check if the container exists
