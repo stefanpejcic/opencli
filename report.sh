@@ -158,7 +158,7 @@ display_mysql_information
 check_services_status
 
 if [ "$upload_flag" = true ]; then
-  # Use curl to upload the file and capture the response
+  # Use curl to upload the file and get the response
   response=$(curl -F "file=@$output_file" https://support.openpanel.co/opencli_server_info.php 2>/dev/null)
 
   # Extract the link from the response
