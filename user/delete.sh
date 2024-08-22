@@ -217,10 +217,11 @@ delete_vhosts_files
 remove_docker_container_and_volume
 
 delete_user_from_database
-umount /home/storage_file_$username  2>/dev/null
-rm -rf /home/$username  2>/dev/null
-rm -rf /home/storage_file_$username  2>/dev/null
+umount /home/storage_file_$username > /dev/null 2>&1
+rm -rf /home/$username > /dev/null 2>&1
+rm -rf /home/storage_file_$username  > /dev/null 2>&1
 
+sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1
 
 rm -rf /etc/openpanel/openpanel/core/stats/$username
 rm -rf /etc/openpanel/openpanel/core/users/$username
