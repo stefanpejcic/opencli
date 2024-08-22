@@ -38,9 +38,19 @@ echo 1 > /proc/sys/vm/drop_caches
 ensure_jq_installed() {
     # Check if jq is installed
     if ! command -v jq &> /dev/null; then
-        # Install jq using apt
-        sudo apt-get update > /dev/null 2>&1
-        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Detect the package manager and install jq
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y -qq jq > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q jq > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q jq > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install jq manually and try again."
+            exit 1
+        fi
+
         # Check if installation was successful
         if ! command -v jq &> /dev/null; then
             echo "Error: jq installation failed. Please install jq manually and try again."
