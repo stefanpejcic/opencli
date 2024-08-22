@@ -5,7 +5,7 @@
 # Usage: opencli server-on_startup
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 16.07.2024
+# Last Modified: 22.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,17 +28,18 @@
 # THE SOFTWARE.
 ################################################################################
 
-#genrate /etc/hosts
+# todo: should floatingip service instead
 opencli server-recreate_hosts --after-reboot
 
-#mount storage files on reboot
-opencli files-remount
+# deprecated from 0.2.6, uses fstab instead
+##########opencli files-remount
 
-#reset service
-docker exec nginx nginx -s reload
 
-# Fix ports
-opencli firewall-reset
+# deprecated from 0.2.6, nginx is containerized
+##########docker exec nginx nginx -s reload
+
+# deprecated from 0.2.6, to prevent conflicts with ufw and cloudflare only mode
+##########opencli firewall-reset
 
 # Get the op version 
 timeout 5 docker cp openpanel:/usr/local/panel/version /usr/local/panel/version > /dev/null 2>&1 #5 sec max
