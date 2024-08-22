@@ -134,7 +134,7 @@ fi
 
 
 # uodate just once, then start extensions
-apt-get update
+docker exec "$container_name" bash -c "apt-get update"
 
 # Install php extensions in parallel using xargs
 printf "%s\n" "${extensions_to_install[@]}" | xargs -n 1 -P 8 -I {} bash -c '
