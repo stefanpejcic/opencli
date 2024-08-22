@@ -219,9 +219,19 @@ fi
 ensure_jq_installed() {
     # Check if jq is installed
     if ! command -v jq &> /dev/null; then
-        # Install jq using apt
-        sudo apt-get update > /dev/null 2>&1
-        sudo apt-get install -y -qq jq > /dev/null 2>&1
+        # Detect the package manager and install jq
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y -qq jq > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q jq > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q jq > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install jq manually and try again."
+            exit 1
+        fi
+
         # Check if installation was successful
         if ! command -v jq &> /dev/null; then
             echo "Error: jq installation failed. Please install jq manually and try again."
@@ -400,10 +410,26 @@ copy_files() {
             if ! command -v parallel &> /dev/null; then
                 if [ "$DEBUG" = true ]; then
                     echo "DEBUG: parallel is not installed. Installing moreutils..."
-                    sudo apt-get install -y moreutils
-                else
-                    sudo apt-get install -y moreutils > /dev/null 2>&1
                 fi
+                    # Check if jq is installed
+                        # Detect the package manager and install jq
+                        if command -v apt-get &> /dev/null; then
+                            sudo apt-get update > /dev/null 2>&1
+                            sudo apt-get install -y moreutils > /dev/null 2>&1
+                        elif command -v yum &> /dev/null; then
+                            sudo yum install -y moreutils > /dev/null 2>&1
+                        elif command -v dnf &> /dev/null; then
+                            sudo dnf install -y moreutils > /dev/null 2>&1
+                        else
+                            echo "Error: No compatible package manager found. Please install jq manually and try again."
+                            exit 1
+                        fi
+                
+                        # Check if installation was successful
+                        if ! command -v parallel &> /dev/null; then
+                            echo "Error: moreutils installation failed. Please install parallel command manually and try again."
+                            exit 1
+                        fi
             fi
             
             find /home/$container_name/ -mindepth 1 -maxdepth 1 -print0 | parallel -j 16 | rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
