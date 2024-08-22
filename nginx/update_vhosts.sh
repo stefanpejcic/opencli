@@ -88,7 +88,11 @@ while read -r domain; do
   nginx_conf_file="/etc/nginx/sites-available/$domain.conf"
 
   if [ -f "$nginx_conf_file" ]; then
-    # Replace 'proxy_pass http(s)://<IP>;' with 'proxy_pass http(s)://<CONTAINER_NAME>;'
+    
+  # temp for 0.2.5 and 0.2.6
+  echo "NOTE: ModSecurity is temporary removed from OpenPanel 0.2.5 - it will be disbaled for domain $domain"
+  sed -i '/modsecurity/s/^/#/' "$nginx_conf_file"
+
   
   	# VARNISH
    	# added in 0.2.6
