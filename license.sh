@@ -30,7 +30,7 @@
 
 
 CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-WHMCS_URL="https://my.openpanel.co/modules/servers/licensing/verify.php"
+WHMCS_URL="https://my.openpanel.com/modules/servers/licensing/verify.php"
 IP_URL="https://ip.openpanel.co"
 
 GREEN='\033[0;32m'
