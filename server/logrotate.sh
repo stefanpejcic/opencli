@@ -15,8 +15,6 @@ get_config_value() {
 
 if ! command -v logrotate &> /dev/null; then
     echo "logrotate is not installed. Installing.."
-    apt-get install logrotate -y
-
 
         # Detect the package manager and install logrotate
         if command -v apt-get &> /dev/null; then
