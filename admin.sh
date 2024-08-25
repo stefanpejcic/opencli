@@ -141,11 +141,18 @@ add_new_user() {
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
-        output=$(sqlite3 $db_file_path 'CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT "user", is_active BOOLEAN DEFAULT 1 NOT NULL);' 'INSERT INTO user (username, password_hash) VALUES ("'$username'", "'$password_hash'");' 2>&1)
+    # Define the SQL commands
+    create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+    insert_user_sql="INSERT INTO user (username, password_hash) VALUES ('$username', '$password_hash');"
+
+    # Execute the SQL commands
+    output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
         if [ $? -ne 0 ]; then
-        echo "User not created: $output"
+            # Output the error and the exact SQL command that failed
+            echo "User not created: $output"
+            # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
         else
-        echo "User '$username' created."
+            echo "User '$username' created."
         fi
     fi
 }
