@@ -427,16 +427,6 @@ run_docker() {
 
 
 
-
-
-
-
-
-
-
-            
-        fi
-
       
       
       for ((port=32768; port<=65535; port++)); do
