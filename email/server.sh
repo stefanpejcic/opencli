@@ -82,6 +82,8 @@ install_mailserver(){
       cd openmail && bash setup.sh
       mkdir -p /etc/openpanel/email/snappymail
       cp snappymail.ini /etc/openpanel/email/snappymail/config.ini
+      new_hostname=$(hostname)
+      sed -i "s/mail.openpanel.site/$new_hostname/" "$env_file"  >/dev/null 2>&1
       docker compose up -d mailserver
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
