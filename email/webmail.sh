@@ -53,6 +53,23 @@ ROUNDCUBE=false
 SOGO=false
 WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain proxy only!
 
+
+
+# ENTERPRISE
+PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+
+# Check if 'enterprise edition'
+if [ -n "$key_value" ]; then
+    :
+else
+    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
+    echo "https://openpanel.com/product/openpanel-premium-control-panel/"
+    exit 1
+fi
+
+
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --debug)
