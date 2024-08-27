@@ -486,11 +486,13 @@ run_docker() {
         echo "DOCKER RUN COMMAND:"
         echo "$docker_cmd"
         echo ""
+        echo "RESULT OF DOCKER RUN COMMAND COMMAND:"
+        $docker_cmd
+        echo ""
         echo "------------------------------------------------------"
         echo ""
         echo "AVAILABLE_PORTS: $AVAILABLE_PORTS"
         echo ""
-        $docker_cmd
     else
         $docker_cmd > /dev/null 2>&1
     fi
