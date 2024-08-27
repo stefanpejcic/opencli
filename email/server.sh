@@ -66,6 +66,28 @@ while [[ "$#" -gt 1 ]]; do
     shift
 done
 
+
+
+# ENTERPRISE
+PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+
+# Check if 'enterprise edition'
+if [ -n "$key_value" ]; then
+    :
+else
+    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
+    echo "https://openpanel.com/product/openpanel-premium-control-panel/"
+    exit 1
+fi
+
+
+
+
+
+
+
+
 # CONFIG
 MAIL_CONTAINER_DIR="/usr/local/mail/openmail/"
 GITHUB_REPO="https://github.com/stefanpejcic/openmail"
