@@ -47,6 +47,7 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
+    echo "https://openpanel.com/product/openpanel-premium-control-panel/"
     exit 1
 fi
 
