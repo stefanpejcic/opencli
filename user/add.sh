@@ -342,9 +342,8 @@ fi
 
 #0.1.7
 if [ "$DEBUG" = true ]; then
-    echo "web server: $web_server"
-    echo ""
-    echo "path: $path"
+    echo "WEB SERVER: $web_server"
+    echo "DOMAINS PATH: /etc/$path"/
 fi
 # then create a container
 
@@ -483,15 +482,15 @@ run_docker() {
         echo ""
         echo "------------------------------------------------------"
         echo ""
-        echo "DOCKER RUN COMMAND:"
-        echo "$docker_cmd"
-        echo ""
-        echo "RESULT OF DOCKER RUN COMMAND COMMAND:"
-        $docker_cmd
+        echo "AVAILABLE_PORTS: "
+        echo "$AVAILABLE_PORTS"
         echo ""
         echo "------------------------------------------------------"
         echo ""
-        echo "AVAILABLE_PORTS: $AVAILABLE_PORTS"
+        echo "DOCKER RUN COMMAND:"
+        echo "$docker_cmd"
+        echo ""
+        $docker_cmd
         echo ""
     else
         $docker_cmd > /dev/null 2>&1
