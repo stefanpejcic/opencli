@@ -30,22 +30,6 @@
 ################################################################################
 
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    usage
-fi
-
-DEBUG=false  # Default value for DEBUG
-
-
-# Parse optional flags to enable debug mode when needed
-while [[ "$#" -gt 1 ]]; do
-    case $2 in
-        --debug) DEBUG=true ;;
-    esac
-    shift
-done
-
-
 usage() {
     echo "Usage: opencli email-webmail {roundcube|snappymail|sogo}"
     echo
@@ -58,27 +42,39 @@ usage() {
 }
 
 
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    usage
+fi
+
+DEBUG=false  # Default value for DEBUG
 SNAPPYMAIL=false
 ROUNDCUBE=false
 SOGO=false
-
+WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain proxy only!
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
+        --debug)
+            echo ""
+            echo "----------------- DISPLAY DEBUG INFORMATION ------------------"
+            echo ""
+            DEBUG=true
+            ;;
         roundcube)
-            echo "Setting RoundCube as Webmail software."
+            echo "Setting RoundCube as Webmail software:"
             SNAPPYMAIL=false
             ROUNDCUBE=true
             SOGO=false
             ;;
         snappymail)
-            echo "Setting SnappyMail as Webmail software."
+            echo "Setting SnappyMail as Webmail software:"
             SNAPPYMAIL=true
             ROUNDCUBE=false
             SOGO=false
             ;;
         sogo)
-            echo "Setting SoGo as Webmail software."
+            echo "Setting SoGo as Webmail software""
             SNAPPYMAIL=false
             ROUNDCUBE=false
             SOGO=true
@@ -86,6 +82,7 @@ while [[ "$#" -gt 0 ]]; do
         *)
             echo "Invalid option: $1"
             usage
+            exit 1
             ;;
     esac
     shift
@@ -93,24 +90,38 @@ done
 
 
 
+
 cd /usr/local/mail/openmail
 
 if [ "$SNAPPYMAIL" = true ]; then
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- STOPPING EXISTING WEBMAIL SOFTWARE ------------------"
+      echo ""
+      echo "Stopping RoundCube:"
     docker compose rm -s -v roundcube
+      echo "Stopping SoGO:"
     docker compose rm -s -v sogo
+      echo ""
+      echo "----------------- STARTING SNAPPYMAIL ------------------"
+      echo ""
     docker compose up -d snappymail
-elif [ "$DOVECOT" = true ]; then
-    docker compose rm -s -v snappymail
-    docker compose rm -s -v sogo
+  else
+    docker compose rm -s -v roundcube >/dev/null 2>&1
+    docker compose rm -s -v sogo >/dev/null 2>&1
+    docker compose up -d snappymail >/dev/null 2>&1
+  fi
+elif [ "$ROUNDCUBE" = true ]; then
+    docker compose rm -s -v snappymail >/dev/null 2>&1
+    docker compose rm -s -v sogo >/dev/null 2>&1
     docker compose up -d roundcube
 elif [ "$SOGO" = true ]; then
-    docker compose rm -s -v roundcube
-    docker compose rm -s -v snappymail
+    docker compose rm -s -v roundcube >/dev/null 2>&1
+    docker compose rm -s -v snappymail >/dev/null 2>&1
     docker compose up -d sogo
 else
     usage
 fi
-
 
 
 
@@ -126,24 +137,50 @@ function open_port_csf() {
     port_opened=$(grep "TCP_IN = .*${port}" "$csf_conf")
     if [ -z "$port_opened" ]; then
         # Open port
-        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
-        echo "Port ${port} is now opened in CSF."
-        ports_opened=1
+      if [ "$DEBUG" = true ]; then
+          echo ""
+          echo "Opening port on ConfigServer Firewall"
+          echo ""
+          sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
+          echo ""
+      else
+          sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf" >/dev/null 2>&1
+      fi
+      ports_opened=1
     else
-        echo "Port ${port} is already open in CSF."
+      if [ "$DEBUG" = true ]; then
+          echo "Port ${port} is already open in CSF."
+      else
+          echo "Port ${port} is already open in CSF." >/dev/null 2>&1
+      fi
     fi
 }
 
-# TODO: 8080 should be disabled and instead allow doamin proxy only!
 
+if [ "$DEBUG" = true ]; then
+    echo ""
+    echo "----------------- OPENING PORT 8080 ON FIREWALL ------------------"
+fi
 # CSF
 if command -v csf >/dev/null 2>&1; then
-    open_port_csf 8080    
+    open_port_csf $WEBMAIL_PORT    
 # UFW
 elif command -v ufw >/dev/null 2>&1; then
-    ufw allow 8080
+      if [ "$DEBUG" = true ]; then
+          echo "Opening port on UncomplicatedFirewall"
+          echo ""
+          ufw allow $WEBMAIL_PORT
+          echo ""
+      else
+          ufw allow $WEBMAIL_PORT >/dev/null 2>&1
+      fi
+
 else
-    echo "Warning: Neither CSF nor UFW are installed. In order for Webmail to work, make sure port 8080 is opened on external firewall.."
+      if [ "$DEBUG" = true ]; then
+          echo "Warning: Neither CSF nor UFW are installed. In order for Webmail to work, make sure port 8080 is opened on external firewall.."
+      else
+          :
+      fi
 fi
 
 
