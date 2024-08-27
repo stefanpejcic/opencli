@@ -486,153 +486,138 @@ source /usr/local/admin/scripts/db.sh
 
 
 backup_mysql_databases() {
-
-mkdir -p "$BACKUP_DIR/mysql"
-
-# Get a list of databases with the specified prefix
-databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1')
-
-# Iterate through the list of databases and export each one
-for db in $databases
-do
-  echo "Exporting database: $db"
-  docker exec "$container_name" mysqldump -u root "$db" > "$BACKUP_DIR/mysql/$db.sql"
-done
-
-
-copy_files "$BACKUP_DIR/mysql/" "mysql/databases/"
-
-echo "All MySQL databases have been exported to '$BACKUP_DIR/mysql/'."
+    
+    mkdir -p "$BACKUP_DIR/mysql"
+    total_db_count=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1' | wc -l)
+    echo "Total databases found: $total_db_count"
+    
+    processed_db_count=0
+    databases=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1')
+    for db in $databases
+    do
+      processed_db_count=$((processed_db_count + 1))
+      echo "Exporting mysql database: $db ($processed_db_count / $total_db_count)"
+      docker exec "$container_name" mysqldump -u root "$db" > "$BACKUP_DIR/mysql/$db.sql"
+    done
+    
+    copy_files "$BACKUP_DIR/mysql/" "mysql/databases/"
+    
+    echo "Finished exporting $processed_db_count / $total_db_count MySQL databases to '$BACKUP_DIR/mysql/'."
 }
 
 
 backup_mysql_users() {
 
-mkdir -p "$BACKUP_DIR/mysql/users/"
-
-# Get a list of MySQL users (excluding root and other system users)
-USERS=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'")
-
-#docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $BACKUP_DIR/mysql/users/mysql_users_and_permissions.sql"
-
-for USER in $USERS
-do
-    # Generate a filename based on the username
-    OUTPUT_FILE="$BACKUP_DIR/mysql/users/${USER}.sql"
-
-    # Use mysqldump to export user accounts and their permissions
-    docker exec "$container_name" mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user --where="user='$USER'" > $OUTPUT_FILE
-
-    copy_files "$BACKUP_DIR/mysql/users/" "mysql/users/"
-
-    echo "Exported mysql user '$USER' and their permissions to $OUTPUT_FILE."
-done
+    mkdir -p "$BACKUP_DIR/mysql/users/"
+    total_user_count=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'" | wc -l)
+    echo "Total mysql users found: $total_user_count"
+    processed_user_count=0
+    
+    # Get a list of MySQL users (excluding root and other system users)
+    USERS=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'")
+    
+    #docker exec "$container_name" bash -c "mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user > $BACKUP_DIR/mysql/users/mysql_users_and_permissions.sql"
+    
+    for USER in $USERS
+    do
+        # Generate a filename based on the username
+        OUTPUT_FILE="$BACKUP_DIR/mysql/users/${USER}.sql"
+        
+        processed_user_count=$((processed_user_count + 1))
+        echo "Exporting mysql user: '$USER' ($processed_user_count / $total_user_count)"
+          
+        # Use mysqldump to export user accounts and their permissions
+        docker exec "$container_name" mysqldump -u root -e --skip-comments --skip-lock-tables --skip-set-charset --no-create-info mysql user --where="user='$USER'" > $OUTPUT_FILE
+        copy_files "$BACKUP_DIR/mysql/users/" "mysql/users/"
+        
+        echo "Finished exporting $processed_user_count / $total_user_count MySQL users to '$BACKUP_DIR/mysql/users/'."
+    done
 
 }
 
 
 backup_mysql_conf_file() {
-
-mkdir -p "$BACKUP_DIR/docker/"
-
-#docker cp $container_name:/etc/mysql/mysql.conf.d/mysqld.cnf $BACKUP_DIR/docker/
-copy_files "docker:$container_name:/etc/mysql/mysql.conf.d/mysqld.cnf" "mysql/"
-echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
+    mkdir -p "$BACKUP_DIR/docker/"
+    copy_files "docker:$container_name:/etc/mysql/mysql.conf.d/mysqld.cnf" "mysql/"
+    echo "Saved MySQL configuration file /etc/mysql/mysql.conf.d/mysqld.cnf"
 }
 
 
 
 
 export_webserver_main_conf_file() {
+    output=$(opencli webserver-get_webserver_for_user $container_name) #get webserver for user
 
-#get webserver for user
-output=$(opencli webserver-get_webserver_for_user $container_name)
-
-# Check if the output contains "nginx"
-if [[ $output == *nginx* ]]; then
-    ws="nginx"
-# Check if the output contains "apache"
-elif [[ $output == *apache* ]]; then
-    ws="apache2"
-else
-    # Set a default value if neither "nginx" nor "apache" is found
-    ws="unknown"
-fi
-
-mkdir -p "$BACKUP_DIR/$ws/"
-mkdir -p "$BACKUP_DIR/docker/"
-
-#docker cp $container_name:/etc/$ws/$ws.conf $BACKUP_DIR/docker/
-copy_files "docker:$container_name:/etc/$ws/$ws.conf" "docker/"
+    if [[ $output == *nginx* ]]; then
+        ws="nginx"
+    elif [[ $output == *apache* ]]; then
+        ws="apache2"
+    else
+        ws="unknown"
+    fi
+    
+    mkdir -p "$BACKUP_DIR/$ws/"
+    mkdir -p "$BACKUP_DIR/docker/"
+    
+    copy_files "docker:$container_name:/etc/$ws/$ws.conf" "docker/"
 }
 
 
 
 
 export_entrypoint_file() {
-mkdir -p "$BACKUP_DIR/docker/"
-#docker cp $container_name:/etc/entrypoint.sh $BACKUP_DIR/docker/entrypoint.sh
-copy_files "docker:$container_name:/etc/entrypoint.sh" "docker/"
+    mkdir -p "$BACKUP_DIR/docker/"
+    copy_files "docker:$container_name:/etc/entrypoint.sh" "docker/"
 }
 
 
 
 users_local_files_in_core_users() {
-mkdir -p "$BACKUP_DIR/core/"
-#cp -r /usr/local/panel/core/users/$container_name/ $BACKUP_DIR/core/
-copy_files "/etc/openpanel/openpanel/core/users/$container_name/" "core/"
+    mkdir -p "$BACKUP_DIR/core/"
+    copy_files "/etc/openpanel/openpanel/core/users/$container_name/" "core/"
 }
 
 users_local_files_in_stats_users() {
-mkdir -p "$BACKUP_DIR/stats/"
-#cp -r /usr/local/panel/core/stats/$container_name/ $BACKUP_DIR/stats/
-copy_files "/etc/openpanel/openpanel/core/stats/$container_name/" "stats/"
+    mkdir -p "$BACKUP_DIR/stats/"
+    copy_files "/etc/openpanel/openpanel/core/stats/$container_name/" "stats/"
 }
 
 
 
 backup_php_versions_in_container(){
-
-# Run the command and capture the output
-default_php_version=$(opencli php-default_php_version $container_name)
-
-# Check if the command was successful
-if [ $? -eq 0 ]; then
-    mkdir -p "$BACKUP_DIR/php/"
-    # Save the output to a file
-    echo "$default_php_version" > $BACKUP_DIR/php/default.txt
-    copy_files "$BACKUP_DIR/php/default.txt" "php/"
-    rm $BACKUP_DIR/php/default.txt
-    echo "Default PHP version saved for user."
-else
-    echo "Error running the command, default PHP version for user is not saved."
-fi
-
-
-# Run the command and capture the output
-output=$(opencli php-enabled_php_versions $container_name)
-
-# Check if the command was successful
-if [ $? -eq 0 ]; then
-    mkdir -p "$BACKUP_DIR/php/"
-    # Save the output to a file
-    echo "$output" > $BACKUP_DIR/php/php_versions.txt
-    copy_files "$BACKUP_DIR/php/php_versions.txt" "php/"
-    echo "Saved a list of all PHP versions installed."
-    rm $BACKUP_DIR/php/php_versions.txt
-
-    version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
-    for version in $version_numbers; do
-        if docker exec "$container_name" test -e "/etc/php/$version/fpm/php-fpm.conf"; then
-        # Copy php-fpm.conf file
-        copy_files "docker:$container_name:/etc/php/$version/fpm/php-fpm.conf" "php/$version/"
-        echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
-        fi
-    done
-    rm -rf "$BACKUP_DIR/php/"
-else
-    echo "Error running the command, no PHP versions are backed up for the user."
-fi
+    default_php_version=$(opencli php-default_php_version $container_name)
+    if [ $? -eq 0 ]; then
+        mkdir -p "$BACKUP_DIR/php/"
+        # Save the output to a file
+        echo "$default_php_version" > $BACKUP_DIR/php/default.txt
+        copy_files "$BACKUP_DIR/php/default.txt" "php/"
+        rm $BACKUP_DIR/php/default.txt
+        echo "Default PHP version saved for user."
+    else
+        echo "Error running the command, default PHP version for user is not saved."
+    fi
+    
+    output=$(opencli php-enabled_php_versions $container_name)
+    if [ $? -eq 0 ]; then
+        mkdir -p "$BACKUP_DIR/php/"
+        # Save the output to a file
+        echo "$output" > $BACKUP_DIR/php/php_versions.txt
+        copy_files "$BACKUP_DIR/php/php_versions.txt" "php/"
+        echo "Saved a list of all PHP versions installed."
+        rm $BACKUP_DIR/php/php_versions.txt
+    
+        version_numbers=$(echo "$output" | grep -oP 'php\d+\.\d+' | sed 's/php//')
+        for version in $version_numbers; do
+            if docker exec "$container_name" test -e "/etc/php/$version/fpm/php-fpm.conf"; then
+            # Copy php-fpm.conf file
+            copy_files "docker:$container_name:/etc/php/$version/fpm/php-fpm.conf" "php/$version/"
+            echo "php-fpm.conf for PHP $version copied to $BACKUP_DIR/php/php-fpm_$version.conf"
+            fi
+        done
+        rm -rf "$BACKUP_DIR/php/"
+    else
+        echo "Error running the command, no PHP versions are backed up for the user."
+    fi
 }
 
 
@@ -645,9 +630,7 @@ export_user_data_from_database() {
         exit 1
     fi
 
-    # Create a single SQL dump file
     backup_file="$BACKUP_DIR/DATA/"
-
     mkdir -p $backup_file
 
     # Export User Data
@@ -664,16 +647,15 @@ export_user_data_from_database() {
 
     
     # LATER FOR IMPORT
-    # first drop, then do
-    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/users.sql
-    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/plans.sql
-    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/domains.sql
-    #mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/sites.sql
+    #
+    # first drop all data for that user, then do:
+    #
+    # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/users.sql
+    # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/plans.sql
+    # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/domains.sql
+    # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/sites.sql
     
-
-
-
-     copy_files "$backup_file/" "DATA"
+    copy_files "$backup_file/" "DATA"
     #rm $backup_file # FOR REMOTE WE SHOULD RM!
     echo "User '$container_name' data exported to $backup_file successfully."
 }
@@ -683,9 +665,9 @@ export_user_data_from_database() {
 backup_domain_access_reports() {
     mkdir -p $BACKUP_DIR/nginx/stats/
     if [ -d "$dest_destination_dir_name" ]; then
-    copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
+        copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
     else
-    echo "No resource usage stats found for user."
+        echo "No resource usage stats found for user."
     fi
 }
 
