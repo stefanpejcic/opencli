@@ -313,33 +313,23 @@ perform_restore_of_all_configuration(){
         remote_path_to_download="/$PATH_ON_REMOTE_SERVER/nginx/sites-available/."
         run_restore "$remote_path_to_download" "$local_destination"
                 
-        echo "Creating symlinks from /$local_destination to $link_destination"
-        
-        # Loop over each .conf file in the local_destination
-        
-        # Iterate over each .conf file in the source directory
-if compgen -G "/${local_destination}*.conf" > /dev/null; then
-    # Iterate over each .conf file in the source directory
-    for conf_file in "/$local_destination"*.conf; do
-        # Extract the filename from the full path
-        filename=$(basename "$conf_file")
-        
-        # Create the symbolic link in the destination directory
-        ln -sf "$conf_file" "$link_destination$filename"
-        
-        # Optionally, print the action to confirm
-        echo "$link_destination$filename > $conf_file"
-    done
-else
-    echo "No .conf files found in /$local_destination"
-fi
+        echo "Creating symlinks from /$local_destination to $link_destination"        
+        if compgen -G "/${local_destination}*.conf" > /dev/null; then
+            for conf_file in "/$local_destination"*.conf; do
+                filename=$(basename "$conf_file")
+                ln -sf "$conf_file" "$link_destination$filename"
+                echo "$link_destination$filename > $conf_file"
+            done
+        else
+            echo "No .conf files found in /$local_destination"
+        fi
         
         echo "Recreatting /etc/hosts on the server"
         opencli server-recreate_hosts
         grep docker-container /etc/hosts
         
         echo "Reloading Nginx configuration"
-        docker exec nginx sh -c "nginx -t && nginx -s reload"
+        timeout 10 docker exec nginx sh -c "nginx -t && nginx -s reload" # if container is restarting we need a timeout
   }
 
 
