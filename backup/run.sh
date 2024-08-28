@@ -1283,6 +1283,16 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         if docker ps --filter "name=$CONTAINER_NAME" --filter "status=running" | grep -q "$CONTAINER_NAME"; then
             echo "MySQL container is running, generating sql file export with mysqldump..."
             docker exec $CONTAINER_NAME mysqldump -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "${CONF_DESTINATION_DIR}/mysql_data/database.sql"
+            # Check if the dump was successful
+            if [ $? -eq 0 ]; then
+                echo "Successfully exported database."
+                # Get the size of the backup file
+                BACKUP_SIZE=$(du -sh "${CONF_DESTINATION_DIR}/mysql_data/database.sql" | cut -f1)
+                # Display the size of the backup
+                echo "Database backup file size: $BACKUP_SIZE"
+            else
+                echo "ERROR: Database backup failed."
+            fi
         else
             echo "MySQL container is not running, generating files backup using the docker volume..."
             docker run --rm --volumes-from $CONTAINER_NAME -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
@@ -1319,6 +1329,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
 
     # backup server data only
+    echo "------------------------------------------------------------------------"
     backup_openpanel_conf
     echo "------------------------------------------------------------------------"
     backup_mysql_panel_database
