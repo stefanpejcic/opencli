@@ -1282,7 +1282,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         # Check if the container is running
         if docker ps --filter "name=$CONTAINER_NAME" --filter "status=running" | grep -q "$CONTAINER_NAME"; then
             echo "MySQL container is running, generating sql file export with mysqldump..."
-            docker exec $CONTAINER_NAME mysqldump -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "$BACKUP_DIR/mysql/$DB_NAME.sql"
+            docker exec $CONTAINER_NAME mysqldump -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "${CONF_DESTINATION_DIR}/mysql_data/database.sql"
         else
             echo "MySQL container is not running, generating files backup using the docker volume..."
             docker run --rm --volumes-from $CONTAINER_NAME -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
@@ -1301,8 +1301,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         NGINX_DESTINATION_DIR="${CONF_DESTINATION_DIR}/nginx/"
         mkdir -p $NGINX_DESTINATION_DIR
         find /etc/nginx/sites-available
-        cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites_available
-        cp -r /etc/nginx/sites-enabled ${NGINX_DESTINATION_DIR}sites_enabled
+        cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites-available
     }
 
     # /root/docker-compose.yml
@@ -1321,11 +1320,17 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
     # backup server data only
     backup_openpanel_conf
+    echo "------------------------------------------------------------------------"
     backup_mysql_panel_database
+    echo "------------------------------------------------------------------------"
     backup_nginx_data
+    echo "------------------------------------------------------------------------"
     backup_docker_daemon
+    echo "------------------------------------------------------------------------"
     backup_etc_ufw_and_csf
+    echo "------------------------------------------------------------------------"
     backup_named_conf
+    echo "------------------------------------------------------------------------"
     backup_docker_compose
 
 
