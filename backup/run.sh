@@ -374,15 +374,15 @@ copy_files() {
     if [[ "$source_path" == docker:* ]]; then
         docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
         
-        mkdir -p "$local_temp_dir"
+        mkdir -p "$local_temp_dir/$container_name"
 
         if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir"
+        echo "DEBUG: Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir/$container_name"
         fi
 
 
         # First, copy from Docker container to local temp directory
-        docker cp "$docker_source_path" "$local_temp_dir"
+        docker cp "$docker_source_path" "$local_temp_dir/$container_name"
 
         # Update source_path to the local temp directory
         source_path="$local_temp_dir"
@@ -390,8 +390,8 @@ copy_files() {
 
 
     if [[ "$source_path" == "/etc/letsencrypt/live/"* ]]; then
-            cp -LTr "$source_path" "$local_temp_dir"
-            source_path=$local_temp_dir
+            cp -LTr "$source_path" "$local_temp_dir/$container_name"
+            source_path="$local_temp_dir/$container_name"
     fi
 
     if [ "$LOCAL" != true ]; then
@@ -460,7 +460,7 @@ copy_files() {
     fi
 
     # Clean up local temp directory if used
-    [ -n "$local_temp_dir" ] && rm -rf "$local_temp_dir"
+    [ -n "$local_temp_dir/$container_name" ] && rm -rf "$local_temp_dir/$container_name"
 }
 
 
@@ -769,13 +769,48 @@ backup_timezone(){
 
 
 
+backup_container_diff_from_base_image(){
+    # List changes
+    echo "Listing changes for container $container_name..."
+    docker diff "$container_name" > "${BACKUP_DIR}/diff.txt"
+    
+    # Extract files that are added or changed
+    echo "Backing up changed files..."
+    while read -r line; do
+        # Extract change type and file path
+        CHANGE_TYPE=$(echo "$line" | awk '{print $1}')
+        FILE_PATH=$(echo "$line" | awk '{print $2}')
+
+        # Skip files in the /tmp directory
+        if [[ "$FILE_PATH" == /tmp/* ]]; then
+            continue
+        fi
+    
+        # https://docs.docker.com/reference/cli/docker/container/diff/
+        if [[ "$CHANGE_TYPE" == "A" || "$CHANGE_TYPE" == "C" ]]; then
+            mkdir -p "$local_temp_dir/$container_name/diff/$(dirname "$FILE_PATH")"
+            if docker exec "$container_name" test -e "$FILE_PATH"; then
+                echo "- $FILE_PATH"
+                docker cp "$container_name:$FILE_PATH" "$local_temp_dir/$container_name/diff/$FILE_PATH"
+                if [ "$LOCAL" != true ]; then
+                    copy_files "$local_temp_dir/$container_name/diff/$FILE_PATH" "docker_image"
+                    rm "$local_temp_dir/$container_name/diff/$FILE_PATH"
+                fi               
+            fi
+        fi
+    done < "${BACKUP_DIR}/diff.txt"
+
+    echo "Finished processing the diff between container image and current state."
+}
+
 
 backup_image_base_for_container(){
+    echo "Checking docker container image.."
     IMAGE_NAME=$(docker inspect --format '{{.Config.Image}}' "$container_name")
     
     # Check if the image is standard (starts with openpanel)
     if [[ "$IMAGE_NAME" == openpanel* ]]; then
-        echo "Skip backing the image, because user $CONTAINER_NAME is using a default OpenPanel image:  '$IMAGE_NAME'."
+        echo "Skip saving the image because user $container_name is using a default OpenPanel image: '$IMAGE_NAME'."
     else
         echo "Backing up custom docker image $IMAGE_NAME..."
         docker save -o $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz "$IMAGE_NAME"
@@ -839,6 +874,7 @@ perform_backup() {
             echo ""
         fi
         backup_image_base_for_container
+        backup_container_diff_from_base_image
         type+="IMAGE,"
     fi
 
