@@ -647,6 +647,12 @@ export_user_data_from_database() {
     # Export Sites Data for User
     mysql -e "SELECT s.* FROM panel.sites s JOIN panel.domains d ON s.domain_id = d.domain_id WHERE d.user_id = $user_id" > $backup_file/sites.sql
 
+
+    if [ "$LOCAL" != true ]; then
+        echo "Uploading mysql files to remote destination.."
+        copy_files "$backup_file/" "DATA"
+    fi
+
     
     # LATER FOR IMPORT
     #
@@ -657,7 +663,7 @@ export_user_data_from_database() {
     # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/domains.sql
     # mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME < $EXPORT_DIR/sites.sql
     
-    copy_files "$backup_file/" "DATA"
+    
     #rm $backup_file # FOR REMOTE WE SHOULD RM!
     echo "User '$container_name' data exported to $backup_file successfully."
 }
