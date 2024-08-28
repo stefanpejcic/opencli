@@ -1216,13 +1216,14 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
   
     backup_openpanel_conf() {
         echo ""
-        echo "## Backing up MySQL database for OpenPanel."
+        echo "## Backing up OpenPanel configuration files."
         echo ""
         mkdir -p ${CONF_DESTINATION_DIR}/openpanel
+        find /etc/openpanel/
         cp -r /etc/openpanel ${CONF_DESTINATION_DIR}/openpanel
         #
        
-        docker cp openpanel:/usr/local/panel/translations/ ${CONF_DESTINATION_DIR}/openpanel/translations        
+        docker cp openpanel:/usr/local/panel/translations/ ${CONF_DESTINATION_DIR}/openpanel/translations >/dev/null 2>&1
         # here also should do the custom files for panel!
     }
 
@@ -1230,6 +1231,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         echo "## Backing up BIND9 service configuration and DNS zones for all domains.."
         echo ""
+        find /etc/bind/
         cp -r /etc/bind ${CONF_DESTINATION_DIR}/bind
     }
     
@@ -1239,8 +1241,10 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo "## Backing up firewall rules."
         echo ""
         if command -v csf >/dev/null 2>&1; then
+            echo "ConfigServer Firewall detected, copying /etc/csf/"
             cp -r /etc/csf ${CONF_DESTINATION_DIR}/csf
         elif command -v ufw >/dev/null 2>&1; then
+            echo "Uncomplicated Firewall detected, copying /etc/ufw/"
             cp -r /etc/ufw ${CONF_DESTINATION_DIR}/ufw
         else
             echo "Warning: Neither CSF nor UFW are installed, not backing firewall configuration."
@@ -1255,6 +1259,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         echo "## Backing up Docker configuration."
         echo ""
+        cat /etc/docker/daemon.json
         cp /etc/docker/daemon.json ${CONF_DESTINATION_DIR}/docker_daemon.json
         # this is symlink, check if it follows
     }
@@ -1267,8 +1272,22 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo "## Backing up MySQL database for OpenPanel."
         echo ""
         mkdir -p ${CONF_DESTINATION_DIR}/mysql_data/
-        docker run --rm --volumes-from openpanel_mysql -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
         
+        MY_CNF="/etc/my.cnf"
+        DB_NAME=$(grep -oP '(?<=^database = ).*' "$MY_CNF")
+        DB_PASSWORD=$(grep -oP '(?<=^password = ).*' "$MY_CNF")
+        DB_USER="root"
+        CONTAINER_NAME="openpanel_mysql"
+
+        # Check if the container is running
+        if docker ps --filter "name=$CONTAINER_NAME" --filter "status=running" | grep -q "$CONTAINER_NAME"; then
+            echo "MySQL container is running, generating sql file export with mysqldump..."
+            docker exec $CONTAINER_NAME mysqldump -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "$BACKUP_DIR/mysql/$DB_NAME.sql"
+        else
+            echo "MySQL container is not running, generating files backup using the docker volume..."
+            docker run --rm --volumes-from $CONTAINER_NAME -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
+        fi
+               
         #to restore we will use:
         #
         # docker run --rm -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar xzvf /backup/mysql_volume_data.tar.gz -C /backup
@@ -1281,6 +1300,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         NGINX_DESTINATION_DIR="${CONF_DESTINATION_DIR}/nginx/"
         mkdir -p $NGINX_DESTINATION_DIR
+        find /etc/nginx/sites-available
         cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites_available
         cp -r /etc/nginx/sites-enabled ${NGINX_DESTINATION_DIR}sites_enabled
     }
@@ -1292,6 +1312,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         COMPOSE_DESTINATION_DIR="${CONF_DESTINATION_DIR}/compose/"
         mkdir -p $COMPOSE_DESTINATION_DIR
+        find /root/docker-compose.yml
         cp /root/docker-compose.yml ${COMPOSE_DESTINATION_DIR}docker-compose.yml
         cp /root/.env ${COMPOSE_DESTINATION_DIR}.env
         cp /etc/my.cnf ${COMPOSE_DESTINATION_DIR}my.cnf
