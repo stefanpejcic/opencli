@@ -325,7 +325,7 @@ else
     create_docker_network "$name" "$bandwidth"
 fi
 
-# Determine the web server based on the Docker image
+# Determine the web server based on the Docker image name
 if [[ "$docker_image" == *"nginx"* ]]; then
   path="nginx"
   web_server="nginx"
@@ -340,9 +340,20 @@ else
   web_server="nginx"
 fi
 
+# 0.2.7
+docker_image_labels_json=$(docker image inspect --format='{{json .Config.Labels}}' "$docker_image")
+if echo "$docker_image_labels_json" | grep -q 'mariadb'; then
+  mysql_version="mariadb"
+#elif echo "$docker_image_labels_json" | grep -q 'mysql'; then
+#  mysql_version="mysql"
+else
+  mysql_version="mysql" # fallback
+fi
+
 #0.1.7
 if [ "$DEBUG" = true ]; then
     echo "WEB SERVER: $web_server"
+    echo "MYSQL VERSION: $mysql_version"
     echo "DOMAINS PATH: /etc/$path"/
 fi
 # then create a container
@@ -722,11 +733,13 @@ if [ "$DEBUG" = true ]; then
     cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/
     echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
+    echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
     opencli php-get_available_php_versions $username &
 else
     cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
     echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
     echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
+    echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
     opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
 fi
 
