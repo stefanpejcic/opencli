@@ -1213,17 +1213,7 @@ run_backup_for_server_configuration_only() {
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
-
-
-
-    backup_openadmin_files() {
-        echo ""
-        echo "## Backing up OpenAdmin files."
-        echo ""
-        mkdir -p ${CONF_DESTINATION_DIR}/openadmin
-        cp -r /usr/local/admin/* ${CONF_DESTINATION_DIR}/openadmin  
-    }
-    
+  
     backup_openpanel_conf() {
         echo ""
         echo "## Backing up MySQL database for OpenPanel."
@@ -1231,8 +1221,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         mkdir -p ${CONF_DESTINATION_DIR}/openpanel
         cp -r /etc/openpanel ${CONF_DESTINATION_DIR}/openpanel
         #
-        cp -r /usr/local/admin/static/custom ${CONF_DESTINATION_DIR}/openpanel/admin_custom
-        
+       
         docker cp openpanel:/usr/local/panel/translations/ ${CONF_DESTINATION_DIR}/openpanel/translations        
         # here also should do the custom files for panel!
     }
@@ -1245,12 +1234,20 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
     }
     
     # firewall rules
-    backup_etc_ufw(){
+    backup_etc_ufw_and_csf(){
         echo ""
         echo "## Backing up firewall rules."
         echo ""
-        cp -r /etc/ufw ${CONF_DESTINATION_DIR}/ufw
+        if command -v csf >/dev/null 2>&1; then
+            cp -r /etc/csf ${CONF_DESTINATION_DIR}/csf
+        elif command -v ufw >/dev/null 2>&1; then
+            cp -r /etc/ufw ${CONF_DESTINATION_DIR}/ufw
+        else
+            echo "Warning: Neither CSF nor UFW are installed, not backing firewall configuration."
+        fi
+        
     }
+    
 
    
     # docker conf
@@ -1297,17 +1294,16 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         mkdir -p $COMPOSE_DESTINATION_DIR
         cp /root/docker-compose.yml ${COMPOSE_DESTINATION_DIR}docker-compose.yml
         cp /root/.env ${COMPOSE_DESTINATION_DIR}.env
-        # DONT NEED AFTER INSTALL cp /root/initialize.sql ${COMPOSE_DESTINATION_DIR}initialize.sql
+        cp /etc/my.cnf ${COMPOSE_DESTINATION_DIR}my.cnf
     }
 
 
     # backup server data only
     backup_openpanel_conf
-    backup_openadmin_files
     backup_mysql_panel_database
     backup_nginx_data
     backup_docker_daemon
-    backup_etc_ufw
+    backup_etc_ufw_and_csf
     backup_named_conf
     backup_docker_compose
 
