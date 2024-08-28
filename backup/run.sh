@@ -1310,7 +1310,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         echo ""
         NGINX_DESTINATION_DIR="${CONF_DESTINATION_DIR}/nginx/"
         mkdir -p $NGINX_DESTINATION_DIR
-        find /etc/nginx/sites-available
+        find /etc/nginx/sites-available -type f -name \*.conf
         cp -r /etc/nginx/sites-available ${NGINX_DESTINATION_DIR}sites-available
     }
 
