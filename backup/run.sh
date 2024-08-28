@@ -397,7 +397,9 @@ copy_files() {
     if [ "$LOCAL" != true ]; then
 
         # Step 1: Create the remote directory
-        timeout 10s ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
+        if ! timeout 10s ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"; then
+            echo "SSH command timed out or failed."
+        fi
 
         if [ "$DEBUG" = true ]; then
         echo "DEBUG: timeout 10s ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path'"
