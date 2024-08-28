@@ -5,7 +5,7 @@
 # Usage: opencli ssl-domain [-d] <domain_url> [-k path -p path]
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 20.08.2024
+# Last Modified: 28.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -251,7 +251,7 @@ else
 
     echo "Nginx configuration editedd successfully, reloading.."
 
-    docker exec nginx bash -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
+    docker exec nginx sh -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
 
 fi
     
