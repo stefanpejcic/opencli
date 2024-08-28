@@ -804,7 +804,7 @@ backup_container_diff_from_base_image(){
         fi
     done < "${BACKUP_DIR}/diff.txt"
     
-rm -rf "$local_temp_dir/$container_name/diff"   
+rm -rf "$local_temp_dir/$container_name/diff"    # TODO: rm 1 po 1
 
     echo "Finished processing the diff between container image and current state."
 }
