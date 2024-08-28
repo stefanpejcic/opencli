@@ -770,30 +770,25 @@ backup_timezone(){
 
 
 
-backup_docker_container(){
-    docker commit $container_name $container_name
-    if [ $? -eq 0 ]; then
-        if [ "$DEBUG" = true ]; then
-            echo "DEBUG: image has been created, proceeding with saving image to .tar.gz file."
-        fi
-        docker save $container_name | gzip > $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
+backup_image_base_for_container(){
+    IMAGE_NAME=$(docker inspect --format '{{.Config.Image}}' "$container_name")
+    
+    # Check if the image is standard (starts with openpanel)
+    if [[ "$IMAGE_NAME" == openpanel* ]]; then
+        echo "Skip backing the image, because user $CONTAINER_NAME is using a default OpenPanel image:  '$IMAGE_NAME'."
+    else
+        echo "Backing up custom docker image $IMAGE_NAME..."
+        docker save -o $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz "$IMAGE_NAME"
         if [ $? -eq 0 ]; then
-            if [ "$DEBUG" = true ]; then
-                echo "DEBUG: deleting the image and uploading the $container_name_$TIMESTAMP.tar.gz file to destination."
-            fi
-            
-            docker image rm $container_name
-            
+            echo "Docker image backup created: $container_name_$TIMESTAMP.tar.gz"
             if [ "$LOCAL" != true ]; then
+                echo "DEBUG: Uploading the $container_name_$TIMESTAMP.tar.gz file to destination."
                 copy_files "$BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz" "docker_image"
                 rm $BACKUP_DIR/$container_name_$TIMESTAMP.tar.gz
             fi
-
         else
             echo "ERROR: Failed to save docker image $container_name"
         fi
-    else
-        echo "ERROR: Failed to commit docker container $container_name"
     fi
 }
 
@@ -840,10 +835,10 @@ perform_backup() {
     if [ "$DOCKER" = true ]; then
         if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Saving docker container."
+            echo "DEBUG: ## Saving base docker image."
             echo ""
         fi
-        backup_docker_container
+        backup_image_base_for_container
         type+="IMAGE,"
     fi
 
