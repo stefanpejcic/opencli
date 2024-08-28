@@ -794,17 +794,17 @@ backup_container_diff_from_base_image(){
     
         # https://docs.docker.com/reference/cli/docker/container/diff/
         if [[ "$CHANGE_TYPE" == "A" || "$CHANGE_TYPE" == "C" ]]; then
-            mkdir -p "$local_temp_dir/$container_name/diff/$(dirname "$FILE_PATH")"
-            if docker exec "$container_name" test -e "$FILE_PATH"; then
-                echo "- $FILE_PATH"
-                docker cp "$container_name:$FILE_PATH" "$local_temp_dir/$container_name/diff/$FILE_PATH"
-                if [ "$LOCAL" != true ]; then
-                    copy_files "$local_temp_dir/$container_name/diff/$FILE_PATH" "docker_image"
-                    rm "$local_temp_dir/$container_name/diff/$FILE_PATH"
-                fi               
-            fi
+            mkdir -p "$local_temp_dir/$container_name/diff/"
+            mkdir -p "$local_temp_dir/$container_name/diff$(dirname "$FILE_PATH")"
+            echo "- $FILE_PATH"
+                docker cp "$container_name:$FILE_PATH" "$local_temp_dir/$container_name/diff$FILE_PATH"
+                
+                copy_files "$local_temp_dir/$container_name/diff$FILE_PATH" "DIFF/" # TODO: NE PRAVI DUPLIKATE!
+                     
         fi
     done < "${BACKUP_DIR}/diff.txt"
+    
+rm -rf "$local_temp_dir/$container_name/diff"   
 
     echo "Finished processing the diff between container image and current state."
 }
