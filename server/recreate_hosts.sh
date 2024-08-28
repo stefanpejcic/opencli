@@ -47,8 +47,8 @@ done
 # Clear all existing entries
 grep -v -e 'docker-container' -e '^# INFO:' "$HOSTS_FILE" > "${HOSTS_FILE}.tmp"
 
-# Loop through each container name
-for container in $(docker ps --format '{{.Names}}'); do 
+# -a so even suspended users are added
+for container in $(docker ps -a --format '{{.Names}}'); do 
    
     # Extract the first IP address
     ip=$(docker inspect $container | jq -r '.[0].NetworkSettings.Networks | .[] | .IPAddress' | head -n 1)
@@ -57,6 +57,9 @@ for container in $(docker ps --format '{{.Names}}'); do
     if [ ! -z "$ip" ]; then
         # Append the IP and container name to the temporary hosts file
         echo "$ip $container # docker-container" >> "${HOSTS_FILE}.tmp"
+    else
+      # suspended users dont have ip assigned 
+        echo "127.0.0.1 $container # stopped-docker-container" >> "${HOSTS_FILE}.tmp"
     fi
 done
 
