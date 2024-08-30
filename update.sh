@@ -6,7 +6,7 @@
 #        opencli update --force
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 30.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,6 +28,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
+
+
+LOG_FILE="/var/log/openpanel/admin/notifications.log"
+
+write_notification() {
+  local title="$1"
+  local message="$2"
+  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+  echo "$current_message" >> "$LOG_FILE"
+}
 
 
 ensure_jq_installed() {
@@ -54,7 +64,7 @@ ensure_jq_installed() {
     fi
 }
 
-ensure_jq_installed
+
 
 
 # Function to check if an update is needed
@@ -101,12 +111,10 @@ check_update() {
                     if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
                         echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
                     else
-                        echo "Updating to version $local_version"
-                        wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                        run_update_immediately "$local_version"
                     fi
                 else
-                    echo "Updating to version $local_version"
-                    wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                    run_update_immediately "$local_version"
                 fi
             done
             
@@ -114,7 +122,6 @@ check_update() {
             # If autoupdate is "on" or force_update is true, check if local_version is less than remote_version
             if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
                 echo "Update is available and will be automatically installed."
-
 
                 # Incrementally update from local_version to remote_version
                 while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
@@ -125,12 +132,10 @@ check_update() {
                         if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
                             echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
                         else
-                            echo "Updating to version $local_version"
-                            wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                            run_update_immediately "$local_version"
                         fi
                     else
-                        echo "Updating to version $local_version"
-                        wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+                        run_update_immediately "$local_version"
                     fi
                 done
                 
@@ -181,7 +186,26 @@ get_next_version() {
 
 
 
+run_update_immediately(){
+    version="$1"
+    log_dir="/usr/local/admin/updates"
+    mkdir -p $log_dir
+    log_file="$log_dir/$version.log"
+    # if not first try then set timestamp in filename
+    if [ -f "$log_file" ]; then
+        timestamp=$(date +"%Y%m%d_%H%M%S")
+        log_file="${log_dir}/${version}_${timestamp}.log"
+    fi
+    
+    write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
+    
+    echo "Updating to version $version"
+    #wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
+    wget -q -O - "https://update.openpanel.co/versions/$version" | bash &>> "$log_file"
+
+}
 
 
-# Call the function to check for updates, pass any additional arguments to it
+ensure_jq_installed
+
 check_update "$@"
