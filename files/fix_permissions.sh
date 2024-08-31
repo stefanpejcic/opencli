@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
 # Script Name: files/fix_permissions.sh
-# Description: Fix permissions for users files in their docker container.
+# Description: Fix permissions for users /home directory files inside the container.
 # Usage: opencli files-fix_permissions [USERNAME] [PATH]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.01.2024
+# Last Modified: 31.08.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -52,43 +52,44 @@ ensure_jq_installed() {
     fi
 }
 
-
-ensure_jq_installed
-
 # Function to apply permissions and ownership changes within a Docker container
 apply_permissions_in_container() {
   local container_name="$1"
   local path="$2"
 
+    if [ -n "$path" ]; then
+        directory="$path"
+    else   
+        directory="/home/$container_name"
+    fi
+
   # Check if the container exists
   if docker inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
-    if [ -n "$path" ]; then
-      # Apply changes only to the specified path within the container
-      if docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chmod 644 {} \;"; then
-        chown -R 1000:33 $path
-        #chown 1000:33 $path
-        echo "Permissions applied successfully."
-      else
-        echo "Error applying permissions to $path."
-      fi
-      # i grupa
-      #chmod -R g+w $path
-      docker exec $container_name bash -c "chmod -R g+w $path"
-    else
-      # Apply changes to the entire home directory within the container
-      if docker exec -u 0 -it "$container_name" bash -c "find /home/$container_name -type f -exec chmod 644 {} \;"; then
-      chown -R 1000:33 /home/$container_name
-      #chown 1000:33 /home/$container_name
-        echo "Permissions applied successfully."
-      else
-        echo "Error applying permissions to /home/$container_name."
-      fi
-      # i grupa
-      chmod -R g+w /home/$container_name
-      docker exec $container_name bash -c "chmod -R g+w /home/$container_name"
-    fi
+        
+        # Apply group permissions
+        docker exec $container_name bash -c "chmod -R g+w $path"
+        group_result=$?
+        
+        # Apply owner permissions
+        docker exec $container_name bash -c "chown -R 1000:33 $path"
+        owner_result=$?
+        
+        # Apply file permissions
+        docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chmod 644 {} \;"
+        files_result=$?
+        
+        # Apply folder permissions
+        docker exec -u 0 -it "$container_name" bash -c "find $path -type d -exec chmod 755 {} \;"
+        folders_result=$?
+        
+        # Check if all commands were successful
+        if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
+            echo "Permissions applied successfully."
+        else
+            echo "Error applying permissions to $path."
+        fi
   else
-    echo "Container $container_name not found or is not running."
+    echo "Container for user $container_name not found or is not running."
   fi
 }
 
@@ -96,24 +97,24 @@ apply_permissions_in_container() {
 # Check if the --all flag is provided
 if [ "$1" == "--all" ]; then
   if [ $# -eq 1 ]; then
-    # Apply changes to all running Docker containers
+    ensure_jq_installed # now we need jq 
+    
+    # Apply changes to all active users
     for container in $(opencli user-list --json | jq -r '.[].username'); do
       apply_permissions_in_container "$container"
     done
   else
-    echo "Usage: $0 --all"
+    echo "Usage: opencli files-fix_permissions --all"
     exit 1
   fi
 elif [ $# -ge 1 ]; then
-  # Check if a username is provided as an argument
   username="$1"
-  
-  # Check if a path is provided as an argument
   path="$2"
-  
-  # Apply changes to a specific user's Docker container
   apply_permissions_in_container "$username" "$path"
 else
-  echo "Usage: $0 <username> [path] OR $0 --all"
+  echo "Usage:"
+  echo ""
+  echo "opencli files-fix_permissions <USERNAME> [PATH]          Fix permissions for a single user."
+  echo "opencli files-fix_permissions --all                      Fix permissions for all active users."
   exit 1
 fi
