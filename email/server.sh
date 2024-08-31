@@ -29,44 +29,102 @@
 # THE SOFTWARE.
 ################################################################################
 
+# CONFIG
+APP="opencli email-server"                             # this script
+GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
+DIR="/usr/local/mail/openmail"                         # compose.yaml directory
+CONTAINER=openadmin_mailserver                         # DMS container name
+TIMEOUT=3600                                           # for graceful stop
+DOCKER_COMPOSE="docker compose"                        # compose plugin
 
-usage() {
-    echo "Usage: opencli email-server {install|start|restart|stop|uninstall}"
-    echo
-    echo "Commands:"
-    echo "  install    - Installs the email server and its dependencies."
-    echo "  start      - Starts the email server service."
-    echo "  restart    - Restarts the email server service."
-    echo "  stop       - Stops the email server service."
-    echo "  uninstall  - Uninstalls the email server and removes all data."
-    echo
-    echo "Examples:"
-    echo "  opencli email-server install    # Install the email server"
-    echo "  opencli email-server start      # Start the email server"
-    echo "  opencli email-server restart    # Restart the email server"
-    echo "  opencli email-server stop       # Stop the email server"
-    echo "  opencli email-server uninstall  # Uninstall the email server"
-    exit 1
+set -ueo pipefail
+
+
+_checkBin() {
+	local cmd
+	for cmd in "$@"; do
+		hash "$cmd" 2>/dev/null || {
+			echo "Error: '$cmd' not found."
+			echo
+			exit 1
+		} >&2
+	done
+
+	# docker compose
+	$DOCKER_COMPOSE version &>/dev/null || {
+		echo "Error: '$DOCKER_COMPOSE' not available."
+		echo
+		exit 1
+	} >&2
+}
+
+# Dependencies
+_checkBin "cat" "cut" "docker" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
+
+
+# Check if container is running
+if [ -n "${1:-}" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
+	if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+		echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
+		exit 1
+	fi
+fi
+
+
+
+
+# Print status
+_status() {
+	# $1	name
+	# $2	status
+	local indent spaces status
+	indent=14
+
+	# Wrap long lines and prepend spaces to multi line status
+	spaces=$(printf "%${indent}s")
+	status=$(echo -n "$2" | fold -s -w $(($(tput cols) - 16)) | sed "s/^/$spaces/g")
+	status=${status:$indent}
+
+	printf "%-${indent}s%s\n" "$1:" "$status"
+}
+
+_ports() {
+	docker port "$CONTAINER"
+}
+
+_container() {
+	if [ "$1" == "-it" ]; then
+		shift
+		docker exec -it "$CONTAINER" "$@"
+	else
+		docker exec "$CONTAINER" "$@"
+	fi
+}
+
+_getDMSVersion() {
+	# shellcheck disable=SC2016
+	# todo 'cat /VERSION' is kept for compatibility with DMS versions < v13.0.1; remove in the future
+	_container bash -c 'cat /VERSION 2>/dev/null || printf "%s" "$DMS_RELEASE"'
 }
 
 
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    usage
-fi
+
+
+
+
+
+
+
+
+
+
+
+
 
 DEBUG=false  # Default value for DEBUG
 
-
-# Parse optional flags to enable debug mode when needed
-while [[ "$#" -gt 1 ]]; do
-    case $2 in
-        --debug) DEBUG=true ;;
-    esac
-    shift
-done
-
-
+# TODO: enable debug flag!
 
 # ENTERPRISE
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -85,12 +143,6 @@ fi
 
 
 
-
-
-
-# CONFIG
-MAIL_CONTAINER_DIR="/usr/local/mail/openmail/"
-GITHUB_REPO="https://github.com/stefanpejcic/openmail"
 # INSTALL
 install_mailserver(){
   if [ "$DEBUG" = true ]; then
@@ -326,10 +378,10 @@ process_all_domains_and_start(){
       echo ""
       echo "----------------- RESTART MAILSERVER ------------------"
       echo ""
-  	cd $MAIL_CONTAINER_DIR && docker compose up -d mailserver
+  	cd $DIR && docker compose up -d mailserver
       echo ""
   else
-  	cd $MAIL_CONTAINER_DIR && docker compose up -d mailserver >/dev/null 2>&1
+  	cd $DIR && docker compose up -d mailserver >/dev/null 2>&1
   	echo "MailServer started successfully."
   fi
   
@@ -343,10 +395,10 @@ stop_mailserver_if_running(){
       echo ""
       echo "----------------- STOP MAILSERVER ------------------"
       echo ""
-  	  cd $MAIL_CONTAINER_DIR && docker compose down mailserver
+  	  cd $DIR && docker compose down mailserver
       echo ""
   else
-  	cd $MAIL_CONTAINER_DIR && docker compose down mailserver >/dev/null 2>&1
+  	cd $DIR && docker compose down mailserver >/dev/null 2>&1
   	echo "MailServer stopped succesfully."
   fi
   
@@ -376,46 +428,218 @@ remove_mailserver_and_all_config(){
   fi
 
   if [ "$DEBUG" = true ]; then
-      cd $MAIL_CONTAINER_DIR && docker compose down
-      rm -rf $MAIL_CONTAINER_DIR
+      cd $DIR && docker compose down
+      rm -rf $DIR
       echo ""
   else
-      cd $MAIL_CONTAINER_DIR && docker compose down >/dev/null 2>&1
-      rm -rf $MAIL_CONTAINER_DIR >/dev/null 2>&1
+      cd $DIR && docker compose down >/dev/null 2>&1
+      rm -rf $DIR >/dev/null 2>&1
       echo "MailServer uninstalled successfully."
   fi
 }
 
 
 
-# Parse the command line argument
-case "$1" in
-    install)
+
+
+
+
+
+
+
+
+
+
+
+
+case "${1:-}" in
+	install)	# install mailserver
         echo "Installing the mailserver..."
         install_mailserver
-        ;;
-    start)
+		;;
+
+
+	status) # Show status
+		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+			# Container uptime
+			_status "Container" "$(docker ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
+			echo
+
+			# Version
+			_status "Version" "$(_getDMSVersion)"
+			echo
+
+			# Fail2ban
+			_container ls /var/run/fail2ban/fail2ban.sock &>/dev/null &&
+			_status "Fail2ban" "$(_container fail2ban)"
+			echo
+
+			# Package updates available?
+			_status "Packages" "$(_container bash -c 'apt -q update 2>/dev/null | grep "All packages are up to date" || echo "Updates available"')"
+			echo
+
+			# Published ports
+			# _status "Ports" "$(docker inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f8 | tr "\n" " ")"
+			_status "Ports" "$(_ports)"
+			echo
+
+			# Postfix mail queue
+			POSTFIX=$(_container postqueue -p | tail -1 | cut -d' ' -f5)
+			[ -z "$POSTFIX" ] && POSTFIX="Mail queue is empty" || POSTFIX+=" mail(s) queued"
+			_status "Postfix" "$POSTFIX"
+			echo
+
+			# Service status
+			_status "Supervisor" "$(_container supervisorctl status | sort -b -k2,2)"
+		else
+			echo "Container: down"
+		fi
+		;;
+
+	config)	# show configuration
+		_container cat /etc/dms-settings
+		;;
+
+	start)	# Start container
         echo "Starting mailserver..."
         process_all_domains_and_start
-        ;;
-    restart)
+		;;
+
+	stop)	# Stop container
+        echo "Stopping the mailserver..."
+        stop_mailserver_if_running
+		;;
+
+	restart)	#  Restart container
         echo "Restarting the mailserver..."
         stop_mailserver_if_running
         process_all_domains_and_start
-        ;;
-    stop)
-        echo "Stopping the mailserver..."
-        stop_mailserver_if_running
-        ;;
-    uninstall)
+		;;
+  
+	uninstall)	#  Uninstall container
         echo "Uninstalling the mailsserver..."
         remove_mailserver_and_all_config
-        ;;
-    *)
-        usage
-        ;;
+		;;
+  
+	queue)	# Show mail queue
+		_container postqueue -p
+		;;
+
+	flush)	# Flush mail queue
+		_container postqueue -f
+		echo "Queue flushed."
+		;;
+
+	unhold)	# Release mail that was put "on hold"
+		if [ -z "${2:-}" ]; then
+			echo "Error: Queue ID missing"
+		else
+			shift
+			for i in "$@"; do
+				ARG+=("-H" "$i")
+			done
+			_container postsuper "${ARG[@]}"
+		fi
+		;;
+
+	view)	# Show mail by queue id
+		if [ -z "${2:-}" ]; then
+			echo "Error: Queue ID missing."
+		else
+			_container postcat -q "$2"
+		fi >&2
+		;;
+
+	delete) # Delete mail from queue
+		if [ -z "${2:-}" ]; then
+			echo "Error: Queue ID missing."
+		else
+			shift
+			for i in "$@"; do
+				ARG+=("-d" "$i")
+			done
+			_container postsuper "${ARG[@]}"
+		fi
+		;;
+
+	fail*)	# Interact with fail2ban
+		shift
+		_container fail2ban "$@"
+		;;
+
+	ports)	# Show published ports
+		echo "Published ports:"
+		echo
+		_ports
+		;;
+
+	postc*)	# Show postfix configuration
+		shift
+		_container postconf "$@"
+		;;
+
+	logs)	# Show logs
+		if [ "${2:-}" == "-f" ]; then
+			docker logs -f "$CONTAINER"
+		else
+			docker logs "$CONTAINER"
+		fi
+		;;
+
+	login)	# Run container shell
+		_container -it bash
+		;;
+
+	super*) # Interact with supervisorctl
+		shift
+		_container -it supervisorctl "$@"
+		;;
+
+	update-c*) # Check for container package updates
+		_container -it bash -c 'apt update && echo && apt list --upgradable'
+		;;
+
+	update-p*) # Update container packages
+		_container -it bash -c 'apt update && echo && apt-get upgrade'
+		;;
+
+	version*) # Show versions
+		printf "%-15s%s\n\n" "Mailserver:" "$(_getDMSVersion)"
+		PACKAGES=("amavisd-new" "clamav" "dovecot-core" "fail2ban" "fetchmail" "getmail6" "rspamd" "opendkim" "opendmarc" "postfix" "spamassassin" "supervisor")
+		for i in "${PACKAGES[@]}"; do
+			printf "%-15s" "$i:"
+			_container bash -c "set -o pipefail; dpkg -s $i 2>/dev/null | grep ^Version | cut -d' ' -f2 || echo 'Package not installed.'"
+		done
+		;;
+
+	*)
+		cat <<-EOF
+		Usage:
+
+		$APP status                           Show status
+		$APP config                           Show configuration
+		$APP install                          Install the email server  
+		$APP start                            Start the email server
+		$APP stop                             Stop the email server
+		$APP restart                          Restart the email server
+		$APP queue                            Show mail queue
+		$APP flush                            Flush mail queue
+		$APP view   <queue id>                Show mail by queue id
+		$APP unhold <queue id> [<queue id>]   Release mail that was put "on hold" (marked with '!')
+		$APP unhold ALL                       Release all mails that were put "on hold" (marked with '!')
+		$APP delete <queue id> [<queue id>]   Delete mail from queue
+		$APP delete ALL                       Delete all mails from queue
+		$APP fail2ban [<ban|unban> <IP>]      Interact with fail2ban
+		$APP fail2ban log                     Show fail2ban log
+		$APP ports                            Show published ports
+		$APP postconf                         Show postfix configuration
+		$APP logs [-f]                        Show logs. Use -f to 'follow' the logs
+		$APP login                            Run container shell
+		$APP supervisor                       Interact with supervisorctl
+		$APP update-check                     Check for container package updates
+		$APP update-packages                  Update container packages
+		$APP versions                         Show versions
+		EOF
+		;;
 esac
-
-
-
-
+echo
