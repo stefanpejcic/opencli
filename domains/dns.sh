@@ -40,6 +40,11 @@ usage() {
   echo -e " ${GREEN}$command reconfig${RESET}               - Load new DNS zones into bind server."
   echo -e " ${GREEN}$command check <DOMAIN>${RESET}         - Check and validate dns zone for a domain."
   echo -e " ${GREEN}$command reload <DOMAIN>${RESET}        - Reload DNS zone for a single domain."
+  echo -e " ${GREEN}$command show <DOMAIN>${RESET}          - Display DNS zone for a single domain."
+  echo -e " ${GREEN}$command list${RESET}                   - List all domains with DNS zones on the server."
+  echo -e " ${GREEN}$command create <DOMAIN>${RESET}        - Create DNS zone for a domain."
+  echo -e " ${GREEN}$command delete <DOMAIN>${RESET}        - Delete DNS zone for a domain."
+  echo -e " ${GREEN}$command count${RESET}                  - Display total number of DNS zones present on the server."
   echo -e " ${GREEN}$command config${RESET}                 - Check main bind configuration file for syntax errros."
   echo -e " ${GREEN}$command start${RESET}                  - Start the DNS server."
   echo -e " ${GREEN}$command restart${RESET}                - Soft restart of bind9 docker container."
@@ -70,6 +75,7 @@ fi
 reconfig_command(){
   echo "Loading new DNS zones.."
   docker exec openpanel_dns rndc reconfig
+  exit 0
 }
 
 
@@ -77,11 +83,12 @@ reconfig_command(){
 check_named_main_conf(){
   echo "Checking /etc/bind/named.conf configuration:"
   docker exec openpanel_dns named-checkconf  /etc/bind/named.conf
+  exit 0
 }
 
 
 
-reload_single_dns_zone(){
+reload_one_or_all_dns_zone(){
   DOMAIN=$1
   if [[ -n "$DOMAIN" ]]; then
     echo "Reloading DNS zone for domain: $DOMAIN"
@@ -92,6 +99,194 @@ reload_single_dns_zone(){
   fi
   exit 0
 }
+
+
+list_all_zones(){
+  echo "Displaying all DNS zones on the server:"
+  find /etc/bind/zones/ -type f -name "*.zone"
+  exit 0
+}
+
+list_dns_records(){
+  DOMAIN=$1
+  if [[ -n "$DOMAIN" ]]; then
+    echo "DNS zone for domain: $DOMAIN - file: /etc/bind/zones/$DOMAIN.zone"
+    cat /etc/bind/zones/$DOMAIN.zone
+    exit 0
+  else
+    echo "ERROR: domain name is needed to list its zone."
+    exit 1
+  fi
+}
+
+
+show_count(){
+  count=$(find /etc/bind/zones/ -type f -name "*.zone" | wc -l)
+  echo -e "Total number of DNS zones on the server: ${GREEN}$count${RESET}"
+  exit 0
+}
+
+
+
+delete_dns_zone(){
+  DOMAIN=$1
+  YES="$2"
+
+
+  delete_zone_file(){
+    # backup zone
+    mkdir -p /etc/bind/zones/backups/
+    mv /etc/bind/zones/$DOMAIN.zone /etc/bind/zones/backups/$DOMAIN.zone.$(date +%Y%m%d%H%M%S)
+    #TODO: reload zones!
+  }
+
+
+  if [[ -n "$DOMAIN" ]]; then
+    if [[ "$YES" == "-y" ]]; then
+      echo "Deleting DNS zone for domain: $DOMAIN"
+      delete_zone_file
+      exit 0
+    else
+      # wait for confirmation
+      read -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN ? (y/n): " CONFIRM
+      if [[ $? -ne 0 ]]; then
+        echo "Timed out."
+        exit 1
+      fi
+      if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+        echo "Deleting DNS zone for domain: $DOMAIN"
+        delete_zone_file
+        exit 0
+      else
+        echo "Canceled."
+        exit 1
+      fi
+    fi
+  else
+    echo "Error: No domain provided."
+    exit 1
+  fi 
+}
+
+
+
+
+
+
+
+
+
+
+
+restore_zone_to_default(){
+  DOMAIN=$1
+  YES="$2"
+
+  edit_zone_to_default(){
+  domain_name="$1"
+  
+  # backup zone
+  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/$domain_name.zone.
+  mkdir -p /etc/bind/zones/backups/
+  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/backups/$domain_name.zone.$(date +%Y%m%d%H%M%S)
+  
+  # todo: add cron to crear zones daily, older than 24hrs.
+  create_dns_zone_for_domain "$domain_name"
+
+  }
+
+  
+  if [[ -n "$DOMAIN" ]]; then
+    if [[ "$YES" == "-y" ]]; then
+      echo "Deleting DNS zone for domain: $DOMAIN  and restoring default zone.."
+      edit_zone_to_default "$DOMAIN"
+      exit 0
+    else
+      # wait for confirmation
+      read -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN and restore default records? (y/n): " CONFIRM
+      if [[ $? -ne 0 ]]; then
+        echo "Timed out."
+        exit 1
+      fi
+      if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+        echo "Restoring DNS zone for domain: $DOMAIN to default..."
+        edit_zone_to_default "$DOMAIN"
+        exit 0
+      else
+        echo "Canceled."
+        exit 1
+      fi
+    fi
+  else
+    echo "Error: No domain provided."
+    exit 1
+  fi
+}
+
+
+
+create_dns_zone_for_domain(){
+  domain_name=$1
+  if [[ -f "/etc/bind/zones/$domain_name.zone" ]]; then
+    echo "Error: DNS zone already exists for domain: $domain_name"
+    exit 1
+  fi
+  
+  if [[ -n "$domain_name" ]]; then
+    echo "Creating DNS zone for domain: $domain_name"
+  fi
+
+    
+  # generate new zone
+    ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
+    ZONE_FILE_DIR='/etc/bind/zones/'
+    CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+
+    zone_template=$(<"$ZONE_TEMPLATE_PATH")
+
+	# Function to extract value from config file
+	get_config_value() {
+	    local key="$1"
+	    grep -E "^\s*${key}=" "$CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
+	}
+
+
+
+    ns1=$(get_config_value 'ns1')
+    ns2=$(get_config_value 'ns2')
+
+    # Fallback
+    if [ -z "$ns1" ]; then
+        ns1='ns1.openpanel.co'
+    fi
+
+    if [ -z "$ns2" ]; then
+        ns2='ns2.openpanel.co'
+    fi
+
+    # Create zone content
+    timestamp=$(date +"%Y%m%d")
+    
+    # Replace placeholders in the template
+	  zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" \
+	                                           -e "s/{ns1}/$ns1/g" \
+	                                           -e "s/{ns2}/$ns2/g" \
+	                                           -e "s/{server_ip}/$current_ip/g" \
+	                                           -e "s/YYYYMMDD/$timestamp/g")
+
+    # Ensure the directory exists
+    mkdir -p "$ZONE_FILE_DIR"
+
+    # Write the zone content to the zone file
+    echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
+
+    # Reload BIND service
+    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+    cd /root && docker compose up -d bind9  >/dev/null 2>&1
+  exit 0
+
+}
+
 
 
 check_single_dns_zone(){
@@ -153,13 +348,62 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     check)
-      check_single_dns_zone "$2"
-      shift 2
+      if [[ -z "$2" ]]; then
+        echo "Error: 'check' command requires a zone argument."
+        usage
+      else
+        check_single_dns_zone "$2"
+        shift 2
+      fi
       ;;
-    reload)
-      reload_single_dns_zone "$2"
+    list)
+      list_all_zones
+      ;; 
+    show)
+      if [[ -z "$2" ]]; then
+        echo "Error: 'show' command requires a zone argument."
+        usage
+      else
+        list_dns_records "$2"
+        shift 2
+      fi
+      ;; 
+    create)
+      create_dns_zone_for_domain "$2"
       shift 2
       ;; 
+    reload)
+      reload_one_or_all_dns_zone "$2"
+      shift 2
+      ;; 
+    delete)
+      if [[ -n "$2" && -n "$3" ]]; then
+        delete_dns_zone "$2" "$3"
+        shift 3
+      elif [[ -n "$2" ]]; then
+        delete_dns_zone "$2"
+        shift 2
+      else
+        echo "Error: 'delete' command requires a domain name."
+        usage
+      fi
+      ;; 
+    default)
+      if [[ -n "$2" && -n "$3" ]]; then
+        restore_zone_to_default "$2" "$3"
+        shift 3
+      elif [[ -n "$2" ]]; then
+        restore_zone_to_default "$2"
+        shift 2
+      else
+        echo "Error: 'default' command requires a domain name."
+        usage
+      fi
+      ;; 
+    count)
+      show_count
+      shift
+      ;;
     restart)
       soft_reset
       shift
