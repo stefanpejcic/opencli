@@ -65,7 +65,7 @@ clear_cache_for_user() {
 
 make_folder() {
 	mkdir -p /home/$user/$domain_name
-	docker exec $user bash -c "chown $user:www-data /home/$user/$domain_name"
+	docker exec $user bash -c "chown $user:33 /home/$user/$domain_name"
 	chmod -R g+w /home/$user/$domain_name
 }
 
@@ -106,15 +106,32 @@ get_webserver_for_user(){
 }
 
 
+start_ssl_generation_in_bg(){	
+
+	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
+	cd /root && docker compose up -d certbot >/dev/null 2>&1
+
+  	# from 0.2.8 this is hadled by opencli as well
+	opencli ssl-domain $domain_name > /dev/null 2>&1 & disown
+}
+
+auto_start_webserver_for_user_in_future(){
+	if [[ $ws == *apache2* ]]; then
+		docker exec $current_username sed -i \'s/APACHE_STATUS="off"/APACHE_STATUS="on"/\' /etc/entrypoint.sh
+	elif [[ $ws == *nginx* ]]; then
+		docker exec $current_username sed -i \'s/NGINX_STATUS="off"/NGINX_STATUS="on"/\' /etc/entrypoint.sh
+	fi
+}
+
 vhost_files_create() {
+	
+	if [[ $ws == *apache2* ]]; then
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
+	elif [[ $ws == *nginx* ]]; then
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+	fi
 
-if [[ $ws == *apache2* ]]; then
-vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
-elif [[ $ws == *nginx* ]]; then
-vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
-fi
-
-vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 
 
 
@@ -208,6 +225,7 @@ NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
     local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
     # Check if the domain already exists in named.conf.local
+    # fix for: https://github.com/stefanpejcic/OpenPanel/issues/95
     if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
         echo "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
         return
@@ -265,7 +283,9 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
+    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     cd /root && docker compose up -d bind9  >/dev/null 2>&1
+    
 }
 
 
@@ -292,18 +312,17 @@ add_domain() {
 
     if [ "$result" -eq 1 ]; then
     
-    	#TODO
-    	clear_cache_for_user # rm cached file for ui
-    	make_folder # create dirs on host server
-    	get_webserver_for_user # nginx or apache
-    	get_server_ipv4 # get outgoing ip
-	vhost_files_create # create file in container
-	create_domain_file # create file on host
-        create_zone_file # create zone
-	update_named_conf # include zone
-
-	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
-	cd /root && docker compose up -d certbot >/dev/null 2>&1
+    	clear_cache_for_user                         # rm cached file for ui
+    	make_folder                                  # create dirs on host server
+    	get_webserver_for_user                       # nginx or apache
+    	get_server_ipv4                              # get outgoing ip
+	vhost_files_create                           # create file in container
+	create_domain_file                           # create file on host
+        create_zone_file                             # create zone
+	update_named_conf                            # include zone
+ 	auto_start_webserver_for_user_in_future      # edit entrypoint
+      	# TODO also start phpfpm service!
+	start_ssl_generation_in_bg                   # start certbot
  
         echo "Domain $domain_name has been added for user $user."
     else
