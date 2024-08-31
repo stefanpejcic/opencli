@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# Set verbose to null
+verbose=""
+
 ensure_jq_installed() {
     # Check if jq is installed
     if ! command -v jq &> /dev/null; then
@@ -58,35 +61,40 @@ apply_permissions_in_container() {
   local path="$2"
 
     if [ -n "$path" ]; then
+        # this is also checked on the backend
+        if [[ $path != /home/$container_name/* ]]; then
+            path="${path#/}" # strip / from beginning if relative path is sued
+            path="/home/$container_name/$path" # prepend user home directory
+        fi
         directory="$path"
     else   
-        directory="/home/$container_name"
+        directory="/home/$container_name/"
     fi
 
   # Check if the container exists
   if docker inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
         
-        # Apply group permissions
-        docker exec $container_name bash -c "chmod -R g+w $path"
+        # WWW-DATA GROUP
+        docker exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
         group_result=$?
         
-        # Apply owner permissions
-        docker exec $container_name bash -c "chown -R 1000:33 $path"
+        # USERNAME OWNER
+        docker exec $container_name bash -c "chown -R $verbose 1000:33 $directory"
         owner_result=$?
         
-        # Apply file permissions
-        docker exec -u 0 -it "$container_name" bash -c "find $path -type f -exec chmod 644 {} \;"
+        # FILES
+        docker exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
         files_result=$?
         
-        # Apply folder permissions
-        docker exec -u 0 -it "$container_name" bash -c "find $path -type d -exec chmod 755 {} \;"
+        # FODLERS
+        docker exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
         folders_result=$?
         
-        # Check if all commands were successful
+        # CHECK ALL FOUR
         if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
-            echo "Permissions applied successfully."
+            echo "Permissions applied successfully to $directory"
         else
-            echo "Error applying permissions to $path."
+            echo "Error applying permissions to $directory"
         fi
   else
     echo "Container for user $container_name not found or is not running."
@@ -98,7 +106,12 @@ apply_permissions_in_container() {
 if [ "$1" == "--all" ]; then
   if [ $# -eq 1 ]; then
     ensure_jq_installed # now we need jq 
-    
+      if [ $# -eq 2 ]; then
+        case "$2" in
+            --debug) verbose="-v"
+            ;;
+        esac
+      fi
     # Apply changes to all active users
     for container in $(opencli user-list --json | jq -r '.[].username'); do
       apply_permissions_in_container "$container"
@@ -110,10 +123,15 @@ if [ "$1" == "--all" ]; then
 elif [ $# -ge 1 ]; then
   username="$1"
   path="$2"
+  if [ $# -eq 3 ]; then
+    case "$3" in
+        --debug) verbose="-v"
+        ;;
+    esac
+  fi
   apply_permissions_in_container "$username" "$path"
 else
   echo "Usage:"
-  echo ""
   echo "opencli files-fix_permissions <USERNAME> [PATH]          Fix permissions for a single user."
   echo "opencli files-fix_permissions --all                      Fix permissions for all active users."
   exit 1
