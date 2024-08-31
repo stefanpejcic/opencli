@@ -249,7 +249,14 @@ create_zone_file() {
     fi
 
     # Create zone content
-    zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" -e "s/{ns1}/$ns1/g" -e "s/{ns2}/$ns2/g" -e "s/{server_ip}/$current_ip/g")
+    timestamp=$(date +"%Y%m%d%H%M%S")
+    
+    # Replace placeholders in the template
+	zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" \
+	                                           -e "s/{ns1}/$ns1/g" \
+	                                           -e "s/{ns2}/$ns2/g" \
+	                                           -e "s/{server_ip}/$current_ip/g" \
+	                                           -e "s/YYYYMMDDHHMMSS/$timestamp/g")
 
     # Ensure the directory exists
     mkdir -p "$ZONE_FILE_DIR"
