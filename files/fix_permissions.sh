@@ -104,35 +104,41 @@ apply_permissions_in_container() {
 
 # Check if the --all flag is provided
 if [ "$1" == "--all" ]; then
-  if [ $# -eq 1 ]; then
-    ensure_jq_installed # now we need jq 
-      if [ $# -eq 2 ]; then
-        case "$2" in
-            --debug) verbose="-v"
-            ;;
-        esac
-      fi
+  if [ $# -le 2 ]; then
+    ensure_jq_installed # Ensure jq is installed
+    
+    # Handle optional --debug flag
+    [ "$2" == "--debug" ] && verbose="-v"
+
     # Apply changes to all active users
     for container in $(opencli user-list --json | jq -r '.[].username'); do
       apply_permissions_in_container "$container"
     done
   else
-    echo "Usage: opencli files-fix_permissions --all"
+    echo "Usage: opencli files-fix_permissions --all [--debug]"
     exit 1
   fi
-elif [ $# -ge 1 ]; then
-  username="$1"
-  path="$2"
-  if [ $# -eq 3 ]; then
-    case "$3" in
-        --debug) verbose="-v"
-        ;;
-    esac
-  fi
-  apply_permissions_in_container "$username" "$path"
 else
-  echo "Usage:"
-  echo "opencli files-fix_permissions <USERNAME> [PATH]          Fix permissions for a single user."
-  echo "opencli files-fix_permissions --all                      Fix permissions for all active users."
-  exit 1
+  # Fix permissions for a single user
+  if [ $# -ge 1 ]; then
+    username="$1"
+
+    # Check if $2 is a path or --debug
+    if [ "$2" == "--debug" ]; then
+      verbose="-v"
+      path=""
+    else
+      path="$2"
+      [ "$3" == "--debug" ] && verbose="-v"
+    fi
+
+    apply_permissions_in_container "$username" "$path"
+  else
+    echo "Usage:"
+    echo "opencli files-fix_permissions <USERNAME> [--debug]          Fix permissions for all files owned by single user."
+    echo "opencli files-fix_permissions <USERNAME> [PATH] [--debug]   Fix permissions for the specified path owned by user."
+    echo "opencli files-fix_permissions --all [--debug]               Fix permissions for all active users."
+    exit 1
+  fi
 fi
+
