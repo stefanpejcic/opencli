@@ -1,8 +1,36 @@
 #!/bin/bash
+################################################################################
+# Script Name: domains/add.sh
+# Description: Add a domain name for user.
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>
+# Author: Stefan Pejcic
+# Created: 20.08.2024
+# Last Modified: 31.08.2024
+# Company: openpanel.co
+# Copyright (c) openpanel.co
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+################################################################################
 
 # Check if the correct number of arguments are provided
 if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <domain_name> <user>"
+    echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>"
     exit 1
 fi
 
@@ -10,11 +38,17 @@ fi
 domain_name="$1"
 user="$2"
 
+
+
+
 # Validate domain name (basic validation)
 if ! [[ "$domain_name" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
     echo "FATAL ERROR: Invalid domain name: $domain_name"
     exit 1
 fi
+
+
+
 
 # Check if domain already exists
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
@@ -23,6 +57,9 @@ else
     echo "WARNING: Domain $domain_name already exists."
     exit 1
 fi
+
+
+
 
 # get user ID from the database
 get_user_id() {
@@ -42,15 +79,14 @@ fi
 
 
 
-get_server_ipv4() {
 
+
+
+get_server_ipv4() {
 	# Get server ipv4 from ip.openpanel.co
 	current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
-	
 	# If site is not available, get the ipv4 from the hostname -I
 	if [ -z "$current_ip" ]; then
-	   # current_ip=$(hostname -I | awk '{print $1}')
-	    # ip addr command is more reliable then hostname - to avoid getting private ip
 	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
 	fi
 
@@ -59,15 +95,26 @@ get_server_ipv4() {
 
 
 
+
+
 clear_cache_for_user() {
 	rm /etc/openpanel/openpanel/core/users/${user}/data.json >/dev/null 2>&1
 }
+
+
+
+
+
+
 
 make_folder() {
 	mkdir -p /home/$user/$domain_name
 	docker exec $user bash -c "chown $user:33 /home/$user/$domain_name"
 	chmod -R g+w /home/$user/$domain_name
 }
+
+
+
 
 
 check_and_create_default_file() {
@@ -77,8 +124,6 @@ file_exists=$(docker exec "$user" test -e "/etc/nginx/sites-enabled/default" && 
 
 if [ "$file_exists" == "no" ]; then
     echo "Default nginx vhost file does not exist, creating.."
-    
-    # Create the file with the specified content
     docker exec "$user" sh -c "echo 'server {
         listen 80 default_server;
         listen [::]:80 default_server;
@@ -88,6 +133,9 @@ if [ "$file_exists" == "no" ]; then
         }' > /etc/nginx/sites-enabled/default"
 fi
 }
+
+
+
 
 get_webserver_for_user(){
 	    output=$(opencli webserver-get_webserver_for_user $user)
@@ -102,14 +150,18 @@ get_webserver_for_user(){
 }
 
 
-start_ssl_generation_in_bg(){	
 
+
+start_ssl_generation_in_bg(){	
 	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
 	cd /root && docker compose up -d certbot >/dev/null 2>&1
-
   	# from 0.2.8 this is hadled by opencli as well
 	opencli ssl-domain $domain_name > /dev/null 2>&1 & disown
 }
+
+
+
+
 
 auto_start_webserver_for_user_in_future(){
 	if [[ $ws == *apache2* ]]; then
@@ -118,6 +170,9 @@ auto_start_webserver_for_user_in_future(){
 		docker exec $user sed -i 's/NGINX_STATUS="off"/NGINX_STATUS="on"/' /etc/entrypoint.sh
 	fi
 }
+
+
+
 
 vhost_files_create() {
 	
@@ -129,33 +184,30 @@ vhost_files_create() {
 
 	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 
-
-
-logs_dir="/var/log/$ws/domlogs"
-
-docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
-
-docker cp $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
-
-user_gateway=$(docker inspect $user | jq -r '.[0].NetworkSettings.Networks | .[] | .Gateway' | head -n 1)
-
-
-php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
-
-# Execute the sed command inside the Docker container
-docker exec -it $user /bin/bash -c "
-  sed -i \
-    -e 's|<DOMAIN_NAME>|$domain_name|g' \
-    -e 's|<USER>|$user|g' \
-    -e 's|<PHP>|php${php_version}|g' \
-    -e 's|172.17.0.1|$user_gateway|g' \
-    -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
-    $vhost_in_docker_file
-"
-
-docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
-
-docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
+	logs_dir="/var/log/$ws/domlogs"
+	
+	docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
+	
+	docker cp $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
+	
+	user_gateway=$(docker inspect $user | jq -r '.[0].NetworkSettings.Networks | .[] | .Gateway' | head -n 1)
+	
+	
+	php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
+	
+	# Execute the sed command inside the Docker container
+	docker exec -it $user /bin/bash -c "
+	  sed -i \
+	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
+	    -e 's|<USER>|$user|g' \
+	    -e 's|<PHP>|php${php_version}|g' \
+	    -e 's|172.17.0.1|$user_gateway|g' \
+	    -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
+	    $vhost_in_docker_file
+	"
+	
+	docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
+	docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
 
 }
 
@@ -202,10 +254,8 @@ create_domain_file() {
 
  	# Check if the 'nginx' container is running
 	if [ $(docker ps -q -f name=nginx) ]; then
-	    #echo "Nginx container is running. Testing and reloading nginx..."
 	    docker exec nginx bash -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
 	else
-	    #echo "Nginx container does not exist. Running docker compose..."
 	    cd /root && docker compose up -d nginx  >/dev/null 2>&1
 	fi
 
@@ -214,9 +264,8 @@ create_domain_file() {
 
 
 update_named_conf() {
-
-ZONE_FILE_DIR='/etc/bind/zones/'
-NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
+    ZONE_FILE_DIR='/etc/bind/zones/'
+    NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
 
     local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
@@ -327,5 +376,4 @@ add_domain() {
 }
 
 
-#echo "Addin domain $domain_name for user ID: $user_id"
 add_domain "$user_id" "$domain_name"
