@@ -94,10 +94,6 @@ get_webserver_for_user(){
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
 	 	check_and_create_default_file
-
-
-
-  
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
 	    else
@@ -117,9 +113,9 @@ start_ssl_generation_in_bg(){
 
 auto_start_webserver_for_user_in_future(){
 	if [[ $ws == *apache2* ]]; then
-		docker exec $current_username sed -i \'s/APACHE_STATUS="off"/APACHE_STATUS="on"/\' /etc/entrypoint.sh
+		docker exec $user sed -i 's/APACHE_STATUS="off"/APACHE_STATUS="on"/' /etc/entrypoint.sh
 	elif [[ $ws == *nginx* ]]; then
-		docker exec $current_username sed -i \'s/NGINX_STATUS="off"/NGINX_STATUS="on"/\' /etc/entrypoint.sh
+		docker exec $user sed -i 's/NGINX_STATUS="off"/NGINX_STATUS="on"/' /etc/entrypoint.sh
 	fi
 }
 
