@@ -154,36 +154,63 @@ generate_ssl() {
 
     mkdir -p /home/${username}/${domain_url}/.well-known/acme-challenge
     chown -R 1000:33 /home/${username}/${domain_url}/.well-known
-    
-    # Certbot command for SSL generation
-    #certbot_command=("python3" "/usr/bin/certbot" "certonly" "--nginx" "--non-interactive" "--agree-tos" "-m" "webmaster@$domain_url" "-d" "$domain_url")
+    chmod +x /etc/letsencrypt/acme-dns-auth.py
+    # Try DNS validation first
     certbot_command=(
         "docker" "run" "--rm" "--network" "host"
         "-v" "/etc/letsencrypt:/etc/letsencrypt"
         "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-        "certbot/certbot" "certonly" "--webroot"
-        "--webroot-path=/home/${username}/${domain_url}/"
+        "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+        "-v" "/var/run/docker.sock:/var/run/docker.sock"
+        "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+        "certbot/certbot" "certonly" "--dry-run" "--manual"
+        "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+        "--preferred-challenges" "dns" "--debug-challenges"
         "--non-interactive" "--agree-tos"
         "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
     )
+    # temp off  
+    # "-d" "*.${domain_url}"
 
-
-    # Run Certbot command
+    # Run Certbot for domain and wildcard subdomain
     "${certbot_command[@]}"
     status=$?
 
     #rm dir eitherway
     rm -rf /home/${username}/${domain_url}/.well-known/
     
+
     # Check if the Certbot command was successful
     if [ $status -eq 0 ]; then
-        echo "SSL generation completed successfully"
+        echo "SSL generation for ${domain_url} and wildcard subdomain *.${domain_url} completed successfully using DNS verification!"
     else
-        echo "SSL generation failed with exit status $status"
-        exit 1
+        echo "SSL generation for ${domain_url} and wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
+        echo "Retrying SSL generation for main domain only using file-based verification:"
+
+        # if fails, try again for main domain only, using file verification
+        certbot_command=(
+            "docker" "run" "--rm" "--network" "host"
+            "-v" "/etc/letsencrypt:/etc/letsencrypt"
+            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+            "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+            "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+            "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+            "certbot/certbot" "certonly" "--webroot"
+            "--webroot-path=/home/${username}/${domain_url}/"
+            "--non-interactive" "--agree-tos"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+        )
+    
+    
+        # Run Certbot command
+        "${certbot_command[@]}"
+        status=$?
+        if [ $status -eq 0 ]; then
+            echo "SSL generation for ${domain_url} completed successfully using file verification!"
+        else
+            echo "SSL generation for ${domain_url} using file verification failed with exit status $status"
+            exit 1
+        fi
     fi
 }
 
