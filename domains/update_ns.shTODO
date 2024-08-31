@@ -26,7 +26,6 @@ NAMESERVERS=("$NS1" "$NS2")
 [ -n "$NS3" ] && NAMESERVERS+=("$NS3")
 [ -n "$NS4" ] && NAMESERVERS+=("$NS4")
 
-# Define the path to the BIND9 zone files
 ZONE_DIR="/etc/bind"
 
 # Function to update nameservers in a zone file
@@ -54,9 +53,10 @@ for zone_file in "$ZONE_DIR"/*.zone; do
   fi
 done
 
-# Reload BIND9 zones
-systemctl reload bind9
-
+    # Reload BIND service
+    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+    cd /root && docker compose up -d bind9  >/dev/null 2>&1
+    
 echo "Nameservers have been updated and BIND9 zones reloaded."
 
 exit 0
