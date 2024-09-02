@@ -83,6 +83,33 @@ storage_file="${storage_file} GB"
   fi
 }
 
+
+
+     ensure_tc_is_installed(){
+            # Check if tc is installed
+            if ! command -v tc &> /dev/null; then
+                # Detect the package manager and install tc
+                if command -v apt-get &> /dev/null; then
+                    sudo apt-get update > /dev/null 2>&1
+                    sudo apt-get install -y -qq tc > /dev/null 2>&1
+                elif command -v yum &> /dev/null; then
+                    sudo yum install -y -q tc > /dev/null 2>&1
+                elif command -v dnf &> /dev/null; then
+                    sudo dnf install -y -q tc > /dev/null 2>&1
+                else
+                    echo "Error: No compatible package manager found. Please install tc manually and try again."
+                    exit 1
+                fi
+        
+                # Check if installation was successful
+                if ! command -v tc &> /dev/null; then
+                    echo "Error: jq installation failed. Please install jq manually and try again."
+                    exit 1
+                fi
+            fi
+   {
+
+
 ## Function to create a Docker network with bandwidth limiting
 create_docker_network() {
   local name="$1"
@@ -105,6 +132,8 @@ create_docker_network() {
 
     # Extract the network interface name for the gateway IP
     gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
+
+   ensure_tc_is_installed
 
     # Limit the gateway bandwidth
     sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
