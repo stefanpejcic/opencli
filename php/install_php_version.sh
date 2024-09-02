@@ -71,6 +71,7 @@ extensions_to_install=(
   php$php_version-opcache
   php$php_version-redis
   php$php_version-memcached
+  php$php_version-mysqli
 )
 
 
