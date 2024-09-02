@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 18.08.2024
+# Last Modified: 02.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
