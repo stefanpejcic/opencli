@@ -91,13 +91,13 @@ storage_file="${storage_file} GB"
                 # Detect the package manager and install tc
                 if command -v apt-get &> /dev/null; then
                     sudo apt-get update > /dev/null 2>&1
-                    sudo apt-get install -y -qq tc > /dev/null 2>&1
+                    sudo apt-get install -y -qq iproute2 > /dev/null 2>&1
                 elif command -v yum &> /dev/null; then
-                    sudo yum install -y -q tc > /dev/null 2>&1
+                    sudo yum install -y -q iproute2 > /dev/null 2>&1
                 elif command -v dnf &> /dev/null; then
-                    sudo dnf install -y -q tc > /dev/null 2>&1
+                    sudo dnf install -y -q iproute2 > /dev/null 2>&1
                 else
-                    echo "Error: No compatible package manager found. Please install tc manually and try again."
+                    echo "Error: No compatible package manager found. Please install tc command (iproute2 package) manually and try again."
                     exit 1
                 fi
         
