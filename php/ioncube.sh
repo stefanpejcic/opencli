@@ -3,7 +3,6 @@
 # Script Name: php/ioncube.sh
 # Description: Enable IonCube Loader for every installed PHP version
 # Usage: opencli php-ioncube <username>
-#        opencli php-ioncube <username>
 # Author: Stefan Pejcic
 # Created: 26.07.2024
 # Last Modified: 26.07.2024
