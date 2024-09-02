@@ -107,7 +107,7 @@ storage_file="${storage_file} GB"
                     exit 1
                 fi
             fi
-   {
+   }
 
 
 ## Function to create a Docker network with bandwidth limiting
