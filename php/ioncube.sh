@@ -45,10 +45,15 @@ fi
 
 #echo "Checking if installed PHP versions for user $container_name have enabled IonCube Loader extension.."
 echo "Downloading latest ioncube loader extensions from https://www.ioncube.com/loaders.php"
-# Download latest ioncube files
-docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
-docker exec -it "$container_name" bash -c 'for dir in /usr/lib/php/20*/; do cp -r /tmp/ioncube/ioncube_loader_lin_*.so "$dir"; done'
 
+# Step 1: Download the ionCube loaders tarball
+docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
+
+# Step 2: Uncompress the downloaded tarball
+docker exec -it "$container_name" bash -c "cd /tmp && tar -xzf ioncube_loaders_lin_x86-64.tar.gz"
+
+# Step 3: Copy the ionCube loader files to the appropriate directories
+docker exec -it "$container_name" bash -c 'for dir in /usr/lib/php/20*/; do cp -r /tmp/ioncube/ioncube_loader_lin_*.so "$dir"; done'
 
 echo "Listing installed PHP versions for user $container_name "
 echo ""
