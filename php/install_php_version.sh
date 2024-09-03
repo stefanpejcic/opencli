@@ -44,44 +44,62 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
   exit 1
 fi
 
-# Define the list of extensions to install
-extensions_to_install=(
-  php$php_version-fpm
-  php$php_version-imagick
-  php$php_version-mysql
-  php$php_version-curl
-  php$php_version-gd
-  php$php_version-mbstring
-  php$php_version-xml
-  php$php_version-xmlrpc
-  php$php_version-soap
-  php$php_version-intl
-  php$php_version-zip
-  php$php_version-bcmath
-  php$php_version-calendar
-  php$php_version-exif
-  php$php_version-ftp
-  php$php_version-ldap
-  php$php_version-sockets
-  php$php_version-sysvmsg
-  php$php_version-sysvsem
-  php$php_version-sysvshm
-  php$php_version-tidy
-  php$php_version-uuid
-  php$php_version-opcache
-  php$php_version-redis
-  php$php_version-memcached
-  php$php_version-mysqli
+# Define the default extensions
+default_extensions=(
+  fpm
+  imagick
+  mysql
+  curl
+  gd
+  mbstring
+  xml
+  xmlrpc
+  soap
+  intl
+  zip
+  bcmath
+  calendar
+  exif
+  ftp
+  ldap
+  sockets
+  sysvmsg
+  sysvsem
+  sysvshm
+  tidy
+  uuid
+  opcache
+  redis
+  memcached
+  mysqli
 )
 
 
+extensions_file="/etc/openpanel/php/extensions.txt"
+
+if [[ -f "$extensions_file" ]]; then
+    mapfile -t extensions < "$extensions_file"
+else
+    extensions=("${default_extensions[@]}")
+fi
+
+extensions_to_install=()
+
+# Loop through each extension and add the prefix
+for ext in "${extensions[@]}"; do
+    extensions_to_install+=("php$php_version-$ext")
+done
 
 echo "## Started installation for PHP version $php_version"
 
-# Check if each extension is already installed
-if docker exec "$container_name" bash -c 'dpkg -l | grep -q "ii  php${php_version}-fpm"'; then
+# Check if php version already installed
+if docker exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php${php_version}-fpm\""; then
   echo "## ERROR: PHP $php_version is already installed."
-  echo "## Setting recommended extensions.."
+  if [[ -f "$extensions_file" ]]; then
+    echo "## Setting php extensions specified from the $extensions_file file.."
+  else
+    echo "## Setting recommended extensions.."
+  fi
 else
   echo "## PHP $php_version is not installed, starting installation.."  
   install_php() {
@@ -137,17 +155,21 @@ fi
 # uodate just once, then start extensions
 docker exec "$container_name" bash -c "apt-get update"
 
-# Install php extensions in parallel using xargs
-printf "%s\n" "${extensions_to_install[@]}" | xargs -n 1 -P 8 -I {} bash -c '
+
+# Output the resulting list (for debugging purposes)
+echo "## Installing PHP extensions"
+echo "extensions that will be installed: ${extensions_to_install[@]}"
+
+# Install php extensions
+for extension in "${extensions_to_install[@]}"; do
   if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
-    echo "## {} is already installed."
+    echo "## $extension is already installed."
   else
     # Install the extension
-    docker exec "$container_name" bash -c "apt-get install -y {}"
-    wait $!
+    docker exec "$container_name" bash -c "apt-get install -y $extension"
     echo "## PHP extension $extension is now successfully installed."
   fi
-'
+done
 
 
 ### Settings limits for FPM service
@@ -176,9 +198,9 @@ docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_ex
 ### Settings limits for CLI version
 echo "## Setting recommended limits for PHP-CLI"
 
-docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/cli.ini"
+docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/cli/php.ini"
  wait $!
-docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/cli.ini"
+docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/cli/php.ini"
  wait $!
 echo "upload_max_filesize = 1024M"
 docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
