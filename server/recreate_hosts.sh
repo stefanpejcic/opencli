@@ -47,6 +47,9 @@ done
 # Clear all existing entries
 grep -v -e 'docker-container' -e '^# INFO:' "$HOSTS_FILE" > "${HOSTS_FILE}.tmp"
 
+#echo "127.0.0.1 localhost # master" >> "${HOSTS_FILE}.tmp"
+
+
 # -a so even suspended users are added
 for container in $(docker ps -a --format '{{.Names}}'); do 
    
