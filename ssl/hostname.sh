@@ -5,7 +5,7 @@
 # Usage: opencli ssl-hostname
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 15.08.2024
+# Last Modified: 03.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -42,25 +42,11 @@ if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Name
     cd /root && docker compose up -d nginx
 fi
 
+# if admin was running, restart it.
 if ! systemctl status admin &> /dev/null; then
-    echo -e "${RED}ERROR: OpenAdmin service not found or not running. Check admin service status and ensure it's running.${RESET}"
-    echo ""
-    echo -e "Run ${YELLOW}'service admin status'${RESET} to check if admin is active."
-    echo -e "and ${YELLOW}'tail /var/log/openpanel/admin/error.log'${RESET} if service status is ${RED}failed${RESET}."
-
-    # Restart the service
-    systemctl restart admin
-
-    echo -e "${GREEN}Service restarted.${RESET}"
-
-    # Check status again after restart
-    if ! systemctl status admin &> /dev/null; then
-        echo -e "${RED}ERROR: Failed to start AdminPanel service after restart.${RESET}"
-        exit 1
-    else
-        echo -e "${GREEN}AdminPanel service is now running.${RESET}"
-        exit 0
-    fi
+	DO_NOT_START_ADMIN=true
+else
+ 	DO_NOT_START_ADMIN=false
 fi
 
 
@@ -99,8 +85,14 @@ update_openpanel_config() {
         echo "Restarting the panel services to apply the newly generated SSL and force domain $hostname."
 
         cd /root && docker compose restart nginx &> /dev/null
-        service admin reload &> /dev/null
-
+	
+	# start admin panel only if it was already running
+ 	if [ DO_NOT_START_ADMIN ]; then
+	        service admin reload &> /dev/null
+	else
+		service admin restart &> /dev/null
+ 	fi
+  
         echo ""
 	if ! docker ps --filter "name=openpanel" --filter "status=running" --format "{{.Names}}"; then
 	        echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
@@ -155,7 +147,7 @@ server {
 }
 EOL
 
-docker exec nginx bash -c "nginx -t && nginx -s reload"
+docker exec nginx sh -c "nginx -t && nginx -s reload"
 
       certbot_command=(
         "docker" "run" "--rm" "--network" "host"
@@ -188,7 +180,7 @@ if [ "$DISABLE_AFTERWARDS" = "YES" ]; then
     echo -e "${YELLOW}Stopping the Nginx container...${RESET}"
     cd /root && docker compose down nginx
 else
-    docker exec nginx bash -c "nginx -t && nginx -s reload"
+    docker exec nginx sh -c "nginx -t && nginx -s reload"
 fi
 
 
