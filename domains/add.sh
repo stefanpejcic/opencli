@@ -162,6 +162,12 @@ start_ssl_generation_in_bg(){
 
 
 
+start_default_php_fpm_service() {
+	docker exec $user service php${php_version}-fpm start >/dev/null 2>&1
+	docker exec $user sed -i "s/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/" /etc/entrypoint.sh >/dev/null 2>&1
+}
+
+
 
 auto_start_webserver_for_user_in_future(){
 	if [[ $ws == *apache2* ]]; then
@@ -366,7 +372,7 @@ add_domain() {
         create_zone_file                             # create zone
 	update_named_conf                            # include zone
  	auto_start_webserver_for_user_in_future      # edit entrypoint
-      	# TODO also start phpfpm service!
+       	start_default_php_fpm_service                # start phpX.Y-fpm service
 	start_ssl_generation_in_bg                   # start certbot
  
         echo "Domain $domain_name has been added for user $user."
