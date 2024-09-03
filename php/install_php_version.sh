@@ -5,7 +5,7 @@
 # Usage: opencli php-install_php_version <username> <php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 18.07.2024
+# Last Modified: 03.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
