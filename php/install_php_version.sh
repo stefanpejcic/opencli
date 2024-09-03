@@ -175,54 +175,104 @@ done
 ### Settings limits for FPM service
 echo "## Setting recommended limits for PHP-FPM service"
 
-docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
- wait $!
-docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
- wait $!
-echo "upload_max_filesize = 1024M"
-docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
- wait $!
-echo "max_input_time = -1"
-docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
- wait $!
-echo "post_max_size = 1024M"
-docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
- wait $!
- echo "sendmail_path = '/usr/bin/msmtp -t'"
-docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/fpm/php.ini"
- wait $!
- echo "max_execution_time = 600"
-docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
 
 
-### Settings limits for CLI version
-echo "## Setting recommended limits for PHP-CLI"
+ini_file="/etc/openpanel/php/ini.txt"
 
-docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/cli/php.ini"
- wait $!
-docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/cli/php.ini"
- wait $!
-echo "upload_max_filesize = 1024M"
-docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
- wait $!
-echo "max_input_time = -1"
-docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/cli/php.ini"
- wait $!
-echo "post_max_size = 1024M"
-docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
- wait $!
- echo "sendmail_path = '/usr/bin/msmtp -t'"
-docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/cli/php.ini"
- wait $!
-echo "max_execution_time = 600"
-docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
+
+# Check if the ini file exists
+if [[ -f "$ini_file" ]]; then
+    echo "Setting limits from the $ini_file file:"
+    cat $ini_file
+    # Read the ini file line by line
+    while IFS='=' read -r key value; do
+        # Trim whitespace
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | xargs)
+
+        # Skip empty lines or lines that don't have an '='
+        if [[ -z "$key" ]] || [[ -z "$value" ]]; then
+            continue
+        fi
+
+        # Determine the sed command based on the setting
+        if [[ "$key" == "sendmail_path" ]]; then
+            sed_command="sed -i 's|^;sendmail_path = .*|sendmail_path = \"$value\"|'"
+        else
+            sed_command="sed -i 's/^$key = .*/$key = $value/'"
+        fi
+
+        # Execute the sed command in the Docker container
+        ###echo "$key = $value"
+        docker exec "$container_name" bash -c "$sed_command /etc/php/$php_version/cli/php.ini"
+        wait $!
+        docker exec "$container_name" bash -c "$sed_command /etc/php/$php_version/fpm/php.ini"
+        wait $!
+    done < "$ini_file"
+    echo "Finished setting limits."
+else
+    echo "Configuration file $ini_file not found. Setting default recommended settings in php.ini file:"
+    echo "upload_max_filesize = 1024M"
+    echo "max_input_time = -1"
+    echo "post_max_size = 1024M"
+    echo "sendmail_path = '/usr/bin/msmtp -t'"
+    echo "max_execution_time = 600"
+    
+    docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+     
+    docker exec "$container_name" sh -c "sed -i 's|^;sendmail_path = .*|sendmail_path = /usr/bin/msmtp -t|' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/cli/php.ini"
+     wait $!
+     
+    docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
+    docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
+
+    echo "Finished setting limits."
+
+fi
+
+
+
+
 
 
 
 echo "## Setting service for PHP $php_version"
 docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
 wait $!
-echo "## Restarting all installed PHP versions.."
-docker exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+echo "## Starting installed PHP versions.."
+docker exec $container_name bash -c "service php${php_version}-fpm restart"
+
+# STARTS ALL VERSIONS #docker exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
 
 echo "## PHP version $php_version is successfully installed."
