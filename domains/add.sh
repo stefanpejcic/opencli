@@ -202,7 +202,7 @@ vhost_files_create() {
 	php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
 	
 	# Execute the sed command inside the Docker container
-	docker exec -it $user /bin/bash -c "
+	docker exec $user /bin/bash -c "
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
