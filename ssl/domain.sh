@@ -259,7 +259,7 @@ generate_ssl() {
             if [ -e "/etc/letsencrypt/archive/$domain_url.pem" ]; then
                 echo "Skipping file-based verification because certificate exists."
             else
-                echo "Retrying SSL generation for main domain only using file-based verification:"
+                echo "Retrying SSL generation for ${domain_url} and www.${domain_url} using file-based verification:"
                 
                 # FILE VALIDATION
                 if [[ $DRY_RUN -eq 1 ]]; then
@@ -274,7 +274,7 @@ generate_ssl() {
                         "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
                         "--webroot-path=/home/${username}/${domain_url}/"
                         "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                        "-m" "webmaster@${domain_url}" "--expand" "-d" "${domain_url},www.${domain_url}"
                     )
                 else
                     certbot_command=(
@@ -287,7 +287,7 @@ generate_ssl() {
                         "certbot/certbot" "certonly" "-v" "--webroot"
                         "--webroot-path=/home/${username}/${domain_url}/"
                         "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url},www.${domain_url}"
                     )
                 fi
                 
