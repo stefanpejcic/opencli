@@ -5,7 +5,7 @@
 # Usage: opencli ssl-domain [-d] <domain_url> [-k path -p path]
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 28.08.2024
+# Last Modified: 04.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,18 +28,23 @@
 # THE SOFTWARE.
 ################################################################################
 
+# Initialize variables
+DRY_RUN=0
+delete_flag=false
+SSL_PRIVATE_KEY_PATH=""
+SSL_PUBLIC_KEY_PATH=""
+DEBUG=0
 
 print_usage() {
     echo "Usage: opencli ssl-domain [-d] <domain_url> [-k <key_path> -p <cert_path>]"
     echo ""
     echo " opencli ssl-domain <domain_url>                                 Generate and use SSL for the specified domain"
+    echo " opencli ssl-domain <domain_url> --dry-run                       Use 'dry-run' flag for certbot and simulate generating ssl."
     echo " opencli ssl-domain <domain_url> -k <key_path> -p <cert_path>    Add custom SSL certificate and enable https"
     echo " opencli ssl-domain -d <domain_url>                              Delete SSL and disable https for domain"
     echo ""
     
 }
-
-
 
 get_server_ip() {
     domain_url=$1
@@ -155,22 +160,43 @@ generate_ssl() {
     mkdir -p /home/${username}/${domain_url}/.well-known/acme-challenge
     chown -R 1000:33 /home/${username}/${domain_url}/.well-known
     chmod +x /etc/letsencrypt/acme-dns-auth.py
-    # Try DNS validation first
-    certbot_command=(
-        "docker" "run" "--rm" "--network" "host"
-        "-v" "/etc/letsencrypt:/etc/letsencrypt"
-        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-        "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-        "-v" "/var/run/docker.sock:/var/run/docker.sock"
-        "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-        "certbot/certbot" "certonly" "--dry-run" "--manual"
-        "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-        "--preferred-challenges" "dns" "--debug-challenges"
-        "--non-interactive" "--agree-tos"
-        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-    )
-    # temp off  
-    # "-d" "*.${domain_url}"
+
+    # DNS VALIDATION
+    if [[ $DRY_RUN -eq 1 ]]; then
+        echo "DRY_RUN: Running certbot with '--dry-run'"
+
+        echo "Downloading acme-dns-auth.py"
+        wget -q -O /etc/letsencrypt/acme-dns-auth.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-auth.py
+        chmod +x /etc/letsencrypt/acme-dns-auth.py
+
+        certbot_command=(
+            "docker" "run" "--rm" "--network" "host"
+            "-v" "/etc/letsencrypt:/etc/letsencrypt"
+            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+            "-v" "/var/run/docker.sock:/var/run/docker.sock"
+            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+            "certbot/certbot" "certonly" "--dry-run" "--manual"
+            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+            "--preferred-challenges" "dns" "--debug-challenges"
+            "--non-interactive" "--agree-tos"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "-d" "*.${domain_url}"
+        )
+    else
+        certbot_command=(
+            "docker" "run" "--rm" "--network" "host"
+            "-v" "/etc/letsencrypt:/etc/letsencrypt"
+            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+            "-v" "/var/run/docker.sock:/var/run/docker.sock"
+            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+            "certbot/certbot" "certonly" "--manual"
+            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+            "--preferred-challenges" "dns" "--debug-challenges"
+            "--non-interactive" "--agree-tos"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "-d" "*.${domain_url}"
+        )
+    fi
 
     # Run Certbot for domain and wildcard subdomain
     "${certbot_command[@]}"
@@ -187,19 +213,35 @@ generate_ssl() {
         echo "SSL generation for ${domain_url} and wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
         echo "Retrying SSL generation for main domain only using file-based verification:"
 
-        # if fails, try again for main domain only, using file verification
-        certbot_command=(
-            "docker" "run" "--rm" "--network" "host"
-            "-v" "/etc/letsencrypt:/etc/letsencrypt"
-            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-            "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-            "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-            "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-            "certbot/certbot" "certonly" "--webroot"
-            "--webroot-path=/home/${username}/${domain_url}/"
-            "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-        )
+        # FILE VALIDATION
+        if [[ $DRY_RUN -eq 1 ]]; then
+            echo "DRY_RUN: Running certbot with '--dry-run'"
+            certbot_command=(
+                "docker" "run" "--rm" "--network" "host"
+                "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+                "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+                "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+                "certbot/certbot" "certonly" "--dry-run" "--webroot"
+                "--webroot-path=/home/${username}/${domain_url}/"
+                "--non-interactive" "--agree-tos"
+                "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+            )
+        else
+            certbot_command=(
+                "docker" "run" "--rm" "--network" "host"
+                "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+                "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+                "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+                "certbot/certbot" "certonly" "--webroot"
+                "--webroot-path=/home/${username}/${domain_url}/"
+                "--non-interactive" "--agree-tos"
+                "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+            )
+        fi
     
     
         # Run Certbot command
@@ -323,12 +365,12 @@ delete_ssl() {
     echo "Deleting SSL for domain: $domain_url"
 
     # Let's Encrypt SSL
-    certbot_check_command=("docker" "exec" "certbot" "certbot" "delete" "--cert-name" "$domain_url" "--non-interactive")
+    delete_command=("docker" "exec" "certbot" "certbot" "delete" "--cert-name" "$domain_url" "--non-interactive")
     "${delete_command[@]}"
 
     # Custom SSL
-    rm "/etc/nginx/ssl/$domain_url/privkey.pem"
-    rm "/etc/nginx/ssl/$domain_url/fullchain.pem"
+    rm "/etc/nginx/ssl/$domain_url/privkey.pem"  > /dev/null 2>&1
+    rm "/etc/nginx/ssl/$domain_url/fullchain.pem"  > /dev/null 2>&1
 
     echo "SSL deletion completed successfully"
 }
@@ -372,25 +414,56 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-# Parse options
-while getopts ":d:k:c" opt; do
-    case $opt in
-        d) delete_flag=true ;;
-        k) SSL_PRIVATE_KEY_PATH="$OPTARG" ;;
-        c) SSL_PUBLIC_KEY_PATH="$OPTARG" ;;
-        \?)
-            echo "Invalid option: -$OPTARG"
-            print_usage
-            exit 1
+
+
+# Use `getopt` to parse the command-line options
+OPTS=$(getopt -o d:k:c --long dry-run -n "$0" -- "$@")
+if [ $? != 0 ]; then
+    echo "Failed to parse options."
+    exit 1
+fi
+
+# Ensure the positional parameters are correctly set
+eval set -- "$OPTS"
+
+# Parse the options
+while true; do
+    case "$1" in
+        --debug)
+            DEBUG=1
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        -d)
+            delete_flag=true
+            shift
+            ;;
+        -k)
+            SSL_PRIVATE_KEY_PATH="$2"
+            shift 2
+            ;;
+        -c)
+            SSL_PUBLIC_KEY_PATH="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
             ;;
     esac
 done
 
-# Remove options from the argument list
-shift "$((OPTIND-1))"
-
-# Get the domain URL
+# The next argument should be the domain URL
 domain_url=$1
+
+# Shift to remove the domain URL from the argument list
+shift
 
 # Check if domain URL is provided
 if [ -z "$domain_url" ]; then
@@ -398,6 +471,18 @@ if [ -z "$domain_url" ]; then
     print_usage
     exit 1
 fi
+
+
+if [[ $DEBUG -eq 1 ]]; then
+    echo "=========== DEBUG INFORMATION ==========="
+    echo "DOMAIN NAME:           $domain_url"
+    echo "DEBUG:                 $DEBUG"
+    echo "DRY_RUN:               $DRY_RUN"
+    echo "DELETE_SSL:            $delete_flag"
+    echo "SSL_PRIVATE_KEY_PATH:  $SSL_PRIVATE_KEY_PATH"
+    echo "SSL_PUBLIC_KEY_PATH:   $SSL_PUBLIC_KEY_PATH"
+fi
+
 
 
 
