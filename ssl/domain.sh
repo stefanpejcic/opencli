@@ -176,7 +176,7 @@ generate_ssl() {
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
             "-v" "/var/run/docker.sock:/var/run/docker.sock"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "--dry-run" "--manual"
+            "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
             "--non-interactive" "--agree-tos"
@@ -190,7 +190,7 @@ generate_ssl() {
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
             "-v" "/var/run/docker.sock:/var/run/docker.sock"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "--manual"
+            "certbot/certbot" "certonly" "-v" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
             "--non-interactive" "--agree-tos"
@@ -223,7 +223,7 @@ generate_ssl() {
                 "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
                 "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
                 "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                "certbot/certbot" "certonly" "--dry-run" "--webroot"
+                "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
                 "--webroot-path=/home/${username}/${domain_url}/"
                 "--non-interactive" "--agree-tos"
                 "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
@@ -236,7 +236,7 @@ generate_ssl() {
                 "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
                 "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
                 "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                "certbot/certbot" "certonly" "--webroot"
+                "certbot/certbot" "certonly" "-v" "--webroot"
                 "--webroot-path=/home/${username}/${domain_url}/"
                 "--non-interactive" "--agree-tos"
                 "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
@@ -268,62 +268,64 @@ modify_nginx_conf() {
     nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
 
     echo "Modifying Nginx configuration for domain: $domain_url"
-
-
-if [ "$type" == "le" ]; then
-
-    # Nginx configuration content to be added
-    nginx_config_content="
-    if (\$scheme != \"https\"){
-        #return 301 https://\$host\$request_uri;
-    } #forceHTTPS
-
-    listen $server_ip:443 ssl;
-    http2 on;
-    ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    "
-
-    marker="ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;"
-
-elif [ "$type" == "custom" ]; then
-
-    marker="ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;"
     
-    nginx_config_content="
-    if (\$scheme != \"https\"){
-        #return 301 https://\$host\$request_uri;
-    } #forceHTTPS
-
-    listen $server_ip:443 ssl;
-    http2 on;
-    ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
-    "
+if [[ $DRY_RUN -eq 1 ]]; then
+    echo "Skip editing nginx conf because of --dry-run" flag.
 else
-    echo "ERROR: Invalid certificate type."
-    exit 1
-fi
-
-if grep -qF "$marker" "$nginx_conf_path"; then
-    :
-    #echo "Configuration already exists. No changes made."
-else 
-    # Find the position of the last closing brace
-    last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
-
-    # Insert the Nginx configuration content before the last closing brace
-    awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
-    mv temp_file "$nginx_conf_path"
-
-    echo "Nginx configuration editedd successfully, reloading.."
-
-    docker exec nginx sh -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
-
-fi
+    if [ "$type" == "le" ]; then
     
+        # Nginx configuration content to be added
+        nginx_config_content="
+        if (\$scheme != \"https\"){
+            #return 301 https://\$host\$request_uri;
+        } #forceHTTPS
+    
+        listen $server_ip:443 ssl;
+        http2 on;
+        ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+        "
+    
+        marker="ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;"
+    
+    elif [ "$type" == "custom" ]; then
+    
+        marker="ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;"
+        
+        nginx_config_content="
+        if (\$scheme != \"https\"){
+            #return 301 https://\$host\$request_uri;
+        } #forceHTTPS
+    
+        listen $server_ip:443 ssl;
+        http2 on;
+        ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
+        "
+    else
+        echo "ERROR: Invalid certificate type."
+        exit 1
+    fi
+    
+    if grep -qF "$marker" "$nginx_conf_path"; then
+        :
+        #echo "Configuration already exists. No changes made."
+    else 
+        # Find the position of the last closing brace
+        last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
+    
+        # Insert the Nginx configuration content before the last closing brace
+        awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
+        mv temp_file "$nginx_conf_path"
+    
+        echo "Nginx configuration editedd successfully, reloading.."
+    
+        docker exec nginx sh -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
+    
+    fi
+fi
 }
 
 
@@ -506,4 +508,12 @@ else
     modify_nginx_conf "$domain_url" "$type"
 fi
 
-check_other_domains_by_user_and_reload_ssl_cache
+
+if [[ $DRY_RUN -eq 1 ]]; then
+    echo "Skip checking SSL for other domains owned by user because of the '--dry-run' flag."
+else
+    check_other_domains_by_user_and_reload_ssl_cache
+fi
+
+# if we made it this far
+exit 0
