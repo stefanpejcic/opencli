@@ -180,7 +180,7 @@ generate_ssl() {
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
             "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "-d" "*.${domain_url}"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
         )
     else
         certbot_command=(
@@ -194,65 +194,113 @@ generate_ssl() {
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
             "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "-d" "*.${domain_url}"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
         )
     fi
 
     # Run Certbot for domain and wildcard subdomain
     "${certbot_command[@]}"
     status=$?
-
-    #rm dir eitherway
-    rm -rf /home/${username}/${domain_url}/.well-known/
     
+
+
+
+
 
     # Check if the Certbot command was successful
     if [ $status -eq 0 ]; then
-        echo "SSL generation for ${domain_url} and wildcard subdomain *.${domain_url} completed successfully using DNS verification!"
-    else
-        echo "SSL generation for ${domain_url} and wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
-        echo "Retrying SSL generation for main domain only using file-based verification:"
-
-        # FILE VALIDATION
+        echo "SSL generation for ${domain_url} completed successfully using DNS verification! Trying to generate SSL for wildcard subdomain *.${domain_url}"
         if [[ $DRY_RUN -eq 1 ]]; then
             echo "DRY_RUN: Running certbot with '--dry-run'"
             certbot_command=(
                 "docker" "run" "--rm" "--network" "host"
                 "-v" "/etc/letsencrypt:/etc/letsencrypt"
                 "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-                "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
-                "--webroot-path=/home/${username}/${domain_url}/"
+                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+                "-v" "/var/run/docker.sock:/var/run/docker.sock"
+                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+                "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
+                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+                "--preferred-challenges" "dns" "--debug-challenges"
                 "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
             )
         else
             certbot_command=(
                 "docker" "run" "--rm" "--network" "host"
                 "-v" "/etc/letsencrypt:/etc/letsencrypt"
                 "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-                "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                "certbot/certbot" "certonly" "-v" "--webroot"
-                "--webroot-path=/home/${username}/${domain_url}/"
+                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+                "-v" "/var/run/docker.sock:/var/run/docker.sock"
+                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+                "certbot/certbot" "certonly" "-v" "--manual"
+                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+                "--preferred-challenges" "dns" "--debug-challenges"
                 "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
             )
         fi
     
-    
-        # Run Certbot command
+        # Run Certbot for domain and wildcard subdomain
         "${certbot_command[@]}"
         status=$?
+        # Check if the Certbot command was successful
         if [ $status -eq 0 ]; then
-            echo "SSL generation for ${domain_url} completed successfully using file verification!"
+            echo "SSL generation for wildcard subdomain *.${domain_url} completed successfully using DNS verification!"
         else
-            echo "SSL generation for ${domain_url} using file verification failed with exit status $status"
-            exit 1
-        fi
+            echo "SSL generation for wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
+            
+            if [ -e "/etc/letsencrypt/archive/$domain_url.pem" ]; then
+                echo "Skipping file-based verification because certificate exists."
+            else
+                echo "Retrying SSL generation for main domain only using file-based verification:"
+                
+                # FILE VALIDATION
+                if [[ $DRY_RUN -eq 1 ]]; then
+                    echo "DRY_RUN: Running certbot with '--dry-run'"
+                    certbot_command=(
+                        "docker" "run" "--rm" "--network" "host"
+                        "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+                        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+                        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+                        "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
+                        "--webroot-path=/home/${username}/${domain_url}/"
+                        "--non-interactive" "--agree-tos"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                    )
+                else
+                    certbot_command=(
+                        "docker" "run" "--rm" "--network" "host"
+                        "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+                        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+                        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+                        "certbot/certbot" "certonly" "-v" "--webroot"
+                        "--webroot-path=/home/${username}/${domain_url}/"
+                        "--non-interactive" "--agree-tos"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+                    )
+                fi
+                
+            
+                # Run Certbot command
+                "${certbot_command[@]}"
+                status=$?
+        
+                #rm dir eitherway
+                rm -rf /home/${username}/${domain_url}/.well-known/
+            
+                if [ $status -eq 0 ]; then
+                    echo "SSL generation for ${domain_url} completed successfully using file verification!"
+                else
+                    echo "SSL generation for ${domain_url} using file verification failed with exit status $status"
+                    exit 1
+                fi
+            fi
+            fi
     fi
 }
 
@@ -267,11 +315,12 @@ modify_nginx_conf() {
     # Nginx configuration path
     nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
 
-    echo "Modifying Nginx configuration for domain: $domain_url"
+
     
 if [[ $DRY_RUN -eq 1 ]]; then
     echo "Skip editing nginx conf because of --dry-run" flag.
 else
+    echo "Modifying Nginx configuration for domain: $domain_url"
     if [ "$type" == "le" ]; then
     
         # Nginx configuration content to be added
