@@ -406,8 +406,6 @@ check_other_domains_by_user_and_reload_ssl_cache() {
 
 
 
-
-
 # Main script
 
 # Check the number of arguments
