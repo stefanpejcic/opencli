@@ -169,12 +169,14 @@ generate_ssl() {
         wget -q -O /etc/letsencrypt/acme-dns-auth.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-auth.py
         chmod +x /etc/letsencrypt/acme-dns-auth.py
 
+        #wget -q -O /etc/letsencrypt/acme-dns-remove.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-remove.py
+        #chmod +x /etc/letsencrypt/acme-dns-remove.py
+
         certbot_command=(
             "docker" "run" "--rm" "--network" "host"
             "-v" "/etc/letsencrypt:/etc/letsencrypt"
             "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-            "-v" "/var/run/docker.sock:/var/run/docker.sock"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
             "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
@@ -182,13 +184,17 @@ generate_ssl() {
             "--non-interactive" "--agree-tos"
             "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
         )
+
+            # "-v" "/etc/letsencrypt/acme-dns-remove.py:/etc/letsencrypt/acme-dns-remove.py"
+            # "--manual-cleanup-hook" "/etc/letsencrypt/acme-dns-remove.py"
+
+        
     else
         certbot_command=(
             "docker" "run" "--rm" "--network" "host"
             "-v" "/etc/letsencrypt:/etc/letsencrypt"
             "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-            "-v" "/var/run/docker.sock:/var/run/docker.sock"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
             "certbot/certbot" "certonly" "-v" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
