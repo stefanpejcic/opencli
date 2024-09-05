@@ -135,25 +135,46 @@ sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 
 
 # Check if the container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
-    # Rename the Docker container 
+
+
+determine_web_server() {
+    # Check for Apache inside the container
+    if docker exec "$old_username" which apache2 &> /dev/null; then
+        echo "apache2"
+    # Check for Nginx inside the container
+    elif docker exec "$old_username" which nginx &> /dev/null; then
+        echo "nginx"
+    else
+        echo "unknown"
+    fi
+}
+
+ if [ "$DEBUG" = true ]; then
+     echo "Checking webserver for user $old_username"
+ fi
+ 
+ current_web_server=$(determine_web_server)
+ 
+ if [ "$DEBUG" = true ]; then
+     echo "Web server: $determine_web_server"
+ fi
+
     if [ "$DEBUG" = true ]; then
+        echo "Renaming ssh user $old_username to  $new_username inside the docker container and editing $current_web_server files."
         docker exec "$old_username" \
         bash -c "usermod -l $new_username $old_username && \
-                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/apache2/sites-available/* && \
-                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/nginx/sites-available/* && \
-                    service nginx reload && \
-                    service apache2 reload"
-        
-        docker rename "$old_username" "$new_username"
-        echo "Container renamed successfully."
+                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
+                    service $current_web_server reload"
+
+            docker rename "$old_username" "$new_username"
+            echo "Container renamed successfully."
     else
             docker exec "$old_username" \
             bash -c "usermod -l $new_username $old_username && \
-                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/apache2/sites-available/* && \
-                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/nginx/sites-available/* && \
-                        service nginx reload && \
-                        service apache2 reload" > /dev/null 2>&1
-        docker rename "$old_username" "$new_username" > /dev/null 2>&1
+                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
+                        service $current_web_server reload" > /dev/null 2>&1
+                        
+            docker rename "$old_username" "$new_username" > /dev/null 2>&1
     fi
 else
     echo "Error: Container '$old_username' not found."
