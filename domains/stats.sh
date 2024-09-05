@@ -48,6 +48,23 @@ for arg in "$@"; do
     esac
 done
 
+
+
+check_if_reports_are_enabled() {
+    enabled_modules=$(grep '^enabled_modules=' "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
+    # Check if 'domains_visitors' is in the list of enabled modules
+    if echo "$enabled_modules" | grep -q 'domains_visitors'; then
+        # 'domains_visitors' is enabled
+        :
+    else
+        # 'domains_visitors' is not enabled
+        echo "ERROR: 'domains_visitors' module is not enabled. Skipping report generation."
+        exit 1
+    fi
+}
+
+
+
 configure_goaccess() {
     # GoAccess
     tar -xzvf "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219.tar.gz" -C "${OPENPANEL_CONF_DIR}/" > /dev/null
@@ -55,7 +72,7 @@ configure_goaccess() {
     cp -r "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219/"* /usr/local/share/GeoIP/GeoLite2-City_20231219 
 }
 
-# Main function to process logs for each user
+
 process_logs() {
     local username="$1"
     local excluded_ips_file="/etc/openpanel/openpanel/core/users/$username/domains/excluded_ips_for_goaccess"
@@ -94,13 +111,21 @@ process_logs() {
     fi
 }
 
-configure_goaccess
 
-if [ "$SINGLE_USER" = true ]; then
-    process_logs "$username"
-else
-    usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
-    for username in $usernames; do
+
+process_single_or_all_users() {
+    if [ "$SINGLE_USER" = true ]; then
         process_logs "$username"
-    done
-fi
+    else
+        usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+        for username in $usernames; do
+            process_logs "$username"
+        done
+    fi
+}
+
+
+
+check_if_reports_are_enabled   # added in 0.2.8
+configure_goaccess             # setup database and data for container
+process_single_or_all_users    # actual generation
