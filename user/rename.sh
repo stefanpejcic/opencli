@@ -135,35 +135,26 @@ sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 
 
 # Check if the container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
-    # Rename the Docker container
-
-# ove treba za nginx 1 za apache 2 da se radi!!!
-        
-    # Execute commands inside the container
+    # Rename the Docker container 
     if [ "$DEBUG" = true ]; then
         docker exec "$old_username" \
-            bash -c "usermod -l $new_username $old_username && \
-            sed -i 's#/home/$old_username#/home/$new_username#g' /etc/apache2/sites-available/* && \
-            sed -i 's#/home/$old_username#/home/$new_username#g' /etc/nginx/sites-available/* && \
-            service nginx reload && \
-            service apache2 reload"
+        bash -c "usermod -l $new_username $old_username && \
+                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/apache2/sites-available/* && \
+                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/nginx/sites-available/* && \
+                    service nginx reload && \
+                    service apache2 reload"
         
         docker rename "$old_username" "$new_username"
-        # Rename the folder outside the container
-
         echo "Container renamed successfully."
     else
             docker exec "$old_username" \
             bash -c "usermod -l $new_username $old_username && \
-            sed -i 's#/home/$old_username#/home/$new_username#g' /etc/apache2/sites-available/* && \
-            sed -i 's#/home/$old_username#/home/$new_username#g' /etc/nginx/sites-available/* && \
-            service nginx reload && \
-            service apache2 reload" > /dev/null 2>&1
-        
+                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/apache2/sites-available/* && \
+                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/nginx/sites-available/* && \
+                        service nginx reload && \
+                        service apache2 reload" > /dev/null 2>&1
         docker rename "$old_username" "$new_username" > /dev/null 2>&1
-        # Rename the folder outside the container
     fi
-
 else
     echo "Error: Container '$old_username' not found."
     exit 1
@@ -213,9 +204,8 @@ edit_nginx_files_on_host_server() {
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
                 # Update name
-                sed -i 's#/home/$old_username#/home/$NEW_USERNAME#g' "$DOMAIN_CONF"
-                sed -i 's#/http://$old_username#/http://$NEW_USERNAME#g' "$DOMAIN_CONF"
-                sed -i 's#/https://$old_username#/https://$NEW_USERNAME#g' "$DOMAIN_CONF"
+                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF"
+                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF"
                 echo "Username updated in $DOMAIN_CONF to $NEW_USERNAME."
             fi
         done
@@ -228,9 +218,8 @@ edit_nginx_files_on_host_server() {
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
                 # Update the server IP using sed
-                sed -i 's#/home/$old_username#/home/$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
-                sed -i 's#/http://$old_username#/http://$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
-                sed -i 's#/https://$old_username#/https://$NEW_USERNAME#g' "$DOMAIN_CONF" > /dev/null 2>&1
+                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1
+                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1
             fi
         done
         # Restart Nginx to apply changes
