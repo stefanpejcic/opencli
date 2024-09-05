@@ -405,8 +405,15 @@ check_ssl_validity() {
             check_other_domains_by_user_and_reload_ssl_cache
             exit 0
         else
-            echo "SSL is valid but not in use. Updating Nginx configuration for domain.."
-            modify_nginx_conf "$domain_url" "le"
+            echo "SSL is valid but not in use. Checking if custom SSL is present.."
+            
+            if [[ -f "/etc/nginx/ssl/$domain_url/privkey.pem" && -f "/etc/nginx/ssl/$domain_url/fullchain.pem" ]]; then
+                echo "Both privkey.pem and fullchain.pem exist for the domain - custom ssl is installed."
+                # TODO: acutally check nginx conf for custom ssl - reuse marker_for_custom_ssl
+            else
+                echo "Custom SSL not detected for domain. Updating Nginx configuration to inlcude the Let's Encrypt certificate.."
+                modify_nginx_conf "$domain_url" "le"
+            fi
         fi
     else
         echo "SSL is not valid. Proceeding with SSL generation."
