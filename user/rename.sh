@@ -203,9 +203,9 @@ edit_nginx_files_on_host_server() {
         for domain in $ALL_DOMAINS; do
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
-                # Update name
-                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF"
-                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF"
+                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF"                    # proxy_pass https://XXXXXX;
+                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF"                  # proxy_pass https://XXXXXX;
+                sed -i "s#users/$old_username#users/$NEW_USERNAME#g" "$DOMAIN_CONF"                      # include /etc/openpanel/openpanel/core/users/XXXX/domains/DOMAIN-block_ips.conf;
                 echo "Username updated in $DOMAIN_CONF to $NEW_USERNAME."
             fi
         done
@@ -217,9 +217,9 @@ edit_nginx_files_on_host_server() {
         for domain in $ALL_DOMAINS; do
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
-                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1
-                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1
+                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1    # proxy_pass https://XXXXXX;
+                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1  # proxy_pass https://XXXXXX;
+                sed -i "s#users/$old_username#users/$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1      # include /etc/openpanel/openpanel/core/users/XXXX/domains/DOMAIN-block_ips.conf;
             fi
         done
         # Restart Nginx to apply changes
