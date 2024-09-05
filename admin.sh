@@ -293,6 +293,37 @@ update_config() {
     fi
 }
 
+# added validation (only letters and numbers) in 0.2.8
+validate_password_and_username() {
+    local input="$1"
+    local field_name="$2"
+    
+    # Check if input contains only letters and numbers
+    if [[ "$input" =~ ^[a-zA-Z0-9]{5,20}$ ]]; then
+        #echo "$field_name is valid."
+        :
+    else
+        echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 20 characters."
+        exit 1
+    fi
+    
+    : '
+    # TODO: we will at some point include dictionary checks from lists:
+    # https://weakpass.com/wordlist
+    # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
+    #
+    DICTIONARY="dictionary.txt"
+    # Convert input to lowercase for dictionary check
+    local input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+
+    # Check if input contains any common dictionary word
+    if grep -qi "^$input_lower$" "$DICTIONARY"; then
+        echo "ERROR: $field_name is invalid. It contains a common dictionary word, which is not allowed."
+        exit 1
+    fi
+    '
+}
+
 
 case "$1" in
     "on")
@@ -324,17 +355,13 @@ case "$1" in
         # Reset password for admin user
         user_flag="$2"
         new_password="$3"
-
-
         # Check if the file exists
         if [ -f "$db_file_path" ]; then
             if [ "$new_password" ]; then
-                # Use provided username
+                # valdiate password
+                validate_password_and_username "$new_password" "Password"
+                # Use provided password
                 update_password "$user_flag"
-            #else
-                # Default to 'admin' user
-             #   new_password=$2
-             #   update_password "admin"
             fi
         else
             echo "Error: File $db_file_path does not exist, password not changed for user."
@@ -345,6 +372,7 @@ case "$1" in
         # Change username
         old_username="$2"
         new_username="$3"
+        validate_password_and_username "$new_username" "New Username"
         update_username "$old_username" "$new_username"
         ;;
     "list")
@@ -368,10 +396,12 @@ case "$1" in
         # Check if $2 and $3 are provided
         if [ -z "$new_username" ] || [ -z "$new_password" ]; then
             #echo "Error: Missing parameters for new admin command."
-            echo "Invalid command."
+            echo "ERROR: Invalid command."
             usage
             exit 1
         fi
+        validate_password_and_username "$new_username" "Username"
+        validate_password_and_username "$new_password" "Password"
         add_new_user "$new_username" "$new_password"
         ;;
     "notifications")
@@ -381,7 +411,7 @@ case "$1" in
         # Check if $2 and $3 are provided
         if [ -z "$command" ] || [ -z "$param_name" ]; then
             #echo "Error: Missing parameters for notifications command."
-            echo "Invalid command."
+            echo "ERROR: Invalid command."
             usage
             exit 1
         fi
@@ -395,7 +425,7 @@ case "$command" in
         ;;
     update)
         if [ "$#" -ne 4 ]; then
-            echo "Usage: opencli admin notifications update <parameter_name> <new_value>"
+            echo "ERROR: Usage: opencli admin notifications update <parameter_name> <new_value>"
             exit 1
         fi
         new_value="$4"
@@ -415,7 +445,7 @@ case "$command" in
         esac
         ;;
     *)
-        echo "Invalid command."
+        echo "ERROR: Invalid command."
         usage
         exit 1
         ;;
