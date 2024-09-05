@@ -148,114 +148,12 @@ import_ssl(){
 }
 
 
-
-
-
-# Function to generate SSL
-generate_ssl() {
+generate_ssl_with_http01() {
     domain_url=$1
 
-    echo "Generating SSL for domain: $domain_url"
-
     mkdir -p /home/${username}/${domain_url}/.well-known/acme-challenge
-    chown -R 1000:33 /home/${username}/${domain_url}/.well-known
-    chmod +x /etc/letsencrypt/acme-dns-auth.py
-
-    # DNS VALIDATION
-    if [[ $DRY_RUN -eq 1 ]]; then
-        echo "DRY_RUN: Running certbot with '--dry-run'"
-
-        echo "Downloading acme-dns-auth.py"
-        wget -q -O /etc/letsencrypt/acme-dns-auth.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-auth.py
-        chmod +x /etc/letsencrypt/acme-dns-auth.py
-
-        #wget -q -O /etc/letsencrypt/acme-dns-remove.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-remove.py
-        #chmod +x /etc/letsencrypt/acme-dns-remove.py
-
-        certbot_command=(
-            "docker" "run" "--rm" "--network" "host"
-            "-v" "/etc/letsencrypt:/etc/letsencrypt"
-            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
-            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-            "--preferred-challenges" "dns" "--debug-challenges"
-            "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-        )
-
-            # "-v" "/etc/letsencrypt/acme-dns-remove.py:/etc/letsencrypt/acme-dns-remove.py"
-            # "--manual-cleanup-hook" "/etc/letsencrypt/acme-dns-remove.py"
-
-        
-    else
-        certbot_command=(
-            "docker" "run" "--rm" "--network" "host"
-            "-v" "/etc/letsencrypt:/etc/letsencrypt"
-            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "-v" "--manual"
-            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-            "--preferred-challenges" "dns" "--debug-challenges"
-            "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-        )
-    fi
-
-    # Run Certbot for domain and wildcard subdomain
-    "${certbot_command[@]}"
-    status=$?
+    chown -R 1000:33 /home/${username}/${domain_url}/.well-known 
     
-
-
-
-
-
-    # Check if the Certbot command was successful
-    if [ $status -eq 0 ]; then
-        echo "SSL generation for ${domain_url} completed successfully using DNS verification! Trying to generate SSL for wildcard subdomain *.${domain_url}"
-        if [[ $DRY_RUN -eq 1 ]]; then
-            echo "DRY_RUN: Running certbot with '--dry-run'"
-            certbot_command=(
-                "docker" "run" "--rm" "--network" "host"
-                "-v" "/etc/letsencrypt:/etc/letsencrypt"
-                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-                "-v" "/var/run/docker.sock:/var/run/docker.sock"
-                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
-                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-                "--preferred-challenges" "dns" "--debug-challenges"
-                "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
-            )
-        else
-            certbot_command=(
-                "docker" "run" "--rm" "--network" "host"
-                "-v" "/etc/letsencrypt:/etc/letsencrypt"
-                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-                "-v" "/var/run/docker.sock:/var/run/docker.sock"
-                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                "certbot/certbot" "certonly" "-v" "--manual"
-                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-                "--preferred-challenges" "dns" "--debug-challenges"
-                "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
-            )
-        fi
-    
-        # Run Certbot for domain and wildcard subdomain
-        "${certbot_command[@]}"
-        status=$?
-        # Check if the Certbot command was successful
-        if [ $status -eq 0 ]; then
-            echo "SSL generation for wildcard subdomain *.${domain_url} completed successfully using DNS verification!"
-        else
-            echo "SSL generation for wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
-            
             if [ -e "/etc/letsencrypt/archive/$domain_url.pem" ]; then
                 echo "Skipping file-based verification because certificate exists."
             else
@@ -306,9 +204,116 @@ generate_ssl() {
                     exit 1
                 fi
             fi
-            fi
+}            
+
+
+
+
+# Function to generate SSL
+generate_ssl_with_dns01() {
+    domain_url=$1
+
+    echo "Generating SSL for domain: $domain_url"
+
+    echo "Downloading acme-dns-auth.py"
+    rm -rf /etc/letsencrypt/acme-dns-auth.py > /dev/null 2>&1 # if downlaod failed and docker -v created it as a directory..
+    wget -q -O /etc/letsencrypt/acme-dns-auth.py https://raw.githubusercontent.com/stefanpejcic/acme-dns-certbot-openpanel/master/acme-dns-auth.py
+    chmod +x /etc/letsencrypt/acme-dns-auth.py
+        
+    # DNS VALIDATION
+    if [[ $DRY_RUN -eq 1 ]]; then
+        echo "DRY_RUN: Running certbot with '--dry-run'"
+
+        certbot_command=(
+            "docker" "run" "--rm" "--network" "host"
+            "-v" "/etc/letsencrypt:/etc/letsencrypt"
+            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+            "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
+            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+            "--preferred-challenges" "dns" "--debug-challenges"
+            "--non-interactive" "--agree-tos"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+        )
+
+            # "-v" "/etc/letsencrypt/acme-dns-remove.py:/etc/letsencrypt/acme-dns-remove.py"
+            # "--manual-cleanup-hook" "/etc/letsencrypt/acme-dns-remove.py"
+
+        
+    else
+        certbot_command=(
+            "docker" "run" "--rm" "--network" "host"
+            "-v" "/etc/letsencrypt:/etc/letsencrypt"
+            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+            "certbot/certbot" "certonly" "-v" "--manual"
+            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+            "--preferred-challenges" "dns" "--debug-challenges"
+            "--non-interactive" "--agree-tos"
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
+        )
+    fi
+
+    # Run Certbot for domain and wildcard subdomain
+    "${certbot_command[@]}"
+    status=$?
+
+    # Check if the Certbot command was successful
+    if [ $status -eq 0 ]; then
+        echo "SSL generation for ${domain_url} completed successfully using DNS verification! Trying to generate SSL for wildcard subdomain *.${domain_url}"
+        if [[ $DRY_RUN -eq 1 ]]; then
+            echo "DRY_RUN: Running certbot with '--dry-run'"
+            certbot_command=(
+                "docker" "run" "--rm" "--network" "host"
+                "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+                "-v" "/var/run/docker.sock:/var/run/docker.sock"
+                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+                "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
+                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+                "--preferred-challenges" "dns" "--debug-challenges"
+                "--non-interactive" "--agree-tos"
+                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
+            )
+        else
+            certbot_command=(
+                "docker" "run" "--rm" "--network" "host"
+                "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
+                "-v" "/var/run/docker.sock:/var/run/docker.sock"
+                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
+                "certbot/certbot" "certonly" "-v" "--manual"
+                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
+                "--preferred-challenges" "dns" "--debug-challenges"
+                "--non-interactive" "--agree-tos"
+                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
+            )
+        fi
+    
+        # Run Certbot for domain and wildcard subdomain
+        "${certbot_command[@]}"
+        status=$?
+        # Check if the Certbot command was successful
+        if [ $status -eq 0 ]; then
+            echo "SSL generation for wildcard subdomain *.${domain_url} completed successfully using DNS verification!"
+        else
+            echo "SSL generation for wildcard subdomain *.${domain_url} using DNS verification failed with exit status $status"
+            generate_ssl_with_http01 "${domain_url}"
+        fi
+    else
+        generate_ssl_with_http01 "${domain_url}"
     fi
 }
+
+
+
+
+
+
 
 
 
@@ -561,7 +566,7 @@ else
         ensure_jq_installed
         get_server_ip "$domain_url"
         check_ssl_validity "$domain_url"
-        generate_ssl "$domain_url" || exit 1
+        generate_ssl_with_dns01 "$domain_url" || exit 1
         type="le"
     fi
     
