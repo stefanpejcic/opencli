@@ -2,10 +2,11 @@
 ################################################################################
 # Script Name: server/ips.sh
 # Description: Generates a file that contians a list of users with dedicated IPs
-# Usage: opencli server-ips <USERNAME>
+# Usage: opencli server-ips
+#        opencli server-ips <USERNAME>
 # Author: Stefan Pejcic
 # Created: 16.01.2024
-# Last Modified: 16.01.2024
+# Last Modified: 06.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,6 +29,15 @@
 # THE SOFTWARE.
 ################################################################################
 
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
 if [ -z "$1" ]; then
     # If no username provided, get all active users
     usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
@@ -36,7 +46,7 @@ else
     usernames=("$1")
 fi
 
-current_server_main_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
+current_server_main_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
 
 # Create or overwrite the JSON file for user
 create_ip_file() {
@@ -47,13 +57,8 @@ create_ip_file() {
 }
 
 for username in $usernames; do
-    # Get the IP from inside the container
-    user_ip=$(docker exec "$username" bash -c "curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co")
-
-    # print to terminal
+    user_ip=$(docker exec "$username" bash -c "curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3")
     echo $username - $user_ip
-    
-    # Save in json file to be used in openadmin
     if [[ "$user_ip" != "$current_server_main_ip" ]]; then
         create_ip_file "$username" "$user_ip"
     fi
