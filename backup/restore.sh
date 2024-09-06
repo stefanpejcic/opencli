@@ -50,6 +50,22 @@ NUMBER=$1
 PATH_ON_REMOTE_SERVER=$2
 CONTAINER_NAME=$3
 
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
+
+
+
+
+
+
 # Parse optional flags to skip specific actions
 for arg in "$@"; do
     case $arg in
@@ -187,7 +203,7 @@ dest_destination_dir_name=$(echo "$dest_data" | awk 'NR==6')
 dest_storage_limit=$(echo "$dest_data" | awk 'NR==7')
 
 # Check if the destination hostname is local
-if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
+if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" || "$dest_hostname" == "$(hostname)" ]]; then
     echo "Destination is local. Restoring files locally to $directory folder"
     LOCAL=true
     REMOTE=false
