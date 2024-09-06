@@ -35,6 +35,17 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
+
 # Check if Certbot and Nginx services are available
 if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Names}}"; then
     DISABLE_AFTERWARDS="YES" # if nginx was off, disable it after generation
@@ -123,9 +134,8 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
 
 mkdir -p /usr/share/nginx/html
 
-# Get server ipv4 from ip.openpanel.co
-current_ip=$(curl --silent --max-time 2 -4 https://ip.openpanel.co || wget --timeout=2 -qO- https://ip.openpanel.co || curl --silent --max-time 2 -4 https://ifconfig.me)
-	
+current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
+
 # If site is not available, get the ipv4 from the hostname -I
 if [ -z "$current_ip" ]; then
     current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
