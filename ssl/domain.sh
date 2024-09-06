@@ -5,7 +5,7 @@
 # Usage: opencli ssl-domain [-d] <domain_url> [-k path -p path]
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 04.09.2024
+# Last Modified: 06.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
