@@ -30,6 +30,7 @@
 ################################################################################
 
 # added in 0.2.5
+ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
@@ -38,7 +39,8 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support API access. Please consider purchasing the Enterprise version that has remote API access and integrations with billing softwares such as WHMCS and FOSSBilling."
-    echo "https://openpanel.com/product/openpanel-premium-control-panel/"
+    source $ENTERPRISE
+    echo "$ENTERPRISE_LINK"
     exit 1
 fi
 
