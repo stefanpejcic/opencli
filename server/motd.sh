@@ -18,6 +18,9 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
 
+DOCS_LINK="https://openpanel.com/docs/user/intro/"
+FORUM_LINK="https://community.openpanel.com/"
+DISCORD_LINK="https://discord.openpanel.co/"
 
 
 # IP SERVERS
@@ -96,9 +99,9 @@ fi
     echo -e  "OPENPANEL LINK: ${GREEN}${user_url}${RESET}"
     echo -e  ""
     echo -e  "Need assistance or looking to learn more? We've got you covered:"
-    echo -e  "        - 📚 User Docs: https://openpanel.com/docs/user/intro/"
-    echo -e  "        - 💬 Forums:    https://community.openpanel.com/"
-    echo -e  "        - 👉 Discord:   https://discord.openpanel.co/"
+    echo -e  "        - 📚 User Docs: $DOCS_LINK"
+    echo -e  "        - 💬 Forums:    $FORUM_LINK"
+    echo -e  "        - 👉 Discord:   $DISCORD_LINK"
     echo -e  ""
     echo -e  "================================================================"
 } > $OUTPUT_FILE
