@@ -157,7 +157,7 @@ generate_ssl_with_http01() {
             if [ -e "/etc/letsencrypt/archive/$domain_url.pem" ]; then
                 echo "Skipping file-based verification because certificate exists."
             else
-                echo "Retrying SSL generation for ${domain_url} and www.${domain_url} using file-based verification:"
+                echo "Retrying SSL generation for ${domain_url} using file-based verification:"
                 
                 # FILE VALIDATION
                 if [[ $DRY_RUN -eq 1 ]]; then
@@ -172,7 +172,7 @@ generate_ssl_with_http01() {
                         "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
                         "--webroot-path=/home/${username}/${domain_url}/"
                         "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "--expand" "-d" "${domain_url},www.${domain_url}"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
                     )
                 else
                     certbot_command=(
@@ -185,7 +185,7 @@ generate_ssl_with_http01() {
                         "certbot/certbot" "certonly" "-v" "--webroot"
                         "--webroot-path=/home/${username}/${domain_url}/"
                         "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "-d" "${domain_url},www.${domain_url}"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
                     )
                 fi
                 
@@ -196,9 +196,29 @@ generate_ssl_with_http01() {
         
                 #rm dir eitherway
                 rm -rf /home/${username}/${domain_url}/.well-known/
-            
+
+
                 if [ $status -eq 0 ]; then
                     echo "SSL generation for ${domain_url} completed successfully using file verification!"
+
+
+                    # Attempt to request certificate for both www and non-www domains
+                    docker run --rm --network host \
+                        -v /etc/letsencrypt:/etc/letsencrypt \
+                        -v /var/lib/letsencrypt:/var/lib/letsencrypt \
+                        -v /etc/nginx/sites-available:/etc/nginx/sites-available \
+                        -v /etc/nginx/sites-enabled:/etc/nginx/sites-enabled \
+                        -v /home/${username}/${domain_url}/:/home/${username}/${domain_url}/ \
+                        certbot/certbot certonly --dry-run -v --webroot \
+                        --webroot-path=/home/${username}/${domain_url}/ \
+                        --non-interactive --agree-tos \
+                        -m webmaster@${domain_url} --expand -d "${domain_url},www.${domain_url}"
+                        
+                    if [ $? -eq 0 ]; then
+                        echo "Certificate request using file verification for both ${domain_url} and www.${domain_url} successful."
+                    else
+                        echo "Combined certificate request failed. Non-www certificate is still valid."
+                    fi
                 else
                     echo "SSL generation for ${domain_url} using file verification failed with exit status $status"
                     exit 1
