@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 31.08.2024
+# Last Modified: 06.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
