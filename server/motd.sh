@@ -18,6 +18,20 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
 
+
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
+
+
+
 mkdir -p /etc/openpanel/skeleton/
 touch $OUTPUT_FILE
 
@@ -58,8 +72,8 @@ get_force_domain() {
 }
 
 get_public_ip() {
-    ip=$(curl --silent --max-time 1 -4 https://ip.openpanel.co || wget --timeout=1 -qO- https://ip.openpanel.co || curl --silent --max-time 1 -4 https://ifconfig.me)
-    
+    ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
+
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
