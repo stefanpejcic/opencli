@@ -341,7 +341,12 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+    if [ $(docker ps -q -f name=openpanel_dns) ]; then
+	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+    else
+	cd /root && docker compose up -d bind9  >/dev/null 2>&1
+    fi
+    
     cd /root && docker compose up -d bind9  >/dev/null 2>&1
     
 }
