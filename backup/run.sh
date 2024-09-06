@@ -33,6 +33,20 @@
 # check for server wide options
 config_file="/etc/openpanel/openadmin/config/backups/config.ini"
 
+
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
+
+
+
 if [ -e "$config_file" ]; then
     # enable debug
     debug_value=$(awk -F'=' '/^\[GENERAL\]/{f=1} f&&/^debug/{print $2; f=0}' "$config_file")
@@ -292,7 +306,7 @@ dest_ssh_key_path=$(echo "$dest_data" | awk 'NR==5')
 dest_storage_limit=$(echo "$dest_data" | awk 'NR==6')
 
 # Check if the destination hostname is local
-if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" || "$dest_hostname" == "$(hostname)" ]]; then
+if [[ "$dest_hostname" == "localhost" || "$dest_hostname" == "127.0.0.1" || "$dest_hostname" == "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" || "$dest_hostname" == "$(hostname)" ]]; then
     echo "Destination is local. Backing up files locally to $dest_destination_dir_name folder"
     LOCAL=true
     REMOTE=false
