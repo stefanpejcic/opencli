@@ -31,6 +31,24 @@
 backup_dir="/usr/local/admin/backups/destinations/"
 DEBUG=false  # Default value for DEBUG
 
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
+
+
+
+
+
+
+
+
 # crveno na radost
 error() {
     echo -e "\033[41;97m$1\033[0m"
@@ -196,8 +214,7 @@ validate_parameters() {
   local port_regex="^([1-9]|[1-9][0-9]{1,4}|[1-2][0-9]{1,4}|3[0-4][0-9]{1,3}|35000)$"
   local ssh_user_regex="^\S+$"
 
-    # Validate hostname
-    if [[ ! "$1" =~ $hostname_regex && ! "$1" =~ $ipv4_regex && "$1" != "localhost" && "$1" != "127.0.0.1" && "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" && "$1" != "$(hostname)" ]]; then
+    if [[ ! "$1" =~ $hostname_regex && ! "$1" =~ $ipv4_regex && "$1" != "localhost" && "$1" != "127.0.0.1" && "$1" != "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" && "$1" != "$(hostname)" ]]; then
         error "Invalid hostname. For remote destinations it must be a valid IPv4 address or a domain name. For local backup destination use: localhost or 127.0.0.1, or current machine's hostname or public IP."
         exit 1
     fi
@@ -217,7 +234,7 @@ validate_parameters() {
 
 
     # Validate ssh key path for remote destination only
-    if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] && [ "$1" != "$(hostname)" ]; then
+    if [ "$1" != "localhost" ] && [ "$1" != "127.0.0.1" ] && [ "$1" != "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" ] && [ "$1" != "$(hostname)" ]; then
      
       # Check if exists
       if [ ! -f $4 ]; then
@@ -263,7 +280,7 @@ create_backup() {
 
 
   # Check if the hostname is local or one of the predefined IPs
-  if [ "$1" == "localhost" ] || [ "$1" == "127.0.0.1" ] || [ "$1" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$1" == "$(hostname)" ]; then
+  if [ "$1" == "localhost" ] || [ "$1" == "127.0.0.1" ] || [ "$1" == "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" ] || [ "$1" == "$(hostname)" ]; then
     # Perform du check only, TODO
     true
   else
@@ -393,7 +410,7 @@ validate_ssh_connection() {
   storage_limit=$(jq -r '.storage_limit' <<< "$json_content")
 
   # Check if the hostname is local or one of the predefined IPs
-  if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)" ] || [ "$hostname" == "$(hostname)" ]; then
+  if [ "$hostname" == "localhost" ] || [ "$hostname" == "127.0.0.1" ] || [ "$hostname" == "$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)" ] || [ "$hostname" == "$(hostname)" ]; then
     # no checks needed
     #true
     echo "success: Validated!"
