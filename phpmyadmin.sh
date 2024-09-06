@@ -39,6 +39,16 @@ CONTAINER_NAME="openpanel_phpmyadmin"
 PORT_MAPPING="8080:80"
 CONFIGURED_URL=""
 
+
+# IP SERVERS
+SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+if [ -f "$SCRIPT_PATH" ]; then
+    source "$SCRIPT_PATH"
+else
+    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+fi
+
+
 # Function to get PMA_URL from the config file
 get_pma_url() {
   if [ -f "$CONFIG_FILE" ]; then
@@ -147,8 +157,8 @@ check_status() {
       echo "phpMyAdmin is available on $CONFIGURED_URL" 
     else
 
-      # Get server ipv4 from ip.openpanel.co
-      current_ip=$(curl -s https://ip.openpanel.co || wget -qO- https://ip.openpanel.co)
+      # Get server ipv4
+      current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
 
       # If site is not available, get the ipv4 from the hostname -I
       if [ -z "$current_ip" ]; then
