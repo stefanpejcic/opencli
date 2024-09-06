@@ -56,6 +56,7 @@ WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain pro
 
 
 # ENTERPRISE
+ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
@@ -64,7 +65,8 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    echo "https://openpanel.com/product/openpanel-premium-control-panel/"
+    source $ENTERPRISE
+    echo "$ENTERPRISE_LINK"
     exit 1
 fi
 
