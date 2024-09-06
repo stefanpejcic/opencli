@@ -90,17 +90,30 @@ hashed_password=$(python3 -c "from werkzeug.security import generate_password_ha
 
 
 # Insert hashed password into MySQL database
-mysql_query="UPDATE users SET password='$hashed_password' WHERE username='$username';"
+change_user_password="UPDATE users SET password='$hashed_password' WHERE username='$username';"
 
-mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_password"
 
 if [ $? -eq 0 ]; then
-    # Add flag check
-    if [ "$random_flag" = true ]; then
-        echo "Successfully changed password for user $username, new generated password is: $new_password"
+    # added in 0.2.8 to invalidate all existing user sessions
+    change_user_id="UPDATE users SET id = (SELECT MAX(id) + 1 FROM (SELECT id FROM users) AS subquery) WHERE username='$username';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_id"
+    
+    if [ $? -eq 0 ]; then
+        if [ "$random_flag" = true ]; then
+            echo "Successfully changed password for user $username, new generated password is: $new_password"
+        else
+            echo "Successfully changed password for user $username."
+        fi
     else
-        echo "Successfully changed password for user $username."
+        if [ "$random_flag" = true ]; then
+            echo "Successfully changed password for user $username, new generated password is: $new_password"
+        else
+            echo "Successfully changed password for user $username."
+        fi
+            echo "Warning: Terminating existing user sessions failed.Run command manually: mysql -D "$mysql_database" -e "$mysql_query""
     fi
+    
 else
     echo "Error: Data insertion failed."
     exit 1
