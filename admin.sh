@@ -303,7 +303,7 @@ validate_password_and_username() {
     local field_name="$2"
     
     # Check if input contains only letters and numbers
-    if [[ "$input" =~ ^[a-zA-Z0-9]{5,20}$ ]]; then
+    if [[ "$input" =~ ^[a-zA-Z0-9_]{5,20}$ ]]; then
         #echo "$field_name is valid."
         :
     else
