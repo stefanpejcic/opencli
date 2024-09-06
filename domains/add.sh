@@ -267,7 +267,7 @@ create_domain_file() {
 
  	# Check if the 'nginx' container is running
 	if [ $(docker ps -q -f name=nginx) ]; then
-	    docker exec nginx bash -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
+	    docker exec nginx sh -c "nginx -t && nginx -s reload"
 	else
 	    cd /root && docker compose up -d nginx  >/dev/null 2>&1
 	fi
