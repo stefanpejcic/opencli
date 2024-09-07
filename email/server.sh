@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/emails#server
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 18.08.2024
+# Last Modified: 07.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
