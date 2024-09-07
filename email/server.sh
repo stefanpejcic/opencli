@@ -300,9 +300,9 @@ process_all_domains_and_start(){
   
   if [ "$DEBUG" = true ]; then
       echo ""
-      echo "----------------- DEBUG INFORMATION ------------------"
+      echo "----------------- MOUNT USERS HOME DIRECTORIES ------------------"
       echo ""
-      echo "Re-mounting mail directories for all doamins:"
+      echo "Re-mounting mail directories for all domains:"
       echo ""
       echo "- DOMAINS DIRECTORY: $CONFIG_DIR" 
       echo "- MAIL SETTINGS FILE: $COMPOSE_FILE"
@@ -311,21 +311,26 @@ process_all_domains_and_start(){
     
   total_domains=0
   
-  for file in "$CONFIG_DIR"/*.conf; do
-      if [ ! -L "$file" ]; then
-          while IFS= read -r line; do
-              if [[ $line =~ include[[:space:]]/etc/openpanel/openpanel/core/users/([^/]+)/domains/.*-block_ips\.conf ]]; then
-                  USERNAME="${BASH_REMATCH[1]}"
-                  DOMAIN=$(basename "$file" .conf)
-                  DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
-                  new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"
-  
-                  ((total_domains++))
-  
-              fi
-          done < "$file"
-      fi
-  done
+if compgen -G "$CONFIG_DIR/*.conf" > /dev/null; then
+    # Loop through all .conf files
+    for file in "$CONFIG_DIR"/*.conf; do
+        if [ ! -L "$file" ]; then
+            while IFS= read -r line; do
+                if [[ $line =~ include[[:space:]]/etc/openpanel/openpanel/core/users/([^/]+)/domains/.*-block_ips\.conf ]]; then
+                    USERNAME="${BASH_REMATCH[1]}"
+                    DOMAIN=$(basename "$file" .conf)
+                    DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
+                    new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"
+
+                    ((total_domains++))
+
+                fi
+            done < "$file"
+        fi
+    done
+else
+    echo "No .conf files found in $CONFIG_DIR"
+fi
   
   
   if [ "$DEBUG" = true ]; then
