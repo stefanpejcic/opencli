@@ -63,7 +63,7 @@ _checkBin "cat" "cut" "docker" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
 
 
 # Check if container is running
-if [ -n "${1:-}" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
+if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
 	if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
 		echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
 		exit 1
