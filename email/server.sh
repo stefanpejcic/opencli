@@ -62,6 +62,24 @@ _checkBin() {
 _checkBin "cat" "cut" "docker" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
 
 
+DEBUG=false  # Default to false
+
+# Check if --debug flag is provided
+for arg in "$@"; do
+    if [ "$arg" == "--debug" ]; then
+        DEBUG=true
+        echo "--debug flag provided: displaying verbose information"
+    fi
+done
+
+
+
+
+
+
+
+
+
 # Check if container is running
 if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
 	if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
@@ -109,23 +127,6 @@ _getDMSVersion() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-DEBUG=false  # Default value for DEBUG
-
-# TODO: enable debug flag!
-
 # ENTERPRISE
 ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -156,19 +157,13 @@ install_mailserver(){
       echo ""
       mkdir -p /usr/local/mail/
       cd /usr/local/mail/ && git clone $GITHUB_REPO
-      cd openmail && bash setup.sh
       mkdir -p /etc/openpanel/email/snappymail
-      cp snappymail.ini /etc/openpanel/email/snappymail/config.ini
-      new_hostname=$(hostname)
-      sed -i "s/mail.openpanel.site/$new_hostname/" "$env_file"  >/dev/null 2>&1
-      docker compose up -d mailserver
+      cd /usr/local/mail/openmail && docker compose up -d mailserver
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
-      cd openmail && bash setup.sh >/dev/null 2>&1
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
-      cp snappymail.ini /etc/openpanel/email/snappymail/config.ini >/dev/null 2>&1
-      docker compose up -d mailserver >/dev/null 2>&1
+      cd /usr/local/mail/openmail && docker compose up -d mailserver >/dev/null 2>&1
   fi
 
 
@@ -446,22 +441,11 @@ remove_mailserver_and_all_config(){
 
 
 
-
-
-
-
-
-
-
-
-
 case "${1:-}" in
 	install)	# install mailserver
         echo "Installing the mailserver..."
         install_mailserver
 		;;
-
-
 	status) # Show status
 		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
 			# Container uptime
