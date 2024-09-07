@@ -93,7 +93,7 @@ while [[ "$#" -gt 0 ]]; do
             SOGO=false
             ;;
         sogo)
-            echo "Setting SoGo as Webmail software""
+            echo "Setting SoGo as Webmail software"
             SNAPPYMAIL=false
             ROUNDCUBE=false
             SOGO=true
