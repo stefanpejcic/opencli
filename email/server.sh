@@ -145,6 +145,31 @@ fi
 
 
 
+# ENABLE EMAILS MODULE AND EMAILS PAGES
+	enable_emails_if_not_yet() {
+	  if [ "$DEBUG" = true ]; then
+	      echo ""
+	      echo "----------------- CHECKING ENABLED MODULES ------------------"
+	      echo ""
+	  fi
+	    config_file="/etc/openpanel/openpanel/conf/openpanel.config"
+	    enabled_modules=$(grep '^enabled_modules=' "$config_file" | cut -d'=' -f2)
+    	    if echo "$enabled_modules" | grep -q 'emails'; then
+	        echo "'emails' module is already in enabled modules."
+	        :
+	    else
+	        new_modules="${enabled_modules},emails"
+	 	echo "'emails' module is not enabled. Enabling.."
+	        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
+	        echo "Restarting OpenPanel container to enable email pages.."
+		if [ $(docker ps -q -f name=openpanel) ]; then
+		    docker restart openpanel  >/dev/null 2>&1
+		else
+		    cd /root && docker compose up -d openpanel  >/dev/null 2>&1
+		fi  
+	    fi
+	}
+
 
 
 # INSTALL
@@ -165,6 +190,8 @@ install_mailserver(){
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
       cd /usr/local/mail/openmail && docker compose up -d mailserver >/dev/null 2>&1
   fi
+
+  enable_emails_if_not_yet
 
 
   if [ "$DEBUG" = true ]; then
