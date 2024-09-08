@@ -176,6 +176,30 @@ fi
 
 
 
+# SUMMARY LOGS 
+pflogsumm_get_data() {
+	cd /tmp
+	rm -rf PFLogSumm-HTML-GUI
+	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
+
+ 	docker cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh   > /dev/null 2>&1
+	
+	echo "Generating email statistics reports.. This can take a while."
+	
+	docker exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
+	
+	echo "Done, adding reports to OpenAdmin interface"
+	
+	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html   > /dev/null 2>&1
+	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/data  > /dev/null 2>&1
+ 
+	#echo "Reloading admin panel.."
+	#service admin restart   > /dev/null 2>&1
+	echo "Completed"
+}
+
+
+
 # INSTALL
 install_mailserver(){
   if [ "$DEBUG" = true ]; then
@@ -477,9 +501,13 @@ remove_mailserver_and_all_config(){
 
 
 case "${1:-}" in
-	install)	# install mailserver
+	install) # install mailserver
         echo "Installing the mailserver..."
         install_mailserver
+		;;
+	pflogsumm) # generate reports
+        echo "Generating reports..."
+        pflogsumm_get_data
 		;;
 	status) # Show status
 		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
@@ -658,6 +686,7 @@ case "${1:-}" in
 		$APP logs [-f]                        Show logs. Use -f to 'follow' the logs
 		$APP login                            Run container shell
 		$APP supervisor                       Interact with supervisorctl
+		$APP pflogsumm                        Generate email summary reports.
 		$APP update-check                     Check for container package updates
 		$APP update-packages                  Update container packages
 		$APP versions                         Show versions
