@@ -68,7 +68,11 @@ DEBUG=false  # Default to false
 for arg in "$@"; do
     if [ "$arg" == "--debug" ]; then
         DEBUG=true
-        echo "--debug flag provided: displaying verbose information"
+        echo "--debug flag provided: displaying verbose information."
+    elif [ "$arg" == "-x" ]; then
+        DEBUG=true
+	set -x
+	echo "-x flag provided: display each command as it execute."
     fi
 done
 
@@ -336,32 +340,33 @@ process_all_domains_and_start(){
       printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
   fi
     
-  total_domains=0
-  
-if compgen -G "$CONFIG_DIR/*.conf" > /dev/null; then
-    # Loop through all .conf files
-    for file in "$CONFIG_DIR"/*.conf; do
-        if [ ! -L "$file" ]; then
-            while IFS= read -r line; do
-                if [[ $line =~ include[[:space:]]/etc/openpanel/openpanel/core/users/([^/]+)/domains/.*-block_ips\.conf ]]; then
-                    USERNAME="${BASH_REMATCH[1]}"
-                    DOMAIN=$(basename "$file" .conf)
-                    DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
-                    new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"
+ 
+echo "Processing domains in directory: $CONFIG_DIR"
+for file in "$CONFIG_DIR"/*.conf; do
+    echo "Processing file: $file"
+    if [ ! -L "$file" ]; then
+        #echo "Reading file contents for: $file"
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [[ $line =~ include[[:space:]]/etc/openpanel/openpanel/core/users/([^/]+)/domains/.*-block_ips\.conf ]]; then
+                USERNAME="${BASH_REMATCH[1]}"
+                DOMAIN=$(basename "$file" .conf)
+                DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
+                new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
+                echo "Mount point  added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
+            fi
+        done < "$file"
 
-                    ((total_domains++))
+        #echo "Finished processing: $file"   # Mark the end of file processing
+    fi
+done
 
-                fi
-            done < "$file"
-        fi
-    done
-else
-    echo "No .conf files found in $CONFIG_DIR"
+if [ $? -ne 0 ]; then
+    echo "Error encountered while processing $file"
 fi
-  
+
+
   
   if [ "$DEBUG" = true ]; then
-      echo "- TOTAL DOMAINS: $total_domains"
       echo ""
       echo "----------------- EMAIL DIRECTORIES ------------------"
       echo ""
@@ -369,8 +374,6 @@ fi
       echo ""
       echo "----------------- UPDATE COMPOSE ------------------"
       echo ""
-  else
-  	echo "Processing $total_domains domains"
   fi
   
   
