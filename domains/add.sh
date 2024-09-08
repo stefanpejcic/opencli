@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+
 # Check if the correct number of arguments are provided
 if [ "$#" -ne 2 ]; then
     echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>"
@@ -37,9 +39,6 @@ fi
 # Parameters
 domain_name="$1"
 user="$2"
-
-
-
 
 # Validate domain name (basic validation)
 if ! [[ "$domain_name" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
@@ -267,7 +266,7 @@ create_domain_file() {
 
  	# Check if the 'nginx' container is running
 	if [ $(docker ps -q -f name=nginx) ]; then
-	    docker exec nginx sh -c "nginx -t && nginx -s reload"
+	    docker exec nginx sh -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
 	else
 	    cd /root && docker compose up -d nginx  >/dev/null 2>&1
 	fi
@@ -354,6 +353,47 @@ create_zone_file() {
 
 
 
+# add mountpoint and reload mailserver
+# todo: need better solution!
+create_mail_mountpoint(){
+    PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+    
+    # Check if 'enterprise edition'
+    if [ -n "$key_value" ]; then
+	# do for enterprise!
+ 	DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN_NAME/"
+	COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
+	volume_to_add="- $DOMAIN_DIR:/var/mail/$DOMAIN_NAME/"
+
+awk -v volume="$volume_to_add" '
+  BEGIN { in_volumes_section = 0 }
+  /^  mailserver:/ { in_mailserver_section = 1 }
+  /^  sogo:/ { in_mailserver_section = 0 }
+  in_mailserver_section && /^    volumes:/ {
+    in_volumes_section = 1
+    print
+    next
+  }
+  in_volumes_section && /^[ ]*-/ {
+    print
+    if (NR == FNR && FNR == 1) { print "    " volume }
+    next
+  }
+  in_volumes_section && !/^[ ]*-/ {
+    if (FNR == 1) { print "    " volume }
+    in_volumes_section = 0
+  }
+  { print }
+' "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp" && mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
+
+cd /usr/local/mail/openmail/ && docker compose down mailserver >/dev/null 2>&1
+cd /usr/local/mail/openmail/ && docker compose up -d mailserver >/dev/null 2>&1
+  
+    fi
+}
+
+
 
 
 # Add domain to the database
@@ -385,6 +425,7 @@ add_domain() {
 	update_named_conf                            # include zone
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
+	create_mail_mountpoint                       # add mountpoint to mailserver
 	start_ssl_generation_in_bg                   # start certbot
  
         echo "Domain $domain_name has been added for user $user."
@@ -392,6 +433,7 @@ add_domain() {
         echo "Failed to add domain $domain_name for user $user (id:$user_id)."
     fi
 }
+
 
 
 add_domain "$user_id" "$domain_name"
