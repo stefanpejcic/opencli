@@ -79,6 +79,6 @@ else
 fi
 
 
-# now move to /etc/host
-mv "${HOSTS_FILE}.tmp" $HOSTS_FILE
+# https://github.com/moby/moby/issues/15793#issuecomment-135411504
+cat "${HOSTS_FILE}.tmp" > $HOSTS_FILE 
 chmod 644 $HOSTS_FILE
