@@ -362,30 +362,16 @@ create_mail_mountpoint(){
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
 	# do for enterprise!
- 	DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN_NAME/"
+ 	DOMAIN_DIR="/home/$user/mail/$domain_name/"
 	COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
-	volume_to_add="- $DOMAIN_DIR:/var/mail/$DOMAIN_NAME/"
+	volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
 
-awk -v volume="$volume_to_add" '
-  BEGIN { in_volumes_section = 0 }
-  /^  mailserver:/ { in_mailserver_section = 1 }
-  /^  sogo:/ { in_mailserver_section = 0 }
-  in_mailserver_section && /^    volumes:/ {
-    in_volumes_section = 1
-    print
-    next
-  }
-  in_volumes_section && /^[ ]*-/ {
-    print
-    if (NR == FNR && FNR == 1) { print "    " volume }
-    next
-  }
-  in_volumes_section && !/^[ ]*-/ {
-    if (FNR == 1) { print "    " volume }
-    in_volumes_section = 0
-  }
-  { print }
-' "$COMPOSE_FILE" > "$COMPOSE_FILE.tmp" && mv "$COMPOSE_FILE.tmp" "$COMPOSE_FILE"
+# Insert volume using sed
+sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
+    $volume_to_add
+}" "$COMPOSE_FILE"
+
+
 
 cd /usr/local/mail/openmail/ && docker compose down mailserver >/dev/null 2>&1
 cd /usr/local/mail/openmail/ && docker compose up -d mailserver >/dev/null 2>&1
