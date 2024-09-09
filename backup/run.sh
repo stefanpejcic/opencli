@@ -1060,7 +1060,16 @@ perform_backup() {
 # log to the main log file for the job
 log_dir="/var/log/openpanel/admin/backups/$NUMBER"
 mkdir -p $log_dir
-log_file="$log_dir/$(( $(ls -l "$log_dir" | grep -c '^-' ) + 1 )).log"
+highest_number=$(ls "$log_dir"/*.log 2>/dev/null | sed 's/[^0-9]*//g' | sort -n | tail -n 1)
+# If no logs are found, start from 1
+if [ -z "$highest_number" ]; then
+  next_number=1
+else
+  next_number=$((highest_number + 1))
+fi
+log_file="$log_dir/$next_number.log"
+
+
 process_id=$$
 start_time=$(date -u +"%a %b %d %T UTC %Y")
 
@@ -1263,6 +1272,10 @@ copy_files_server_conf_only() {
 
 
 run_backup_for_server_configuration_only() {
+
+    type="OpenPanel configuration"
+    sed -i -e "s/type=.*/type=${type}/" "$log_file"
+
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
