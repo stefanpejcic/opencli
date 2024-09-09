@@ -389,30 +389,23 @@ copy_files() {
     source_path=$1
     destination_path=$2
 
-    # Check if source_path starts with "docker:", use docker cp
+    # if starts with "docker:" then cp from docker to local first
     if [[ "$source_path" == docker:* ]]; then
-        docker_source_path="${source_path#docker:}"  # Remove "docker:" prefix
-        
+        docker_source_path="${source_path#docker:}"
         mkdir -p "$local_temp_dir/$container_name"
-
         if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Copying files from the docker container to workplace directory. Command used: docker cp $docker_source_path $local_temp_dir/$container_name"
+            echo "DEBUG: Copying files from the docker container to workplace directory. Command used: docker cp  $docker_source_path $local_temp_dir/$container_name"
         fi
-
-
-        # First, copy from Docker container to local temp directory
         docker cp "$docker_source_path" "$local_temp_dir/$container_name"
-
-        # Update source_path to the local temp directory
-        source_path="$local_temp_dir"
+        source_path="$local_temp_dir/$container_name/$(basename "$docker_source_path")"
     fi
-
 
     if [[ "$source_path" == "/etc/letsencrypt/live/"* ]]; then
             cp -LTr "$source_path" "$local_temp_dir/$container_name"
             source_path="$local_temp_dir/$container_name"
     fi
 
+    # REMOTE DESTINATION
     if [ "$LOCAL" != true ]; then
 
         # Step 1: Create the remote directory
@@ -464,14 +457,12 @@ copy_files() {
         fi
 
     else
-        # for local lets just use cp for now, no need for paraller either..
+        # LOCAL BACKUPS
         mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
 
         if [ -d "$source_path" ]; then
-            # Source is a directory, proceed with copying its contents
             cp -LTr "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
         else
-            # Source is a file, handle it appropriately
             cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
             # TODO: cp: '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' and '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' are the same file
         fi
@@ -813,13 +804,9 @@ backup_container_diff_from_base_image(){
     
         # https://docs.docker.com/reference/cli/docker/container/diff/
         if [[ "$CHANGE_TYPE" == "A" || "$CHANGE_TYPE" == "C" ]]; then
-            mkdir -p "$local_temp_dir/$container_name/diff/"
-            mkdir -p "$local_temp_dir/$container_name/diff$(dirname "$FILE_PATH")"
-            echo "- $FILE_PATH"
-                docker cp "$container_name:$FILE_PATH" "$local_temp_dir/$container_name/diff$FILE_PATH"
+            echo "- $FILE_PATH"               
+                copy_files "docker:$container_name:$FILE_PATH" "DIFF/" # TODO: NE PRAVI DUPLIKATE
                 
-                copy_files "$local_temp_dir/$container_name/diff$FILE_PATH" "DIFF/" # TODO: NE PRAVI DUPLIKATE!
-                     
         fi
     done < "${BACKUP_DIR}/diff.txt"
     
