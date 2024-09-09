@@ -797,8 +797,23 @@ backup_container_diff_from_base_image(){
         CHANGE_TYPE=$(echo "$line" | awk '{print $1}')
         FILE_PATH=$(echo "$line" | awk '{print $2}')
 
-        # Skip files in the /tmp directory
+        # TMP
         if [[ "$FILE_PATH" == /tmp/* ]]; then
+            continue
+        fi
+
+        # LOGS
+        if [[ "$FILE_PATH" == /var/log/* || "$FILE_PATH" == /var/cache/* || "$FILE_PATH" == /var/lib/apt/lists/* ]]; then
+            continue
+        fi
+        
+        # SOCKETS
+        if [[ "$FILE_PATH" == *.sock ]]; then
+            continue
+        fi
+
+        # DIRECTORIES
+        if docker exec "$container_name" test -d "$FILE_PATH"; then
             continue
         fi
     
@@ -810,7 +825,7 @@ backup_container_diff_from_base_image(){
         fi
     done < "${BACKUP_DIR}/diff.txt"
     
-rm -rf "$local_temp_dir/$container_name/diff"    # TODO: rm 1 po 1
+    rm -rf "$local_temp_dir/$container_name/diff"    # TODO: rm 1 po 1
 
     echo "Finished processing the diff between container image and current state."
 }
