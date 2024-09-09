@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-backup_dir="/usr/local/admin/backups/destinations/"
+backup_dir="/etc/openpanel/openadmin/config/backups/destinations/"
 DEBUG=false  # Default value for DEBUG
 
 
