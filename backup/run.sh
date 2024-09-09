@@ -589,12 +589,16 @@ export_entrypoint_file() {
 
 users_local_files_in_core_users() {
     mkdir -p "$BACKUP_DIR/core/"
-    copy_files "/etc/openpanel/openpanel/core/users/$container_name/" "core/"
+    core_files="/etc/openpanel/openpanel/core/users/$container_name/"
+    echo "Processing $core_files"
+    copy_files "$core_files" "core/"
 }
 
 users_local_files_in_stats_users() {
     mkdir -p "$BACKUP_DIR/stats/"
-    copy_files "/etc/openpanel/openpanel/core/stats/$container_name/" "stats/"
+    stats_files="/etc/openpanel/openpanel/core/stats/$container_name/"
+    echo "Processing $stats_files"
+    copy_files "$stats_files" "stats/"
 }
 
 
@@ -653,7 +657,7 @@ export_user_data_from_database() {
 
     check_success() {
       if [ $? -eq 0 ]; then
-        echo "Exporting $1 from database successful"
+        echo "- Exporting $1 from database successful"
       else
         echo "ERROR: Exporting $1 from database failed"
       fi
@@ -837,7 +841,7 @@ backup_container_diff_from_base_image(){
         # https://docs.docker.com/reference/cli/docker/container/diff/
         if [[ "$CHANGE_TYPE" == "A" || "$CHANGE_TYPE" == "C" ]]; then
             echo "- $FILE_PATH"               
-                copy_files "docker:$container_name:$FILE_PATH" "DIFF/" # TODO: NE PRAVI DUPLIKATE
+                copy_files "docker:$container_name:$FILE_PATH" "DIFF/$FILE_PATH" # TODO: NE PRAVI DUPLIKATE                
                 
         fi
     done < "${BACKUP_DIR}/diff.txt"
@@ -856,7 +860,7 @@ backup_ports_for_container_and_hostname(){
     echo "Hostname: $hostname"
     hostname_file_tmp="$BACKUP_DIR/${container_name}_hostname"
     echo "$hostname" > "$hostname_file_tmp"
-    copy_files "$hostname_file_tmp" "hostname" > /dev/null 2>&1
+    copy_files "$hostname_file_tmp" "" > /dev/null 2>&1
 
     local ports
     ports=$(docker port $container_name)
@@ -864,7 +868,7 @@ backup_ports_for_container_and_hostname(){
     echo "$ports"
     ports_file_tmp="/$BACKUP_DIR/${container_name}_ports"
     echo "$ports" > "$ports_file_tmp"
-    copy_files "$ports_file_tmp" "ports" > /dev/null 2>&1
+    copy_files "$ports_file_tmp" "" > /dev/null 2>&1
 
 }
 
@@ -939,6 +943,8 @@ backup_files() {
     #local destination_dir="$BACKUP_DIR/files"
     
     #mkdir -p "$destination_dir"
+
+    echo "Processing $source_dir"
 
     copy_files "$source_dir" "files"
 }
@@ -1544,7 +1550,7 @@ run_backup_for_user_data() {
                     mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
                 fi
                 #cp index when we started
-                copy_files "$user_index_file" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
+                copy_files "$user_index_file" "$TIMESTAMP.index"
                 perform_backup "$container_name"
                 backup_for_user_finished
                 
