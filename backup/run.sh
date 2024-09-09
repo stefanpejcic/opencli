@@ -635,6 +635,8 @@ backup_php_versions_in_container(){
 
 
 export_user_data_from_database() {
+
+    echo "Exporting user data from OpenPanel database.."
     user_id=$(mysql -e "SELECT id FROM users WHERE username='$container_name';" -N)
 
     if [ -z "$user_id" ]; then
@@ -645,18 +647,30 @@ export_user_data_from_database() {
     backup_file="$BACKUP_DIR/DATA/"
     mkdir -p $backup_file
 
+
+    check_success() {
+      if [ $? -eq 0 ]; then
+        echo "Exporting $1 from database successful"
+      else
+        echo "ERROR: Exporting $1 from database failed"
+      fi
+    }
+
     # Export User Data
     mysql -e "SELECT * FROM panel.users WHERE id = $user_id" > $backup_file/users.sql
+    check_success "User data"
     
     # Export User's Plan Data
     mysql -e "SELECT p.* FROM panel.users u JOIN panel.plans p ON u.plan_id = p.id WHERE u.id = 1" > $backup_file/plans.sql
+    check_success "Plan data"
     
     # Export Domains Data for User
     mysql -e "SELECT * FROM panel.domains WHERE user_id = $user_id" > $backup_file/domains.sql
+    check_success "Domains data"
     
     # Export Sites Data for User
     mysql -e "SELECT s.* FROM panel.sites s JOIN panel.domains d ON s.domain_id = d.domain_id WHERE d.user_id = $user_id" > $backup_file/sites.sql
-
+    check_success "Sites data"
 
     if [ "$LOCAL" != true ]; then
         echo "Uploading mysql files to remote destination.."
@@ -802,7 +816,7 @@ backup_container_diff_from_base_image(){
             continue
         fi
 
-        # LOGS
+        # SERVER LOGS
         if [[ "$FILE_PATH" == /var/log/* || "$FILE_PATH" == /var/cache/* || "$FILE_PATH" == /var/lib/apt/lists/* ]]; then
             continue
         fi
@@ -839,7 +853,7 @@ backup_ports_for_container_and_hostname(){
     echo "Hostname: $hostname"
     hostname_file_tmp="$BACKUP_DIR/${container_name}_hostname"
     echo "$hostname" > "$hostname_file_tmp"
-    copy_files "$hostname_file_tmp" "hostname"
+    copy_files "$hostname_file_tmp" "hostname" > /dev/null 2>&1
 
     local ports
     ports=$(docker port $container_name)
@@ -847,7 +861,7 @@ backup_ports_for_container_and_hostname(){
     echo "$ports"
     ports_file_tmp="/$BACKUP_DIR/${container_name}_ports"
     echo "$ports" > "$ports_file_tmp"
-    copy_files "$ports_file_tmp" "ports"
+    copy_files "$ports_file_tmp" "ports" > /dev/null 2>&1
 
 }
 
