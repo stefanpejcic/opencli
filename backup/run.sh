@@ -1273,9 +1273,6 @@ copy_files_server_conf_only() {
 
 run_backup_for_server_configuration_only() {
 
-    type="OpenPanel configuration"
-    sed -i -e "s/type=.*/type=${type}/" "$log_file"
-
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
@@ -1412,6 +1409,10 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
 
 copy_files_server_conf_only $CONF_DESTINATION_DIR $dest_destination_dir_name
+
+
+type="OpenPanel configuration"
+sed -i -e "s/type=.*/type=${type}/" "$log_file"
     
 }
 
