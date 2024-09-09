@@ -105,7 +105,7 @@ create_backup_job() {
     fi
 
     # Validate destination
-    local destination_file="/usr/local/admin/backups/destinations/$2.json"
+    local destination_file="/etc/openpanel/openadmin/config/backups/destinations/$2.json"
 
     # Check if the file exists
     if [ ! -f "$destination_file" ]; then
