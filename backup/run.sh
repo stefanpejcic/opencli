@@ -116,6 +116,7 @@ PHP_VERSIONS=false
 CRONTAB=false
 USER_DATA=false
 CORE_USERS=false
+DOMAINS=false
 STATS_USERS=false
 APACHE_SSL_CONF=false
 DOMAIN_ACCESS_REPORTS=false
@@ -183,6 +184,9 @@ for arg in "$@"; do
         --docker)
             DOCKER=true
             ;;
+        --domains)
+            DOMAINS=true
+            ;;
         --all)
             # Set all flags to true if all flag is present
             FILES=true
@@ -199,6 +203,7 @@ for arg in "$@"; do
             DOMAIN_ACCESS_REPORTS=true
             TIMEZONE=true
             SSH_PASS=true
+            DOMAINS=true
             ;;
     esac
 done
@@ -824,6 +829,27 @@ rm -rf "$local_temp_dir/$container_name/diff"    # TODO: rm 1 po 1
 }
 
 
+
+backup_ports_for_container_and_hostname(){
+    echo "Saving hostname and exposed ports for container.."
+    local hostname
+    hostname=$(docker inspect --format '{{ .Config.Hostname }}' "$container_name")
+    echo "Hostname: $hostname"
+    hostname_file_tmp="$BACKUP_DIR/${container_name}_hostname"
+    echo "$hostname" > "$hostname_file_tmp"
+    copy_files "$hostname_file_tmp" "hostname"
+
+    local ports
+    ports=$(docker port $container_name)
+    echo "Ports:"
+    echo "$ports"
+    ports_file_tmp="/$BACKUP_DIR/${container_name}_ports"
+    echo "$ports" > "$ports_file_tmp"
+    copy_files "$ports_file_tmp" "ports"
+
+}
+
+
 backup_image_base_for_container(){
     echo "Checking docker container image.."
     IMAGE_NAME=$(docker inspect --format '{{.Config.Image}}' "$container_name")
@@ -853,6 +879,29 @@ backup_ssh_conf_and_pass(){
     copy_files "docker:$container_name:/etc/shadow" "/docker/"
     copy_files "docker:$container_name:/etc/passwd" "/docker/"
 }
+
+
+
+backup_domain_files_on_host_server(){
+    ALL_DOMAINS=$(opencli domains-user $container_name)
+    NGINX_CONF_PATH="/etc/nginx/sites-available/"
+
+        for domain in $ALL_DOMAINS; do
+            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
+            SSL_DIR="/etc/letsencrypt/archive/$domain"
+            if [ -f "$DOMAIN_CONF" ]; then
+                copy_files "$DOMAIN_CONF" "/domains/"
+                echo "Copied $DOMAIN_CONF"
+                if [ -d "$SSL_DIR" ]; then
+                    copy_files "$SSL_DIR" "/domains/ssl/$domain/"
+                    echo "Copied certificates from $SSL_DIR"
+                fi
+                
+            fi
+        done
+
+}
+
 
 
 
@@ -893,6 +942,7 @@ perform_backup() {
             echo "DEBUG: ## Saving base docker image."
             echo ""
         fi
+        backup_ports_for_container_and_hostname
         backup_image_base_for_container
         backup_container_diff_from_base_image
         type+="IMAGE,"
@@ -1047,6 +1097,19 @@ perform_backup() {
         backup_ssh_conf_and_pass
         type+="SSH_PASS,"
     fi
+
+
+    if [ "$DOMAINS" = true ]; then
+        if [ "$DEBUG" = true ]; then
+            echo ""
+            echo "DEBUG: ## Backing up domain files from /etc/nginx/sites-available/"
+            echo ""
+        fi
+        backup_domain_files_on_host_server
+        type+="DOMAINS,"
+    fi
+
+
 
     type="${type%,}"
     
