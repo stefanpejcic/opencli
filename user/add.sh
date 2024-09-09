@@ -48,7 +48,6 @@ email="$3"
 plan_name="$4"
 DEBUG=false  # Default value for DEBUG
 hostname=$(hostname) # Get the hostname dynamically
-storage_driver=$(docker info --format '{{.Driver}}')
 
 
 # Parse optional flags to enable debug mode when needed
@@ -457,7 +456,6 @@ add_csf_port() {
 
 run_docker() {
     # Get the storage driver used by Docker
-    storage_driver=$(docker info --format '{{.Driver}}')
     local disk_limit_param=""
     if [ "$disk_limit" -ne 0 ]; then
     
