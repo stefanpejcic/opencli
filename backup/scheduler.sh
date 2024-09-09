@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: backup/scheduler.sh
 # Description: Schedule backup jobs and execute them in time.
-# Usage: opencli backup-schedule [--debug]
+# Usage: opencli backup-schedule
 # Author: Stefan Pejcic
 # Created: 02.02.2024
-# Last Modified: 04.05.2024
+# Last Modified: 09.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -88,12 +88,8 @@ process_backup_job() {
 
     if [ -z "$run_id" ]; then
         local cron_schedule=$(schedule_to_cron "$schedule")
-        if [ "$DEBUG" = true ]; then
             printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/crontab
             printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag"
-        else
-            printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/crontab
-        fi
     else
         echo "opencli backup-run $(basename "$file" .json)" "$flag"
     fi
