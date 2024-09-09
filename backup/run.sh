@@ -967,160 +967,135 @@ perform_backup() {
 
     
     if [ "$FILES" = true ]; then
-        if [ "$DEBUG" = true ]; then
-            echo ""
-            echo "DEBUG: ## Backing up user files."
-            echo ""
-        fi
+     echo ""
+     echo "## Backing up user files."
+     echo ""
         backup_files
         type+="FILES,"
     fi
 
     if [ "$ENTRYPOINT" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up user services."
+            echo "## Backing up user services."
             echo ""
-        fi
+            
         export_entrypoint_file
         type+="ENTRYPOINT,"
     fi
 
     if [ "$WEBSERVER_CONF" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up webserver configuration file."
+            echo "## Backing up webserver configuration file."
             echo ""
-        fi
         export_webserver_main_conf_file
         type+="WEBSERVER_CONF,"
     fi
 
     if [ "$MYSQL_CONF" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up MySQL configuration."
+            echo "## Backing up MySQL configuration."
             echo ""
-        fi
+        
         backup_mysql_conf_file
         type+="MYSQL_CONF,"
     fi
 
     if [ "$TIMEZONE" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up timezone settings."
+            echo "## Backing up timezone settings."
             echo ""
-        fi
         backup_timezone
         type+="TIMEZONE,"
     fi
 
     if [ "$PHP_VERSIONS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up installed PHP versions and their .ini files."
+            echo "## Backing up installed PHP versions and their .ini files."
             echo ""
-        fi
+        
         backup_php_versions_in_container
         type+="PHP_VERSIONS,"
     fi
 
     if [ "$CRONTAB" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up Cron Jobs."
+            echo "## Backing up Cron Jobs."
             echo ""
-        fi
+        
         backup_crontab_for_root_user
         type+="CRONTAB,"
     fi
 
     if [ "$MYSQL_DATA" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up MySQL databases."
+            echo "## Backing up MySQL databases."
             echo ""
-        fi
         backup_mysql_databases
         
         type+="MYSQL_DATA,"
         
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up MySQL users."
+            echo "## Backing up MySQL users."
             echo ""
-        fi
         backup_mysql_users
     fi
 
     if [ "$USER_DATA" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing list of domains and websites for user."
+            echo "## Backing list of domains and websites for user."
             echo ""
-        fi
         export_user_data_from_database
         type+="USER_DATA,"
     fi
 
     if [ "$CORE_USERS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up configuration files for the account."
+            echo "## Backing up configuration files for the account."
             echo ""
-        fi
         users_local_files_in_core_users
         type+="CORE_USERS,"
     fi
 
     if [ "$STATS_USERS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up user resource usage statistics."
+            echo "## Backing up user resource usage statistics."
             echo ""
-        fi
         users_local_files_in_stats_users
         type+="STATS_USERS,"
     fi
 
     if [ "$APACHE_SSL_CONF" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up VirtualHosts files and SSL Certificates."
+            echo "## Backing up VirtualHosts files and SSL Certificates."
             echo ""
-        fi
         backup_apache_conf_and_ssl
         type+="APACHE_SSL_CONF,"
     fi
 
     if [ "$DOMAIN_ACCESS_REPORTS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up generated HTML reports from domains access logs."
+            echo "## Backing up generated HTML reports from domains access logs."
             echo ""
-        fi
+        
         backup_domain_access_reports
         type+="DOMAIN_ACCESS_REPORTS,"
     fi
 
     if [ "$SSH_PASS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up SSH users."
+            echo "## Backing up SSH users."
             echo ""
-        fi
+        
         backup_ssh_conf_and_pass
         type+="SSH_PASS,"
     fi
 
 
     if [ "$DOMAINS" = true ]; then
-        if [ "$DEBUG" = true ]; then
             echo ""
-            echo "DEBUG: ## Backing up domain files from /etc/nginx/sites-available/"
+            echo "## Backing up domain files from /etc/nginx/sites-available/"
             echo ""
-        fi
+        
         backup_domain_files_on_host_server
         type+="DOMAINS,"
     fi
