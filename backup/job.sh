@@ -29,7 +29,7 @@
 ################################################################################
 
 # Define paths
-backup_dir="/usr/local/admin/backups/jobs/"
+backup_dir="/etc/openpanel/openadmin/config/backups/jobs/"
 
 mkdir -p $backup_dir
 
