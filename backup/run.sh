@@ -273,6 +273,9 @@ data=$(read_json_file "$JSON_FILE")
 status=$(echo "$data" | awk 'NR==1')
 destination=$(echo "$data" | awk 'NR==2')
 dest_destination_dir_name=$(echo "$data" | awk 'NR==3')
+if [[ "$dest_destination_dir_name" != /* ]]; then
+  dest_destination_dir_name="/$dest_destination_dir_name"
+fi
 types=($(echo "$data" | awk 'NR==4'))
 retention=$(echo "$data" | awk 'NR==6')
 filters=$(echo "$data" | awk 'NR==7')
@@ -458,12 +461,12 @@ copy_files() {
 
     else
         # LOCAL BACKUPS
-        mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+        mkdir -p "$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
 
         if [ -d "$source_path" ]; then
             cp -LTr "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
         else
-            cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
+            cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
             # TODO: cp: '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' and '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' are the same file
         fi
         
