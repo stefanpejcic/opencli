@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: ftp/delete.sh
 # Description: Delete FTP sub-user for openpanel user.
-# Usage: opencli ftp-delete <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME>
+# Usage: opencli ftp-delete <username> <openpanel_username> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#delete
 # Author: Stefan Pejcic
 # Created: 22.05.2024
