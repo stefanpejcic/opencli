@@ -59,7 +59,7 @@ change_path() {
 
             if [ $? -eq 0 ]; then
                 sed -i "/^$username|[^|]*|/s|[^|]*$|$new_path|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
-                echo "Success: FTP path for user '$username' removed successfully."
+                echo "Success: FTP path for user '$username' changed successfully."
             else
                 if [ "$DEBUG" = true ]; then
                     echo "ERROR: Failed to change FTP path with command:"
