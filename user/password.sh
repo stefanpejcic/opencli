@@ -36,7 +36,7 @@ generate_random_password() {
 
 # Function to print usage
 print_usage() {
-    echo "Usage: $0 <username> <new_password | random> [--ssh]"
+    echo "Usage: $0 <username> <new_password | random> [--ssh] [--debug]"
     exit 1
 }
 
@@ -58,13 +58,6 @@ for arg in "$@"; do
         --debug)
             DEBUG=true
             ;;
-        *)
-            ;;
-    esac
-done
-
-for arg in "$@"; do
-    case $arg in
         --ssh)
             ssh_flag=true
             ;;
@@ -80,59 +73,57 @@ if [ "$new_password" == "random" ]; then
     random_flag=true
 fi
 
-
-
-#Insert data into the database
-
 # Hash password
 hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$new_password'))")
 
-
-
 # Insert hashed password into MySQL database
 change_user_password="UPDATE users SET password='$hashed_password' WHERE username='$username';"
-
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_password"
 
 if [ $? -eq 0 ]; then
-    # added in 0.2.8 to invalidate all existing user sessions
-    change_user_id="UPDATE users SET id = (SELECT MAX(id) + 1 FROM (SELECT id FROM users) AS subquery) WHERE username='$username';"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_id"
-    
+    # Detect the old user_id
+    detektuj_id_stari="SELECT id FROM users WHERE username='$username';"
+    stari_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -Bse "$detektuj_id_stari")
+
+    if [ -z "$stari_id" ]; then
+        echo "Error: Unable to find user ID for username $username."
+        exit 1
+    fi
+
+    # Update the domains table with the old user_id
+    zameni_za_sve_domene="UPDATE domains SET user_id=(SELECT MAX(id) + 1 FROM users) WHERE user_id='$stari_id';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$zameni_za_sve_domene"
+
     if [ $? -eq 0 ]; then
-        if [ "$random_flag" = true ]; then
-            echo "Successfully changed password for user $username, new generated password is: $new_password"
+        # Invalidate all existing user sessions
+        change_user_id="UPDATE users SET id = (SELECT MAX(id) + 1 FROM (SELECT id FROM users) AS subquery) WHERE username='$username';"
+        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_id"
+
+        if [ $? -eq 0 ]; then
+            if [ "$random_flag" = true ]; then
+                echo "Successfully changed password for user $username, new generated password is: $new_password"
+            else
+                echo "Successfully changed password for user $username."
+            fi
         else
-            echo "Successfully changed password for user $username."
+            echo "Warning: Terminating existing user sessions failed. Run the command manually: mysql -D \"$mysql_database\" -e \"$change_user_id\""
         fi
     else
-        if [ "$random_flag" = true ]; then
-            echo "Successfully changed password for user $username, new generated password is: $new_password"
-        else
-            echo "Successfully changed password for user $username."
-        fi
-            echo "Warning: Terminating existing user sessions failed.Run command manually: mysql -D "$mysql_database" -e "$mysql_query""
+        echo "Error: Updating domains table failed."
+        exit 1
     fi
-    
 else
     echo "Error: Data insertion failed."
     exit 1
 fi
 
-
 # Check if --ssh flag is provided
 if [ "$ssh_flag" = true ]; then
-    if [ "$DEBUG" = true ]; then
-        # Change the user password in the Docker container
-        echo "$username:$new_password" | docker exec -i "$username" chpasswd
-        if [ "$random_flag" = true ]; then
-            echo "SSH user $username in Docker container now also have password: $new_password"
-        else
-            echo "SSH user $username password changed."
-        fi
+    # Change the user password in the Docker container
+    echo "$username:$new_password" | docker exec -i "$username" chpasswd
+    if [ "$random_flag" = true ]; then
+        echo "SSH user $username in Docker container now also has password: $new_password"
     else
-        # Change the user password in the Docker container
-        echo "$username:$new_password" | docker exec -i "$username" chpasswd
+        echo "SSH user $username password changed."
     fi
-    
 fi
