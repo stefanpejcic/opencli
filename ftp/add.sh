@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: ftp/add.sh
-# Description: Create frp sub-user for openpanel user.
+# Description: Create FTP sub-user for openpanel user.
 # Usage: opencli ftp-add <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME>
 # Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#add
 # Author: Stefan Pejcic
