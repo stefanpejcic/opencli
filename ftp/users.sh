@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Gather the contents of all users.list files into USER_FILES
 USER_FILES=$(cat /etc/openpanel/ftp/users/*/users.list)
