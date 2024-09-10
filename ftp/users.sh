@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# stop first
-docker stop openadmin_ftp && docker rm openadmin_ftp
-
-
-# start
 USER_FILES=$(cat /etc/openpanel/ftp/users/*/users.list)
 
 USERS=""
@@ -16,6 +11,5 @@ echo $USERS
 
 USERS=$(echo $USERS | xargs)
 
+echo "USERS=\"$USERS\"" > /etc/openpanel/ftp/all.users
 
-cd /root && docker compose down openadmin_ftp
-USERS="$USERS" docker compose up openadmin_ftp -d
