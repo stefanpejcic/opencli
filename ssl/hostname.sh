@@ -132,7 +132,8 @@ if [ -n "$hostname" ] && [[ $hostname == *.*.* ]]; then
         echo "No SSL certificate found for $hostname. Proceeding to generate a new certificate..."
 
 
-mkdir -p /usr/share/nginx/html
+mkdir -p /usr/share/nginx/html/.well-known/acme-challenge
+chown -R 0777 /usr/share/nginx/html/
 
 current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
 
@@ -146,7 +147,7 @@ fi
 # Create the Nginx configuration file
 cat <<EOL > "/etc/nginx/sites-enabled/${hostname}.conf"
 server {
-    listen 80;
+    listen ${current_ip}:80;
     server_name ${hostname};
     root /usr/share/nginx/html;
     location ^~ /.well-known {
@@ -181,11 +182,11 @@ docker exec nginx sh -c "nginx -t && nginx -s reload"
     status=$?
 
 # delete file always
-rm -rf /usr/share/nginx/html
+#rm -rf /usr/share/nginx/html
 rm /etc/nginx/sites-enabled/${hostname}.conf
 
 
-# if certbot was not running, disable it after generation
+# if nginx was not running, disable it after generation
 if [ "$DISABLE_AFTERWARDS" = "YES" ]; then
     echo -e "${YELLOW}Stopping the Nginx container...${RESET}"
     cd /root && docker compose down nginx
