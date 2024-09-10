@@ -55,7 +55,7 @@ done
 # Function to add or update the FTP path
 change_path() {
 
-            docker exec -it openadmin_ftp sh -c "usermod -d $new_path $username"
+            docker exec openadmin_ftp sh -c "usermod -d $new_path $username"
 
             if [ $? -eq 0 ]; then
                 sed -i "/^$username|[^|]*|/s|[^|]*$|$new_path|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
@@ -64,7 +64,7 @@ change_path() {
                 if [ "$DEBUG" = true ]; then
                     echo "ERROR: Failed to change FTP path with command:"
                     echo ""
-                    echo 'docker exec -it openadmin_ftp sh -c "usermod -d $new_path $username"'
+                    echo 'docker exec openadmin_ftp sh -c "usermod -d $new_path $username"'
                     echo ""
                     echo "Run the command manually to check for errors."
                 else
