@@ -53,7 +53,7 @@ done
 
 # Function to delete a user
 delete_user() {
-    docker exec -it openadmin_ftp sh -c "deluser $username && rm -rf /home/$openpanel_username/$username"
+    docker exec openadmin_ftp sh -c "deluser $username && rm -rf /home/$openpanel_username/$username"
     
     if [ $? -eq 0 ]; then
         # Remove the user from the users.list file
@@ -63,7 +63,7 @@ delete_user() {
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to delete FTP user with command:"
             echo ""
-            echo "docker exec -it openadmin_ftp sh -c 'deluser $username && rm -rf /home/$openpanel_username/$username'"
+            echo "docker exec openadmin_ftp sh -c 'deluser $username && rm -rf /home/$openpanel_username/$username'"
             echo ""
             echo "Run the command manually to check for errors."
         else
