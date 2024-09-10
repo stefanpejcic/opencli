@@ -156,6 +156,10 @@ if [ "$FIREWALL" = "CSF" ]; then
     # open_port_csf 587
     # open_port_csf 465
     # open_port_csf 993
+
+    open_port_csf 21 #ftp
+    open_port_csf 21000-21010 #passive ftp
+
     
     open_port_csf $(extract_port_from_file "/etc/openpanel/openpanel/conf/openpanel.config" "port") #openpanel
     open_port_csf 2087
@@ -168,6 +172,9 @@ elif [ "$FIREWALL" = "UFW" ]; then
     ufw allow 80/tcp #http
     ufw allow 53  #dns
     ufw allow 443/tcp # https
+    
+    ufw allow 21/tcp #ftp
+    ufw allow 21000-21010/tcp #passive ftp
     
     ######for emails we wil add:
     # ufw allow 25/tcp
