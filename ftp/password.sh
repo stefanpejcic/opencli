@@ -53,7 +53,7 @@ done
 
 # Function to update the user's password
 update_password() {
-    docker exec -it openadmin_ftp sh -c "echo -e '${new_password}\n${new_password}' | passwd ${username}"
+    docker exec openadmin_ftp sh -c "echo -e '${new_password}\n${new_password}' | passwd ${username}"
     
     if [ $? -eq 0 ]; then
         # Update the password in the users.list file
@@ -64,7 +64,7 @@ update_password() {
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to update FTP user password with command:"
             echo ""
-            echo "docker exec -it openadmin_ftp sh -c 'echo -e ${new_password}\n${new_password} | passwd ${username}'"
+            echo "docker exec openadmin_ftp sh -c 'echo -e ${new_password}\n${new_password} | passwd ${username}'"
             echo ""
             echo "Run the command manually to check for errors."
         else
