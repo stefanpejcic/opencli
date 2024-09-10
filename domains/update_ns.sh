@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/update_ns.sh
-# Description: Change nmaeservers for a single or all dns zones.
+# Description: Change nameservers for a single or all dns zones.
 # Usage: opencli domains-update_ns <DOMAIN_NAME>
 #        opencli domains-update_ns --all
 # Author: Stefan Pejcic
