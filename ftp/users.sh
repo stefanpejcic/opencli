@@ -1,15 +1,18 @@
 #!/bin/bash
 
+# Gather the contents of all users.list files into USER_FILES
 USER_FILES=$(cat /etc/openpanel/ftp/users/*/users.list)
 
+# Prepare the USERS variable
 USERS=""
-while read -r line; do
+while IFS= read -r line; do
   USERS="$USERS $line"
-done <<< "$USER_FILES"
+done <<EOF
+$USER_FILES
+EOF
 
-echo $USERS
+# Remove any leading/trailing spaces from USERS
+USERS=$(echo "$USERS" | xargs)
 
-USERS=$(echo $USERS | xargs)
-
+# Write USERS to the all.users file
 echo "USERS=\"$USERS\"" > /etc/openpanel/ftp/all.users
-
