@@ -64,8 +64,8 @@ create_user() {
     # Check if the command was successful
     if [ $? -eq 0 ]; then
         mkdir -p $directory
-        chown 1000:33 $directory
-        echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
+        #chown 1000:33 $directory # causes user not to be able to write!
+        echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list        
         echo "Success: FTP user '$username' created successfully."
     else
         if [ "$DEBUG" = true ]; then
@@ -82,15 +82,10 @@ create_user() {
 }
 
 
-# Function to delete a user - WILL BE SEPARATED IN the future!
-delete_user() {
-    docker exec -it openadmin_ftp sh -c "deluser $username && rm -rf $directory"
-    echo "Success: FTP user '$username' deleted successfully."
-}
 
 
 
-# test
+
 
 # user.openpanel_username
 if [[ ! $username == *".${openpanel_username}" ]]; then
