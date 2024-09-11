@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: ftp/path.sh
 # Description: Change FTP path for a user.
-# Usage: opencli ftp-path <action> <username> <path> <openpanel_username> [--debug]
+# Usage: opencli ftp-path <username> <path> <openpanel_username> [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#path
 # Author: Stefan Pejcic
 # Created: 10.09.2024
@@ -30,15 +30,14 @@
 ################################################################################
 
 # Check for the correct number of arguments
-if [ "$#" -ne 4 ] && [ "$#" -ne 5 ]; then
+if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
     echo "Usage: opencli ftp-path <username> <path> <openpanel_username> [--debug]"
     exit 1
 fi
 
-action="$1"
-username="${2,,}"
-path="$3"
-openpanel_username="$4"
+username="$1"
+path="$2"
+openpanel_username="$3"
 DEBUG=false  # Default value for DEBUG
 
 # Parse optional flags to enable debug mode when needed
@@ -55,7 +54,9 @@ done
 # Function to add or update the FTP path
 change_path() {
 
-            docker exec openadmin_ftp sh -c "usermod -d $new_path $username"
+            #docker exec openadmin_ftp sh -c "usermod -d $new_path $username"
+            docker exec openadmin_ftp sh -c "sed -i 's|^\($username:[^:]*:[^:]*:[^:]*:[^:]*:\)[^:]*|\1$new_path|' /etc/passwd"
+
 
             if [ $? -eq 0 ]; then
                 sed -i "/^$username|[^|]*|/s|[^|]*$|$new_path|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
