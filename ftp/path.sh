@@ -54,22 +54,23 @@ done
 # Function to add or update the FTP path
 change_path() {
 
-            #docker exec openadmin_ftp sh -c "usermod -d $new_path $username"
-            docker exec openadmin_ftp sh -c "sed -i 's|^\($username:[^:]*:[^:]*:[^:]*:[^:]*:\)[^:]*|\1$new_path|' /etc/passwd"
-
-
+        username="vvvvdddd.petar"
+        new_path="/home/stefan/assa/assa"
+        
+        docker exec openadmin_ftp sh -c "sed -i '/^'"$username"'/s#\(/home/[^\:]*\)#'"$new_path"'#' /etc/passwd"
+        
             if [ $? -eq 0 ]; then
-                sed -i "/^$username|[^|]*|/s|[^|]*$|$new_path|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
+                sed -i "/^${username}|[^|]*|/s|/[^|]*$|${new_path}|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
+
+                # TODO EDIT THIS USER FILE ALSO!
                 echo "Success: FTP path for user '$username' changed successfully."
             else
                 if [ "$DEBUG" = true ]; then
-                    echo "ERROR: Failed to change FTP path with command:"
-                    echo ""
-                    echo 'docker exec openadmin_ftp sh -c "usermod -d $new_path $username"'
+                    echo "ERROR: Failed to change FTP path with sed command:"
                     echo ""
                     echo "Run the command manually to check for errors."
                 else
-                    echo "ERROR: Failed to remove FTP path. To debug, run this command on terminal: opencli ftp-path $username $path $openpanel_username --debug"
+                    echo "ERROR: Failed to change FTP path. To debug, run this command on terminal: opencli ftp-path $username $path $openpanel_username --debug"
                 fi
                 exit 1
             fi
