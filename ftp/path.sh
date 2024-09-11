@@ -54,15 +54,10 @@ done
 # Function to add or update the FTP path
 change_path() {
 
-        username="vvvvdddd.petar"
-        new_path="/home/stefan/assa/assa"
-        
-        ######docker exec openadmin_ftp sh -c "sed -i '/^'"$username"'/s#\(/home/[^\:]*\)#'"$new_path"'#' /etc/passwd"
-
-        docker exec openadmin_ftp sh -c "usermod -d ${new_path} ${username}"
+        docker exec openadmin_ftp sh -c "usermod -d ${path} ${username}"
         
             if [ $? -eq 0 ]; then
-                sed -i "/^${username}|[^|]*|/s|/[^|]*$|${new_path}|" /etc/openpanel/ftp/users/${openpanel_username}/paths.list
+                sed -i "/^${username}|[^|]*|/s|/[^|]*$|${path}|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
 
                 # TODO EDIT THIS USER FILE ALSO!
                 echo "Success: FTP path for user '$username' changed successfully."
