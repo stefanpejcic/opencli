@@ -5,7 +5,7 @@
 # Usage: opencli ssl-domain [-d] <domain_url> [-k path -p path]
 # Author: Radovan Ječmenica
 # Created: 27.11.2023
-# Last Modified: 06.09.2024
+# Last Modified: 12.09.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -359,8 +359,14 @@ else
         if (\$scheme != \"https\"){
             #return 301 https://\$host\$request_uri;
         } #forceHTTPS
-    
-        listen $server_ip:443 ssl;
+
+        # Advertise HTTP/3 QUIC support (required)
+        add_header X-protocol $server_protocol always;
+        add_header Alt-Svc 'h3=":$server_port"; ma=86400';
+        quic_retry on;
+
+        listen $server_ip:443 ssl; #HTTP/2
+        listen $server_ip:443 quic; #HTTP/3
         http2 on;
         ssl_certificate /etc/letsencrypt/live/$domain_url/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/$domain_url/privkey.pem;
@@ -378,8 +384,14 @@ else
         if (\$scheme != \"https\"){
             #return 301 https://\$host\$request_uri;
         } #forceHTTPS
+
+        # Advertise HTTP/3 QUIC support (required)
+        add_header X-protocol $server_protocol always;
+        add_header Alt-Svc 'h3=":$server_port"; ma=86400';
+        quic_retry on;
     
-        listen $server_ip:443 ssl;
+        listen $server_ip:443 ssl; #HTTP/2
+        listen $server_ip:443 quic; #HTTP/3
         http2 on;
         ssl_certificate /etc/nginx/ssl/$domain_url/fullchain.pem;
         ssl_certificate_key /etc/nginx/ssl/$domain_url/privkey.pem;
