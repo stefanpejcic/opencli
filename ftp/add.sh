@@ -57,6 +57,18 @@ done
 
 
 
+
+check_and_start_ftp_server(){
+	if [ $(docker ps -q -f name=openadmin_ftp) ]; then
+	    :
+	else
+        cd /root && docker compose up -d ftp_env_generator  >/dev/null 2>&1
+	    cd /root && docker compose up -d openadmin_ftp  >/dev/null 2>&1
+	fi
+}
+
+
+
 # Function to read users from users.list files and create them
 create_user() {
     docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${directory} -s /sbin/nologin -G xfs ${username} > /dev/null 2>&1"
@@ -150,32 +162,5 @@ fi
 
 
 
-
-
-
-
-# and in the ftp container:
-create_user
-
-
-: '
-EXAMPLES
-
-user1|password1|/home/user1
-user2|password2|/home/user2
-
-
-
-
-# to be supported in future:
-
-user1|password1|/home/user1|1001|1001
-user2|password2|/home/user2|1002|1002
-
-user1|password1|/home/user1||1001|users
-user2|password2|/home/user2||1002|admins
-
-'
-
-
-
+check_and_start_ftp_server    # start ftpserver
+create_user                   # create new user
