@@ -48,6 +48,8 @@ fi
 
 # Check if Certbot and Nginx services are available
 if ! docker ps --filter "name=nginx" --filter "status=running" --format "{{.Names}}"; then
+	:
+else
     DISABLE_AFTERWARDS="YES" # if nginx was off, disable it after generation
     echo -e "${YELLOW}WARNING: Docker container 'nginx' is not running. Starting container...${RESET}"
     cd /root && docker compose up -d nginx
