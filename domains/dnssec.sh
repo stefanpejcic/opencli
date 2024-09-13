@@ -96,7 +96,7 @@ if [ "$2" = "--update" ]; then
   sign_and_reload
   echo "Zone ${ZONE} has been re-signed and DNS service reloaded."
 elif [ "$2" = "--check" ]; then
-  cat dsset-${ZONE}. || error_exit "Domain {$ZONE} has no DNSSEC enabled."
+  cat dsset-${ZONE}. || error_exit "Domain $ZONE has no DNSSEC enabled."
 else
   setup_zone
 fi
