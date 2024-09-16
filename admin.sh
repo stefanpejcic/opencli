@@ -138,42 +138,10 @@ fi
 
 
 
-# helper function added in 0.3.0
-check_username_is_valid() {
-    check_username="$1"
-    is_username_forbidden() {
-        readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
-    
-        if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
-           [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
-           (( ${#check_username} < 3 || ${#check_username} > 20 )); then
-            return 0
-        fi
-    
-        for forbidden_username in "${forbidden_usernames[@]}"; do
-            if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
-                return 0
-            fi
-        done
-    
-        return 1
-    }
-    
-    # Validate username
-    if is_username_forbidden "$check_username"; then
-        echo "Error: The username '$check_username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
-        exit 1
-    fi
-}
-
-
-
-
 
 add_new_user() {
     local username="$1"
     local password="$2"
-    check_username_is_valid "$username"   # validate username
     local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
@@ -205,7 +173,6 @@ add_new_user() {
 update_username() {
     local old_username="$1"
     local new_username="$2"
-    check_username_is_valid "$new_username"  # validate new username
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$old_username';")
     local new_user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$new_username';")
 
