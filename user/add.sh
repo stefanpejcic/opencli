@@ -60,12 +60,34 @@ fi
 set_docker_context_for_container() {
     default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
     
-    if [ -n "$default_context" ]; then
-        context="$default_context"  # use from file
-        context_flag="--context $context"
+    if [ -z "$default_context" ]; then
+        context='default'                                                                                       # use as fallback
+        context_flag=""                                                                                         # empty
     else
-        context='default'           # use as fallback
-        context_flag=""
+        server_name="$default_context"                                                                          # use the context name from the file
+        context_flag="--context $server_name"                                                                   # add to all docker exec commands
+        context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")  # get ipv4 and use it for all ssh commands
+    
+        if [ -n "$context_info" ]; then
+            endpoint=$(echo "$context_info" | awk '{print $2}')
+            if [[ "$endpoint" == ssh://* ]]; then
+                node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
+            else
+                echo "ERROR: valid IPv4 address for context $server_name not found!"
+                echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
+                echo "       Make sure that the docker context named $server_nam has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
+                exit 1
+            fi
+        else
+            echo "ERROR: docker context with name $server_name does not exist!"
+            echo "       User container is located on node $server_name but there is no docker context with that name."
+            echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
+            exit 1
+        fi
+
+
+
+        
     fi        
 }
 
@@ -111,7 +133,7 @@ check_running_containers() {
     container_id=$(docker $context_flag ps -a --filter "name=$username" --format "{{.ID}}")
     
     if [ -n "$container_id" ]; then
-        echo "Error: Docker container with the same username '$username' already exists. Aborting."
+        echo "ERROR: Docker container with the same username '$username' already exists on this server. Aborting."
         exit 1
     fi
 }
@@ -132,13 +154,13 @@ get_existing_users_count() {
     
         # Check if successful
         if [ $? -ne 0 ]; then
-            echo "Error: Unable to get user count from the database. Is mysql running?"
+            echo "ERROR: Unable to get total user count from the database. Is mysql running?"
             exit 1
         fi
     
         # Check if the number of users is >= 3
         if [ "$user_count" -gt 2 ]; then
-            echo "Error: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use. If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
+            echo "ERROR: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use. If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
             exit 1
         fi
     fi
@@ -190,13 +212,13 @@ get_plan_info_and_check_requirements() {
     
     # Check if the query was successful
     if [ $? -ne 0 ]; then
-        echo "Error: Unable to fetch plan information from the database."
+        echo "ERROR: Unable to fetch plan information from the database."
         exit 1
     fi
     
     # Check if any results were returned
     if [ -z "$cpu_ram_info" ]; then
-        echo "Error: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
+        echo "ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
         exit 1
     fi
     
@@ -212,30 +234,55 @@ get_plan_info_and_check_requirements() {
     disk_size_needed_for_docker_and_storage=$((disk_limit + storage_file))
     
     # Get the available free space on the disk
-    current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+    if [ -n "$node_ip_address" ]; then
+        # TODO: Use a custom user or configure SSH instead of using root
+        current_free_space=$(ssh "root@$node_ip_address" "df -BG / | awk 'NR==2 {print \$4}' | sed 's/G//'")
+    else
+        current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+    fi
+
+    
     
     # Compare the available free space with the disk limit of the plan
     if [ "$current_free_space" -lt "$disk_size_needed_for_docker_and_storage" ]; then
-        echo "Warning: Insufficient disk space. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
+        echo "WARING: Insufficient disk space on the server. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
        #### exit 1
     fi
+
+
     
     # Get the maximum available CPU cores on the server
-    max_available_cores=$(nproc)
+    if [ -n "$node_ip_address" ]; then
+        # TODO: Use a custom user or configure SSH instead of using root
+        max_available_cores=$(ssh "root@$node_ip_address" "nproc")
+    else
+        max_available_cores=$(nproc)
+    fi
+
+
+
     
     # Compare the specified CPU cores with the maximum available cores
     if [ "$cpu" -gt "$max_available_cores" ]; then
-        echo "Error: Requested CPU cores ($cpu) exceed the maximum available cores on the server ($max_available_cores). Cannot create user."
+        echo "ERROR: Requested CPU cores ($cpu) exceed the maximum available cores on this server ($max_available_cores). Cannot create user."
         exit 1
     fi
     
-    # Get the maximum available RAM on the server in GB
-    max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
     
+
+    # Get the maximum available RAM on the server in GB
+    if [ -n "$node_ip_address" ]; then
+        # TODO: Use a custom user or configure SSH instead of using root
+        max_available_cores=$(ssh "root@$node_ip_address" "free -g | awk '/^Mem:/{print $2}'")
+    else
+        max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+    fi    
     numram="${ram%"g"}"
+
+    
     # Compare the specified RAM with the maximum available RAM
     if [ "$numram" -gt "$max_available_ram_gb" ]; then
-        echo "Error: Requested RAM ($ram GB) exceeds the maximum available RAM on the server ($max_available_ram_gb GB). Cannot create user."
+        echo "ERROR: Requested RAM ($ram GB) exceeds the maximum available RAM on this server ($max_available_ram_gb GB). Cannot create user."
         exit 1
     fi
     
@@ -252,19 +299,19 @@ print_debug_info_before_starting_creation() {
         echo ""
         echo "----------------- DEBUG INFORMATION ------------------"
         echo ""
-        echo "Docker context: $context" 
+        echo "Docker context:      $server_name" 
         echo ""
         echo "Selected plan limits from database:"
         echo ""
-        echo "- PLAN ID: $plan_id" 
-        echo "- DOCKER_IMAGE: $docker_image"
-        echo "- DISK QUOTA: $disk_limit"
-        echo "- CPU: $cpu"
-        echo "- RAM: $ram"
-        echo "- INODES: $inodes"
-        echo "- STORAGE FILE: $storage_file"
-        echo "- BANDWIDTH: $bandwidth"
-        echo "- NAME: $name"
+        echo "- PLAN ID:           $plan_id" 
+        echo "- DOCKER_IMAGE:      $docker_image"
+        echo "- DISK QUOTA:        $disk_limit"
+        echo "- CPU:               $cpu"
+        echo "- RAM:               $ram"
+        echo "- INODES:            $inodes"
+        echo "- STORAGE FILE:      $storage_file"
+        echo "- BANDWIDTH:         $bandwidth"
+        echo "- NAME:              $name"
         echo "- TOTAL DISK NEEDED: $disk_size_needed_for_docker_and_storage"
         #echo "RAM Soft Limit: $ram_soft_limit MB"
         echo ""
@@ -279,7 +326,7 @@ print_debug_info_before_starting_creation() {
 # Check if the Docker image exists locally
 check_if_docker_image_exists() {
     if ! docker $context_flag images -q "$docker_image" >/dev/null 2>&1; then
-        echo "Error: Docker image '$docker_image' does not exist on the server."
+        echo "ERROR: Docker image '$docker_image' does not exist on this server."
         exit 1
     fi
 }
@@ -293,34 +340,54 @@ check_if_docker_image_exists() {
 create_storage_file_and_mount_if_needed() {
     if [ "$storage_file" -ne 0 ]; then
             if [ "$DEBUG" = true ]; then
-                fallocate -l ${storage_file}g /home/storage_file_$username
-                mkfs.ext4 -N $inodes /home/storage_file_$username
+                if [ -n "$node_ip_address" ]; then
+                    # TODO: Use a custom user or configure SSH instead of using root
+                    ssh "root@$node_ip_address" "fallocate -l ${storage_file}g /home/storage_file_$username && mkfs.ext4 -N $inodes /home/storage_file_$username"
+                else
+                    fallocate -l ${storage_file}g /home/storage_file_$username
+                    mkfs.ext4 -N $inodes /home/storage_file_$username
+                fi
             else
-                fallocate -l ${storage_file}g /home/storage_file_$username >/dev/null 2>&1
-                mkfs.ext4 -N $inodes /home/storage_file_$username >/dev/null 2>&1
+                if [ -n "$node_ip_address" ]; then
+                    # TODO: Use a custom user or configure SSH instead of using root
+                    ssh "root@$node_ip_address" "fallocate -l ${storage_file}g /home/storage_file_$username && mkfs.ext4 -N $inodes /home/storage_file_$username" >/dev/null 2>&1
+                else
+                    fallocate -l ${storage_file}g /home/storage_file_$username >/dev/null 2>&1
+                    mkfs.ext4 -N $inodes /home/storage_file_$username >/dev/null 2>&1
+                fi
             fi
     fi
     
     # Create and set permissions for user directory
-    mkdir -p /home/$username
-    chown 1000:33 /home/$username
-    chmod 755 /home/$username
-    chmod g+s /home/$username
+    if [ -n "$node_ip_address" ]; then
+    # TODO: Use a custom user or configure SSH instead of using root
+        ssh "root@$node_ip_address" "mkdir -p /home/$username && chown 1000:33 /home/$username && chmod 755 /home/$username && chmod g+s /home/$username"
+    else
+        mkdir -p /home/$username
+        chown 1000:33 /home/$username
+        chmod 755 /home/$username
+        chmod g+s /home/$username
+    fi
+
+
+    
+
     
     # Mount storage file if needed
     if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            ssh "root@$node_ip_address" "mount -o loop /home/storage_file_$username /home/$username"
+            ssh "root@$node_ip_address" "echo \"/home/storage_file_$username /home/$username ext4 loop 0 0\" | tee -a /etc/fstab"
+        else
             mount -o loop /home/storage_file_$username /home/$username
             echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab
-            mkdir /home/$username/docker
-            chown 1000:33 /home/$username/docker
-            chmod 755 /home/$username/docker
-            chmod g+s /home/$username/docker
+        fi
+
     fi
 }
 
 
-# TODO:
-# CHECK ON CONTEXT!!!!!!!
 
 check_or_create_network() {
     
@@ -358,38 +425,50 @@ check_or_create_network() {
         gateway="172.$i.0.1"
     
         # Check if the subnet is already in use
-        used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
-          docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
+        used_subnets=$(docker $context_flag network ls --format "{{.Name}}" | while read -r network_name; do
+          docker $context_flag network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
         done)
     
         if [[ $used_subnets =~ $subnet ]]; then
           continue  # Skip if the subnet is already in use
         fi
         # Create the Docker network
-        docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
-    
+        docker $context_flag network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
+
+
         # Extract the network interface name for the gateway IP
-        gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            gateway_interface=$(ssh "root@$node_ip_address" "ip route | grep $gateway | awk '{print $3}'")
+        else
+            gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
+        fi
 
         ensure_tc_is_installed
+        # TODO : ON REMOTE SERVER!
 
         # Limit the gateway bandwidth
-        sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
-    
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            gateway_interface=$(ssh "root@$node_ip_address" "tc qdisc add dev $gateway_interface root tbf rate ${bandwidth}mbit burst ${bandwidth}mbit latency 3ms")
+        else
+            tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+        fi
+
         found_subnet=1  # Set the flag to indicate success
         break
       done
       if [ $found_subnet -eq 0 ]; then
-        echo "No available subnet found. Exiting."
+        echo "ERROR: No available subnet found for docker. Exiting."
         exit 1  # Exit with an error code
       fi
     }
 
     # Check if DEBUG is true and the Docker network exists
-    if [ "$DEBUG" = true ] && docker network inspect "$name" >/dev/null 2>&1; then
+    if [ "$DEBUG" = true ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
         # Docker network exists, DEBUG is true so show message
         echo "Docker network '$name' exists."
-    elif [ "$DEBUG" = false ] && docker network inspect "$name" >/dev/null 2>&1; then
+    elif [ "$DEBUG" = false ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
         # Docker network exists, but DEBUG is not true so we dont show anything
         :
     elif [ "$DEBUG" = false ]; then
@@ -402,6 +481,8 @@ check_or_create_network() {
     fi
 
 }
+
+
 
 get_webserver_from_plan_name() {
     # Determine the web server based on the Docker image name
@@ -431,9 +512,9 @@ get_webserver_from_plan_name() {
     
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "WEB SERVER: $web_server"
+        echo "WEB SERVER:    $web_server"
         echo "MYSQL VERSION: $mysql_version"
-        echo "DOMAINS PATH: /etc/$path"/
+        echo "DOMAINS PATH:  /etc/$path"/
     fi
     # then create a container
 }
@@ -447,36 +528,27 @@ get_webserver_from_plan_name() {
 
 change_default_email_and_allow_email_network () {
     # set default sender email address
-    hostname=$(hostname)
-    docker exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
-    
+    if [ -n "$node_ip_address" ]; then
+        # TODO: Use a custom user or configure SSH instead of using root
+        hostname=$(ssh "root@$node_ip_address" "hostname")
+    else
+        hostname=$(hostname)
+    fi
 
-    # add continaer to the mail netowrk, so it can send emails..
-    docker network connect openmail_network "$username"  >/dev/null 2>&1
+    docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
+    docker $context_flag network connect openmail_network "$username"  >/dev/null 2>&1
 }
 
 
 temp_fix_for_nginx_default_site_missing() {
- mkdir -p /home/$username/etc/$path/sites-available
- echo >> /home/$username/etc/$path/sites-available/default
-
-}
-
-
-# Function to add a port to tcp_in for csf
-add_csf_port() {
-    CSF_CONF="/etc/csf/csf.conf"
-    local PORT=$1
-
-    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
-        echo "Port $PORT is already in TCP_IN"
+    if [ -n "$node_ip_address" ]; then
+        # TODO: Use a custom user or configure SSH instead of using root
+        ssh "root@$node_ip_address" "mkdir -p /home/$username/etc/$path/sites-available && echo >> /home/$username/etc/$path/sites-available/default"
     else
-        sudo sed -i "/^TCP_IN/ s/\"$/,$PORT\"/" $CSF_CONF
-        echo "Port $PORT added to TCP_IN"
+         mkdir -p /home/$username/etc/$path/sites-available
+         echo >> /home/$username/etc/$path/sites-available/default
     fi
 }
-
-
 
 
 
@@ -503,45 +575,89 @@ run_docker() {
     find_available_ports() {
       local found_ports=()
                   
-
-    # Check if jq is installed
-    if ! command -v lsof &> /dev/null; then
-    echo "lsof is not installed but needed for setting ports. Installing lsof..."
-        # Detect the package manager and install jq
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y lsof > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y lsof > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y lsof > /dev/null 2>&1
+        
+            # Check if jq is installed
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            ssh "root@$node_ip_address" 'if ! command -v lsof &> /dev/null; then
+                echo "lsof is not installed but needed for setting ports. Installing lsof..."
+        
+                # Detect the package manager and install lsof
+                if command -v apt-get &> /dev/null; then
+                    sudo apt-get update > /dev/null 2>&1
+                    sudo apt-get install -y lsof > /dev/null 2>&1
+                elif command -v yum &> /dev/null; then
+                    sudo yum install -y lsof > /dev/null 2>&1
+                elif command -v dnf &> /dev/null; then
+                    sudo dnf install -y lsof > /dev/null 2>&1
+                else
+                    echo "Error: No compatible package manager found. Please install lsof manually and try again."
+                    exit 1
+                fi
+        
+                # Check if installation was successful
+                if ! command -v lsof &> /dev/null; then
+                    echo "Error: lsof installation failed. Please install lsof manually and try again."
+                    exit 1
+                fi
+            fi'
         else
-            echo "Error: No compatible package manager found. Please install lsof manually and try again."
-            exit 1
+            if ! command -v lsof &> /dev/null; then
+                echo "lsof is not installed but needed for setting ports. Installing lsof..."
+        
+                # Detect the package manager and install lsof
+                if command -v apt-get &> /dev/null; then
+                    sudo apt-get update > /dev/null 2>&1
+                    sudo apt-get install -y lsof > /dev/null 2>&1
+                elif command -v yum &> /dev/null; then
+                    sudo yum install -y lsof > /dev/null 2>&1
+                elif command -v dnf &> /dev/null; then
+                    sudo dnf install -y lsof > /dev/null 2>&1
+                else
+                    echo "Error: No compatible package manager found. Please install lsof manually and try again."
+                    exit 1
+                fi
+        
+                # Check if installation was successful
+                if ! command -v lsof &> /dev/null; then
+                    echo "Error: lsof installation failed. Please install lsof manually and try again."
+                    exit 1
+                fi
+            fi
+        fi
+        
+        
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            ssh "root@$node_ip_address" '
+              declare -a found_ports=()
+              for ((port=32768; port<=65535; port++)); do
+                  if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+                      found_ports+=("$port")
+                      if [ ${#found_ports[@]} -ge 4 ]; then
+                          break
+                      fi
+                  fi
+              done
+        
+              # Print the found ports to return them back to the local script
+              echo "${found_ports[@]}"
+            '
+        else
+            declare -a found_ports=()
+            for ((port=32768; port<=65535; port++)); do
+                if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+                    found_ports+=("$port")
+                    if [ ${#found_ports[@]} -ge 4 ]; then
+                        break
+                    fi
+                fi
+            done
+            echo "${found_ports[@]}"
         fi
 
-        # Check if installation was successful
-        if ! command -v lsof &> /dev/null; then
-            echo "Error: lsof installation failed. Please install lsof manually and try again."
-            exit 1
-        fi
-    fi
 
 
-
-      
-      
-      for ((port=32768; port<=65535; port++)); do
-        if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-        #if ! nc -z localhost "$port" >/dev/null 2>&1; then
-          found_ports+=("$port")
-          if [ ${#found_ports[@]} -ge 4 ]; then
-            break
-          fi
-        fi
-      done
-      
-      echo "${found_ports[@]}"
     }
     
     validate_port() {
@@ -611,11 +727,23 @@ check_container_status() {
     container_status=$(docker $context_flag inspect -f '{{.State.Status}}' "$username")
     
     if [ "$container_status" != "running" ]; then
-        echo "Error: Container status is not 'running'. Cleaning up..."
-        umount /home/$username
-        docker rm -f "$username"
-        rm -rf /home/$username
-        rm /home/storage_file_$username
+        echo "ERROR: Container status is not 'running'. Cleaning up..."    
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            ssh "root@$node_ip_address" "umount /home/$username"
+        else
+             umount /home/$username
+        fi
+        
+        docker $context_flag rm -f "$username"
+        
+        if [ -n "$node_ip_address" ]; then
+            # TODO: Use a custom user or configure SSH instead of using root
+            ssh "root@$node_ip_address" "rm -rf /home/$username && rm /home/storage_file_$username"
+        else
+            rm -rf /home/$username
+            rm /home/storage_file_$username
+        fi
         
         exit 1
     fi
@@ -645,7 +773,7 @@ open_ports_on_firewall() {
     extract_host_port() {
         local port_number="$1"
         local host_port
-        host_port=$(docker port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+        host_port=$(docker $context_flag port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
         echo "$host_port"
     }
     
@@ -691,9 +819,12 @@ open_ports_on_firewall() {
                 if [ "$FIREWALL" = "CSF" ]; then
                     # range is already opened..
                     ports_opened=0
-                    #add_csf_port ${host_port}
                 elif [ "$FIREWALL" = "UFW" ]; then
-                    ufw allow ${host_port}/tcp  comment "${username}"
+                    if [ -n "$node_ip_address" ]; then
+                        ssh "root@$node_ip_address" "ufw allow ${host_port}/tcp  comment ${username}"
+                    else
+                        ufw allow ${host_port}/tcp  comment "${username}"
+                    fi
                 fi
                 ports_opened=1
             fi
@@ -702,9 +833,12 @@ open_ports_on_firewall() {
                 if [ "$FIREWALL" = "CSF" ]; then
                     # range is already opened..
                     ports_opened=0
-                    #add_csf_port ${host_port} >/dev/null 2>&1
                 elif [ "$FIREWALL" = "UFW" ]; then
-                    ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
+                    if [ -n "$node_ip_address" ]; then
+                        ssh "root@$node_ip_address" "ufw allow ${host_port}/tcp  comment ${username}" >/dev/null 2>&1
+                    else
+                        ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
+                    fi                   
                 fi
                 ports_opened=1
             fi
@@ -721,7 +855,12 @@ open_ports_on_firewall() {
                 #csf -r
             elif [ "$FIREWALL" = "UFW" ]; then
                 echo "Reloading UFW"
-                ufw reload
+                
+                    if [ -n "$node_ip_address" ]; then
+                        ssh "root@$node_ip_address" "ufw reload"
+                    else
+                        ufw reload
+                    fi                 
             fi
     
         else
@@ -729,7 +868,11 @@ open_ports_on_firewall() {
                 :
                 #csf -r >/dev/null 2>&
             elif [ "$FIREWALL" = "UFW" ]; then
-                ufw reload >/dev/null 2>&1
+                    if [ -n "$node_ip_address" ]; then
+                        ssh "root@$node_ip_address" "ufw reload" >/dev/null 2>&1
+                    else
+                        ufw reload >/dev/null 2>&1
+                    fi  
             fi        
         fi
     fi
@@ -747,7 +890,7 @@ set_ssh_user_password_inside_container() {
         echo ""
         echo "------------------------------------------------------"
         echo ""
-        echo "SETTING SSH USER INSIDE DOCKER CONTIANER:"
+        echo "SETTING SSH USER INSIDE DOCKER CONTAINER:"
         echo ""
     fi
     
@@ -782,10 +925,10 @@ set_ssh_user_password_inside_container() {
         docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username
         echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
         docker $context_flag exec $username usermod -aG www-data $username
-        docker exec $username chmod -R g+w /home/$username
+        docker $context_flagexec $username chmod -R g+w /home/$username
         echo "SSH user $username created with password: $password"
       else
-        docker exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
+        docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
         echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd > /dev/null 2>&1
         docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1
         docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1
@@ -876,7 +1019,11 @@ copy_skeleton_files() {
 
 # add user to hosts file and reload nginx
 recreate_hosts_file() {
-    opencli server-recreate_hosts  > /dev/null 2>&1
+    if [ -n "$node_ip_address" ]; then
+        ssh "root@$node_ip_address" "opencli server-recreate_hosts" > /dev/null 2>&1
+    else
+        opencli server-recreate_hosts > /dev/null 2>&1
+    fi
     docker $context_flag restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
     ######docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 }
@@ -916,7 +1063,7 @@ save_user_to_db() {
     
     
     # Insert data into MySQL database
-    mysql_query="INSERT INTO users (username, password, email, plan_id, server_name) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$context');"
+    mysql_query="INSERT INTO users (username, password, email, plan_id, server_name) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$server_name');"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
@@ -924,7 +1071,7 @@ save_user_to_db() {
         if [ "$context" = 'default' ]; then
             echo "Successfully added user $username password: $password"
         else
-            echo "Successfully added user $username password: $password with container on server $context"
+            echo "Successfully added user $username password: $password with container on server $server_name"
         fi
     else
         echo "Error: Data insertion failed."
