@@ -57,6 +57,21 @@ fi
 
 
 
+set_docker_context_for_container() {
+    default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
+    
+    if [ -n "$default_context" ]; then
+        context="$default_context"  # use from file
+        context_flag="--context $context"
+    else
+        context='default'           # use as fallback
+        context_flag=""
+    fi        
+}
+
+
+
+
 check_username_is_valid() {
     is_username_forbidden() {
         local check_username="$1"
@@ -91,8 +106,9 @@ check_username_is_valid() {
 . "$DB_CONFIG_FILE"
 
 check_running_containers() {
+
     # Check if Docker container with the same username exists
-    container_id=$(docker ps -a --filter "name=$username" --format "{{.ID}}")
+    container_id=$(docker $context_flag ps -a --filter "name=$username" --format "{{.ID}}")
     
     if [ -n "$container_id" ]; then
         echo "Error: Docker container with the same username '$username' already exists. Aborting."
@@ -155,8 +171,13 @@ if [ "$username_exists_count" -gt 0 ]; then
 fi
 
 
-
-
+#########################################
+# TODO
+# USE REMOTE CONTEXT! context_flag
+#
+#########################################
+#
+#
 
 #Get CPU, DISK, INODES and RAM limits for the plan
 get_plan_info_and_check_requirements() {
@@ -231,6 +252,8 @@ print_debug_info_before_starting_creation() {
         echo ""
         echo "----------------- DEBUG INFORMATION ------------------"
         echo ""
+        echo "Docker context: $context" 
+        echo ""
         echo "Selected plan limits from database:"
         echo ""
         echo "- PLAN ID: $plan_id" 
@@ -255,13 +278,16 @@ print_debug_info_before_starting_creation() {
 
 # Check if the Docker image exists locally
 check_if_docker_image_exists() {
-    if ! docker images -q "$docker_image" >/dev/null 2>&1; then
-        echo "Error: Docker image '$docker_image' does not exist locally."
+    if ! docker $context_flag images -q "$docker_image" >/dev/null 2>&1; then
+        echo "Error: Docker image '$docker_image' does not exist on the server."
         exit 1
     fi
 }
 
 
+# TODO:
+# check if remote server
+# and execute there!
 
 # create storage file
 create_storage_file_and_mount_if_needed() {
@@ -293,6 +319,8 @@ create_storage_file_and_mount_if_needed() {
 }
 
 
+# TODO:
+# CHECK ON CONTEXT!!!!!!!
 
 check_or_create_network() {
     
@@ -468,7 +496,9 @@ run_docker() {
         echo "Run with NO disk size limit."
     fi
 
-
+# TODO:
+# check ports on remote server!
+#
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
       local found_ports=()
@@ -543,7 +573,7 @@ run_docker() {
       local ports_param="-P"
     fi
 
-    local docker_cmd="docker run --network $name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
+    local docker_cmd="docker $context_flag run --network $name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
@@ -578,7 +608,7 @@ run_docker() {
 
 # Check the status of the created container
 check_container_status() {
-    container_status=$(docker inspect -f '{{.State.Status}}' "$username")
+    container_status=$(docker $context_flag inspect -f '{{.State.Status}}' "$username")
     
     if [ "$container_status" != "running" ]; then
         echo "Error: Container status is not 'running'. Cleaning up..."
@@ -597,7 +627,7 @@ check_container_status() {
 
 display_private_ip_on_debug_only() {
     if [ "$DEBUG" = true ]; then
-        ip_address=$(docker container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
+        ip_address=$(docker $context_flag container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
         echo "IP ADDRESS: $ip_address"
     fi
 }
@@ -606,7 +636,8 @@ display_private_ip_on_debug_only() {
 
 
 
-
+# TODO:
+# OPEN ON REMOTE FIREWALL!!!
 
 # Open ports on firewall
 open_ports_on_firewall() {
@@ -730,7 +761,7 @@ set_ssh_user_password_inside_container() {
     
     
     
-    uid_1000_user=$(docker exec $username getent passwd 1000 | cut -d: -f1)
+    uid_1000_user=$(docker $context_flag exec $username getent passwd 1000 | cut -d: -f1)
     
     if [ -n "$uid_1000_user" ]; then
       if [ "$DEBUG" = true ]; then
@@ -738,26 +769,26 @@ set_ssh_user_password_inside_container() {
         echo "Renaming user $uid_1000_user to $username and setting its password..."
       fi
     
-      docker exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1
-      echo "$username:$password" | docker exec -i "$username" chpasswd
-      docker exec $username usermod -aG www-data $username
-      docker exec $username chmod -R g+w /home/$username
+      docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1
+      echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
+      docker $context_flag exec $username usermod -aG www-data $username
+      docker $context_flag exec $username chmod -R g+w /home/$username
       if [ "$DEBUG" = true ]; then
         echo "User $uid_1000_user renamed to $username with password: $password"
       fi
     else
       if [ "$DEBUG" = true ]; then
         echo "Creating SSH user $username inside the docker container..."
-        docker exec $username useradd -m -s /bin/bash -d /home/$username $username
-        echo "$username:$password" | docker exec -i "$username" chpasswd
-        docker exec $username usermod -aG www-data $username
+        docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username
+        echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
+        docker $context_flag exec $username usermod -aG www-data $username
         docker exec $username chmod -R g+w /home/$username
         echo "SSH user $username created with password: $password"
       else
         docker exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
-        echo "$username:$password" | docker exec -i "$username" chpasswd > /dev/null 2>&1
-        docker exec $username usermod -aG www-data $username > /dev/null 2>&1
-        docker exec $username chmod -R g+w /home/$username > /dev/null 2>&1
+        echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd > /dev/null 2>&1
+        docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1
+        docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1
       fi
     fi
 }
@@ -771,17 +802,16 @@ phpfpm_config() {
     if [ "$DEBUG" = true ]; then
         # change user in www.conf file for each php-fpm verison
         echo "Changing the username for php-fpm services inside the docker container..."
-        docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
+        docker $context_flag exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
     
         # restart version
         echo "Setting container services..."
-        docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+        docker $context_flag exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
     else
-        docker exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
-        docker exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
+        docker $context_flag exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
+        docker $context_flag exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
     fi
 }
-
 
 
 
@@ -817,6 +847,11 @@ copy_skeleton_files() {
         opencli php-get_available_php_versions $username &
         
         cat /etc/openpanel/openpanel/core/users/$username/server_config.yml    
+
+# TODO:
+# opencli php-get_available_php_versions  ron on remote server!
+#
+
         
     else
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
@@ -824,17 +859,25 @@ copy_skeleton_files() {
         echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
         opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
+
+# TODO:
+# opencli php-get_available_php_versions  ron on remote server!
+#
+
+        
     fi
 }
 
 
 
 
+# TODO:
+# opencli server-recreate_hosts run on remote server
 
 # add user to hosts file and reload nginx
 recreate_hosts_file() {
     opencli server-recreate_hosts  > /dev/null 2>&1
-    docker restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
+    docker $context_flag restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
     ######docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 }
 
@@ -873,12 +916,16 @@ save_user_to_db() {
     
     
     # Insert data into MySQL database
-    mysql_query="INSERT INTO users (username, password, email, plan_id) VALUES ('$username', '$hashed_password', '$email', '$plan_id');"
+    mysql_query="INSERT INTO users (username, password, email, plan_id, server_name) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$context');"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
     if [ $? -eq 0 ]; then
-        echo "Successfully added user $username password: $password"
+        if [ "$context" = 'default' ]; then
+            echo "Successfully added user $username password: $password"
+        else
+            echo "Successfully added user $username password: $password with container on server $context"
+        fi
     else
         echo "Error: Data insertion failed."
         exit 1
@@ -889,6 +936,7 @@ save_user_to_db() {
 
 
 check_username_is_valid                      # validate username first
+set_docker_context_for_container             # get context and use slave server if set
 check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
