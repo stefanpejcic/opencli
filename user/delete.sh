@@ -67,21 +67,72 @@ source /usr/local/admin/scripts/db.sh
 
 
 
-# Function to remove Docker container and all user files
-remove_docker_container_and_volume() {
-    docker stop "$username"  2>/dev/null
-    docker rm "$username"  2>/dev/null
+get_docker_context_for_user(){
+    # GET CONTEXT NAME FOR DOCKER COMMANDS
+    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server_name FROM users WHERE username='$username';" -N)
+    
+    if [ -z "$server_name" ]; then
+        server_name="default" # compatibility with older panel versions before clustering
+        context_flag=""
+        node_ip_address=""
+    elif [ "$server_name" == "default" ]; then
+        context_flag=""
+        node_ip_address=""
+    else
+        context_flag="--context $server_name"
+        # GET IPV4 FOR SSH COMMANDS
+        context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")
+    
+        if [ -n "$context_info" ]; then
+            endpoint=$(echo "$context_info" | awk '{print $2}')
+            if [[ "$endpoint" == ssh://* ]]; then
+                node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
+            else
+                echo "ERROR: valid IPv4 address for context $server_name not found!"
+                echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
+                echo "       Make sure that the docker context named $server_nam has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
+                exit 1
+            fi
+        else
+            echo "ERROR: docker context with name $server_name does not exist!"
+            echo "       User container is located on node $server_name but there is no docker context with that name."
+            echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
+            exit 1
+        fi
+        
+    fi
+
+
+
+    # context         - node name
+    # context_flag    - docker context to use in docker commands
+    # node_ip_address - ipv4 to use for ssh
+    
 }
 
-# Delete all users domains vhosts files from Nginx
-delete_vhosts_files() {
+
+# Function to remove Docker container and all user files
+remove_docker_container_and_volume() {
+    docker $context_flag stop "$username"  2>/dev/null
+    docker $context_flag rm "$username"  2>/dev/null
+}
+
+
+get_userid_from_db() {
     # Get the user_id from the 'users' table
     user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
 
     if [ -z "$user_id" ]; then
-        echo "Error: User '$username' not found in the database."
+        echo "ERROR: User '$username' not found in the database."
         exit 1
     fi
+}
+
+
+# TODO: delete on remote nginx server!
+
+# Delete all users domains vhosts files from Nginx
+delete_vhosts_files() {
 
     # Get all domain_names associated with the user_id from the 'domains' table
     domain_names=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
@@ -91,26 +142,30 @@ delete_vhosts_files() {
 
        if [ -d "/etc/live/letsencrypt/$domain_name" ]; then
             echo "revoking and deleting existing Let's Encrypt certificate"
-            docker exec certbot sh -c "certbot revoke -n --cert-name $domain_name"
-            docker exec certbot sh -c "certbot delete -n --cert-name $domain_name"
-            sudo rm -f "/etc/nginx/sites-enabled/$domain_name.conf"
-            sudo rm -f "/etc/nginx/sites-available/$domain_name.conf"
+            docker $context_flag exec certbot sh -c "certbot revoke -n --cert-name $domain_name"
+            docker $context_flag exec certbot sh -c "certbot delete -n --cert-name $domain_name"           
         else
+            # TODO: delete paid SSLs also!
             echo "Doman had no Let's Encrypt certificate"
         fi
 
-    echo "Deleting files /etc/nginx/sites-available/$domain_name.conf and /etc/nginx/sites-enabled/$domain_name.conf"
-    rm /etc/nginx/sites-available/$domain_name.conf
-    rm /etc/nginx/sites-enabled/$domain_name.conf
+        echo "Deleting files /etc/nginx/sites-available/$domain_name.conf and /etc/nginx/sites-enabled/$domain_name.conf"
+    
+        if [ -n "$node_ip_address" ]; then
+            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
+            ssh "root@$node_ip_address" "rm /etc/nginx/sites-available/$domain_name.conf && rm /etc/nginx/sites-enabled/$domain_name.conf"
+        else
+            rm /etc/nginx/sites-available/$domain_name.conf
+            rm /etc/nginx/sites-enabled/$domain_name.conf
+        fi
 
     done
 
+    # TODO: RUN THIS ON REMOTE SERVER!
+    
     # Reload Nginx to apply changes
     opencli server-recreate_hosts  > /dev/null 2>&1
-    docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
-
-
-   
+    docker $context_flag exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 
     echo "SSL Certificates, Nginx Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
 }
@@ -158,72 +213,69 @@ disable_ports_in_ufw() {
   done
 }
 
-# Function to delete port from tcp_in for CSF
-remove_csf_port() {
-    CSF_CONF="/etc/csf/csf.conf"
-    local PORT=$1
 
-    if grep -q "TCP_IN.*$PORT" $CSF_CONF; then
-        sudo sed -i "/^TCP_IN/ s/,\?$PORT,\?//g" $CSF_CONF
-        echo "Port $PORT removed from TCP_IN"
-    else
-        echo "Port $PORT is not in TCP_IN"
+# Function to delete bandwidth limit settings for a user
+delete_bandwidth_limits() {
+
+        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
+        if [ -n "$node_ip_address" ]; then
+            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
+            ssh "root@$node_ip_address" "tc qdisc del dev docker0 root && tc class del dev docker0 parent 1: classid 1:1 && tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst $ip_address"
+        else
+              tc qdisc del dev docker0 root 2>/dev/null
+              tc class del dev docker0 parent 1: classid 1:1 2>/dev/null
+              tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst "$ip_address" 2>/dev/null
+        fi
+}
+
+edit_firewall_rules(){
+    # CSF
+    if command -v csf >/dev/null 2>&1; then
+        FIREWALL="CSF"
+        container_ports=("22" "3306" "7681" "8080")
+        #we use range, so not need to rm rules for account delete..
+    
+    # UFW
+    elif command -v ufw >/dev/null 2>&1; then
+        FIREWALL="UFW"
+        disable_ports_in_ufw
+        ufw reload
     fi
 }
 
 
-# Confirm actions
-confirm_action
+delete_all_user_files() {
+        if [ -n "$node_ip_address" ]; then
+            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
+            ssh "root@$node_ip_address" "umount /home/storage_file_$username && rm -rf /home/$username && rm -rf /home/storage_file_$username"
+            ssh "root@$node_ip_address" "sed -i.bak '/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d' /etc/fstab"
+        else
+            umount /home/storage_file_$username > /dev/null 2>&1
+            rm -rf /home/$username > /dev/null 2>&1
+            rm -rf /home/storage_file_$username  > /dev/null 2>&1
+            sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1
+        fi
 
-# Function to extract the host port from 'docker port' output, used by csf
-extract_host_port() {
-    local port_number="$1"
-    local host_port
-    host_port=$(docker port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
-    echo "$host_port"
-}
-    
-# Function to delete bandwidth limit settings for a user
-delete_bandwidth_limits() {
-  tc qdisc del dev docker0 root 2>/dev/null
-  tc class del dev docker0 parent 1: classid 1:1 2>/dev/null
-  tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst "$ip_address" 2>/dev/null
+        rm -rf /etc/openpanel/openpanel/core/stats/$username
+        rm -rf /etc/openpanel/openpanel/core/users/$username
 }
 
-# Delete bandwidth limit settings for the user
-ip_address=$(docker container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
-delete_bandwidth_limits "$ip_address"
-
-# Disable ports in UFW, remove Docker container, user data and volume, and delete user from the database
-
-# CSF
-if command -v csf >/dev/null 2>&1; then
-    FIREWALL="CSF"
-    container_ports=("22" "3306" "7681" "8080")
-    #we use range, so not need to rm rules for account delete..
-
-# UFW
-elif command -v ufw >/dev/null 2>&1; then
-    FIREWALL="UFW"
-    disable_ports_in_ufw
-    ufw reload
-fi
 
 
 
 
-delete_vhosts_files
 
-remove_docker_container_and_volume
 
-delete_user_from_database
-umount /home/storage_file_$username > /dev/null 2>&1
-rm -rf /home/$username > /dev/null 2>&1
-rm -rf /home/storage_file_$username  > /dev/null 2>&1
 
-sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1
 
-rm -rf /etc/openpanel/openpanel/core/stats/$username
-rm -rf /etc/openpanel/openpanel/core/users/$username
-
-echo "User $username deleted."
+# MAIN EXECUTION
+confirm_action                           # yes
+get_userid_from_db                       # check if user exists
+get_docker_context_for_user              # on which server is the container running
+delete_vhosts_files                      # delete nginx conf files from that server
+edit_firewall_rules                      # close user ports on firewall
+delete_bandwidth_limits                  # delete bandwidth limits for private ip
+remove_docker_container_and_volume       # delete contianer and all docker files
+delete_user_from_database                # delete user from database
+delete_all_user_files                    # permanently delete data
+echo "User $username deleted."           # if we made it
