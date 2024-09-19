@@ -371,6 +371,31 @@ create_storage_file_and_mount_if_needed() {
 
 
     
+         ensure_sshfs_is_installed() {
+                if ! command -v sshfs &> /dev/null; then
+                    if command -v apt-get &> /dev/null; then
+                        sudo apt-get update > /dev/null 2>&1
+                        sudo apt-get install -y -qq sshfs > /dev/null 2>&1
+                    elif command -v yum &> /dev/null; then
+                        sudo yum install -y -q sshfs > /dev/null 2>&1
+                    elif command -v dnf &> /dev/null; then
+                        sudo dnf install -y -q sshfs > /dev/null 2>&1
+                    else
+                        echo "EROOR: No compatible package manager found. Please install sshfs manually and try again."
+                        exit 1
+                    fi
+            
+                    if ! command -v sshfs &> /dev/null; then
+                        echo "ERROR: sshfs installation failed. Please install sshfs manually and try again."
+                        exit 1
+                    fi
+                fi
+       }
+
+
+
+
+
 
     
     # Mount storage file if needed
@@ -378,14 +403,19 @@ create_storage_file_and_mount_if_needed() {
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" "mount -o loop /home/storage_file_$username /home/$username"
-            ssh "root@$node_ip_address" "echo \"/home/storage_file_$username /home/$username ext4 loop 0 0\" | tee -a /etc/fstab"
+            ssh "root@$node_ip_address" "echo \"/home/storage_file_$username /home/$username ext4 loop 0 0\" | tee -a /etc/fstab"      # mount on remote (slave) server for nginx and certbot
+            ensure_sshfs_is_installed
+            sshfs root@$node_ip_address:/home/$username/ /home/$username/
+            echo "root@$node_ip_address:/home/$username/ /home/$username/ fuse.sshfs defaults,_netdev,allow_other 0 0" >> /etc/fstab   # mount on master for openpanel container
+
         else
             mount -o loop /home/storage_file_$username /home/$username
-            echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab
+            echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab                                            # mount on master only
         fi
 
     fi
 }
+
 
 
 
@@ -731,6 +761,7 @@ check_container_status() {
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" "umount /home/$username"
+             umount /home/$username
         else
              umount /home/$username
         fi
