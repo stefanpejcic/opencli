@@ -1094,7 +1094,7 @@ save_user_to_db() {
     
     
     # Insert data into MySQL database
-    mysql_query="INSERT INTO users (username, password, email, plan_id, server_name) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$server_name');"
+    mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$server_name');"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
