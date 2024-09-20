@@ -1099,7 +1099,7 @@ save_user_to_db() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
     if [ $? -eq 0 ]; then
-        if [ "$context" = 'default' ]; then
+        if [ "$server_name" = 'default' ]; then
             echo "Successfully added user $username password: $password"
         else
             echo "Successfully added user $username password: $password with container on server $server_name"
