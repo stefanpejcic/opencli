@@ -61,7 +61,7 @@ set_docker_context_for_container() {
     default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
     
     if [ -z "$default_context" ]; then
-        context='default'                                                                                       # use as fallback
+        server_name='default'                                                                                   # use as fallback
         context_flag=""                                                                                         # empty
     else
         server_name="$default_context"                                                                          # use the context name from the file
