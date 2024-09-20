@@ -297,7 +297,7 @@ get_plan_info_and_check_requirements() {
 print_debug_info_before_starting_creation() {
     if [ "$DEBUG" = true ]; then
         echo ""
-        echo "----------------- DEBUG INFORMATION ------------------"
+        echo "----------------- CREATING NEW USER ACCOUNT ------------------"
         echo ""
         echo "Docker context:      $server_name" 
         echo ""
@@ -542,9 +542,9 @@ get_webserver_from_plan_name() {
     
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "WEB SERVER:    $web_server"
-        echo "MYSQL VERSION: $mysql_version"
-        echo "DOMAINS PATH:  /etc/$path"/
+        echo "WEB SERVER:     $web_server"
+        echo "MYSQL VERSION:  $mysql_version"
+        echo "DOMAINS PATH:   /etc/$path"/
     fi
     # then create a container
 }
@@ -590,7 +590,7 @@ run_docker() {
     if [ "$disk_limit" -ne 0 ]; then
     
             if [ "$DEBUG" = true ]; then
-                echo "Run with disk size of ${disk_limit}G."
+                echo "CONTAINER SIZE: ${disk_limit}G"
             fi
             disk_limit_param="--storage-opt size=${disk_limit}G"
 
