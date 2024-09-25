@@ -175,12 +175,24 @@ get_next_version() {
     local version=$1
     local IFS='.'
 
-    local array=($version)
+    # Split the version into an array
+    read -r -a array <<< "$version"
 
-    # Increment the last segment
-    array[${#array[@]}-1]=$((array[${#array[@]}-1] + 1))
+    # Loop over the array from the last element backward
+    for ((i=${#array[@]}-1; i>=0; i--)); do
+        array[$i]=$((array[$i] + 1)) # Increment the current segment
+        if [ ${array[$i]} -lt 10 ]; then
+            break # No carry needed, exit loop
+        else
+            array[$i]=0 # Set current segment to 0 and continue to the previous segment
+        fi
+    done
 
-    echo "${array[*]}"
+    # Join the array back into a version string
+    local next_version="${array[*]}"
+    next_version=${next_version// /.}
+
+    echo "$next_version"
 }
 
 
