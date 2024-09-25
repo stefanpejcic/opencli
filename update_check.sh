@@ -74,7 +74,7 @@ update_check() {
         exit 1
     fi
 
-    UPDATE_SERV_1="https://update.openpanel.co/"
+    UPDATE_SERV_1="https://update.openpanel.com/"
     UPDATE_SERV_2="https://update.openpanel.org/"
 
     # Fetch the remote version from https://update.openpanel.co/
