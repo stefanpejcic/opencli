@@ -561,7 +561,7 @@ backup_mysql_conf_file() {
 
 
 export_webserver_main_conf_file() {
-    output=$(opencli webserver-get_webserver_for_user $container_name) #get webserver for user
+    local output=$(opencli webserver-get_webserver_for_user $container_name) #get webserver for user
 
     if [[ $output == *nginx* ]]; then
         ws="nginx"
@@ -616,7 +616,7 @@ backup_php_versions_in_container(){
         echo "Error running the command, default PHP version for user is not saved."
     fi
     
-    output=$(opencli php-enabled_php_versions $container_name)
+    local output=$(opencli php-enabled_php_versions $container_name)
     if [ $? -eq 0 ]; then
         mkdir -p "$BACKUP_DIR/php/"
         # Save the output to a file
@@ -723,7 +723,7 @@ backup_apache_conf_and_ssl() {
     
 
     #get webserver for user
-    output=$(opencli webserver-get_webserver_for_user $container_name)
+    local output=$(opencli webserver-get_webserver_for_user $container_name)
 
     # Check if the output contains "nginx"
     if [[ $output == *nginx* ]]; then
@@ -1480,104 +1480,77 @@ sed -i -e "s/type=.*/type=${type}/" "$log_file"
 }
 
 run_backup_for_user_data() {
-
-    # backup user data only
-
     container_count=0
-   
-    # Get the total number of users
-    output=$(opencli user-list --json)
+
+    # Get the total number of users and concatenate the output into a single array
+    output=$(opencli user-list --json | jq -s add)
+
+    # Debug: Output the combined JSON to check if both users are included
+    #echo "Combined User List: $output"
+
+    # Check if output is empty
+    if [ -z "$output" ]; then
+        echo "No users found in the database or MySQL is not running."
+        return
+    fi
+
+    # Get the total number of valid containers (excluding suspended ones)
     total_containers=$(echo "$output" | jq -c '.[] | select(.username | test("^[^_]*$"))' | wc -l)
-    
-    # Loop through each JSON object
+    echo "Total active users: $total_containers"
+
+    # Loop through each user
     echo "$output" | jq -c '.[]' | while IFS= read -r line; do
         # Extract the username from the current JSON object
         container_name=$(echo "$line" | jq -r '.username')
-        
         ((container_count++))
-        
-            # suspended users
-            if [[ "$container_name" =~ [_] ]]; then
-                container_name="${container_name#*_}"
-                echo ""
-                echo "------------------------------------------------------------------------"
-                echo ""
-                echo "Skipping backup for suspended user: $container_name (Account: $container_count/$total_containers)"
-                echo ""
+
+        # Debug: Print which user is currently being processed
+        echo "Current user count: $container_count, Total containers: $total_containers"
+
+        # Check for suspended users
+        if [[ "$container_name" =~ [_] ]]; then
+            echo "Skipping backup for suspended user: $container_name"
+            continue  # Skip this container
+        fi
+
+        excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
+
+        # Check if container name is in the excluded list
+        if [ -f "$excluded_file" ]; then
+            if grep -Fxq "$container_name" "$excluded_file"; then
+                echo "Skipping backup for excluded user: $container_name"
                 continue  # Skip this container
             fi
-     
-            excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
-    
-            # Check if container name is in the excluded list
-            if [ -f "$excluded_file" ]; then
-                if grep -Fxq "$container_name" "$excluded_file"; then
-                    echo ""
-                    echo "------------------------------------------------------------------------"
-                    echo ""
-                    echo "Skipping backup for excluded user: $container_name (Account: $container_count/$total_containers)"
-                    echo ""
-                    continue  # Skip this container
-                fi
-            fi
-
-
-           
-            echo ""
-            echo "------------------------------------------------------------------------"
-            echo ""
-            echo "Starting backup for user: $container_name (Account: $container_count/$total_containers)"
-            echo ""
-            mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-            user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
-            user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-            number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
-        
-            if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
-                number_of_backups_in_this_job_that_user_has=0
-            fi
-        
-            if [ "$DEBUG" = true ]; then
-            # Print commands for debugging
-            echo "DEBUG: Users index file: $user_index_file"
-            echo "DEBUG: Number of current backups that user has in this backup job: $number_of_backups_in_this_job_that_user_has"
-            fi
-    
-    
-                backup_for_user_started
-                mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-                if [ "$LOCAL" = true ]; then
-                    mkdir -p "/$dest_destination_dir_name/$container_name/$TIMESTAMP/"
-                fi
-                #cp index when we started
-                copy_files "$user_index_file" "$TIMESTAMP.index"
-                perform_backup "$container_name"
-                backup_for_user_finished
-                
-   
-        if [ "$LOCAL" != true ]; then
-                ssh -i "$dest_ssh_key_path" -p "$dest_ssh_port" "$dest_ssh_user@$dest_hostname" "rm $dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
-        #else
-         # WHY ?
-                #rm "$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
         fi
-                #cp index when we ended
-                copy_files "$user_index_file" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$TIMESTAMP.index"
-                
-    
-            # Compare with retention
-            if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
-                # Action A
-                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention, will delete oldest user backup after generating a new one."
-                #retention_for_user_files_delete_oldest_files_for_job_id
-            else
-                # Action B
-                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached, no rotation is needed."
-            fi
-            
+
+        echo "Starting backup for user: $container_name"
+        mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+        user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
+        user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+        number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
+
+        # Debug: Output the number of current backups
+        echo "Current backups for $container_name: $number_of_backups_in_this_job_that_user_has"
+
+        if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
+            number_of_backups_in_this_job_that_user_has=0
+        fi
+
+        backup_for_user_started
+        mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+        perform_backup "$container_name"
+        backup_for_user_finished
+
+        # After backup process, log the status
+        echo "Backup completed for user: $container_name"
+
+        # Compare with retention
+        if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
+            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention."
+        else
+            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached."
+        fi
     done
-
-
 }
 
 
