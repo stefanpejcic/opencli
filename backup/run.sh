@@ -501,9 +501,15 @@ source /usr/local/admin/scripts/db.sh
 
 
 backup_mysql_databases() {
-    
+
+    # Check if MySQL is running
+    if ! docker exec "$container_name" mysqladmin ping -u root --silent; then
+        echo "MySQL is not active inside the container. Skipping backup."
+        return 1
+    fi
+
     mkdir -p "$BACKUP_DIR/mysql"
-    total_db_count=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1' | wc -l)
+    total_db_count=$(docker exec "$container_name" mysql -u root -e "SHOW DATABASES LIKE '$container_name\_%';" | awk 'NR>1' | wc -l)    
     echo "Total databases found: $total_db_count"
     
     processed_db_count=0
@@ -522,6 +528,12 @@ backup_mysql_databases() {
 
 
 backup_mysql_users() {
+
+    # Check if MySQL is running
+    if ! docker exec "$container_name" mysqladmin ping -u root --silent; then
+        echo "MySQL is not active inside the container. Skipping backup."
+        return 1
+    fi
 
     mkdir -p "$BACKUP_DIR/mysql/users/"
     total_user_count=$(docker exec "$container_name" mysql -u root -Bse "SELECT user FROM mysql.user WHERE user NOT LIKE 'root' AND host='%'" | wc -l)
@@ -583,6 +595,7 @@ export_webserver_main_conf_file() {
 export_entrypoint_file() {
     mkdir -p "$BACKUP_DIR/docker/"
     copy_files "docker:$container_name:/etc/entrypoint.sh" "docker/"
+    echo "/etc/entrypoint.sh"
 }
 
 
@@ -1162,6 +1175,8 @@ exec > >(tee -a "$log_file") 2>&1
 
 
 backup_for_user_started(){
+    mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+    user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
     start_backup_for_user_time=$(date -u +"%a %b %d %T UTC %Y")
     mkdir -p "$(dirname "$user_index_file")"
         
@@ -1190,6 +1205,9 @@ backup_for_user_finished(){
     total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
     
     sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
+        echo "Backup completed for user: $container_name"                                          
+        retention_check_and_delete_oldest_backup
+        empty_line    
 }
 
 
@@ -1479,18 +1497,24 @@ sed -i -e "s/type=.*/type=${type}/" "$log_file"
     
 }
 
+        empty_line() {
+            echo ""
+            echo "------------------------------------------------------------------------"
+            echo""
+        }
+
+
+        
+
+# MAIN FUNCTION FOR PARTIAL BACKUP OF INDIVIDUAL ACCOUNTS
 run_backup_for_user_data() {
     container_count=0
 
-    # Get the total number of users and concatenate the output into a single array
-    output=$(opencli user-list --json | jq -s add)
-
-    # Debug: Output the combined JSON to check if both users are included
-    #echo "Combined User List: $output"
-
-    # Check if output is empty
-    if [ -z "$output" ]; then
-        echo "No users found in the database or MySQL is not running."
+    output=$(opencli user-list --json)
+    
+    # Check if the output is empty or if MySQL is not running
+    if [ -z "$output" ] || [ "$output" = "null" ]; then
+        echo "ERROR: No users found in the database or MySQL is not running."
         return
     fi
 
@@ -1499,58 +1523,57 @@ run_backup_for_user_data() {
     echo "Total active users: $total_containers"
 
     # Loop through each user
-    echo "$output" | jq -c '.[]' | while IFS= read -r line; do
-        # Extract the username from the current JSON object
-        container_name=$(echo "$line" | jq -r '.username')
+    user_list=($(echo "$output" | jq -r '.[] | .username'))
+
+    # Loop through each user using a for loop
+    for container_name in "${user_list[@]}"; do
         ((container_count++))
 
-        # Debug: Print which user is currently being processed
-        echo "Current user count: $container_count, Total containers: $total_containers"
-
-        # Check for suspended users
-        if [[ "$container_name" =~ [_] ]]; then
-            echo "Skipping backup for suspended user: $container_name"
-            continue  # Skip this container
-        fi
-
-        excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
-
-        # Check if container name is in the excluded list
-        if [ -f "$excluded_file" ]; then
-            if grep -Fxq "$container_name" "$excluded_file"; then
-                echo "Skipping backup for excluded user: $container_name"
-                continue  # Skip this container
+        empty_line
+        echo "Starting backup for user: $container_name ($container_count/$total_containers)"
+        
+        check_if_suspended_user_or_in_exclude_list() {
+            if [[ "$container_name" =~ [_] ]]; then
+                echo "Skipping backup for suspended user: $container_name"
+                continue
             fi
-        fi
+    
+            excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
 
-        echo "Starting backup for user: $container_name"
-        mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-        user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
-        user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-        number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
+            if [ -f "$excluded_file" ]; then
+                if grep -Fxq "$container_name" "$excluded_file"; then
+                    echo "Skipping backup for excluded user: $container_name"
+                    continue
+                fi
+            fi
+        }
 
-        # Debug: Output the number of current backups
-        echo "Current backups for $container_name: $number_of_backups_in_this_job_that_user_has"
+        get_current_number_of_backups_for_user() {
+            user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
+            number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
+    
+            if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
+                number_of_backups_in_this_job_that_user_has=0
+            fi
+        }
 
-        if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
-            number_of_backups_in_this_job_that_user_has=0
-        fi
 
-        backup_for_user_started
-        mkdir -p "/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-        perform_backup "$container_name"
-        backup_for_user_finished
 
-        # After backup process, log the status
-        echo "Backup completed for user: $container_name"
-
-        # Compare with retention
-        if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
-            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention."
-            # TODO: actual rotation should be scheduled based on index files!
-        else
-            echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached."
-        fi
+        retention_check_and_delete_oldest_backup() {
+            # Compare with retention
+            if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
+                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention."
+                #SED ERROR: TODO: retention_for_user_files_delete_oldest_files_for_job_id
+            else
+                echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached."
+            fi
+        }
+        
+        check_if_suspended_user_or_in_exclude_list                                                 # should we run the backup?
+        get_current_number_of_backups_for_user                                                     # count existing backups
+        backup_for_user_started                                                                    # write log per user
+        perform_backup "$container_name"                                                           # execute actual backup for the user
+        backup_for_user_finished                                                                   # complete log for user
     done
 }
 
