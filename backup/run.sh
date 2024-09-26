@@ -5,9 +5,9 @@
 # Usage: opencli backup-run ID --all [--debug]
 # Author: Stefan Pejcic
 # Created: 26.01.2024
-# Last Modified: 19.06.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 26.09.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
