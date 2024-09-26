@@ -1547,6 +1547,7 @@ run_backup_for_user_data() {
         # Compare with retention
         if [ "$number_of_backups_in_this_job_that_user_has" -ge "$retention" ]; then
             echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, reached retention of $retention."
+            # TODO: actual rotation should be scheduled based on index files!
         else
             echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached."
         fi
