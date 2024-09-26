@@ -503,7 +503,7 @@ source /usr/local/admin/scripts/db.sh
 backup_mysql_databases() {
 
     # Check if MySQL is running
-    if ! docker exec "$container_name" mysqladmin ping -u root --silent; then
+    if ! docker exec "$container_name" mysqladmin ping -u root --silent > /dev/null 2>&1; then
         echo "MySQL is not active inside the container. Skipping backup."
         return 1
     fi
@@ -530,7 +530,7 @@ backup_mysql_databases() {
 backup_mysql_users() {
 
     # Check if MySQL is running
-    if ! docker exec "$container_name" mysqladmin ping -u root --silent; then
+    if ! docker exec "$container_name" mysqladmin ping -u root --silent > /dev/null 2>&1; then
         echo "MySQL is not active inside the container. Skipping backup."
         return 1
     fi
@@ -814,7 +814,7 @@ backup_crontab_for_root_user(){
 
 backup_timezone(){
     copy_files "docker:$container_name:/etc/timezone" "/timezone/"
-    #copy_files "docker:$container_name:/etc/localtime" "/timezone/"
+    docker exec $container_name "cat /etc/timezone"
 }
 
 
@@ -1207,7 +1207,7 @@ backup_for_user_finished(){
     sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
         echo "Backup completed for user: $container_name"                                          
         retention_check_and_delete_oldest_backup
-        empty_line    
+        #empty_line    
 }
 
 
