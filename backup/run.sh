@@ -1122,10 +1122,10 @@ perform_backup() {
         type+="DOMAINS,"
     fi
 
-
+    # TODO: for types store only those that actually had data!
 
     type="${type%,}"
-    
+    sed -i -e "s/type=/type=$type/" "$user_index_file"
     log_user "$container_name" "Backup completed successfully."
 
 }
@@ -1193,9 +1193,6 @@ backup_for_user_started(){
     separator=""
     # Create log file and write initial content
     echo -e "$initial_index_content$separator" >> "$user_index_file"
-
-
-
 }
 
 backup_for_user_finished(){
@@ -1203,6 +1200,8 @@ backup_for_user_finished(){
     end_backup_for_user_time=$(date -u +"%a %b %d %T UTC %Y")
     #$status="Completed"
     total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
+
+    # TODO: calculate total du for this backup and store it in index file!
     
     sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
         echo "Backup completed for user: $container_name"                                          
