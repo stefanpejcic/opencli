@@ -70,7 +70,7 @@ fi
 
 
 USERNAME=$1
-SEARCH_DIR="/usr/local/admin/backups/index"
+SEARCH_DIR="/etc/openpanel/openadmin/config/backups/index"
 
 # Check if the main directory exists
 if [ ! -d "$SEARCH_DIR" ]; then
