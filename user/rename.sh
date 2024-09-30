@@ -36,6 +36,8 @@ fi
 old_username="$1"
 new_username="$2"
 DEBUG=false  # Default value for DEBUG
+FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
+
 
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
@@ -47,9 +49,6 @@ for arg in "$@"; do
             ;;
     esac
 done
-
-#1. check for forbidden usernames
-readarray -t forbidden_usernames < /etc/openpanel/openadmin/config/forbidden_usernames.txt
 
 ensure_jq_installed() {
     # Check if jq is installed
@@ -75,143 +74,197 @@ ensure_jq_installed() {
     fi
 }
 
-is_username_forbidden() {
 
-    for forbidden_username in "${forbidden_usernames[@]}"; do
-        if [ "$new_username" == "$forbidden_username" ]; then
-            return 0 # Username is forbidden
+
+
+
+
+
+
+check_username_is_valid() {
+    is_username_forbidden() {
+        local check_username="$1"
+        readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
+    
+        # Check if the username meets all criteria
+        if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
+           [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
+           (( ${#check_username} < 3 || ${#check_username} > 20 )); then
+            return 0
         fi
-    done
-    return 1 # not forbidden
+    
+        # Check against forbidden usernames
+        for forbidden_username in "${forbidden_usernames[@]}"; do
+            if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
+                return 0
+            fi
+        done
+    
+        return 1
+    }
+
+
+    is_username_valid() {
+        local check_username="$1"
+    
+        # Check if the username meets all criteria
+        if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
+           [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
+           (( ${#check_username} < 3 || ${#check_username} > 20 )); then
+            return 0
+        fi
+    
+        return 1
+    }
+
+
+    
+    # Validate username
+    if is_username_valid "$new_username"; then
+        echo "Error: The username '$new_username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
+        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
+        exit 1
+    elif is_username_forbidden "$new_username"; then
+        echo "Error: The username '$new_username' is not allowed."
+        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#reserved-usernames"
+        exit 1
+    fi
 }
 
-if is_username_forbidden "$new_username"; then
-    echo "Error: Username '$new_username' is not allowed."
-    exit 1
-fi
+
+check_if_container_name_taken(){
 
 
+    # Check if Docker container with the same username exists
+    if docker inspect "$new_username" >/dev/null 2>&1; then
+        echo "Error: Docker container with the same username '$new_username' already exists. Aborting."
+        exit 1
+    fi
 
-# Check if Docker container with the same username exists
-if docker inspect "$new_username" >/dev/null 2>&1; then
-    echo "Error: Docker container with the same username '$new_username' already exists. Aborting."
-    exit 1
-fi
+}
 
-
-# DB
-source /usr/local/admin/scripts/db.sh
-
-# Check if the username already exists in the users table
-username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$new_username'"
-username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
-
-# Check if successful
-if [ $? -ne 0 ]; then
-    echo "Error: Unable to check username existence in the database."
-    exit 1
-fi
-
-# count > 0) show error and exit
-if [ "$username_exists_count" -gt 0 ]; then
-    echo "Error: Username '$new_username' already exists."
-    exit 1
-fi
-
-
-
-
-
+check_if_exists_in_db() {
+    
+    # DB
+    source /usr/local/admin/scripts/db.sh
+    
+    # Check if the username already exists in the users table
+    username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$new_username'"
+    username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
+    
+    # Check if successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Unable to check username existence in the database."
+        exit 1
+    fi
+    
+    # count > 0) show error and exit
+    if [ "$username_exists_count" -gt 0 ]; then
+        echo "Error: Username '$new_username' already exists."
+        exit 1
+    fi
+}
 
 
+edit_mount_point_and_mv_files() {
+    ########### DONE CHECKS, RUN THE REMOUNT
+    mv /home/$old_username /home/$new_username > /dev/null 2>&1
+    umount /home/storage_file_$old_username > /dev/null 2>&1
+    mv /home/storage_file_$old_username /home/storage_file_$new_username > /dev/null 2>&1
+    mount -o loop /home/storage_file_$new_username /home/$new_username > /dev/null 2>&1
+    sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/c\/home\/storage_file_$new_username \/home\/$new_username ext4 loop 0 0" /etc/fstab  > /dev/null 2>&1
+}
 
-########### DONE CHECKS, RUN THE REMOUNT
-mv /home/$old_username /home/$new_username > /dev/null 2>&1
-umount /home/storage_file_$old_username > /dev/null 2>&1
-mv /home/storage_file_$old_username /home/storage_file_$new_username > /dev/null 2>&1
-mount -o loop /home/storage_file_$new_username /home/$new_username > /dev/null 2>&1
-sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/c\/home\/storage_file_$new_username \/home\/$new_username ext4 loop 0 0" /etc/fstab  > /dev/null 2>&1
 
-
+rename_docker_container() {
 # Check if the container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
 
 
-determine_web_server() {
-    # Check for Apache inside the container
-    if docker exec "$old_username" which apache2 &> /dev/null; then
-        echo "apache2"
-    # Check for Nginx inside the container
-    elif docker exec "$old_username" which nginx &> /dev/null; then
-        echo "nginx"
-    else
-        echo "unknown"
-    fi
-}
+    determine_web_server() {
+        # Check for Apache inside the container
+        if docker exec "$old_username" which apache2 &> /dev/null; then
+            echo "apache2"
+        # Check for Nginx inside the container
+        elif docker exec "$old_username" which nginx &> /dev/null; then
+            echo "nginx"
+        else
+            echo "unknown"
+        fi
+    }
 
- if [ "$DEBUG" = true ]; then
-     echo "Checking webserver for user $old_username"
- fi
+     if [ "$DEBUG" = true ]; then
+         echo "Checking webserver for user $old_username"
+     fi
  
- current_web_server=$(determine_web_server)
- 
- if [ "$DEBUG" = true ]; then
-     echo "Web server: $determine_web_server"
- fi
-
-    if [ "$DEBUG" = true ]; then
-        echo "Renaming ssh user $old_username to  $new_username inside the docker container and editing $current_web_server files."
-        docker exec "$old_username" \
-        bash -c "usermod -l $new_username $old_username && \
-                    sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
-                    service $current_web_server reload"
-
-            docker rename "$old_username" "$new_username"
-            echo "Container renamed successfully."
-    else
+     current_web_server=$(determine_web_server)
+     
+     if [ "$DEBUG" = true ]; then
+         echo "Web server: $determine_web_server"
+     fi
+    
+        if [ "$DEBUG" = true ]; then
+            echo "Renaming ssh user $old_username to  $new_username inside the docker container and editing $current_web_server files."
             docker exec "$old_username" \
             bash -c "usermod -l $new_username $old_username && \
                         sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
-                        service $current_web_server reload" > /dev/null 2>&1
-                        
-            docker rename "$old_username" "$new_username" > /dev/null 2>&1
-    fi
-else
-    echo "Error: Container '$old_username' not found."
-    exit 1
-fi
-
-if [ "$DEBUG" = true ]; then
-    mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" 
-    rm /etc/openpanel/openpanel/core/users/$new_username/data.json
-else
-    mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
-    rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
-fi
-
-ensure_jq_installed
-
-server_shared_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
-
-if [ "$DEBUG" = true ]; then
-    if [ -e "$json_file" ]; then
-        IP_TO_USE=$(jq -r '.ip' "$json_file")
-        echo "User has dedicated IP: $IP_TO_USE."
+                        service $current_web_server reload"
+    
+                docker rename "$old_username" "$new_username"
+                echo "Container renamed successfully."
+        else
+                docker exec "$old_username" \
+                bash -c "usermod -l $new_username $old_username && \
+                            sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
+                            service $current_web_server reload" > /dev/null 2>&1
+                            
+                docker rename "$old_username" "$new_username" > /dev/null 2>&1
+        fi
     else
-        IP_TO_USE="$server_shared_ip"
-        echo "User has no dedicated IP assigned, using shared IP address: $IP_TO_USE."
+        echo "Error: Container '$old_username' not found."
+        exit 1
     fi
-else
-    if [ -e "$json_file" ]; then
-        IP_TO_USE=$(jq -r '.ip' "$json_file")
+}
+
+
+mv_user_data() {
+
+
+
+    if [ "$DEBUG" = true ]; then
+        mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" 
+        rm /etc/openpanel/openpanel/core/users/$new_username/data.json
     else
-        IP_TO_USE="$server_shared_ip"
+        mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
+        rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
     fi
-fi
+
+}
 
 
-####### GET USERS IP TO BE USED FOR FIREWALL
+get_ipv4_for_user() {    
+    server_shared_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
+    
+    if [ "$DEBUG" = true ]; then
+        if [ -e "$json_file" ]; then
+            IP_TO_USE=$(jq -r '.ip' "$json_file")
+            echo "User has dedicated IP: $IP_TO_USE."
+        else
+            IP_TO_USE="$server_shared_ip"
+            echo "User has no dedicated IP assigned, using shared IP address: $IP_TO_USE."
+        fi
+    else
+        if [ -e "$json_file" ]; then
+            IP_TO_USE=$(jq -r '.ip' "$json_file")
+        else
+            IP_TO_USE="$server_shared_ip"
+        fi
+    fi
+}
+
+
+
 
 edit_nginx_files_on_host_server() {
     USERNAME=$1
@@ -376,23 +429,33 @@ replace_username_in_phpfpm_configs() {
 
 
 
+edit_firewall_ports_comments() {
+    # Check for CSF
+    if command -v csf >/dev/null 2>&1; then
+        # do nothing for csf, ports are already opened..
+        FIREWALL="CSF"
+    elif command -v ufw >/dev/null 2>&1; then
+        # rename username in ufw comments
+        FIREWALL="UFW"
+        update_firewall_rules "$IP_TO_USE"
+    fi
+} 
 
 
+# MAIN
+check_username_is_valid                                                    # validate username first
+check_if_container_name_taken                                              # check in docker namespaces
+check_if_exists_in_db                                                      # check in mysql db
+edit_mount_point_and_mv_files                                              # /home/username/
+mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
+ensure_jq_installed                                                        # just helper for parsing json
+get_ipv4_for_user                                                          # get shared or dedi ip to be used for nginx files
+replace_username_in_phpfpm_configs "$old_username" "$new_username"         # edit inside container 
+rename_docker_container                                                    # rename docker, doh! 
+edit_nginx_files_on_host_server "$old_username" "$new_username"            # edit and reload nginx conf
+edit_firewall_ports_comments                                               # firewall ports
+rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
+change_default_email                                                       # change default email
+#TODO: rename ftp accounts suffix!
 
-
-
-replace_username_in_phpfpm_configs "$old_username" "$new_username"
-edit_nginx_files_on_host_server "$old_username" "$new_username"
-
-# Check for CSF
-if command -v csf >/dev/null 2>&1; then
-    # do nothing for csf, ports are already opened..
-    FIREWALL="CSF"
-elif command -v ufw >/dev/null 2>&1; then
-    # rename username in ufw comments
-    FIREWALL="UFW"
-    update_firewall_rules "$IP_TO_USE"
-fi
-
-rename_user_in_db "$old_username" "$new_username"
-change_default_email
+exit 0
