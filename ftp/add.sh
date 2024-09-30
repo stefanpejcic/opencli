@@ -103,6 +103,7 @@ create_user() {
 # user.openpanel_username
 if [[ ! $username == *".${openpanel_username}" ]]; then
     echo "ERROR: FTP username must end with openpanel username, example: '$username.$openpanel_username'"
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
@@ -110,30 +111,35 @@ fi
 # Check if password length is at least 8 characters
 if [ ${#password} -lt 8 ]; then
     echo "ERROR: Password is too short. It must be at least 8 characters long."
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
 # Check if password contains at least one uppercase letter
 if ! [[ $password =~ [A-Z] ]]; then
     echo "ERROR: Password must contain at least one uppercase letter."
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
 # Check if password contains at least one lowercase letter
 if ! [[ $password =~ [a-z] ]]; then
     echo "ERROR: Password must contain at least one lowercase letter."
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
 # Check if password contains at least one digit
 if ! [[ $password =~ [0-9] ]]; then
     echo "ERROR: Password must contain at least one digit."
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
 # Check if password contains at least one special character
 if ! [[ $password =~ [[:punct:]] ]]; then
     echo "ERROR: Password must contain at least one special character."
+    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
     exit 1
 fi
 
