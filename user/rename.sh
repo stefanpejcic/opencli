@@ -85,14 +85,7 @@ check_username_is_valid() {
     is_username_forbidden() {
         local check_username="$1"
         readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
-    
-        # Check if the username meets all criteria
-        if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
-           [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
-           (( ${#check_username} < 3 || ${#check_username} > 20 )); then
-            return 0
-        fi
-    
+
         # Check against forbidden usernames
         for forbidden_username in "${forbidden_usernames[@]}"; do
             if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
