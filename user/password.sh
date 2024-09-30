@@ -64,10 +64,11 @@ for arg in "$@"; do
     esac
 done
 
-# DB
+# Source the database configuration
 source /usr/local/admin/scripts/db.sh
 
-# Check if new password should be randomly generated
+# Check if a new password should be randomly generated
+random_flag=false
 if [ "$new_password" == "random" ]; then
     new_password=$(generate_random_password)
     random_flag=true
@@ -76,46 +77,57 @@ fi
 # Hash password
 hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$new_password'))")
 
-# Insert hashed password into MySQL database
-change_user_password="UPDATE users SET password='$hashed_password' WHERE username='$username';"
-mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_password"
+# Detect the old user_id and other required fields
+detektuj_stari="SELECT id, email FROM users WHERE username='$username';"
+read -r stari_id email < <(mysql --defaults-extra-file=$config_file -D "$mysql_database" -Bse "$detektuj_stari")
+
+if [ -z "$stari_id" ]; then
+    echo "Error: Unable to find user ID for username $username."
+    exit 1
+fi
+
+# Generate new user_id
+new_user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -Bse "SELECT MAX(id) + 1 FROM users;")
+
+# Temporarily disable foreign key checks
+disable_fk_checks="SET FOREIGN_KEY_CHECKS = 0;"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$disable_fk_checks"
+
+# Insert a new user with the new user_id and the hashed password
+insert_new_user="INSERT INTO users (id, username, password, email) VALUES ('$new_user_id', '$username', '$hashed_password', '$email');"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$insert_new_user"
 
 if [ $? -eq 0 ]; then
-    # Detect the old user_id
-    detektuj_id_stari="SELECT id FROM users WHERE username='$username';"
-    stari_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -Bse "$detektuj_id_stari")
-
-    if [ -z "$stari_id" ]; then
-        echo "Error: Unable to find user ID for username $username."
-        exit 1
-    fi
-
-    # Update the domains table with the old user_id
-    zameni_za_sve_domene="UPDATE domains SET user_id=(SELECT MAX(id) + 1 FROM users) WHERE user_id='$stari_id';"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$zameni_za_sve_domene"
+    # Update the domains table to reference the new user_id
+    update_domains="UPDATE domains SET user_id='$new_user_id' WHERE user_id='$stari_id';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$update_domains"
 
     if [ $? -eq 0 ]; then
-        # Invalidate all existing user sessions
-        change_user_id="UPDATE users SET id = (SELECT MAX(id) + 1 FROM (SELECT id FROM users) AS subquery) WHERE username='$username';"
-        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$change_user_id"
+        # Delete the old user entry
+        delete_old_user="DELETE FROM users WHERE id='$stari_id';"
+        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$delete_old_user"
 
         if [ $? -eq 0 ]; then
+            echo "Successfully changed password and updated user ID for user $username."
             if [ "$random_flag" = true ]; then
-                echo "Successfully changed password for user $username, new generated password is: $new_password"
-            else
-                echo "Successfully changed password for user $username."
+                echo "New generated password is: $new_password"
             fi
         else
-            echo "Warning: Terminating existing user sessions failed. Run the command manually: mysql -D \"$mysql_database\" -e \"$change_user_id\""
+            echo "Error: Deleting old user entry failed."
+            exit 1
         fi
     else
-        echo "Error: Updating domains table failed."
+        echo "Error: Updating domains table with new user_id failed."
         exit 1
     fi
 else
-    echo "Error: Data insertion failed."
+    echo "Error: Inserting new user entry failed."
     exit 1
 fi
+
+# Re-enable foreign key checks
+enable_fk_checks="SET FOREIGN_KEY_CHECKS = 1;"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$enable_fk_checks"
 
 # Check if --ssh flag is provided
 if [ "$ssh_flag" = true ]; then
