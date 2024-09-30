@@ -311,6 +311,7 @@ validate_password_and_username() {
         :
     else
         echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 20 characters."
+        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openadmin"
         exit 1
     fi
     
