@@ -1125,6 +1125,13 @@ save_user_to_db() {
 
 }
 
+create_backup_dirs_for_each_index() {
+    for dir in /etc/openpanel/openadmin/config/backups/index/*/; do
+      mkdir -p "${dir}${username}"
+    done
+}
+
+
 
 
 check_username_is_valid                      # validate username first
@@ -1145,6 +1152,7 @@ set_ssh_user_password_inside_container       # create/rename ssh user and set pa
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
 phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
+create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 recreate_hosts_file                          # write username and private docker ip in /etc/hosts
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # finally save user to mysql db
