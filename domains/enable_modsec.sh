@@ -50,17 +50,14 @@ for username in $usernames; do
         # Iterate through each domain and update Nginx configuration
         for domain in $domains; do
             echo "Processing domain: $domain"
-
+            
             # Define Nginx conf file path
             nginx_conf="/etc/nginx/sites-available/$domain.conf"
-
-            # Check if modsecurity lines exist in the conf file
-            if  grep -q "modsecurity_rules_file /etc/nginx/modsec/main.conf;" "$nginx_conf"; then
+            
+            if  grep -q "modsecurity_rules_file /usr/local/nginx/conf/modsecurity.conf;" "$nginx_conf"; then
                 echo "ModSecurity lines already exist in $nginx_conf. Skipping."
             else
-                # Use sed to update the content after ONLY FIRST server_name line
-                #sed -i "/server_name /s/$/\\n\tmodsecurity on;\\n\tmodsecurity_rules_file \/etc\/nginx\/modsec\/main.conf;/" "$nginx_conf"
-                awk '/server_name / && !done { print "    modsecurity on;\n    modsecurity_rules_file /etc/nginx/modsec/main.conf;"; done=1 } 1' "$nginx_conf" > temp && mv temp "$nginx_conf"
+                awk '/server_name / && !done { print "    modsecurity on;\n    modsecurity_rules_file /usr/local/nginx/conf/modsecurity.conf;"; done=1 } 1' "$nginx_conf" > temp && mv temp "$nginx_conf"
                 echo "ModSecurity lines added to $nginx_conf."
             fi
         done
