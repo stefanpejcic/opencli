@@ -106,6 +106,13 @@ update_openpanel_config() {
 		service admin restart &> /dev/null
  	fi
   
+	conf="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
+	sed -i "s/localhost/$hostname/g" $conf
+	echo "- /openadmin on every domain will now redirect to https://${hostname}:2087/"
+	port_for_user_panel=($opencli config get port)
+	echo "- /openpanel on every domain will now redirect to https://${hostname}:${port_for_user_panel}/"
+	echo "- /webmail   on every domain will now redirect to https://webmail.${hostname}/"
+  
         echo ""
 	if ! docker ps --filter "name=openpanel" --filter "status=running" --format "{{.Names}}"; then
 	        echo -e "- OpenPanel  is now available on: ${GREEN}https://$hostname:$port${RESET}"
