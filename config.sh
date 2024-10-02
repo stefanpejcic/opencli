@@ -42,15 +42,15 @@ update_ssl_config() {
 
     if [ "$ssl_value" = "yes" ]; then
         # Update https to http in the proxy_conf_file if it's not already present
-        if grep -q 'proxy_pass[[:space:]]\+http://' "$proxy_conf_file"; then
-            sed -i 's|proxy_pass[[:space:]]\+http:|proxy_pass https:|' "$proxy_conf_file"
+        if grep -q 'return 301[[:space:]]\+http://' "$proxy_conf_file"; then
+            sed -i 's|return 301[[:space:]]\+http:|return 301 https:|' "$proxy_conf_file"
         else
             echo "SSL is already configured as 'https' in $proxy_conf_file"
         fi
     elif [ "$ssl_value" = "no" ]; then
         # Update http to https in the proxy_conf_file if it's not already present
-        if grep -q 'proxy_pass[[:space:]]\+https://' "$proxy_conf_file"; then
-            sed -i 's|proxy_pass[[:space:]]\+https:|proxy_pass http:|' "$proxy_conf_file"
+        if grep -q 'return 301[[:space:]]\+https://' "$proxy_conf_file"; then
+            sed -i 's|return 301[[:space:]]\+https:|return 301 http:|' "$proxy_conf_file"
         else
             echo "SSL is already configured as 'http' in $proxy_conf_file"
         fi
@@ -63,7 +63,7 @@ update_ssl_config() {
 # Function to update port configuration in proxy_conf_file
 update_port_config() {
     new_port="$1"
-    sed -Ei "s|(proxy_pass https://[^:]+:)([0-9]+;)|\1$new_port;|;s|(proxy_pass http://[^:]+:)([0-9]+;)|\1$new_port;|" "$proxy_conf_file"
+    sed -Ei "s|(return 301 https://[^:]+:)([0-9]+;)|\1$new_port;|;s|(return 301 http://[^:]+:)([0-9]+;)|\1$new_port;|" "$proxy_conf_file"
     echo "Updated port configuration in $proxy_conf_file to $new_port"
 }
 
