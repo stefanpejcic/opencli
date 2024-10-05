@@ -31,8 +31,8 @@
 
 
 # Check if the correct number of arguments are provided
-if [ "$#" -ne 2 ]; then
-    echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>"
+if [ "$#" -lt 2 ]; then
+    echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--debug]"
     exit 1
 fi
 
@@ -46,17 +46,27 @@ if ! [[ "$domain_name" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
     exit 1
 fi
 
+debug_mode=false
+if [[ "$3" == "--debug" ]]; then
+    debug_mode=true
+fi
 
 
+# used for flask route to show progress..
+log() {
+    if $debug_mode; then
+        echo "$1"
+    fi
+}
 
 # Check if domain already exists
+log "Checking if domain already exists on the server"
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     :
 else
-    echo "WARNING: Domain $domain_name already exists."
+    echo "ERROR: Domain $domain_name already exists."
     exit 1
 fi
-
 
 
 
@@ -71,6 +81,7 @@ get_user_id() {
 
 user_id=$(get_user_id "$user")
 
+
 if [ -z "$user_id" ]; then
     echo "FATAL ERROR: user $user does not exist."
     exit 1
@@ -84,6 +95,7 @@ fi
 get_server_ipv4() {
 	# IP SERVERS
 	SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+ 	log "Checking IPv4 address for the account"
 	if [ -f "$SCRIPT_PATH" ]; then
 	    source "$SCRIPT_PATH"
 	else
@@ -95,15 +107,11 @@ get_server_ipv4() {
 	if [ -z "$current_ip" ]; then
 	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
 	fi
-
 }
 
 
-
-
-
-
 clear_cache_for_user() {
+	log "Purging cached list of domains for the account"
 	rm /etc/openpanel/openpanel/core/users/${user}/data.json >/dev/null 2>&1
 }
 
@@ -114,6 +122,7 @@ clear_cache_for_user() {
 
 
 make_folder() {
+	log "Creating document root directory /home/$user/$domain_name"
 	mkdir -p /home/$user/$domain_name
 	docker exec $user bash -c "chown $user:33 /home/$user/$domain_name"
 	chmod -R g+w /home/$user/$domain_name
@@ -125,11 +134,11 @@ make_folder() {
 
 check_and_create_default_file() {
 #extra step needed for nginx
-
+log "Checking if default vhosts file exists for Nginx"
 file_exists=$(docker exec "$user" test -e "/etc/nginx/sites-enabled/default" && echo "yes" || echo "no")
 
 if [ "$file_exists" == "no" ]; then
-    echo "Default nginx vhost file does not exist, creating.."
+    log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
     docker exec "$user" sh -c "echo 'server {
         listen 80 default_server;
         listen [::]:80 default_server;
@@ -144,6 +153,7 @@ fi
 
 
 get_webserver_for_user(){
+	    log "Checking webserver configuration"
 	    output=$(opencli webserver-get_webserver_for_user $user)
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
@@ -160,8 +170,10 @@ get_webserver_for_user(){
 
 start_ssl_generation_in_bg(){	
 	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
+ 	log "Checking and starting the ssl generation service"
 	cd /root && docker compose up -d certbot >/dev/null 2>&1
   	# from 0.2.8 this is hadled by opencli as well
+ 	log "Starting Let'sEncrypt SSL generation in background"
 	opencli ssl-domain $domain_name > /dev/null 2>&1 & disown
 }
 
@@ -169,13 +181,16 @@ start_ssl_generation_in_bg(){
 
 
 start_default_php_fpm_service() {
+        log "Starting default PHP version ${php_version}"
 	docker exec $user service php${php_version}-fpm start >/dev/null 2>&1
+        log "Checking and setting PHP service to automatically start on reboot"
 	docker exec $user sed -i "s/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/" /etc/entrypoint.sh >/dev/null 2>&1
 }
 
 
 
 auto_start_webserver_for_user_in_future(){
+        log "Checking and setting $ws service to automatically start on reboot"
 	if [[ $ws == *apache2* ]]; then
 		docker exec $user sed -i 's/APACHE_STATUS="off"/APACHE_STATUS="on"/' /etc/entrypoint.sh
 	elif [[ $ws == *nginx* ]]; then
@@ -195,7 +210,7 @@ vhost_files_create() {
 	fi
 
 	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-
+	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
 	docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
@@ -219,6 +234,7 @@ vhost_files_create() {
 	"
 	
 	docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
+ 	log "Restarting $ws to apply changes"
 	docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
 
 }
@@ -227,8 +243,10 @@ create_domain_file() {
 
 	if [ -f /etc/nginx/modsec/main.conf ]; then
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf_with_modsec"
+     	    log "Creating vhosts proxy file for Nginx with ModSecurity"
 	else
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf"
+     	    log "Creating vhosts proxy file for Nginx"
 	fi
 	
 	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
@@ -244,6 +262,7 @@ create_domain_file() {
  	# added in 0.2.6
 	if docker exec "$user" test -f /etc/default/varnish; then
 	    echo "Detected Varnish for user, setting Nginx to use port 6081 to proxy to Varnish."
+     	    log "Setting Nginx to use port 6081 and proxy to Varnish Cache"
 		sed -i \
 		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
 		    -e "s|<USERNAME>|$user|g" \
@@ -266,10 +285,13 @@ create_domain_file() {
 
  	# Check if the 'nginx' container is running
 	if [ $(docker ps -q -f name=nginx) ]; then
+ 	    log "Webserver is running, reloading configuration"
 	    docker exec nginx sh -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
 	else
-	    cd /root && docker compose up -d nginx  >/dev/null 2>&1
+	    log "Webserver is not running, starting now"
+            cd /root && docker compose up -d nginx  >/dev/null 2>&1
 	fi
+
 
     
 }
@@ -278,7 +300,7 @@ create_domain_file() {
 update_named_conf() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
-
+    log "Adding the newly created zone file to the DNS server"
     local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
     # Check if the domain already exists in named.conf.local
@@ -301,6 +323,7 @@ create_zone_file() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
+    log "Creating DNS zone file: $ZONE_FILE_DIR$domain_name.zone"
     zone_template=$(<"$ZONE_TEMPLATE_PATH")
 
 	# Function to extract value from config file
@@ -341,12 +364,12 @@ create_zone_file() {
 
     # Reload BIND service
     if [ $(docker ps -q -f name=openpanel_dns) ]; then
+        log "DNS service is running, adding the zone"
 	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-	cd /root && docker compose up -d bind9  >/dev/null 2>&1
+	log "DNS service is not started, starting now"
+        cd /root && docker compose up -d bind9  >/dev/null 2>&1
     fi
-    
-    cd /root && docker compose up -d bind9  >/dev/null 2>&1
     
 }
 
@@ -363,6 +386,7 @@ create_mail_mountpoint(){
     if [ -n "$key_value" ]; then
 	# do for enterprise!
  	DOMAIN_DIR="/home/$user/mail/$domain_name/"
+        log "Creating directory $DOMAIN_DIR for emails"
 	COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
 	volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
 
@@ -372,7 +396,7 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
 }" "$COMPOSE_FILE"
 
 
-
+log "Reloading mail-server service"
 cd /usr/local/mail/openmail/ && docker compose down mailserver >/dev/null 2>&1
 cd /usr/local/mail/openmail/ && docker compose up -d mailserver >/dev/null 2>&1
   
@@ -386,14 +410,10 @@ cd /usr/local/mail/openmail/ && docker compose up -d mailserver >/dev/null 2>&1
 add_domain() {
     local user_id="$1"
     local domain_name="$2"
-
+    log "Adding $domain_name to the domains database"
     local insert_query="INSERT INTO domains (user_id, domain_name, domain_url) VALUES ('$user_id', '$domain_name', '$domain_name');"
     mysql -e "$insert_query"
-
-
     result=$(mysql -se "$query")
-
-
 
     # Verify if the domain was added successfully
     local verify_query="SELECT COUNT(*) FROM domains WHERE user_id = '$user_id' AND domain_name = '$domain_name' AND domain_url = '$domain_name';"
@@ -413,9 +433,10 @@ add_domain() {
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
 	start_ssl_generation_in_bg                   # start certbot
- 
-        echo "Domain $domain_name has been added for user $user."
+        echo "Domain $domain_name added successfully"
+        #echo "Domain $domain_name has been added for user $user."
     else
+        log "Adding domain $domain_name failed! Contact administrator to check if the mysql database is running."
         echo "Failed to add domain $domain_name for user $user (id:$user_id)."
     fi
 }
