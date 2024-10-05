@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/add.sh
 # Description: Add a domain name for user.
-# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME>
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 06.09.2024
+# Last Modified: 05.10.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -181,7 +181,7 @@ start_ssl_generation_in_bg(){
 
 
 start_default_php_fpm_service() {
-        log "Starting default PHP version ${php_version}"
+        log "Starting service for the default PHP version ${php_version}"
 	docker exec $user service php${php_version}-fpm start >/dev/null 2>&1
         log "Checking and setting PHP service to automatically start on reboot"
 	docker exec $user sed -i "s/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/" /etc/entrypoint.sh >/dev/null 2>&1
