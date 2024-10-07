@@ -950,7 +950,7 @@ copy_skeleton_files() {
         echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
-        opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
+        opencli php-available_versions $username  > /dev/null 2>&1 &
     
     # Create files and folders needed for the user account
     log "- web server: $web_server"
