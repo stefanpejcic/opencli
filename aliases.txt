@@ -33,8 +33,8 @@ opencli nginx-modsec
 opencli nginx-update_vhosts
 opencli php-default_php_version
 opencli php-domain_php
-opencli php-enabled_php_versions
-opencli php-get_available_php_versions
+opencli php-installed_versions
+opencli php-available_versions
 opencli php-install_php_version
 opencli phpmyadmin
 opencli plan-apply
