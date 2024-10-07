@@ -1,9 +1,9 @@
 #!/bin/bash
 ################################################################################
-# Script Name: php/domain_php.sh
+# Script Name: php/domain.sh
 # Description: View or change the PHP version used for a single domain name.
-# Usage: opencli php-domain_php <domain_name>
-#        opencli php-domain_php <domain_name> --update <new_php_version>
+# Usage: opencli php-domain <domain_name>
+#        opencli php-domain <domain_name> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 19.07.2024
