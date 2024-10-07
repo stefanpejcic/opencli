@@ -220,7 +220,7 @@ vhost_files_create() {
 	user_gateway=$(docker inspect $user | jq -r '.[0].NetworkSettings.Networks | .[] | .Gateway' | head -n 1)
 	
 	
-	php_version=$(opencli php-default_php_version $user | grep -oP '\d+\.\d+')
+	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
 	
 	# Execute the sed command inside the Docker container
 	docker exec $user /bin/bash -c "
