@@ -55,9 +55,16 @@ if [ "$5" = "--debug" ]; then
     DEBUG=true
 fi
 
+log() {
+    if $DEBUG; then
+        echo "$1"
+    fi
+}
+
 
 
 set_docker_context_for_container() {
+    log "Checking if clustering is enabled and which node to use for the new container"
     default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
     
     if [ -z "$default_context" ]; then
@@ -97,6 +104,7 @@ set_docker_context_for_container() {
 check_username_is_valid() {
     is_username_forbidden() {
         local check_username="$1"
+        log "Checking if username $username is in the forbidden usernames list"
         readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
     
         # Check against forbidden usernames
@@ -112,7 +120,7 @@ check_username_is_valid() {
 
     is_username_valid() {
         local check_username="$1"
-    
+        log "Checking if username $username is valid"
         # Check if the username meets all criteria
         if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
            [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
@@ -142,7 +150,7 @@ check_username_is_valid() {
 . "$DB_CONFIG_FILE"
 
 check_running_containers() {
-
+    log "Checking if there is already a docker container with the same name"
     # Check if Docker container with the same username exists
     container_id=$(docker $context_flag ps -a --filter "name=$username" --format "{{.ID}}")
     
@@ -161,7 +169,9 @@ get_existing_users_count() {
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
         :
+        log "Enterprise edition detected: unlimited number of users can be created"
     else
+       log "Checking if the limit of 3 users on Community edition is reached"
         # Check the number of users from the database
         user_count_query="SELECT COUNT(*) FROM users"
         user_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$user_count_query" -sN)
@@ -217,7 +227,7 @@ fi
 
 #Get CPU, DISK, INODES and RAM limits for the plan
 get_plan_info_and_check_requirements() {
-
+    log "Getting information from the database for plan $plan_name"
     # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
     query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file, id FROM plans WHERE name = '$plan_name'"
     
@@ -310,27 +320,19 @@ get_plan_info_and_check_requirements() {
 # DEBUG
 print_debug_info_before_starting_creation() {
     if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "----------------- CREATING NEW USER ACCOUNT ------------------"
-        echo ""
-        echo "Docker context:      $server_name" 
-        echo ""
+        echo "Started creating new user account"
+        echo "Docker context to be used for the new container: $server_name" 
         echo "Selected plan limits from database:"
-        echo ""
-        echo "- PLAN ID:           $plan_id" 
-        echo "- DOCKER_IMAGE:      $docker_image"
-        echo "- DISK QUOTA:        $disk_limit"
-        echo "- CPU:               $cpu"
-        echo "- RAM:               $ram"
-        echo "- INODES:            $inodes"
-        echo "- STORAGE FILE:      $storage_file"
-        echo "- BANDWIDTH:         $bandwidth"
-        echo "- NAME:              $name"
-        echo "- TOTAL DISK NEEDED: $disk_size_needed_for_docker_and_storage"
-        #echo "RAM Soft Limit: $ram_soft_limit MB"
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
+        echo "- plan id:           $plan_id" 
+        echo "- docker image:      $docker_image"
+        echo "- disk quota:        $disk_limit"
+        echo "- cpu limit:         $cpu"
+        echo "- memory limit:      $ram"
+        echo "- inodes limit:      $inodes"
+        echo "- storage file:      $storage_file"
+        echo "- pot speed:         $bandwidth"
+        echo "- name:              $name"
+        echo "- total disk needed: $disk_size_needed_for_docker_and_storage"
     fi
 }
 
@@ -339,6 +341,7 @@ print_debug_info_before_starting_creation() {
 
 # Check if the Docker image exists locally
 check_if_docker_image_exists() {
+    log "Checking if docker image $docker_image exists on server"
     if ! docker $context_flag images -q "$docker_image" >/dev/null 2>&1; then
         echo "ERROR: Docker image '$docker_image' does not exist on this server."
         exit 1
@@ -352,31 +355,25 @@ check_if_docker_image_exists() {
 
 # create storage file
 create_storage_file_and_mount_if_needed() {
+    log "Checking if storage file needs to be created and mounted for the user"
     if [ "$storage_file" -ne 0 ]; then
-            if [ "$DEBUG" = true ]; then
                 if [ -n "$node_ip_address" ]; then
+                    log "Creating storage file of ${storage_file}GB for the user on server $node_ip_address"
                     # TODO: Use a custom user or configure SSH instead of using root
                     ssh "root@$node_ip_address" "fallocate -l ${storage_file}g /home/storage_file_$username && mkfs.ext4 -N $inodes /home/storage_file_$username"
                 else
+                    log "Creating storage file of ${storage_file}GB for the user"
                     fallocate -l ${storage_file}g /home/storage_file_$username
                     mkfs.ext4 -N $inodes /home/storage_file_$username
                 fi
-            else
-                if [ -n "$node_ip_address" ]; then
-                    # TODO: Use a custom user or configure SSH instead of using root
-                    ssh "root@$node_ip_address" "fallocate -l ${storage_file}g /home/storage_file_$username && mkfs.ext4 -N $inodes /home/storage_file_$username" >/dev/null 2>&1
-                else
-                    fallocate -l ${storage_file}g /home/storage_file_$username >/dev/null 2>&1
-                    mkfs.ext4 -N $inodes /home/storage_file_$username >/dev/null 2>&1
-                fi
-            fi
     fi
-    
     # Create and set permissions for user directory
     if [ -n "$node_ip_address" ]; then
+        log "Creating directories for the user on server $node_ip_address"
     # TODO: Use a custom user or configure SSH instead of using root
         ssh "root@$node_ip_address" "mkdir -p /home/$username && chown 1000:33 /home/$username && chmod 755 /home/$username && chmod g+s /home/$username"
     else
+        log "Creating directories for the user"
         mkdir -p /home/$username
         chown 1000:33 /home/$username
         chmod 755 /home/$username
@@ -387,6 +384,7 @@ create_storage_file_and_mount_if_needed() {
     
          ensure_sshfs_is_installed() {
                 if ! command -v sshfs &> /dev/null; then
+                log "SSHFS command is not available on the master server, installing.."
                     if command -v apt-get &> /dev/null; then
                         sudo apt-get update > /dev/null 2>&1
                         sudo apt-get install -y -qq sshfs > /dev/null 2>&1
@@ -415,14 +413,15 @@ create_storage_file_and_mount_if_needed() {
     # Mount storage file if needed
     if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
         if [ -n "$node_ip_address" ]; then
+            log "Mounting the /home/$username partition for the user on server $node_ip_address"
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" "mount -o loop /home/storage_file_$username /home/$username"
             ssh "root@$node_ip_address" "echo \"/home/storage_file_$username /home/$username ext4 loop 0 0\" | tee -a /etc/fstab"      # mount on remote (slave) server for nginx and certbot
             ensure_sshfs_is_installed
             sshfs root@$node_ip_address:/home/$username/ /home/$username/
             echo "root@$node_ip_address:/home/$username/ /home/$username/ fuse.sshfs defaults,_netdev,allow_other 0 0" >> /etc/fstab   # mount on master for openpanel container
-
         else
+            log "Mounting the /home/$username partition for the user"
             mount -o loop /home/storage_file_$username /home/$username
             echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab                                            # mount on master only
         fi
@@ -508,10 +507,11 @@ check_or_create_network() {
       fi
     }
 
+    log "Checking if docker network $name exists for plan"
     # Check if DEBUG is true and the Docker network exists
     if [ "$DEBUG" = true ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
         # Docker network exists, DEBUG is true so show message
-        echo "Docker network '$name' exists."
+        echo "Docker network '$name' already exists"
     elif [ "$DEBUG" = false ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
         # Docker network exists, but DEBUG is not true so we dont show anything
         :
@@ -529,6 +529,7 @@ check_or_create_network() {
 
 
 get_webserver_from_plan_name() {
+    log "Checking webserver for specified plan"
     # Determine the web server based on the Docker image name
     if [[ "$docker_image" == *"nginx"* ]]; then
       path="nginx"
@@ -543,6 +544,8 @@ get_webserver_from_plan_name() {
       path="nginx"
       web_server="nginx"
     fi
+
+    log "Checking mysql version for specified plan"
     
     # 0.2.7
     docker_image_labels_json=$(docker image inspect --format='{{json .Config.Labels}}' "$docker_image")
@@ -556,9 +559,8 @@ get_webserver_from_plan_name() {
     
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "WEB SERVER:     $web_server"
-        echo "MYSQL VERSION:  $mysql_version"
-        echo "DOMAINS PATH:   /etc/$path"/
+        echo "- webserver:     $web_server"
+        echo "- mysql version:  $mysql_version"
     fi
     # then create a container
 }
@@ -579,6 +581,8 @@ change_default_email_and_allow_email_network () {
         hostname=$(hostname)
     fi
 
+    log "Setting ${username}@${hostname} as the default email address to be used for outgoing emails in /etc/msmtprc"
+    
     docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
     docker $context_flag network connect openmail_network "$username"  >/dev/null 2>&1
 }
@@ -599,15 +603,12 @@ temp_fix_for_nginx_default_site_missing() {
 
 
 run_docker() {
-    # Get the storage driver used by Docker
+
+log "Checking specified disk size for docker container"
+
     local disk_limit_param=""
     if [ "$disk_limit" -ne 0 ]; then
-    
-            if [ "$DEBUG" = true ]; then
-                echo "CONTAINER SIZE: ${disk_limit}G"
-            fi
             disk_limit_param="--storage-opt size=${disk_limit}G"
-
     else
         echo "Run with NO disk size limit."
     fi
@@ -617,6 +618,7 @@ run_docker() {
 #
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
+      log "Checking available ports to use for the docker container"
       local found_ports=()
                   
         
@@ -742,22 +744,13 @@ run_docker() {
       --hostname $hostname $docker_image"
 
     if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "AVAILABLE_PORTS: "
         echo "$AVAILABLE_PORTS"
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "DOCKER RUN COMMAND:"
-        echo "$docker_cmd"
-        echo ""
-        $docker_cmd
-        echo ""
-    else
-        $docker_cmd > /dev/null 2>&1
+        log "Creating container with the docker run command:"
+        if [ "$DEBUG" = true ]; then
+            echo "$docker_cmd"
+        fi
     fi
+        $docker_cmd > /dev/null 2>&1
 }
 
 
@@ -768,6 +761,7 @@ run_docker() {
 
 # Check the status of the created container
 check_container_status() {
+    log "Checking if the docker container is running.."
     container_status=$(docker $context_flag inspect -f '{{.State.Status}}' "$username")
     
     if [ "$container_status" != "running" ]; then
@@ -799,10 +793,8 @@ check_container_status() {
 
 
 display_private_ip_on_debug_only() {
-    if [ "$DEBUG" = true ]; then
-        ip_address=$(docker $context_flag container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
-        echo "IP ADDRESS: $ip_address"
-    fi
+    ip_address=$(docker $context_flag container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
+    log "Private IP address that will be used for the user: $ip_address"
 }
 
 
@@ -814,6 +806,7 @@ display_private_ip_on_debug_only() {
 
 # Open ports on firewall
 open_ports_on_firewall() {
+    log "Opening ports on the firewall for the user"
     # Function to extract the host port from 'docker port' output
     extract_host_port() {
         local port_number="$1"
@@ -828,19 +821,12 @@ open_ports_on_firewall() {
     # Variable to track whether any ports were opened
     ports_opened=0
     
-    if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "OPENING PORTS ON FIREWAL FOR THE NEW USER:" 
-        echo ""
-    fi
-
 
             # Check for CSF
             if command -v csf >/dev/null 2>&1; then
                 #echo "CSF is installed."
                 FIREWALL="CSF"
+                log "Detected ConfigServer Firewall (CSF) - docker port range is already opened"
             # Check for UFW
             elif command -v ufw >/dev/null 2>&1; then
                 #echo "UFW is installed."
@@ -855,71 +841,34 @@ open_ports_on_firewall() {
     # Loop through the container_ports array and open the ports on firewall
     for port in "${container_ports[@]}"; do
         host_port=$(extract_host_port "$port")
-    
-        if [ "$DEBUG" = true ]; then
-            if [ -n "$host_port" ]; then
-                # Debug mode: Print debug message            
-                echo "Opening port ${host_port} for port ${port} in $FIREWALL"
-        
-                if [ "$FIREWALL" = "CSF" ]; then
-                    # range is already opened..
-                    ports_opened=0
-                elif [ "$FIREWALL" = "UFW" ]; then
-                    if [ -n "$node_ip_address" ]; then
-                        ssh "root@$node_ip_address" "ufw allow ${host_port}/tcp  comment ${username}"
-                    else
-                        ufw allow ${host_port}/tcp  comment "${username}"
-                    fi
-                fi
-                ports_opened=1
-            fi
-        else
             if [ -n "$host_port" ]; then
                 if [ "$FIREWALL" = "CSF" ]; then
                     # range is already opened..
                     ports_opened=0
                 elif [ "$FIREWALL" = "UFW" ]; then
                     if [ -n "$node_ip_address" ]; then
+                        log "Opening port ${host_port} on UFW for the server $node_ip_address"
                         ssh "root@$node_ip_address" "ufw allow ${host_port}/tcp  comment ${username}" >/dev/null 2>&1
                     else
+                        log "Opening port ${host_port} on UFW"
                         ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
                     fi                   
                 fi
                 ports_opened=1
             fi
-        fi
     done
     
     # Restart UFW if ports were opened
     if [ $ports_opened -eq 1 ]; then
-        if [ "$DEBUG" = true ]; then
-    
-            if [ "$FIREWALL" = "CSF" ]; then
-                :
-                #echo "Reloading ConfigServer Firewall"
-                #csf -r
-            elif [ "$FIREWALL" = "UFW" ]; then
-                echo "Reloading UFW"
-                
+            if [ "$FIREWALL" = "UFW" ]; then
                     if [ -n "$node_ip_address" ]; then
-                        ssh "root@$node_ip_address" "ufw reload"
-                    else
-                        ufw reload
-                    fi                 
-            fi
-    
-        else
-            if [ "$FIREWALL" = "CSF" ]; then
-                :
-                #csf -r >/dev/null 2>&
-            elif [ "$FIREWALL" = "UFW" ]; then
-                    if [ -n "$node_ip_address" ]; then
+                        log "Reloading UFW service on server $node_ip_address"
                         ssh "root@$node_ip_address" "ufw reload" >/dev/null 2>&1
                     else
+                        log "Reloading UFW service"
                         ufw reload >/dev/null 2>&1
                     fi  
             fi        
-        fi
     fi
     
 }
@@ -931,17 +880,12 @@ open_ports_on_firewall() {
 
 
 set_ssh_user_password_inside_container() {
-    if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "SETTING SSH USER INSIDE DOCKER CONTAINER:"
-        echo ""
-    fi
+    log "Setting ssh password for the user $username inside the docker container"
     
     # Generate password if needed
     if [ "$password" = "generate" ]; then
         password=$(openssl rand -base64 12)
+        log "Generated password: $password" 
     fi
     
     # Hash password
@@ -952,11 +896,8 @@ set_ssh_user_password_inside_container() {
     uid_1000_user=$(docker $context_flag exec $username getent passwd 1000 | cut -d: -f1)
     
     if [ -n "$uid_1000_user" ]; then
-      if [ "$DEBUG" = true ]; then
-        echo "User with UID 1000 exists: $uid_1000_user"
-        echo "Renaming user $uid_1000_user to $username and setting its password..."
-      fi
-    
+        log "User with UID 1000 exists: $uid_1000_user"
+        log "Renaming user $uid_1000_user to $username and setting its password..."   
       docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1
       echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
       docker $context_flag exec $username usermod -aG www-data $username
@@ -965,19 +906,12 @@ set_ssh_user_password_inside_container() {
         echo "User $uid_1000_user renamed to $username with password: $password"
       fi
     else
-      if [ "$DEBUG" = true ]; then
-        echo "Creating SSH user $username inside the docker container..."
-        docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username
-        echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
-        docker $context_flag exec $username usermod -aG www-data $username
-        docker $context_flagexec $username chmod -R g+w /home/$username
-        echo "SSH user $username created with password: $password"
-      else
+        log "Creating SSH user $username inside the docker container..."
         docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
         echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd > /dev/null 2>&1
         docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1
         docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1
-      fi
+        log "SSH user $username created with password: $password"
     fi
 }
 
@@ -987,37 +921,22 @@ set_ssh_user_password_inside_container() {
 
 
 phpfpm_config() {
-    if [ "$DEBUG" = true ]; then
-        # change user in www.conf file for each php-fpm verison
-        echo "Changing the username for php-fpm services inside the docker container..."
-        docker $context_flag exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;
-    
-        # restart version
-        echo "Setting container services..."
-        docker $context_flag exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
-    else
+        log "Changing the username used for php-fpm services inside the docker container..."
         docker $context_flag exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
+        # restart version
+        log "Setting container services..."
         docker $context_flag exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
-    fi
 }
 
 
 
 
 copy_skeleton_files() {
-    if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "CREATING CONFIGURATION FILES FOR NEW USER:"
-        echo ""
-    fi
+    log "Creating configuration files for the newly created user"
     
     # Use grep and awk to extract the value of default_php_version
     default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
-    
-    # NEED CHECK IF 8.2 or php8.2 format expected from python!
-    
+
     # Check if default_php_version is empty (in case the panel.config file doesn't exist)
     if [ -z "$default_php_version" ]; then
       if [ "$DEBUG" = true ]; then
@@ -1025,35 +944,23 @@ copy_skeleton_files() {
       fi
       default_php_version="php8.2"
     fi
-    
-    # Create files and folders needed for the user account
-    if [ "$DEBUG" = true ]; then
-        cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/
-        echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
-        echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
-        echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
-        opencli php-get_available_php_versions $username &
-        
-        cat /etc/openpanel/openpanel/core/users/$username/server_config.yml    
 
-# TODO:
-# opencli php-get_available_php_versions  ron on remote server!
-#
 
-        
-    else
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
         echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
         opencli php-get_available_php_versions $username  > /dev/null 2>&1 &
+    
+    # Create files and folders needed for the user account
+    log "- web server: $web_server"
+    log "- default php version: $default_php_version"
+    log "- mysql version: $mysql_version"
 
 # TODO:
-# opencli php-get_available_php_versions  ron on remote server!
+# opencli php-get_available_php_versions  run on remote server!
 #
 
-        
-    fi
 }
 
 
@@ -1065,10 +972,13 @@ copy_skeleton_files() {
 # add user to hosts file and reload nginx
 recreate_hosts_file() {
     if [ -n "$node_ip_address" ]; then
+        log "Recreating the /etc/hosts file on server $node_ip_address"
         ssh "root@$node_ip_address" "opencli server-recreate_hosts" > /dev/null 2>&1
     else
+        log "Recreating the /etc/hosts file"
         opencli server-recreate_hosts > /dev/null 2>&1
     fi
+    log "Reloading Nginx service"
     docker $context_flag restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
     ######docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
 }
@@ -1080,16 +990,9 @@ recreate_hosts_file() {
 
 start_panel_service() {
 # from 0.2.5 panel service is not started until acc is created
-    if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "STARTING OPENPANEL SERVICE:"
-        echo ""
-        cd /root && docker compose up -d openpanel 
-    else
-        cd /root && docker compose up -d openpanel > /dev/null 2>&1
-    fi
+
+log "Checking if OpenPanel service is already running, or starting it.."
+    cd /root && docker compose up -d openpanel > /dev/null 2>&1
 }
 
 
@@ -1098,25 +1001,18 @@ start_panel_service() {
 
 
 save_user_to_db() {
-    if [ "$DEBUG" = true ]; then
-        echo ""
-        echo "------------------------------------------------------"
-        echo ""
-        echo "SAVING NEW USER TO DATABASE:"
-        echo ""
-    fi
+    log "Saving new user to database"
     
-    
-    # Insert data into MySQL database
+        # Insert data into MySQL database
     mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$server_name');"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
     if [ $? -eq 0 ]; then
         if [ "$server_name" = 'default' ]; then
-            echo "Successfully added user $username password: $password"
+            echo "Successfully added user $username with password: $password"
         else
-            echo "Successfully added user $username password: $password with container on server $server_name"
+            echo "Successfully added user $username with password: $password and container on server: $server_name"
         fi
     else
         echo "Error: Data insertion failed."
@@ -1126,6 +1022,7 @@ save_user_to_db() {
 }
 
 create_backup_dirs_for_each_index() {
+    log "Creating backup jobs directories for the user"
     for dir in /etc/openpanel/openadmin/config/backups/index/*/; do
       mkdir -p "${dir}${username}"
     done
