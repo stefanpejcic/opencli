@@ -212,8 +212,11 @@ run_update_immediately(){
     write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
     
     echo "Updating to version $version"
-    #wget -q -O - "https://update.openpanel.co/versions/$local_version" | bash
-    wget -q -O - "https://update.openpanel.co/versions/$version" | bash &>> "$log_file"
+    timeout 300 bash -c "wget -q -O - 'https://update.openpanel.co/versions/$version' | bash" &>> "$log_file"
+    if [ $? -eq 124 ]; then
+        echo "Error: Update to version $version timed out after 5 minutes."
+        write_notification "Update Timed Out" "The update to version $version timed out after 5 minutes."
+    fi
 
 }
 
