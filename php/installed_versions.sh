@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: php/enabled_php_versions.sh
 # Description: View PHP versions installed for a specific user.
-# Usage: opencli php-enabled_php_versions <username>
+# Usage: opencli php-installed_versions <username>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 07.10.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
