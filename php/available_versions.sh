@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: php/get_available_php_versions.sh
 # Description: View or update the list of PHP versions that user can currently install.
-# Usage: opencli php-get_available_php_versions <username>
-#        opencli php-get_available_php_versions <username> --show
+# Usage: opencli php-available_versions <username>
+#        opencli php-available_versions <username> --show
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 28.11.2023
+# Last Modified: 07.1.2023
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
