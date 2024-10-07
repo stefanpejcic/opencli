@@ -45,18 +45,20 @@ update_ssl_config() {
         if grep -q 'return 301[[:space:]]\+http://' "$proxy_conf_file"; then
             sed -i 's|return 301[[:space:]]\+http:|return 301 https:|' "$proxy_conf_file"
         else
-            echo "SSL is already configured as 'https' in $proxy_conf_file"
+            :
+            #echo "SSL is already configured as 'https' in $proxy_conf_file"
         fi
     elif [ "$ssl_value" = "no" ]; then
         # Update http to https in the proxy_conf_file if it's not already present
         if grep -q 'return 301[[:space:]]\+https://' "$proxy_conf_file"; then
             sed -i 's|return 301[[:space:]]\+https:|return 301 http:|' "$proxy_conf_file"
         else
-            echo "SSL is already configured as 'http' in $proxy_conf_file"
+            :
+            #echo "SSL is already configured as 'http' in $proxy_conf_file"
         fi
     fi
 
-    echo "Updated SSL configuration in $proxy_conf_file"
+    #echo "Updated SSL configuration in $proxy_conf_file"
 }
 
 
@@ -64,17 +66,15 @@ update_ssl_config() {
 update_port_config() {
     new_port="$1"
     sed -Ei "s|(return 301 https://[^:]+:)([0-9]+;)|\1$new_port;|;s|(return 301 http://[^:]+:)([0-9]+;)|\1$new_port;|" "$proxy_conf_file"
-    echo "Updated port configuration in $proxy_conf_file to $new_port"
+    #echo "Updated port configuration in $proxy_conf_file to $new_port"
 }
 
 # Function to update openpanel_proxy configuration in proxy_conf_file
 update_openpanel_proxy_config() {
     new_value="$1"
-
     # Update the value in the 2nd line after "location /$$$$ {"
     sed -i "0,/location \/openpanel/{n;s|/[^[:space:]]*|/$new_value|}" "$proxy_conf_file"
-
-    echo "Updated openpanel_proxy configuration in $proxy_conf_file to $new_value"
+    #echo "Updated openpanel_proxy configuration in $proxy_conf_file to $new_value"
 }
 
 ##############################################################################
@@ -108,7 +108,7 @@ update_config() {
 
         # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
-            docker restart openpanel
+            docker restart openpanel &
             # Remove data.json files for all users
             rm -rf /etc/openpanel/openpanel/core/users/*/data.json
         fi
@@ -148,7 +148,7 @@ case "$command" in
                 ;;
             openpanel_proxy)
                 update_openpanel_proxy_config "$new_value"
-                docker restart nginx
+                docker restart nginx &
                 ;;
         esac
         ;;
