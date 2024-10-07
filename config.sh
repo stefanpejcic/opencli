@@ -148,7 +148,7 @@ case "$command" in
                 ;;
             openpanel_proxy)
                 update_openpanel_proxy_config "$new_value"
-                service nginx reload
+                docker restart nginx
                 ;;
         esac
         ;;
