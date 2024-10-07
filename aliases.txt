@@ -36,7 +36,6 @@ opencli php-domain_php
 opencli php-installed_versions
 opencli php-available_versions
 opencli php-install_php_version
-opencli phpmyadmin
 opencli plan-apply
 opencli plan-create
 opencli plan-delete
