@@ -150,12 +150,12 @@ check_username_is_valid() {
 . "$DB_CONFIG_FILE"
 
 check_running_containers() {
-    log "Checking if there is already a docker container with the same name"
-    # Check if Docker container with the same username exists
-    container_id=$(docker $context_flag ps -a --filter "name=$username" --format "{{.ID}}")
+    log "Checking if there is already a docker container with the exact same name"
+    # Check if Docker container with the exact username exists
+    container_id=$(docker $context_flag ps -a --filter "name=^${username}$" --format "{{.ID}}")
     
     if [ -n "$container_id" ]; then
-        echo "ERROR: Docker container with the same username '$username' already exists on this server. Aborting."
+        echo "ERROR: Docker container with the same name '$username' already exists on this server. Aborting."
         exit 1
     fi
 }
