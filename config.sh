@@ -108,9 +108,8 @@ update_config() {
 
         # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
-            docker restart openpanel &
-            # Remove data.json files for all users
-            rm -rf /etc/openpanel/openpanel/core/users/*/data.json
+            docker restart openpanel &> /dev/null &                        # run in bg, and dont show error if panel not running
+            rm -rf /etc/openpanel/openpanel/core/users/*/data.json         # remove data.json files for all users
         fi
         
     else
@@ -120,7 +119,7 @@ update_config() {
 
 # Main script logic
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 [get|update] <parameter_name> [new_value]"
+    echo "Usage: opencli config [get|update] <parameter_name> [new_value]"
     exit 1
 fi
 
@@ -148,7 +147,7 @@ case "$command" in
                 ;;
             openpanel_proxy)
                 update_openpanel_proxy_config "$new_value"
-                docker restart nginx &
+                docker restart nginx &> /dev/null &
                 ;;
         esac
         ;;
