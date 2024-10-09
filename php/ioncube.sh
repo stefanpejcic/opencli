@@ -44,17 +44,37 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
   exit 1
 fi
 
-#echo "Checking if installed PHP versions for user $container_name have enabled IonCube Loader extension.."
-echo "Downloading latest ioncube loader extensions from https://www.ioncube.com/loaders.php"
+# Check if the file exists and read the custom link if available
+if [ -f /etc/openapanel/php/inocube.txt ]; then
+    custom_link=$(cat /etc/openapanel/php/inocube.txt)
+    
+    # Check if the content is a valid URL (starting with http or https)
+    if [[ "$custom_link" =~ ^https?://.+ ]]; then
+        download_link="$custom_link"
+        download_message="Downloading ionCube loader extensions from custom link"
+    else
+        download_link="https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz"
+        echo "Invalid URL in inocube.txt. Falling back to default: $download_link"
+        download_message="Downloading latest ionCube loader extensions from default link"
+    fi
+else
+    download_link="https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz"
+    download_message="Downloading latest ionCube loader extensions from official website"
+fi
+
+
+file_name="ioncube_loaders.tar.gz"
 
 # Step 1: Download the ionCube loaders tarball
-docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
+echo "$download_message: $download_link"
+docker exec -it "$container_name" bash -c "cd /tmp && wget -O $file_name $download_link > /dev/null 2>&1"
 
 # Step 2: Uncompress the downloaded tarball
-docker exec -it "$container_name" bash -c "cd /tmp && tar -xzf ioncube_loaders_lin_x86-64.tar.gz"
+docker exec -it "$container_name" bash -c "cd /tmp && tar -xzf $file_name"
 
 # Step 3: Copy the ionCube loader files to the appropriate directories
 docker exec -it "$container_name" bash -c 'for dir in /usr/lib/php/20*/; do cp -r /tmp/ioncube/ioncube_loader_lin_*.so "$dir"; done'
+
 
 echo "Listing installed PHP versions for user $container_name "
 echo ""
