@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: php/ioncube.sh
 # Description: Enable IonCube Loader for every installed PHP version
-# Usage: opencli php-ioncube <username> [--reuse=/path/to/ioncube.so]
+# Usage: opencli php-ioncube <username>
 # Author: Stefan Pejcic
 # Created: 26.07.2024
 # Last Modified: 09.10.2024
@@ -28,19 +28,15 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+
 # Check if the correct number of arguments are provided
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-  echo "Usage: opencli php-ioncube <username> [--reuse=/path/to/ioncube.so]"
+if [ "$#" -ne 1 ]; then
+  echo "Usage: opencli php-ioncube <username>"
   exit 1
 fi
 
 container_name="$1"
-reuse_path=""
-
-# Parse optional --reuse flag
-if [[ "$2" =~ ^--reuse= ]]; then
-  reuse_path="${2#--reuse=}"
-fi
 
 # Check if the Docker container with the given name exists
 if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
@@ -48,64 +44,45 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
   exit 1
 fi
 
-if [[ -n "$reuse_path" ]]; then
-  # Check if the provided path exists and is a .so file
-  if [ ! -f "$reuse_path" ]; then
-    echo "Error: The file '$reuse_path' does not exist."
-    exit 1
-  elif [[ "$reuse_path" != *.so ]]; then
-    echo "Error: The file '$reuse_path' is not a .so file."
-    exit 1
-  fi
+#echo "Checking if installed PHP versions for user $container_name have enabled IonCube Loader extension.."
+echo "Downloading latest ioncube loader extensions from https://www.ioncube.com/loaders.php"
 
-  echo "Using existing ionCube loader from $reuse_path"
-  # Copy the provided .so file into the container
-  docker cp "$reuse_path" "$container_name:/tmp/ioncube_loader_custom.so"
+# Step 1: Download the ionCube loaders tarball
+docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
 
-else
-  echo "Downloading latest ioncube loader extensions from https://www.ioncube.com/loaders.php"
+# Step 2: Uncompress the downloaded tarball
+docker exec -it "$container_name" bash -c "cd /tmp && tar -xzf ioncube_loaders_lin_x86-64.tar.gz"
 
-  # Step 1: Download the ionCube loaders tarball
-  docker exec -it "$container_name" bash -c "cd /tmp && wget https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz > /dev/null 2>&1"
+# Step 3: Copy the ionCube loader files to the appropriate directories
+docker exec -it "$container_name" bash -c 'for dir in /usr/lib/php/20*/; do cp -r /tmp/ioncube/ioncube_loader_lin_*.so "$dir"; done'
 
-  # Step 2: Uncompress the downloaded tarball
-  docker exec -it "$container_name" bash -c "cd /tmp && tar -xzf ioncube_loaders_lin_x86-64.tar.gz"
-
-fi
-
-echo "Listing installed PHP versions for user $container_name"
+echo "Listing installed PHP versions for user $container_name "
 echo ""
-# List PHP versions
+# List php versions
 php_versions=$(docker exec -it "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default' | tr -d '\r')
+
 
 # Process each PHP version
 for php_version in $php_versions; do
+
   # Strip the 'php' part to get the version number
   php_version_number=$(echo "$php_version" | sed 's/php//')
 
   echo "### CHECKING PHP VERSION $php_version_number"
-
-  # Check if ionCube Loader is already enabled
+  # Check if already enabled
   if docker exec -it "$container_name" bash -c "$php_version -m | grep -qi ioncube"; then
-    echo "ionCube Loader is already enabled for $php_version"
-    continue
-  fi
-
-  # Determine the ionCube loader file path
-  if [[ -n "$reuse_path" ]]; then
-    ioncube_file="/tmp/ioncube_loader_custom.so"
-  else
-    ioncube_file="/tmp/ioncube/ioncube_loader_lin_${php_version_number}.so"
+      echo "ionCube Loader is already enabled for $php_version"
+      continue
   fi
 
   # Check if the ionCube loader file exists for this PHP version
+  ioncube_file="/tmp/ioncube/ioncube_loader_lin_${php_version_number}.so"
   if docker exec -it "$container_name" test -f "$ioncube_file"; then
     echo "IonCube Loader extension is available for PHP version: $php_version_number - enabling.."
-
     # Function to add zend_extension line if it doesn't exist
     add_zend_extension_if_not_exists() {
       local ini_file="$1"
-      local zend_extension_line="zend_extension=${ioncube_file}"
+      local zend_extension_line="zend_extension=ioncube_loader_lin_${php_version_number}.so"
       
       # Check if zend_extension line exists, if not, append it
       if ! docker exec -it "$container_name" grep -q "^zend_extension=.*ioncube_loader_lin_${php_version_number}.so" "$ini_file"; then
@@ -119,6 +96,7 @@ for php_version in $php_versions; do
     add_zend_extension_if_not_exists "/etc/php/$php_version_number/cli/php.ini"
     add_zend_extension_if_not_exists "/etc/php/$php_version_number/fpm/php.ini"
 
+
     # Check if the PHP-FPM service is active
     service_status=$(docker exec -it "$container_name" sh -c "service php${php_version_number}-fpm status")
   
@@ -129,10 +107,9 @@ for php_version in $php_versions; do
 
   else
     echo "ERROR: IonCube Loader extension ($ioncube_file) is not currently available for PHP version: $php_version_number"
-    echo "       Please check manually on ioncube website if extension is available for your version: https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz"
+    echo "       Please check manually on ioncube website if extension is available for your version: https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz"  
   fi
   
 done
-
 echo ""
 echo "DONE"
