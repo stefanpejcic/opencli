@@ -86,7 +86,7 @@ if [ $? -eq 0 ]; then
     stari_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -Bse "$detektuj_id_stari")
 
     if [ -z "$stari_id" ]; then
-        echo "Error: Unable to find user ID for username $username."
+        echo "Error: Unable to find user ID, user $username does not exist or is suspended."
         exit 1
     fi
 
