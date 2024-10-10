@@ -386,9 +386,10 @@ create_mail_mountpoint(){
     if [ -n "$key_value" ]; then
 	# do for enterprise!
  	DOMAIN_DIR="/home/$user/mail/$domain_name/"
-        log "Creating directory $DOMAIN_DIR for emails"
-	COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
-	volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
+        COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
+        if [ -f "$COMPOSE_FILE" ]; then
+	    log "Creating directory $DOMAIN_DIR for emails"
+            volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
 
 # Insert volume using sed
 sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
@@ -397,9 +398,10 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
 
 
 log "Reloading mail-server service"
-cd /usr/local/mail/openmail/ && docker compose down mailserver >/dev/null 2>&1
-cd /usr/local/mail/openmail/ && docker compose up -d mailserver >/dev/null 2>&1
-  
+cd /usr/local/mail/openmail/ >/dev/null 2>&1
+docker compose down mailserver >/dev/null 2>&1
+docker compose up -d mailserver >/dev/null 2>&1
+            fi
     fi
 }
 
