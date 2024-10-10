@@ -82,9 +82,7 @@ display_openadmin_settings() {
   echo "=== OpenAdmin Service ===" >> "$output_file"
   run_command "python3 -m pip list" "Installed PIP packages:"
   run_command "service admin status" "Admin service status:"
-  run_command "tail -50 /var/log/openpanel/admin/error.log" "OpenAdmin error log:"
-  #run_command "cd /usr/local/admin/ && " "OpenAdmin force run:"
-  
+  run_command "tail -100 /var/log/openpanel/admin/error.log" "OpenAdmin error log:"
 }
 
 
@@ -150,6 +148,9 @@ fi
 
 # Display OpenPanel settings
 display_openpanel_settings
+
+# Display OpenAdmin settings
+display_openadmin_settings
 
 # Display MySQL information
 display_mysql_information
