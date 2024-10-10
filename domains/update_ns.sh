@@ -31,7 +31,7 @@
 
 
 # Define the path to the configuration file
-CONFIG_FILE="/etc/openpanel/openpanel/config/openpanel.conf"
+CONFIG_FILE="/etc/openpanel/openpanel/config/openpanel.config"
 ZONE_DIR="/etc/bind"
 BACKUP_DIR="$ZONE_DIR/backups"
 
