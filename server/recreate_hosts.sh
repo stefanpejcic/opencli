@@ -68,13 +68,10 @@ done
 
 
 if [ "$AFTER_DOCKER" = true ]; then
-   echo "" >> "${HOSTS_FILE}.tmp"
    echo "# INFO: Docker restart detected, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 elif [ "$AFTER_REBOOT" = true ]; then
-   echo "" >> "${HOSTS_FILE}.tmp"
    echo "# INFO: Server Reboot detected, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 else
-   echo "" >> "${HOSTS_FILE}.tmp"
    echo "# INFO: Manual trigger, recreated /etc/hosts file at: $(date)" >> "${HOSTS_FILE}.tmp"
 fi
 
