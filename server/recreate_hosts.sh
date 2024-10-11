@@ -5,7 +5,7 @@
 # Usage: opencli server-recreate_hosts
 # Author: Stefan Pejcic
 # Created: 16.08.2024
-# Last Modified: 16.08.2024
+# Last Modified: 11.10.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
