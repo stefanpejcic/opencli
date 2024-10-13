@@ -161,34 +161,24 @@ generate_ssl_with_http01() {
                 
                 # FILE VALIDATION
                 if [[ $DRY_RUN -eq 1 ]]; then
-                    echo "DRY_RUN: Running certbot with '--dry-run'"
-                    certbot_command=(
-                        "docker" "run" "--rm" "--network" "host"
-                        "-v" "/etc/letsencrypt:/etc/letsencrypt"
-                        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-                        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                        "certbot/certbot" "certonly" "--dry-run" "-v" "--webroot"
-                        "--webroot-path=/home/${username}/${domain_url}/"
-                        "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-                    )
+                    dry_flag='--dry-run'
                 else
-                    certbot_command=(
-                        "docker" "run" "--rm" "--network" "host"
-                        "-v" "/etc/letsencrypt:/etc/letsencrypt"
-                        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
-                        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
-                        "certbot/certbot" "certonly" "-v" "--webroot"
-                        "--webroot-path=/home/${username}/${domain_url}/"
-                        "--non-interactive" "--agree-tos"
-                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-                    )
+                    dry_flag=''
                 fi
                 
+                    certbot_command=(
+                        "docker" "run" "--rm" "--network" "host"
+                        "-v" "/etc/letsencrypt:/etc/letsencrypt"
+                        "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
+                        "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
+                        "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
+                        "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
+                        "certbot/certbot" "certonly" "--webroot"
+                        "--webroot-path=/home/${username}/${domain_url}/"
+                        "--preferred-challenges=http"
+                        "--non-interactive" "--agree-tos"
+                        "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "$dry_flag"
+                    )             
             
                 # Run Certbot command
                 "${certbot_command[@]}"
@@ -209,7 +199,7 @@ generate_ssl_with_http01() {
                         -v /etc/nginx/sites-available:/etc/nginx/sites-available \
                         -v /etc/nginx/sites-enabled:/etc/nginx/sites-enabled \
                         -v /home/${username}/${domain_url}/:/home/${username}/${domain_url}/ \
-                        certbot/certbot certonly --dry-run -v --webroot \
+                        certbot/certbot certonly --webroot \
                         --webroot-path=/home/${username}/${domain_url}/ \
                         --non-interactive --agree-tos \
                         -m webmaster@${domain_url} --expand -d "${domain_url},www.${domain_url}"
@@ -241,40 +231,25 @@ generate_ssl_with_dns01() {
     chmod +x /etc/letsencrypt/acme-dns-auth.py
         
     # DNS VALIDATION
-    if [[ $DRY_RUN -eq 1 ]]; then
-        echo "DRY_RUN: Running certbot with '--dry-run'"
-
-        certbot_command=(
-            "docker" "run" "--rm" "--network" "host"
-            "-v" "/etc/letsencrypt:/etc/letsencrypt"
-            "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-            "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-            "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
-            "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-            "--preferred-challenges" "dns" "--debug-challenges"
-            "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-        )
-
-            # "-v" "/etc/letsencrypt/acme-dns-remove.py:/etc/letsencrypt/acme-dns-remove.py"
-            # "--manual-cleanup-hook" "/etc/letsencrypt/acme-dns-remove.py"
-
+                if [[ $DRY_RUN -eq 1 ]]; then
+                    dry_flag='--dry-run'
+                else
+                    dry_flag=''
+                fi
         
-    else
+
         certbot_command=(
             "docker" "run" "--rm" "--network" "host"
             "-v" "/etc/letsencrypt:/etc/letsencrypt"
             "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "certbot/certbot" "certonly" "-v" "--manual"
+            "certbot/certbot" "certonly" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
             "--non-interactive" "--agree-tos"
-            "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
-        )
-    fi
+            "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "$dry_flag"
+        )        
 
     # Run Certbot for domain and wildcard subdomain
     "${certbot_command[@]}"
@@ -283,8 +258,12 @@ generate_ssl_with_dns01() {
     # Check if the Certbot command was successful
     if [ $status -eq 0 ]; then
         echo "SSL generation for ${domain_url} completed successfully using DNS verification! Trying to generate SSL for wildcard subdomain *.${domain_url}"
-        if [[ $DRY_RUN -eq 1 ]]; then
-            echo "DRY_RUN: Running certbot with '--dry-run'"
+                if [[ $DRY_RUN -eq 1 ]]; then
+                    dry_flag='--dry-run'
+                else
+                    dry_flag=''
+                fi
+                
             certbot_command=(
                 "docker" "run" "--rm" "--network" "host"
                 "-v" "/etc/letsencrypt:/etc/letsencrypt"
@@ -292,27 +271,12 @@ generate_ssl_with_dns01() {
                 "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
                 "-v" "/var/run/docker.sock:/var/run/docker.sock"
                 "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                "certbot/certbot" "certonly" "--dry-run" "-v" "--manual"
+                "certbot/certbot" "certonly" "--dry-run" "--manual"
                 "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
                 "--preferred-challenges" "dns" "--debug-challenges"
                 "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
+                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}" "$dry_flag"
             )
-        else
-            certbot_command=(
-                "docker" "run" "--rm" "--network" "host"
-                "-v" "/etc/letsencrypt:/etc/letsencrypt"
-                "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
-                "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
-                "-v" "/var/run/docker.sock:/var/run/docker.sock"
-                "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                "certbot/certbot" "certonly" "-v" "--manual"
-                "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-                "--preferred-challenges" "dns" "--debug-challenges"
-                "--non-interactive" "--agree-tos"
-                "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
-            )
-        fi
     
         # Run Certbot for domain and wildcard subdomain
         "${certbot_command[@]}"
