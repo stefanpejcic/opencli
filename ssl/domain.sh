@@ -186,7 +186,7 @@ generate_ssl_with_http01() {
                     "certbot/certbot" "certonly" "--preferred-challenges=http"
                     "--webroot" "--webroot-path=/home/${username}/${domain_url}/"
                     "--non-interactive" "--agree-tos"
-                    "-m" "webmaster@${domain_url}" "-d" "${domain_url}" "$dry_flag"
+                    "-m" "webmaster@${domain_url}" "-d" "${domain_url}"
                 )
                 fi
 
@@ -289,7 +289,7 @@ generate_ssl_with_dns01() {
                         "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
                         "certbot/certbot" "certonly" "--manual"
                         "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-                        "--preferred-challenges=dns" "--debug-challenges"
+                        "--preferred-challenges" "dns" "--debug-challenges"
                         "--non-interactive" "--agree-tos"
                         "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}" "--dry-run" "-v"
                     )
@@ -303,7 +303,7 @@ generate_ssl_with_dns01() {
                     "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
                     "certbot/certbot" "certonly" "--manual"
                     "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
-                    "--preferred-challenges=dns" "--debug-challenges"
+                    "--preferred-challenges" "dns" "--debug-challenges"
                     "--non-interactive" "--agree-tos"
                     "-m" "webmaster@${domain_url}" "-d" "*.${domain_url}"
                 )
