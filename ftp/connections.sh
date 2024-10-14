@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#connections
 # Author: Stefan Pejcic
 # Created: 11.09.2024
-# Last Modified: 11.09.2024
+# Last Modified: 14.10.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -34,14 +34,10 @@ if [ "$#" -gt 1 ]; then
     exit 1
 fi
 
-# Define the container name
 CONTAINER_NAME="openadmin_ftp"
 
-# Check if a parameter is provided
-if [ -n "$1" ]; then
-    # Execute the command with the parameter
-    docker exec "$CONTAINER_NAME" sh -c "ps | grep 'vsftpd:' | grep '$1' | grep -w -v grep"
-else
-    # Execute the command without the parameter
+if [ -n "$1" ]; then        # single user
+   docker exec "$CONTAINER_NAME" sh -c "ps | grep 'vsftpd:' | grep '$1' | grep -w -v grep"
+else                        # all users
     docker exec "$CONTAINER_NAME" sh -c 'ps | grep "vsftpd:" | grep -w -v grep'
 fi
