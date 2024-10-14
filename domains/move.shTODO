@@ -55,6 +55,24 @@ if [ -z "$user_id" ]; then
 fi
 
 
+
+update_vhost() {
+
+# need old username!
+
+sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF"                    # proxy_pass https://XXXXXX;
+                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF"                  # proxy_pass https://XXXXXX;
+                sed -i "s#users/$old_username#users/$NEW_USERNAME#g" "$DOMAIN_CONF"                      # include /etc/openpanel/openpanel/core/users/XXXX/domains/DOMAIN-block_ips.conf;
+                
+docker exec nginx sh -c "nginx -t && nginx -s reload"
+}
+
+
+mkdir_for_domain(){}
+
+copy_vhost_inside(){}
+
+
 #todo:
 # cp vhost file inside contianer, transfer nginx to apache of needed
 # replace username in vhost outside
