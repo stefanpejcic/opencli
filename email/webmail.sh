@@ -1,14 +1,14 @@
 #!/bin/bash
 ################################################################################
 # Script Name: email/webmail.sh
-# Description: Choose Webmail software
-# Usage: opencli email-webmail <roundcube|snappymail|sogo> [--debug]
+# Description: Display webmail domain or choose webmail software
+# Usage: opencli email-webmail [roundcube|snappymail|sogo] [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/emails#webmail
 # Author: 27.08.2024
 # Created: 18.08.2024
-# Last Modified: 27.08.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 14.10.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@ usage() {
     echo "Usage: opencli email-webmail {roundcube|snappymail|sogo}"
     echo
     echo "Examples:"
+    echo "  opencli email-webmail               # Display webmail domain."
     echo "  opencli email-webmail roundcube     # Set RoundCube as webmail."
     echo "  opencli email-webmail snappymail    # Set SnappyMail as webmail."
     echo "  opencli email-webmail sogo          # Set SoGo as webmail."
@@ -43,7 +44,7 @@ usage() {
 
 
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+if [ "$#" -gt 2 ]; then
     usage
 fi
 
@@ -58,6 +59,7 @@ WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain pro
 # ENTERPRISE
 ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 # Check if 'enterprise edition'
@@ -109,6 +111,26 @@ done
 
 
 
+get_domain_for_webmail() {
+    # Check if the file exists
+    if [[ ! -f "$PROXY_FILE" ]]; then
+        echo "Configuration file not found at $PROXY_FILE"
+        exit 1
+    fi
+    
+    # Use grep and awk to extract the domain from the /webmail block
+    domain=$(grep -A 1 "location /webmail" "$PROXY_FILE" | grep "return" | awk '{print $3}' | sed 's|https://||' | sed 's|/.*||')
+    
+    if [[ -n "$domain" ]]; then
+        echo "$domain"
+    else
+        echo "No domain configured for /webmail"
+        exit 0
+    fi
+}
+
+
+
 
 cd /usr/local/mail/openmail
 
@@ -139,7 +161,7 @@ elif [ "$SOGO" = true ]; then
     docker compose rm -s -v snappymail >/dev/null 2>&1
     docker compose up -d sogo
 else
-    usage
+    get_domain_for_webmail    # display domain only
 fi
 
 
