@@ -504,6 +504,8 @@ case "${1:-}" in
 	install) # install mailserver
         echo "Installing the mailserver..."
         install_mailserver
+	echo "Enabling Roundcube..."
+	opencli email-webmail roundcube
 		;;
 	pflogsumm) # generate reports
         echo "Generating reports..."
