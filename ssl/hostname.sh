@@ -85,6 +85,7 @@ renew_ssl_check() {
 update_compose_file() {
   local domain="$1"
   local compose_file="/usr/local/mail/openmail/compose.yml"
+  local mailserver_env_file="/usr/local/mail/openmail/mailserver.env"
 
   if [[ ! -f "$compose_file" ]]; then
     #echo "Email server is not installed: $compose_file"
@@ -100,7 +101,11 @@ update_compose_file() {
   sed -i "s/\(ROUNDCUBEMAIL_DEFAULT_PORT=\).*/\1993/" "$compose_file"
   sed -i "s/\(ROUNDCUBEMAIL_SMTP_PORT=\).*/\1587/" "$compose_file"
 
-  #echo "compose.yml updated with domain: $domain"
+  # Update SSL_TYPE in mailserver.env
+  if [[ -f "$mailserver_env_file" ]]; then
+    sed -i "s/\(SSL_TYPE=\).*/\1letsencrypt/" "$mailserver_env_file"
+  fi
+
   cd /usr/local/mail/openmail/
   docker compose down
   docker compose up -d mailserver roundcube  &> /dev/null
