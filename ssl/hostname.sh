@@ -80,6 +80,36 @@ renew_ssl_check() {
     echo "1" | certbot certonly --webroot -w /var/www/html -d $hostname
 }
 
+
+# for emails
+update_compose_file() {
+  local domain="$1"
+  local compose_file="/usr/local/mail/openmail/compose.yml"
+
+  if [[ ! -f "$compose_file" ]]; then
+    #echo "Email server is not installed: $compose_file"
+    return 1 # skip the rest
+  fi
+
+  sed -i "s/^\(\s*hostname:\s*\).*/\1$domain/" "$compose_file"
+
+  # for roundcube ser the tls:// prefix:
+  sed -i "s/\(ROUNDCUBEMAIL_DEFAULT_HOST=\).*/\1tls:\/\/$domain/" "$compose_file"
+  sed -i "s/\(ROUNDCUBEMAIL_SMTP_SERVER=\).*/\1tls:\/\/$domain/" "$compose_file"
+  # ports:
+  sed -i "s/\(ROUNDCUBEMAIL_DEFAULT_PORT=\).*/\1993/" "$compose_file"
+  sed -i "s/\(ROUNDCUBEMAIL_SMTP_PORT=\).*/\1587/" "$compose_file"
+
+  #echo "compose.yml updated with domain: $domain"
+  cd /usr/local/mail/openmail/
+  docker compose down
+  docker compose up -d mailserver roundcube  &> /dev/null
+
+}
+
+
+
+
 # update OpenPanel configuration
 update_openpanel_config() {
     local config_file="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -206,6 +236,7 @@ fi
 
         # Check if the Certbot command was successful
         if [ $status -eq 0 ]; then
+	    update_compose_file "$hostname"
             update_openpanel_config
         else
                 # If certbot command fails
