@@ -5,7 +5,7 @@
 # Usage: opencli ssl-hostname
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 03.09.2024
+# Last Modified: 15.10.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
