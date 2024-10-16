@@ -145,16 +145,18 @@ update_plan() {
    
   new_plan_name="$2"
   description="$3"
-  domains_limit="$4"
-  websites_limit="$5"
-  int_disk_limit="$6"
-  inodes_limit="$7"
-  db_limit="$8"
-  cpu="$9"
-  int_ram="${10}"
-  docker_image="${11}"
-  bandwidth="${12}"
-  int_storage_file="${13}"
+  ftp_limit="$4"
+  emails_limit="$5"
+  domains_limit="$6"
+  websites_limit="$7"
+  int_disk_limit="$8"
+  inodes_limit="$9"
+  db_limit="$10"
+  cpu="$11"
+  int_ram="${12}"
+  docker_image="${13}"
+  bandwidth="${14}"
+  int_storage_file="${15}"
 
   # Format disk_limit and storage_file with 'GB' 
   disk_limit="${int_disk_limit} GB"
@@ -263,7 +265,7 @@ fi
 
   
   # Update the plan in the 'plans' table
-  local sql="UPDATE plans SET name='$new_plan_name', description='$description', domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
+  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -343,16 +345,19 @@ fi
 plan_id="$1"
 new_plan_name="$2"
 description="$3"
-domains_limit="$4"
-websites_limit="$5"
-disk_limit="$6"
-inodes_limit="$7"
-db_limit="$8"
-cpu="$9"
-ram="${10}"
-docker_image="${11}"
-bandwidth="${12}"
-storage_file="${13}"
+  ftp_limit="$4"
+  emails_limit="$5"
+  domains_limit="$6"
+  websites_limit="$7"
+disk_limit="$8"
+inodes_limit="$9"
+db_limit="${10}"
+cpu="${11}"
+ram="${12}"
+docker_image="${13}"
+bandwidth="${14}"
+storage_file="${15}"
+
 
 check_cpu_cores "$cpu"
 check_available_ram "$ram"
@@ -373,4 +378,4 @@ if [ -z "$existing_plan" ]; then
   exit 1
 fi
 
-update_plan "$plan_id" "$new_plan_name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
+update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
