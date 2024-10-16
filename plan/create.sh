@@ -5,6 +5,8 @@
 # Usage: opencli plan-create plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
+# email_limit= How many email accounts will the plan have (0 is unlimited).
+# ftp_limit= How many ftp accounts will the plan have (0 is unlimited).
 # domains_limit= How many domains will the plan have (0 is unlimited).
 # websites_limit= How many websites will the plan have (0 is unlimited).
 # disk_limit=Disk space limit in GB.
