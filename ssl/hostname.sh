@@ -143,6 +143,7 @@ update_openpanel_config() {
   
 	conf="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 	sed -i "s/localhost/$hostname/g" $conf
+	sed -i "s/local.host/$hostname/g" $conf # for mailserver need .
 	echo "- /openadmin on every domain will now redirect to https://${hostname}:2087/"
 	port_for_user_panel=($opencli config get port)
 	echo "- /openpanel on every domain will now redirect to https://${hostname}:${port_for_user_panel}/"
