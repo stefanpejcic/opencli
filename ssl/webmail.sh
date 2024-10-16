@@ -71,7 +71,7 @@ renew_ssl_check() {
 
 replace_proxy_webmail() {
     local conf="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
-    sed -i "/# roundcube/,/}/s|https://[^/]\+/|https://$webmail_domain/|" "$conf"
+    sed -i "/# roundcube/,/}/s|https\?://[^/]\+/|https://$webmail_domain/|" "$conf"
     docker exec nginx sh -c "nginx -t && nginx -s reload" > /dev/null 2>&1
     echo "- /webmail on every domain redirects to https://${webmail_domain}/"
 }
