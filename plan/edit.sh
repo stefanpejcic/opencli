@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: plan/edit.sh
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
-# Usage: opencli plan-edit plan_id new_plan_name new_description new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth new_storage_file
+# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth new_storage_file
 # Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 10 500000 1 1 1 openpanel_nginx 500 10
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
@@ -345,8 +345,8 @@ fi
 plan_id="$1"
 new_plan_name="$2"
 description="$3"
-  ftp_limit="$4"
-  emails_limit="$5"
+  email_limit="$4"
+  ftp_limit="$5"
   domains_limit="$6"
   websites_limit="$7"
 disk_limit="$8"
