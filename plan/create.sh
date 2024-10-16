@@ -49,16 +49,18 @@ source /usr/local/admin/scripts/db.sh
 insert_plan() {
   local name="$1"
   local description="$2"
-  local domains_limit="$3"
-  local websites_limit="$4"
-  local disk_limit="$5"
-  local inodes_limit="$6"
-  local db_limit="$7"
-  local cpu="$8"
-  local ram="$9"
-  local docker_image="${10}"
-  local bandwidth="${11}"
-  local storage_file="${12}"
+  local email_limit="$3"
+  local ftp_limit="$4"
+  local domains_limit="$5"
+  local websites_limit="$6"
+  local disk_limit="$7"
+  local inodes_limit="$8"
+  local db_limit="${9}"
+  local cpu="${10}"
+  local ram="${11}"
+  local docker_image="${12}"
+  local bandwidth="${13}"
+  local storage_file="${14}"
   
 # Format disk_limit and storage_file with 'GB' 
 disk_limit="${disk_limit} GB"
@@ -73,7 +75,7 @@ storage_file="${storage_file} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, storage_file) VALUES ('$name', '$description', $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, '$storage_file');"
+  local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth, storage_file) VALUES ('$name', '$description', $email_limit, $ftp_limit, $domains_limit, $websites_limit '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth, '$storage_file');"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -177,16 +179,18 @@ fi
 # Capture command-line arguments
 name="$1"
 description="$2"
-domains_limit="$3"
-websites_limit="$4"
-disk_limit="$5"
-inodes_limit="$6"
-db_limit="$7"
-cpu="$8"
-ram="$9"
-docker_image="${10}"
-bandwidth="${11}"
-storage_file="${12}"
+email_limit="$3"
+ftp_limit="$4"
+domains_limit="$5"
+websites_limit="$6"
+disk_limit="$7"
+inodes_limit="$8"
+db_limit="$9"
+cpu="${10}"
+ram="${11}"
+docker_image="${12}"
+bandwidth="${13}"
+storage_file="${14}"
 
 # added in 0.1.9 because WHMCS needs plan_name instead of plan_id
 name="${name,,}"
@@ -230,4 +234,4 @@ fi
 create_docker_network "$name" "$bandwidth"
 
 # Call the insert_plan function with the provided values
-insert_plan "$name" "$description" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
+insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
