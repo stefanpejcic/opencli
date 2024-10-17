@@ -83,7 +83,7 @@
 
 
                 # Get port from panel.config or fallback to 2083
-                local port=$(grep -Eo 'port=[0-9]+' "$CONFIG_FILE_PATH" | cut -d '=' -f 2)
+                local port=$(grep -Eo 'port=[0-9]+' "$CONFIG_FILE_PATH" | head -n 1 | cut -d '=' -f 2)
                 port="${port:-2083}"
                 
                 if [ "$(get_ssl_status)" == true ]; then
