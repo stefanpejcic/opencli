@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> <PLAN_NAME> [--debug]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> <PLAN_NAME> [--send-email] [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -32,13 +32,14 @@
 # Constants
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
+SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
 
 
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--debug]"
+if [ "$#" -lt 4 ] || [ "$#" -gt 6 ]; then
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug]"
     exit 1
 fi
 
@@ -46,13 +47,17 @@ username="${1,,}"
 password="$2"
 email="$3"
 plan_name="$4"
-DEBUG=false  # Default value for DEBUG
-hostname=$(hostname) # Get the hostname dynamically
+DEBUG=false             # Default value for DEBUG
+hostname=$(hostname)    # Get the hostname dynamically
+SEND_EMAIL=false        # dont send email by default
 
 
-# Parse optional flags to enable debug mode when needed
-if [ "$5" = "--debug" ]; then
+if [ "$5" = "--debug" ] || [ "$6" = "--debug" ]; then
     DEBUG=true
+fi
+
+if [ "$5" = "--send-email" ] || [ "$6" = "--send-email" ]; then
+    SEND_EMAIL=true
 fi
 
 log() {
@@ -1031,6 +1036,19 @@ create_backup_dirs_for_each_index() {
 
 
 
+send_email_to_new_user() {
+    if $SEND_EMAIL; then
+        echo "Sending email to $email with login information"
+            # Check if the provided email is valid
+            if [[ $email =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+                . "$SEND_EMAIL_FILE"
+                email_notification "New OpenPanel account information" "OpenPanel URL: $login_url | username: $username  | password: $password"
+            else
+                echo "$email is not a valid email address. Login infomration can not be sent to the user."
+            fi       
+    fi
+}
+
 check_username_is_valid                      # validate username first
 set_docker_context_for_container             # get context and use slave server if set
 check_running_containers                     # make sure container name is available
@@ -1053,6 +1071,7 @@ create_backup_dirs_for_each_index            # added in 0.3.1 so that new users 
 recreate_hosts_file                          # write username and private docker ip in /etc/hosts
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # finally save user to mysql db
+send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 
 # if we made it this far
 exit 0 
