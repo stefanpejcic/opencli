@@ -40,8 +40,7 @@ fi
 domain_name="$1"
 user="$2"
 
-# Validate domain name (basic validation)
-if ! [[ "$domain_name" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+if ! [[ "$domain_name" =~ ^(xn--[a-z0-9-]+\.[a-z0-9-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$ ]]; then
     echo "FATAL ERROR: Invalid domain name: $domain_name"
     exit 1
 fi
