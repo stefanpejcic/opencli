@@ -119,7 +119,7 @@ get_domain_for_webmail() {
     fi
     
     # Use grep and awk to extract the domain from the /webmail block
-    domain=$(grep -A 1 "location /webmail" "$PROXY_FILE" | grep "return" | awk '{print $3}' | sed 's|https://||' | sed 's|/.*||')
+    domain=$(grep -A 1 "location /webmail" "$PROXY_FILE" | grep "return" | awk '{print $3}' | sed -e 's|https://||' -e 's|http://||' -e 's|/.*||')
     
     if [[ -n "$domain" ]]; then
         echo "$domain"
