@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli plan-create plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file
+# Usage: opencli plan-create plan_name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # email_limit= How many email accounts will the plan have (0 is unlimited).
@@ -173,7 +173,7 @@ check_available_ram() {
 
 # Check for command-line arguments
 if [ "$#" -ne 12 ]; then
-    echo "Usage: opencli plan-create name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
+    echo "Usage: opencli plan-create name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
 
