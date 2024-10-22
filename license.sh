@@ -60,6 +60,15 @@ usage() {
 }
 
 
+
+        # Check if --json flag is present
+        if [[ " $@ " =~ " --json " ]]; then
+          JSON="yes"
+        else
+          JSON="no"
+        fi
+
+
 # open conf file
 read_config() {
     config=$(awk -F '=' '/\[LICENSE\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
@@ -171,13 +180,13 @@ verify_license_first() {
         if [ "$license_status" = "Active" ]; then
             save_license_to_file $new_key
         else
-            # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
-                  echo "License is invalid"
-            else
-                echo -e "${RED}License is invalid${RESET}"
-            fi
-            exit 0
+
+       if [[ "$JSON" == "yes" ]]; then
+          echo "License is invalid"
+        else
+          echo -e "${RED}License is invalid${RESET}"
+        fi
+        exit 0
         fi
 }
 
@@ -188,9 +197,8 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
     license_key=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
 
     if [ -z "$license_key" ]; then
-   
-        # Check if --json flag is present
-        if [[ " $@ " =~ " --json " ]]; then
+
+       if [[ "$JSON" == "yes" ]]; then
           echo "No License Key"
         else
           echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
@@ -214,7 +222,7 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
             valid_ip=$(echo "$response" | grep -oP '(?<=<validip>).*?(?=</validip>)')
 
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ "$JSON" == "yes" ]]; then          
                 echo '{"Owner": "'"$registered_name"'","Company Name": "'"$company_name"'","Email": "'"$email"'","License Type": "'"$product_name"'","Registration Date": "'"$reg_date"'","Next Due Date": "'"$next_due_date"'","Billing Cycle": "'"$billing_cycle"'","Valid IP": "'"$valid_ip"'"}'
             else
                 echo "Owner: $registered_name"
@@ -232,7 +240,7 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
 
 
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ "$JSON" == "yes" ]]; then
               echo "License is invalid"
             else
               echo -e "${RED}License is invalid${RESET}"
