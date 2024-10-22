@@ -69,7 +69,7 @@ source /usr/local/admin/scripts/db.sh
 
 get_docker_context_for_user(){
     # GET CONTEXT NAME FOR DOCKER COMMANDS
-    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server_name FROM users WHERE username='$username';" -N)
+    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$username';" -N)
     
     if [ -z "$server_name" ]; then
         server_name="default" # compatibility with older panel versions before clustering
