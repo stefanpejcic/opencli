@@ -54,7 +54,8 @@ set_root_user_passwd(){
         echo "ERROR: Failed to retrieve password hash for user $user_1000."
         exit 1
     else
-        docker exec "$container_id" bash -c "sed -i 's/^root:[^:]*:/root:$password_hash:/' /etc/shadow"
+        escaped_password_hash=$(echo "$password_hash" | sed 's/\$/\\\$/g')
+        docker exec "$container_id" bash -c "sed -i 's|^root:[^:]*:|root:$escaped_password_hash:|' /etc/shadow"
         
         if [ $? -eq 0 ]; then
             docker exec "$container_id" bash -c "sed -i 's/SUDO=\"[^\"]*\"/SUDO=\"YES\"/' \"$entrypoint_path\""
