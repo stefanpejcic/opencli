@@ -159,17 +159,16 @@ display_mysql_information
 check_services_status
 
 if [ "$upload_flag" = true ]; then
-  # Use curl to upload the file and get the response
-  response=$(curl -F "file=@$output_file" https://support.openpanel.co/opencli_server_info.php 2>/dev/null)
-
-  # Extract the link from the response
-  LINKHERE=$(echo $response | grep -o 'http[s]\?://[^ ]*')
-
-  # Display the link to the user
-  echo -e "Information collected successfully. Please provide the following link to the support team:\n$LINKHERE"
+  response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
+  if echo "$response" | grep -q "File upload failed."; then
+    echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide the following file to the support team:\n$output_file"
+  else
+    LINKHERE=$(echo "$response" | grep -o 'http[s]\?://[^ ]*')
+    echo -e "Information collected successfully. Please provide the following link to the support team:\n$LINKHERE"
+  fi
 else
   # Print a message about the output file
-  echo -e "Information collected successfully. Please provide the following file to the support team:\n$output_file"
+  echo -e "Information collected successfully. Please provide content of the following file to the support team:\n$output_file"
 fi
 
 exit 0
