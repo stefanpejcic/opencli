@@ -172,7 +172,7 @@ check_available_ram() {
 }
 
 # Check for command-line arguments
-if [ "$#" -ne 12 ]; then
+if [ "$#" -lt 14 ]; then
     echo "Usage: opencli plan-create name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
     exit 1
 fi
