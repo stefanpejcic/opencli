@@ -222,7 +222,7 @@ elif [ "$docker_image" == "litespeed" ]; then
 elif [ "$docker_image" == "apache" ]; then
   docker_image="openpanel/apache"
 else
-  docker_image="${10}"
+  docker_image="${12}"
 fi
 
 # Check if the plan name already exists in the database
