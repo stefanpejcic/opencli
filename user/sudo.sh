@@ -2,13 +2,13 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_id.
-# Usage: opencli user-sudo <username> <enable/disable/status>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#sudo
+# Usage: opencli user-sudo <username> <enable|disable|status>
+# Docs: https://dev.openpanel.com/cli/users.html#Grant-root
 # Author: Stefan Pejcic
-# Created: 1/.05.2024
-# Last Modified: 30.05.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Created: 1.005.2024
+# Last Modified: 22.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
