@@ -110,7 +110,7 @@ get_license_key_and_verify_on_my_openpanel() {
 
     if [ -z "$license_key" ]; then
         echo -e "${RED}No License Key. Please add the key first: opencli config update key XXXXXXXXXX${RESET}"
-        exit 1
+        exit 0
     else
         ip_address=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)  # Get the public IP address
         check_token=$(openssl rand -hex 16)  # Generate a random token
