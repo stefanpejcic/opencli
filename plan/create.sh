@@ -20,7 +20,7 @@
 # Exsample: ./usr/local/admin/scripts/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500 10
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 02.09.2024
+# Last Modified: 11.10.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
