@@ -306,11 +306,11 @@ validate_password_and_username() {
     local field_name="$2"
     
     # Check if input contains only letters and numbers
-    if [[ "$input" =~ ^[a-zA-Z0-9_]{5,20}$ ]]; then
+    if [[ "$input" =~ ^[a-zA-Z0-9_]{5,30}$ ]]; then
         #echo "$field_name is valid."
         :
     else
-        echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 20 characters."
+        echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 30 characters."
         echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openadmin"
         exit 1
     fi
