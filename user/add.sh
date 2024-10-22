@@ -32,7 +32,7 @@
 # Constants
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
-SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail.sh"
+SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
 
