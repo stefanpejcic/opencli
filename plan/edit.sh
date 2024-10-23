@@ -36,19 +36,6 @@ flags=()
 
 DEBUG=false
 
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        *)
-            ;;
-    esac
-done
-
-
-
-
 
 # Apply rate limit using tc command for the gateway of existing Docker network
 edit_docker_network() {
@@ -151,8 +138,8 @@ update_plan() {
   websites_limit="$7"
   int_disk_limit="$8"
   inodes_limit="$9"
-  db_limit="$10"
-  cpu="$11"
+  db_limit="${10}"
+  cpu="${11}"
   int_ram="${12}"
   docker_image="${13}"
   bandwidth="${14}"
@@ -184,21 +171,29 @@ if [ "$DEBUG" = true ]; then
   echo "| PLAN ID: $plan_id"
   echo "+===================================+"
 
-  echo "Old Plan Name: $old_plan_name"
-  echo "Old Disk Limit: $old_disk_limit"
+  echo "Old Plan Name:    $old_plan_name"
+  echo "Old Disk Limit:   $old_disk_limit"
   echo "Old Inodes Limit: $old_inodes_limit"
-  echo "Old CPU: $old_cpu"
-  echo "Old RAM: $old_ram"
-  echo "Old Bandwidth: $old_bandwidth"
+  echo "Old CPU:          $old_cpu"
+  echo "Old RAM:          $old_ram"
+  echo "Old Bandwidth:    $old_bandwidth"
   echo "Old Storage File: $old_storage_file"
   echo "+===================================+"
-  echo "New Plan Name: $new_plan_name"
-  echo "New Disk Limit: $disk_limit"
-  echo "New Inodes Limit: $inodes_limit"
-  echo "New CPU: $cpu"
-  echo "New RAM: $ram"
-  echo "New Bandwidth: $bandwidth"
-  echo "New Storage File: $storage_file"
+  echo "New plan information:"
+  echo "Name:             $new_plan_name"
+  echo "Description:      $description"
+  echo "Disk limit:       $disk_limit"
+  echo "Inodes limit:     $inodes_limit"
+  echo "CPU:              $cpu cores"
+  echo "RAM:              $ram"
+  echo "Docker image:     $docker_image"
+  echo "Bandwidth:        $bandwidth"
+  echo "Storage File:     $storage_file"
+  echo "FTP accounts:     $ftp_limit"
+  echo "Email accounts:   $emails_limit"
+  echo "Total domains:    $domains_limit"
+  echo "Total websites:   $websites_limit"
+  echo "Total databases:  $db_limit"
   echo "+===================================+"
 fi
 
@@ -216,9 +211,7 @@ if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
     local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
     local new_plan_name=$(echo "$result" | awk 'NR>1')
     count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-    if [ "$count" -eq 0 ]; then
-        pass
-    else    
+    if [ "$count" -ne 0 ]; then   
         echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
         exit 0
     fi
@@ -231,9 +224,7 @@ elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
     local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
     local new_plan_name=$(echo "$result" | awk 'NR>1')
     count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-    if [ "$count" -eq 0 ]; then
-        pass
-    else    
+    if [ "$count" -ne 0 ]; then   
         echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
         exit 0
     fi
@@ -243,9 +234,7 @@ elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
         local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
         local new_plan_name=$(echo "$result" | awk 'NR>1')
         count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-        if [ "$count" -eq 0 ]; then
-            pass
-        else    
+        if [ "$count" -ne 0 ]; then  
            echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
         exit 0
         fi
@@ -261,12 +250,12 @@ fi
 
 
 
-
-
-  
-  # Update the plan in the 'plans' table
+if [ "$docker_image" = "None" ]; then
+  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
+else
   local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
-
+fi
+ 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
 
@@ -341,22 +330,89 @@ if [ "$#" -lt 13 ]; then
     exit 1
 fi
 
-# Capture command-line arguments
-plan_id="$1"
-new_plan_name="$2"
-description="$3"
-  email_limit="$4"
-  ftp_limit="$5"
-  domains_limit="$6"
-  websites_limit="$7"
-disk_limit="$8"
-inodes_limit="$9"
-db_limit="${10}"
-cpu="${11}"
-ram="${12}"
-docker_image="${13}"
-bandwidth="${14}"
-storage_file="${15}"
+
+
+
+
+
+
+
+# Initialize default values
+plan_id=""
+new_plan_name=""
+description=""
+emails_limit=""
+ftp_limit=""
+domains_limit=""
+websites_limit=""
+disk_limit=""
+inodes_limit=""
+db_limit=""
+cpu=""
+ram=""
+docker_image=""
+bandwidth=""
+storage_file=""
+
+# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 docker_image="nginx:latest" bandwidth=100 storage="10"
+for arg in "$@"; do
+  case $arg in
+    --debug)
+        DEBUG=true
+      ;;
+    id=*)
+      plan_id="${arg#*=}"
+      ;;
+    name=*)
+      new_plan_name="${arg#*=}"
+      ;;
+    description=*)
+      description="${arg#*=}"
+      ;;
+    emails=*)
+      emails_limit="${arg#*=}"
+      ;;
+    ftp=*)
+      ftp_limit="${arg#*=}"
+      ;;
+    domains=*)
+      domains_limit="${arg#*=}"
+      ;;
+    websites=*)
+      websites_limit="${arg#*=}"
+      ;;
+    disk=*)
+      disk_limit="${arg#*=}"
+      ;;
+    inodes=*)
+      inodes_limit="${arg#*=}"
+      ;;
+    databases=*)
+      db_limit="${arg#*=}"
+      ;;
+    cpu=*)
+      cpu="${arg#*=}"
+      ;;
+    ram=*)
+      ram="${arg#*=}"
+      ;;
+    docker_image=*)
+      docker_image="${arg#*=}"
+      ;;
+    bandwidth=*)
+      bandwidth="${arg#*=}"
+      ;;
+    storage=*)
+      storage_file="${arg#*=}"
+      ;;
+    *)
+      echo "Unknown argument: $arg"
+      ;;
+  esac
+done
+
+
+
 
 
 check_cpu_cores "$cpu"
@@ -368,8 +424,6 @@ elif [ "$docker_image" == "litespeed" ]; then
   docker_image="openpanel/litespeed"
 elif [ "$docker_image" == "apache" ]; then
   docker_image="openpanel/apache"
-else
-  docker_image="${11}"
 fi
 
 existing_plan=$(check_plan_exists "$plan_id")
