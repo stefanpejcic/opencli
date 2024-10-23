@@ -255,8 +255,6 @@ get_plan_info_and_check_requirements() {
         echo "ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
         exit 1
     fi
-
-    echo "$cpu_ram_info"
     
     # Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
     cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
