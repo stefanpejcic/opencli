@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> <PLAN_NAME> [--send-email] [--debug]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -50,6 +50,11 @@ plan_name="$4"
 DEBUG=false             # Default value for DEBUG
 hostname=$(hostname)    # Get the hostname dynamically
 SEND_EMAIL=false        # dont send email by default
+
+
+# lowercase and replace spaces with _
+docker_network_name="${plan_name// /_}"  # Replace spaces with underscores
+docker_network_name="${docker_network_name,,}"  # Convert to lowercase
 
 
 if [ "$5" = "--debug" ] || [ "$6" = "--debug" ]; then
@@ -234,7 +239,7 @@ fi
 get_plan_info_and_check_requirements() {
     log "Getting information from the database for plan $plan_name"
     # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
-    query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, name, storage_file, id FROM plans WHERE name = '$plan_name'"
+    query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, storage_file, id FROM plans WHERE name = '$plan_name'"
     
     # Execute the MySQL query and store the results in variables
     cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -250,16 +255,20 @@ get_plan_info_and_check_requirements() {
         echo "ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
         exit 1
     fi
+
+    echo "$cpu_ram_info"
     
     # Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
-    disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
     cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
     ram=$(echo "$cpu_ram_info" | awk '{print $2}')
+    docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
+    disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
+    # 5. is GB in disk_limit
     inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
     bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
-    name=$(echo "$cpu_ram_info" | awk '{print $8}')
-    storage_file=$(echo "$cpu_ram_info" | awk '{print $9}' | sed 's/ //;s/B//')
-    plan_id=$(echo "$cpu_ram_info" | awk '{print $11}')
+    storage_file=$(echo "$cpu_ram_info" | awk '{print $8}' | sed 's/ //;s/B//')
+    # 9. is GB in storage_file
+    plan_id=$(echo "$cpu_ram_info" | awk '{print $10}')
     disk_size_needed_for_docker_and_storage=$((disk_limit + storage_file))
     
     # Get the available free space on the disk
@@ -274,7 +283,7 @@ get_plan_info_and_check_requirements() {
     
     # Compare the available free space with the disk limit of the plan
     if [ "$current_free_space" -lt "$disk_size_needed_for_docker_and_storage" ]; then
-        echo "WARING: Insufficient disk space on the server. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
+        echo "WARNING: Insufficient disk space on the server. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
        #### exit 1
     fi
 
@@ -287,9 +296,6 @@ get_plan_info_and_check_requirements() {
     else
         max_available_cores=$(nproc)
     fi
-
-
-
     
     # Compare the specified CPU cores with the maximum available cores
     if [ "$cpu" -gt "$max_available_cores" ]; then
@@ -314,8 +320,6 @@ get_plan_info_and_check_requirements() {
         echo "ERROR: Requested RAM ($ram GB) exceeds the maximum available RAM on this server ($max_available_ram_gb GB). Cannot create user."
         exit 1
     fi
-    
-    docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
 }
 
 
@@ -329,14 +333,15 @@ print_debug_info_before_starting_creation() {
         echo "Docker context to be used for the new container: $server_name" 
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
+        echo "- plan name:         $plan_name"
         echo "- docker image:      $docker_image"
-        echo "- disk quota:        $disk_limit"
         echo "- cpu limit:         $cpu"
         echo "- memory limit:      $ram"
-        echo "- inodes limit:      $inodes"
+        echo "- container size:    $disk_limit"
         echo "- storage file:      $storage_file"
-        echo "- pot speed:         $bandwidth"
-        echo "- name:              $name"
+        echo "- inodes limit:      $inodes"
+        echo "- port speed:        $bandwidth"
+        echo "- docker network:    $docker_network_name"
         echo "- total disk needed: $disk_size_needed_for_docker_and_storage"
     fi
 }
@@ -348,9 +353,14 @@ print_debug_info_before_starting_creation() {
 check_if_docker_image_exists() {
     log "Checking if docker image $docker_image exists on server"
     if ! docker $context_flag images -q "$docker_image" >/dev/null 2>&1; then
-        echo "ERROR: Docker image '$docker_image' does not exist on this server."
-        exit 1
-    fi
+        echo "WARNING: Docker image '$image_to_use' does not exist on this server. Attempting to pull..."
+            if docker $context_flag pull "$image_to_use"; then
+            echo "Image '$image_to_use' pulled successfully."
+        else
+            echo "ERROR: Docker image '$image_to_use' does not exist and pull failed."
+            exit 1 
+        fi
+    fi   
 }
 
 
@@ -436,11 +446,9 @@ create_storage_file_and_mount_if_needed() {
 
 
 
-
+## Function to create a Docker network with bandwidth limiting
 check_or_create_network() {
-    
-    ## Function to create a Docker network with bandwidth limiting
-    
+   
      ensure_tc_is_installed() {
             # Check if tc is installed
             if ! command -v tc &> /dev/null; then
@@ -465,6 +473,7 @@ check_or_create_network() {
             fi
    }
 
+
     
     create_docker_network() {
     
@@ -481,7 +490,7 @@ check_or_create_network() {
           continue  # Skip if the subnet is already in use
         fi
         # Create the Docker network
-        docker $context_flag network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
+        docker $context_flag network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$docker_network_name"
 
 
         # Extract the network interface name for the gateway IP
@@ -512,21 +521,21 @@ check_or_create_network() {
       fi
     }
 
-    log "Checking if docker network $name exists for plan"
+    log "Checking if docker network $docker_network_name exists for plan"
     # Check if DEBUG is true and the Docker network exists
-    if [ "$DEBUG" = true ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
+    if [ "$DEBUG" = true ] && docker $context_flag network inspect "$docker_network_name" >/dev/null 2>&1; then
         # Docker network exists, DEBUG is true so show message
-        echo "Docker network '$name' already exists"
-    elif [ "$DEBUG" = false ] && docker $context_flag network inspect "$name" >/dev/null 2>&1; then
+        echo "Docker network '$docker_network_name' already exists"
+    elif [ "$DEBUG" = false ] && docker $context_flag network inspect "$docker_network_name" >/dev/null 2>&1; then
         # Docker network exists, but DEBUG is not true so we dont show anything
         :
     elif [ "$DEBUG" = false ]; then
         # Docker network does not exist, we need to create it but dont show any output..
-        create_docker_network "$name" "$bandwidth"  >/dev/null 2>&1
+        create_docker_network "$docker_network_name" "$bandwidth"  >/dev/null 2>&1
     else
         # Docker network does not exist, we need to create it..
-        echo "Docker network '$name' does not exist. Creating..."
-        create_docker_network "$name" "$bandwidth"
+        echo "Docker network '$docker_network_name' does not exist. Creating..."
+        create_docker_network "$docker_network_name" "$bandwidth"
     fi
 
 }
@@ -556,15 +565,25 @@ get_webserver_from_plan_name() {
     docker_image_labels_json=$(docker image inspect --format='{{json .Config.Labels}}' "$docker_image")
     if echo "$docker_image_labels_json" | grep -q 'mariadb'; then
       mysql_version="mariadb"
-    #elif echo "$docker_image_labels_json" | grep -q 'mysql'; then
-    #  mysql_version="mysql"
     else
       mysql_version="mysql" # fallback
     fi
+
+    # 0.3.3
+    if echo "$docker_image_labels_json" | grep -q 'nginx'; then
+      web_server="nginx"
+      path="nginx"
+    elif echo "$docker_image_labels_json" | grep -q 'apache'; then
+      web_server="apache"
+      path="apache"
+    fi
+
+
     
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "- webserver:     $web_server"
+        echo "Based on the docker image $docker_image the following data will be used:"
+        echo "- webserver:      $web_server"
         echo "- mysql version:  $mysql_version"
     fi
     # then create a container
@@ -740,7 +759,7 @@ log "Checking specified disk size for docker container"
       local ports_param="-P"
     fi
 
-    local docker_cmd="docker $context_flag run --network $name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
+local docker_cmd="docker $context_flag run --network $docker_network_name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
@@ -748,13 +767,21 @@ log "Checking specified disk size for docker container"
       --restart unless-stopped \
       --hostname $hostname $docker_image"
 
-    if [ "$DEBUG" = true ]; then
-        echo "$AVAILABLE_PORTS"
-        log "Creating container with the docker run command:"
-        if [ "$DEBUG" = true ]; then
-            echo "$docker_cmd"
-        fi
-    fi
+if [ "$DEBUG" = true ]; then
+    echo "$AVAILABLE_PORTS"
+
+    log "Creating container with the docker run command:"
+    
+    echo "docker $context_flag run -d --name $username $ports_param \\"
+    echo "      --network $docker_network_name \\"
+    echo "      --cpus=$cpu --memory=$ram $disk_limit_param \\"
+    echo "      -v /home/$username/var/crons:/var/spool/cron/crontabs \\"
+    echo "      -v /home/$username:/home/$username \\"
+    echo "      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \\"
+    echo "      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \\"
+    echo "      --restart unless-stopped \\"
+    echo "      --hostname $hostname $docker_image"
+fi
         $docker_cmd > /dev/null 2>&1
 }
 
@@ -958,9 +985,9 @@ copy_skeleton_files() {
         opencli php-available_versions $username  > /dev/null 2>&1 &
     
     # Create files and folders needed for the user account
-    log "- web server: $web_server"
+    log "- web server:          $web_server"
     log "- default php version: $default_php_version"
-    log "- mysql version: $mysql_version"
+    log "- mysql client:        $mysql_version"
 
 # TODO:
 # opencli php-get_available_php_versions  run on remote server!
