@@ -305,7 +305,7 @@ update_named_conf() {
     # Check if the domain already exists in named.conf.local
     # fix for: https://github.com/stefanpejcic/OpenPanel/issues/95
     if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
-        echo "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
+        log "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
         return
     fi
 
