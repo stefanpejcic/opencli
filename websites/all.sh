@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: websites/all.sh
 # Description: Lists all websites currently hosted on the server.
-# Usage: opencli domains-all
+# Usage: opencli websites-all
 # Author: Stefan Pejcic
 # Created: 26.10.2023
 # Last Modified: 15.11.2023
