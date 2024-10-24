@@ -77,12 +77,12 @@ update_check() {
     UPDATE_SERV_1="https://update.openpanel.com/"
     UPDATE_SERV_2="https://update.openpanel.org/"
 
-    # Fetch the remote version from https://update.openpanel.co/
-    remote_version=$(curl -s "$UPDATE_SERV_1" | tr -d '\r')
+    # Fetch the remote version from https://update.openpanel.com/
+    remote_version=$(curl -s "$UPDATE_SERV_1" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
 
     # If the first attempt fails, try the second server
     if [ -z "$remote_version" ]; then
-        remote_version=$(curl -s "$UPDATE_SERV_2" | tr -d '\r')
+        remote_version=$(curl -s "$UPDATE_SERV_2" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
     fi
     
     # If both attempts fail, handle the error
