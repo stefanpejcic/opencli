@@ -92,7 +92,6 @@ setup_firewall(){
 
     if command -v csf >/dev/null 2>&1; then
         echo "Checking ConfigServer Firewall configuration.."
-        echo ""
         port="6081"
         local csf_conf="/etc/csf/csf.conf"
         port_opened=$(grep "TCP_OUT = .*${port}" "$csf_conf")
