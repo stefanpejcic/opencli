@@ -91,7 +91,7 @@ command="$@"
 docker exec openadmin_mailserver setup $command
 
 
-if [[ "$1" == "email" && "$2" == "add" ]]; then
+if [[ "$1" == "email" && ("$2" == "add" || "$2" == "del") ]]; then
   if is_valid_email "$3"; then
     reload_emails_data_file_for_user $3
   fi
