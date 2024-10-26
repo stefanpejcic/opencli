@@ -210,7 +210,7 @@ get_last_number() {
 validate_parameters() {
   local hostname_regex="^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.([a-zA-Z]{2,}|[a-zA-Z0-9-]*[a-zA-Z0-9]\.[a-zA-Z]{2,})$"
   local ipv4_regex="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
-  local domain_regex="^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])$"
+  local domain_regex="^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$"
   local port_regex="^([1-9]|[1-9][0-9]{1,4}|[1-2][0-9]{1,4}|3[0-4][0-9]{1,3}|35000)$"
   local ssh_user_regex="^\S+$"
 
