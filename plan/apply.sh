@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script Name: user/change_plan.sh
+# Script Name: plan/apply.sh
 # Description: Change plan for a user and apply new plan limits.
-# Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_ID>
+# Usage: opencli plan-apply <USERNAME> <NEW_PLAN_ID>
 # Author: Petar Ćurić
 # Created: 17.11.2023
 # Last Modified: 17.11.2023
