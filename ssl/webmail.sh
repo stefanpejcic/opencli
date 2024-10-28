@@ -68,6 +68,17 @@ renew_ssl_check() {
 }
 
 
+replace_domain_for_sogo() {
+    local conf="/usr/local/mail/openmail/compose.yml"
+    sed -i "s/SOGO_MAIL_DOMAIN=.*/SOGO_MAIL_DOMAIN=$webmail_domain/" "$conf"
+    
+    if docker ps --filter "name=sogo" --filter "status=running" | grep -q "sogo"; then
+        echo "Restarting the 'sogo' container to apply new domain..."
+        cd /usr/local/mail  > /dev/null 2>&1
+        docker compose down sogo && docker compose up -d sogo > /dev/null 2>&1
+    fi
+}
+
 
 replace_proxy_webmail() {
     local conf="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
@@ -162,6 +173,7 @@ if [ -n "$webmail_domain" ] && [[ $webmail_domain == *.*.* ]]; then
         overwrite_conf
         add_ssl_to_nginx
         replace_proxy_webmail
+        replace_domain_for_sogo
     else       
         echo "No SSL certificate found for $webmail_domain. Proceeding to generate a new certificate..."
   
