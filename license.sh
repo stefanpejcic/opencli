@@ -154,8 +154,10 @@ save_license_to_file() {
             else
                 echo -e "License key ${GREEN}${new_key}${RESET} added."
             fi
-
-            service admin restart  #might fail!
+            
+            service admin restart > /dev/null #might fail!
+            enable_emails_module  > /dev/null
+            docker restart openpanel  > /dev/null
 
         else
             # Check if --json flag is present
@@ -255,17 +257,37 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
 
 
 
+enable_emails_module() {
+	    enabled_modules=$(grep '^enabled_modules=' "$CONFIG_FILE_PATH" | cut -d'=' -f2)
+    	if echo "$enabled_modules" | grep -q 'emails'; then
+	        :
+	    else
+	        new_modules="${enabled_modules},emails"
+	        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
+		fi  
+}
+
+
+disable_emails_module() {
+	    enabled_modules=$(grep '^enabled_modules=' "$CONFIG_FILE_PATH" | cut -d'=' -f2)
+        if echo "$enabled_modules" | grep -q 'emails'; then           
+            new_modules=$(echo "$enabled_modules" | sed 's/,emails//g; s/emails,//g; s/^emails$//g')
+            sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
+        else
+            :
+        fi
+}
 
 
 case "$1" in
     "key")
-        # Display the key
+        # display the key
         license_key=$(get_license_key "$@")
         echo $license_key
         ;;
     "info")
         # display license info from whmcs
-        get_license_key_and_verify_on_my_openpanel_then_show_info "$@"
+        get_license_key_and_verify_on_my_openpanel_then_show_info "$@" 
         ;;
     "verify")
         # check license on whmcs
@@ -273,13 +295,15 @@ case "$1" in
         ;;
     "delete")
         # remove the key and reload admin
-        opencli config update key "" > /dev/null
-        service admin restart
+        opencli config update key "" > /dev/null                        # delete key
+        disable_emails_module                                           # remove email features from user panel
+        rm -rf /etc/openpanel/openpanel/core/users/*/data.json          # purge cached users data to remove pro features
+        service admin restart                                           # restart admin to remove pro features
         ;;
     "enterprise"*)
         # Update the license key "enterprise-"
         new_key=$1
-        verify_license_first $new_key
+        verify_license_first $new_key                                   # verify on whmcs, then save to file if valid
         exit 0        
         ;;
     *)
