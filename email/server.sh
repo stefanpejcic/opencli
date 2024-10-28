@@ -191,7 +191,7 @@ fi
 	 	echo "'emails' module is not enabled. Enabling.."
 	        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
 	        echo "Restarting OpenPanel container to enable email pages.."
-		if [ $(docker ps -q -f name=openpanel) ]; then
+		if [ "$(docker ps -q -f name=openpanel)" ]; then
 		    docker restart openpanel  >/dev/null 2>&1
 		else
 		    cd /root && docker compose up -d openpanel  >/dev/null 2>&1
