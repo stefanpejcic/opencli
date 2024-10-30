@@ -178,11 +178,12 @@ start_ssl_generation_in_bg(){
 }
 
 
+
 add_domain_to_clamav_list(){	
+	local domains_list="/etc/openpanel/clamav/domains.list"
+ 	local domain_path="/home/$user/$domain_name"
 	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
- 	if [ -f /etc/systemd/system/clamav_monitor.service ]; then
-	  	local domains_list="/etc/openpanel/clamav/domains.list"
-    		local domain_path="/home/$user/$domain_name"
+ 	if [ -f $domains_list ]; then
       		log "ClamAV Upload Scanner is enabled - Adding $domain_path for monitoring"
 		echo "$domain_path" >> "$domains_list"
 		# not needed since we also watch the domains list file for changes! 
@@ -246,7 +247,7 @@ vhost_files_create() {
 	"
 	
 	docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
- 	log "Restarting $ws to apply changes"
+ 	log "Restarting $ws inside container to apply changes"
 	docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
 
 }
@@ -255,10 +256,10 @@ create_domain_file() {
 
 	if [ -f /etc/nginx/modsec/main.conf ]; then
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf_with_modsec"
-     	    log "Creating vhosts proxy file for Nginx with ModSecurity"
+     	    log "Creating vhosts proxy file for Nginx with ModSecurity on host server"
 	else
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf"
-     	    log "Creating vhosts proxy file for Nginx"
+     	    log "Creating vhosts proxy file for Nginx on host server"
 	fi
 	
 	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
