@@ -174,8 +174,20 @@ start_ssl_generation_in_bg(){
   	# from 0.2.8 this is hadled by opencli as well
  	log "Starting Let'sEncrypt SSL generation in background"
 	opencli ssl-domain $domain_name > /dev/null 2>&1 & disown
+
 }
 
+
+add_domain_to_clamav_list(){	
+	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
+ 	if [ -f /etc/systemd/system/clamav_monitor.service ]; then
+	 	log "Adding domain document root to the list of directories for ClamAV to monitor"
+	  	local domains_list="/etc/openpanel/clamav/domains.list"
+    		local domain_path="/home/$user/$domain_name"
+		echo "$domain_path" >> "$domains_list"
+		service clamav_monitor restart > /dev/null 2>&1
+ 	fi
+}
 
 
 
@@ -433,6 +445,7 @@ add_domain() {
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
+ 	add_domain_to_clamav_list                    # added in 0.3.4    
 	start_ssl_generation_in_bg                   # start certbot
         echo "Domain $domain_name added successfully"
         #echo "Domain $domain_name has been added for user $user."
