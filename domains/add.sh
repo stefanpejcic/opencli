@@ -181,11 +181,12 @@ start_ssl_generation_in_bg(){
 add_domain_to_clamav_list(){	
 	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
  	if [ -f /etc/systemd/system/clamav_monitor.service ]; then
-	 	log "Adding domain document root to the list of directories for ClamAV to monitor"
 	  	local domains_list="/etc/openpanel/clamav/domains.list"
     		local domain_path="/home/$user/$domain_name"
+      		log "ClamAV Upload Scanner is enabled - Adding $domain_path for monitoring"
 		echo "$domain_path" >> "$domains_list"
-		service clamav_monitor restart > /dev/null 2>&1
+		# not needed since we also watch the domains list file for changes! 
+  		#service clamav_monitor restart > /dev/null 2>&1
  	fi
 }
 
