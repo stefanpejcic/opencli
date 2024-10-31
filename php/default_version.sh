@@ -47,7 +47,8 @@ update_php_version() {
     local config_file="$2"
 
     # Use sed to update the PHP version in the configuration file
-    sed -i "s/\(default_php_version:\s*\)php[0-9.]\+/\\1$new_php_version/" "$config_file"
+    sed -i "s/\(default_php_version:\s*\)\(php\?\)\?[0-9.]\+/\\1$new_php_version/" "$config_file"
+
 
     # set the php version to be used on terminal!
     docker exec $username bash -c "update-alternatives --set php /usr/bin/php$new_php_version"
@@ -85,7 +86,10 @@ if [ "$2" == "--update" ]; then
 else
     # Use awk to extract the PHP version from the YAML file
     php_version=$(awk '/default_php_version/ {print $2}' "$config_file")
-
+    if [[ "$php_version" == php* ]]; then # legacy for <0.3.4
+        php_version="${php_version#php}"
+    fi
+    
     if [ -n "$php_version" ]; then
         echo "Default PHP version for user '$username' is: $php_version"
     else
