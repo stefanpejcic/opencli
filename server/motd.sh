@@ -19,7 +19,7 @@ RED='\033[0;31m'
 RESET='\033[0m'
 
 DOCS_LINK="https://openpanel.com/docs/user/intro/"
-FORUM_LINK="https://community.openpanel.com/"
+FORUM_LINK="https://community.openpanel.org/"
 DISCORD_LINK="https://discord.openpanel.com/"
 
 
