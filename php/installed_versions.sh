@@ -44,4 +44,4 @@ fi
 
 # Run the command to list installed PHP versions inside the Docker container,
 # then filter out the "default" version
-docker exec -it "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default'
+docker exec "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default'
