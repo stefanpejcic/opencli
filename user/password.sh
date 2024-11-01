@@ -95,12 +95,21 @@ mysql_query="UPDATE users SET password='$hashed_password' WHERE username='$usern
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
 if [ $? -eq 0 ]; then
-    # Add flag check
+    delete_sessions_query="DELETE FROM active_sessions WHERE user_id=(SELECT id FROM users WHERE username='$username');"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$delete_sessions_query"
+
+    if [ $? -eq 0 ]; then
+        :
+    else
+        echo "WARNING: Failed to terminate existing sessions for the user."
+    fi
+    
     if [ "$random_flag" = true ]; then
         echo "Successfully changed password for user $username, new generated password is: $new_password"
     else
         echo "Successfully changed password for user $username."
     fi
+    
 else
     echo "Error: Data insertion failed."
     exit 1
