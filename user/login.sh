@@ -51,17 +51,18 @@ get_all_users(){
 
 if [ $# -gt 0 ]; then
     selected_user="$1"
+    if [ -z "$selected_user" ]; then
+        echo "Invalid user."
+        exit 1
+    fi
 else
     install_fzf
     get_all_users
     selected_user=$(echo "$users" | fzf --prompt="Select a user: ")
-fi
-
-
-# Validate selected user
-if [[ -z "$selected_user" || ! "$users" =~ (^|[[:space:]])"$selected_user"($|[[:space:]]) ]]; then
-    echo "Invalid selection or no user selected."
-    exit 1
+    if [[ -z "$selected_user" || ! "$users" =~ (^|[[:space:]])"$selected_user"($|[[:space:]]) ]]; then
+        echo "Invalid selection or no user selected."
+        exit 1
+    fi
 fi
 
 echo "Accessing root user in container: $selected_user"
