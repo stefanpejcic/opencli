@@ -762,6 +762,7 @@ local docker_cmd="docker $context_flag run --network $docker_network_name -d --n
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
       -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
+      -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \
       --restart unless-stopped \
       --hostname $hostname $docker_image"
 
@@ -777,6 +778,7 @@ if [ "$DEBUG" = true ]; then
     echo "      -v /home/$username:/home/$username \\"
     echo "      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \\"
     echo "      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \\"
+    echo "      -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \\"
     echo "      --restart unless-stopped \\"
     echo "      --hostname $hostname $docker_image"
 fi
