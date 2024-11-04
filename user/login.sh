@@ -5,7 +5,7 @@
 # Usage: opencli user-login <USERNAME>
 # Author: Stefan Pejcic
 # Created: 21.10.2023
-# Last Modified: 15.11.2023
+# Last Modified: 04.11.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -28,12 +28,41 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the correct number of command-line arguments is provided
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <username>"
+install_fzf() {
+    if ! command -v fzf &> /dev/null; then
+        echo "Attempting to install fzf..."
+        apt install -y fzf > /dev/null 2>&1 || dnf install -y fzf
+        if ! command -v fzf &> /dev/null; then
+            echo "Failed to install fzf. Please install it manually."
+            exit 1
+        fi
+    fi   
+}
+
+
+get_all_users(){
+    users=$(mysql -Bse "SELECT username FROM users")
+    if [ -z "$users" ]; then
+      echo "No users found in the database."
+      exit 1
+    fi
+}
+
+
+if [ $# -gt 0 ]; then
+    selected_user="$1"
+else
+    install_fzf
+    get_all_users
+    selected_user=$(echo "$users" | fzf --prompt="Select a user: ")
+fi
+
+
+# Validate selected user
+if [[ -z "$selected_user" || ! "$users" =~ (^|[[:space:]])"$selected_user"($|[[:space:]]) ]]; then
+    echo "Invalid selection or no user selected."
     exit 1
 fi
 
-username="$1"
-
-docker exec -it $username /bin/bash
+echo "Accessing root user in container: $selected_user"
+docker exec -it $selected_user /bin/bash
