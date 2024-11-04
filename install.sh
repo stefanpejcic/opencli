@@ -44,6 +44,11 @@ chmod +x -R /usr/local/admin/scripts/
 
 
 
+
+
+
+
+
 # Generate a list of commands for the opencli
 #opencli commands
 # changed to generate manually and then put list here!
@@ -60,7 +65,19 @@ _get_usernames() {
     opencli user-list --json | jq -r '.[].username'
 }
 
-complete -W \"\$(generate_autocomplete)\" opencli
-complete -W \"\$(_get_usernames)\" opencli user-login" >> ~/.bashrc
+# Custom completion for opencli
+_opencli_completion() {
+    local cmd=\"\${COMP_WORDS[1]}\"
+    
+    if [[ \"\$cmd\" == \"user-login\" || \"\$cmd\" == \"user-login\" ]]; then
+        COMPREPLY=(\$(compgen -W \"\$(_get_usernames)\" -- \"\${COMP_WORDS[2]}\"))
+    else
+        # For all other commands, use generate_autocomplete
+        COMPREPLY=(\$(compgen -W \"\$(generate_autocomplete)\" -- \"\${COMP_WORDS[1]}\"))
+    fi
+}
+
+complete -F _opencli_completion opencli" >> ~/.bashrc
+
 
 . ~/.bashrc
