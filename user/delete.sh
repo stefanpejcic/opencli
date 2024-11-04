@@ -192,7 +192,10 @@ delete_user_from_database() {
     # Step 4: Delete rows from the 'domains' table based on the user_id
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM domains WHERE user_id='$user_id';"
 
-    # Step 5: Delete the user from the 'users' table
+    # Step 5: Delete the user_id from the 'active_sessions' table
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM active_sessions WHERE user_id='$user_id';"
+
+    # Step 6: Delete the user from the 'users' table
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$username';"
 
     echo "User '$username' and associated data deleted from MySQL database successfully."
