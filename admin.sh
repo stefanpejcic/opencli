@@ -32,7 +32,11 @@ CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 service_name="admin"
 admin_logs_file="/var/log/openpanel/admin/error.log"
-#logins_file_path="/usr/local/admin/config.py"
+admin_access_log="/var/log/openpanel/admin/access.log"
+admin_api_log="/var/log/openpanel/admin/api.log"
+admin_login_log="/var/log/openpanel/admin/login.log"
+admin_failed_login_log="/var/log/openpanel/admin/failed_login.log"
+admin_crons_log="/var/log/openpanel/admin/cron.log"
 db_file_path="/etc/openpanel/openadmin/users.db"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -58,6 +62,7 @@ usage() {
     echo "  on                                            Enable and start the OpenAdmin service."
     echo "  off                                           Stop and disable the OpenAdmin service."
     echo "  log                                           Display the last 25 lines of the OpenAdmin error log."
+    echo "  logs                                          Display live logs for all OpenAdminn services."
     echo "  list                                          List all current admin users."
     echo "  new <user> <pass>                             Add a new user with the specified username and password."
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
@@ -75,6 +80,7 @@ usage() {
     echo "  opencli admin on"
     echo "  opencli admin off"
     echo "  opencli admin log"
+    echo "  opencli admin logs"
     echo "  opencli admin list"
     echo "  opencli admin new stefan SuperStrong1"
     echo "  opencli admin password stefan SuperStrong2"
@@ -333,6 +339,64 @@ validate_password_and_username() {
 }
 
 
+
+multitail_admin_logs(){
+    check_multitail() {
+        if command -v multitail &> /dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    }
+    
+    # Function to install multitail
+    install_multitail() {
+        if command -v apt &> /dev/null; then
+            echo "Installing multitail using apt..."
+            sudo apt update && sudo apt install -y multitail > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            echo "Installing multitail using dnf..."
+            sudo dnf install -y multitail > /dev/null 2>&1
+        else
+            echo "ERROR: Neither apt nor dnf package manager found. Cannot install multitail."
+            exit 1
+        fi
+    }
+
+        if ! check_multitail; then
+            install_multitail
+        fi
+
+        all_files_exist=true
+        
+        # List of required files
+        required_files=(
+            "$admin_logs_file"
+            "$admin_access_log"
+            "$admin_login_log"
+            "$admin_failed_login_log"
+            "$admin_crons_log"
+        )
+        
+        key_value=$(grep "^key=" $CONFIG_FILE_PATH | cut -d'=' -f2-)
+        if [ -z "$key_value" ]; then
+            required_files+=("$admin_api_log")
+        fi
+                
+        for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+                touch "$file"
+            fi
+        done
+        
+        if [ -n "$key_value" ]; then
+            multitail "$admin_logs_file" "$admin_access_log" "$admin_login_log" "$admin_failed_login_log" "$admin_crons_log"
+        else
+            multitail "$admin_logs_file" "$admin_access_log" "$admin_api_log" "$admin_login_log" "$admin_failed_login_log" "$admin_crons_log"
+        fi    
+}
+
+
 case "$1" in
     "on")
         # Enable and check
@@ -342,12 +406,17 @@ case "$1" in
         ;;
     "log")
         # tail logs
-        echo "OpenAdmin error log:"
+        echo "Restarting OpenAdmin service:"
         systemctl enable --now $service_name > /dev/null 2>&1
+        echo "tail -f 25 $admin_logs_file"
         echo ""
         service admin restart
         tail -25 $admin_logs_file
         echo ""
+        ;;
+    "logs")
+        # tail logs
+        multitail_admin_logs
         ;;
     "off")
         # Disable admin panel service
