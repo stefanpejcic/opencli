@@ -54,6 +54,13 @@ ALIASES_FILE=\"/usr/local/admin/scripts/aliases.txt\"
 generate_autocomplete() {
     awk '{print \$NF}' \"\$ALIASES_FILE\"
 }
-complete -W \"\$(generate_autocomplete)\" opencli" >> ~/.bashrc
+
+# Function to get usernames for opencli user-login
+_get_usernames() {
+    opencli user-list --json | jq -r '.[].username'
+}
+
+complete -W \"\$(generate_autocomplete)\" opencli
+complete -W \"\$(_get_usernames)\" opencli user-login" >> ~/.bashrc
 
 . ~/.bashrc
