@@ -88,7 +88,7 @@ process_backup_job() {
 
     if [ -z "$run_id" ]; then
         local cron_schedule=$(schedule_to_cron "$schedule")
-            printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/crontab
+            printf "%s %s %s %s\n" "$cron_schedule" "/usr/local/bin/opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/crontab
             printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag"
     else
         echo "opencli backup-run $(basename "$file" .json)" "$flag"
@@ -119,8 +119,8 @@ ensure_jq_installed() {
     fi
 }
 
-# Remove previous backup schedules
-sed -i '/opencli backup-run/d' /etc/crontab
+# Remove all previous backup schedules
+sed -i '/\/usr\/local\/bin\/opencli backup-run/d' /etc/crontab
 
 ensure_jq_installed
 
