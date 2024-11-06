@@ -1,15 +1,15 @@
 #!/bin/bash
 
-OPENCLI_VERSION="202.410.007"
+OPENCLI_VERSION="202.411.006"
 ################################################################################
 # Script Name: /usr/local/bin/opencli
 # Description: Makes all OpenCLI commands available on the terminal.
 # Usage: opencli <COMMAND-NAME> <ATTRIBUTES>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 13.07.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 06.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -73,6 +73,20 @@ binary_name="$1"
 if [ "$binary_name" = "-v" ]; then
   binary_name="--version"
 fi
+
+
+
+
+if [ "$binary_name" = "error" ]; then
+  shift
+  if [ "$#" -gt 0 ]; then
+    python3 /usr/local/admin/scripts/error.py "$@"
+  else
+    python3 /usr/local/admin/scripts/error.py
+  fi
+ exit 0
+fi
+
 
 # https://openpanel.co/docs/changelog/0.2.1/#translations
 if [ "$binary_name" = "locale" ]; then
