@@ -353,10 +353,11 @@ multitail_admin_logs(){
     install_multitail() {
         if command -v apt &> /dev/null; then
             echo "Installing multitail using apt..."
-            sudo apt update && sudo apt install -y multitail > /dev/null 2>&1
+            apt update  > /dev/null 2>&1
+            sudo apt install -y multitail > /dev/null 2>&1
         elif command -v dnf &> /dev/null; then
             echo "Installing multitail using dnf..."
-            sudo dnf install -y multitail > /dev/null 2>&1
+            dnf install -y multitail > /dev/null 2>&1
         else
             echo "ERROR: Neither apt nor dnf package manager found. Cannot install multitail."
             exit 1
