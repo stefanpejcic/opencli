@@ -5,9 +5,9 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 05.10.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 07.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -402,19 +402,16 @@ create_mail_mountpoint(){
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
 	    log "Creating directory $DOMAIN_DIR for emails"
+     	    mkdir -p $DOMAIN_DIR
+	    log "Adding mountpoint to the mail-server in background"
             volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
-
-# Insert volume using sed
+	    
 sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
     $volume_to_add
 }" "$COMPOSE_FILE"
 
-
-log "Reloading mail-server service"
-cd /usr/local/mail/openmail/ >/dev/null 2>&1
-docker compose down mailserver >/dev/null 2>&1
-docker compose up -d mailserver >/dev/null 2>&1
-            fi
+	     cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
+	fi
     fi
 }
 
