@@ -203,13 +203,28 @@ delete_user_from_database() {
 
 
 
+delete_ftp_users() {
+    openpanel_username="$1"
+    users_dir="/etc/openpanel/ftp/users"
+    users_file="${users_dir}/${openpanel_username}/users.list"
+
+    # Check if the users file exists
+    if [[ -f "$users_file" ]]; then
+        echo "Checking and removing user's FTP sub-accounts"
+        # Loop through each line in the users.list file
+        while IFS='|' read -r username password directories; do
+            # Run the opencli command for each username
+            echo "Deleting FTP user: $username"
+            opencli ftp-delete "$username" "$openpanel_username"
+        done < "$users_file"
+    fi
+}
+
 
 # Function to disable UFW rules for ports containing the username
 disable_ports_in_ufw() {
-  # Get the line numbers to delete
   line_numbers=$(ufw status numbered | awk -F'[][]' -v user="$username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' |sort -rn)
 
-  # Loop through each line number and delete the corresponding rule
   for line_number in $line_numbers; do
     yes | ufw delete $line_number
     echo "Deleted rule #$line_number"
@@ -280,6 +295,7 @@ delete_vhosts_files                      # delete nginx conf files from that ser
 edit_firewall_rules                      # close user ports on firewall
 delete_bandwidth_limits                  # delete bandwidth limits for private ip
 remove_docker_container_and_volume       # delete contianer and all docker files
+delete_ftp_users $username
 delete_user_from_database                # delete user from database
 delete_all_user_files                    # permanently delete data
 echo "User $username deleted."           # if we made it
