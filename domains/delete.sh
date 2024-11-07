@@ -187,23 +187,17 @@ delete_mail_mountpoint(){
     
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
-	# do for enterprise!
- 	DOMAIN_DIR="/home/$user/mail/$domain_name/"
+        DOMAIN_DIR="/home/$user/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
-	        log "Creating directory $DOMAIN_DIR for emails"
-     	    mkdir -p $DOMAIN_DIR
-	        log "Adding mountpoint to the mail-server in background"
-          volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
-	    
-sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
-    $volume_to_add
-}" "$COMPOSE_FILE"
-
-	         cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
+            log "Removing directory $DOMAIN_DIR from mail server volumes"
+            volume_to_remove="  - $DOMAIN_DIR:/var/mail/$domain_name/"
+            sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/,/\$/ { /$volume_to_remove/d }}" "$COMPOSE_FILE"
+            cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown
         fi
     fi
 }
+
 
 delete_websites() {
     log "Removing any websites associated with domain (ID: $domain_id)"
@@ -211,10 +205,29 @@ delete_websites() {
     mysql -e "$delete_sites_query"
 }
 
-delete_mail_accounts(){
-    local domain_name="$1"
-    log "Deleting @$domain_name email accounts"
+
+delete_emails() {
+  local username="$1"
+  local domain="$2"
+  local email_file="/etc/openpanel/openpanel/core/users/$username/emails.yml"
+
+  # Check if the email file exists
+  if [ -f "$email_file" ]; then
+    	  log "Deleting @$domain_name email accounts"
+	  # Loop through each line in the email file
+	  while IFS= read -r line; do
+	    # Extract the email address from each line
+	    email=$(echo "$line" | awk '{print $2}')
+	    if [[ -n "$email" ]]; then
+	      echo "- deleting: $email"
+	      opencli email-setup email del "$email"
+	    fi
+	  done < "$email_file"
+  fi
 }
+
+
+
 
 delete_domain_from_mysql(){
     local domain_name="$1"
@@ -243,8 +256,7 @@ delete_domain() {
         delete_zone_file                             # create zone
         update_named_conf                            # include zone
         delete_mail_mountpoint                       # delete mountpoint to mailserver
-        delete_mail_accounts                         # delete mails for the domain
-        # TODO: delete emails!
+        delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
         rm_ssl_from_certbot                          # certbot delete
         echo "Domain $domain_name deleted successfully"
