@@ -113,6 +113,44 @@ setup_firewall(){
 }
 
 
+# INSIDE
+get_webserver_for_user(){
+	    log "Checking webserver configuration"
+	    output=$(opencli webserver-get_webserver_for_user $container_name)
+	    if [[ $output == *nginx* ]]; then
+	        ws="nginx"
+	    elif [[ $output == *apache* ]]; then
+	        ws="apache2"
+	    else
+	        ws="unknown"
+	    fi
+}
+
+replace_80_to_8080() {
+	if [[ $ws == *apache2* ]]; then
+		echo "NOT YET FOR APACHE!"
+	elif [[ $ws == *nginx* ]]; then
+        for domain_conf_file in /home/$container_name/etc/nginx/sites-available/*.conf; do
+          sed -i 's/listen 80;/listen 8080;/g' "$domain_conf_file"
+        done  
+       docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
+	fi
+
+}
+
+
+replace_8080_to_80() {
+	if [[ $ws == *apache2* ]]; then
+		echo "NOT YET FOR APACHE!"
+	elif [[ $ws == *nginx* ]]; then
+        for domain_conf_file in /home/$container_name/etc/nginx/sites-available/*.conf; do
+          sed -i 's/listen 8080;/listen 80;/g' "$domain_conf_file"
+        done  
+       docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
+	fi
+
+}
+
 
 
 # INSTALL
@@ -285,6 +323,8 @@ case "$action" in
         echo "Installing the Varnish cache server for user $container_name"
         install_varnish_for_user                          # install service
         setup_firewall                                    # out_tcp 6081
+        get_webserver_for_user                            # nginx only now
+        replace_80_to_8080                                # sed
         start_varnish_for_user                            # start service 
         #########      todo: check port 6081 for user localhost      #########
         process_all_domains_nginx_conf                    # include in nginx conf
@@ -292,6 +332,8 @@ case "$action" in
         ;;
     start)
         echo "Starting varnish for user $container_name"
+        get_webserver_for_user                            # nginx only now
+        replace_80_to_8080                                # sed
         start_varnish_for_user                            # start service 
         test_cache_for_user                               # test before adding to nginx
         process_all_domains_nginx_conf                    # include in nginx conf
@@ -311,17 +353,20 @@ case "$action" in
         remove_from_all_domains_nginx_conf                # remove from nginx conf
         restart_nginx_service                             # serve with nginx
         start_varnish_for_user                            # start service 
+        replace_80_to_8080
         process_all_domains_nginx_conf                    # include in nginx conf
         restart_nginx_service                             # serve with varnish
         ;;
     stop)
         echo "Stopping varnish server for user $container_name"
+        replace_8080_to_80
         remove_from_all_domains_nginx_conf                # remove from nginx conf
         restart_nginx_service                             # serve with nginx
         stop_varnish_for_user                             # stop service
         ;;
     uninstall)
         echo "Uninstalling varnish server for user $container_name"
+        replace_8080_to_80
         remove_from_all_domains_nginx_conf                # remove from nginx conf
         restart_nginx_service                             # serve with nginx
         stop_varnish_for_user                             # stop service
