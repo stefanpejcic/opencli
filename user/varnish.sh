@@ -226,8 +226,7 @@ NGINX_CONF_PATH="/etc/nginx/sites-available/"
         for domain in $ALL_DOMAINS; do
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
-                sed -i -e '/if (\$scheme = "https") {/,/proxy_pass https:\/\//s|\(proxy_pass https://\)\([^;]*\);|\1\2:6081;|' \
-                       -e '/if (\$scheme = "http") {/,/proxy_pass http:\/\//s|\(proxy_pass http://\)\([^;]*\);|\1\2:6081;|' "$DOMAIN_CONF"                
+                sed -i -e '/if (\$scheme = "https") {/,/proxy_pass https:\/\//s|proxy_pass https://|proxy_pass http://|' "$DOMAIN_CONF"            
                 echo "Varnish enabled for domain $domain"
             fi
         done
@@ -252,9 +251,7 @@ NGINX_CONF_PATH="/etc/nginx/sites-available/"
         for domain in $ALL_DOMAINS; do
             DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
             if [ -f "$DOMAIN_CONF" ]; then
-                sed -i -e '/if (\$scheme = "https") {/,/proxy_pass https:\/\//s|\(proxy_pass https://[^:;]*\):6081;|\1;|' \
-                       -e '/if (\$scheme = "http") {/,/proxy_pass http:\/\//s|\(proxy_pass http://[^:;]*\):6081;|\1;|' "$DOMAIN_CONF"
-
+                sed -i -e '/if (\$scheme = "https") {/,/proxy_pass http:\/\//s|proxy_pass http://|proxy_pass https://|' "$DOMAIN_CONF"
                 echo "Varnish disabled for domain $domain"
             fi
         done
