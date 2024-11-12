@@ -713,6 +713,7 @@ export_user_data_from_database() {
     
     
     #rm $backup_file # FOR REMOTE WE SHOULD RM!
+    echo ""
     echo "User '$container_name' data exported to $backup_file successfully."
 }
 
@@ -1208,6 +1209,7 @@ backup_for_user_finished(){
     # TODO: calculate total du for this backup and store it in index file!
     
     sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
+        echo ""
         echo "Backup completed for user: $container_name"                                          
         retention_check_and_delete_oldest_backup
         #empty_line    
