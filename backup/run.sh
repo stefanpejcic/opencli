@@ -722,7 +722,9 @@ export_user_data_from_database() {
 backup_domain_access_reports() {
     mkdir -p $BACKUP_DIR/nginx/stats/
     if [ -d "$dest_destination_dir_name" ]; then
-        copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
+        if [ -d "/var/log/nginx/stats/$container_name/" ]; then
+            copy_files "/var/log/nginx/stats/$container_name/" "/nginx/stats/"
+        fi
     else
         echo "No resource usage stats found for user."
     fi
@@ -819,7 +821,7 @@ backup_crontab_for_root_user(){
 
 backup_timezone(){
     copy_files "docker:$container_name:/etc/timezone" "/timezone/"
-    docker exec $container_name "cat /etc/timezone"
+    docker exec $container_name sh -c "cat /etc/timezone"
 }
 
 
