@@ -610,8 +610,12 @@ users_local_files_in_core_users() {
 users_local_files_in_stats_users() {
     mkdir -p "$BACKUP_DIR/stats/"
     stats_files="/etc/openpanel/openpanel/core/stats/$container_name/"
-    echo "Processing $stats_files"
-    copy_files "$stats_files" "stats/"
+    if [ -d "$stats_files" ]; then
+        echo "Processing $stats_files"
+        copy_files "$stats_files" "stats/"
+    else
+        echo "User has no stats data in directory $stats_files - Skipping."
+    fi
 }
 
 
