@@ -1555,9 +1555,11 @@ run_backup_for_user_data() {
 
         get_current_number_of_backups_for_user() {
             user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-            number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
-    
-            if [ -z "$number_of_backups_in_this_job_that_user_has" ]; then
+            
+            # Check if the directory exists
+            if [ -d "$user_indexes" ]; then
+                number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
+            else
                 number_of_backups_in_this_job_that_user_has=0
             fi
         }
