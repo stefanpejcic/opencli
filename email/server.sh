@@ -214,9 +214,9 @@ pflogsumm_get_data() {
 	docker exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
 	
 	echo "Done, adding reports to OpenAdmin interface"
-	
-	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html   > /dev/null 2>&1
-	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/data  > /dev/null 2>&1
+	mkdir -p /usr/local/admin/static/reports /usr/local/admin/templates/emails > /dev/null 2>&1
+	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html > /dev/null 2>&1
+	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/data > /dev/null 2>&1
  
 	#echo "Reloading admin panel.."
 	#service admin restart   > /dev/null 2>&1
