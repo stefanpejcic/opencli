@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 02.09.2024
+# Last Modified: 16.11.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
@@ -111,6 +111,58 @@ set_docker_context_for_container() {
 
 
 
+
+validate_password_in_lists() {
+    local password_to_check="$1"
+    weakpass=$(grep -E "^weakpass=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
+
+    if [ -z "$weakpass" ]; then
+      if [ "$DEBUG" = true ]; then
+        echo "weakpass value not found in openpanel.config. Defaulting to 'yes'."
+      fi
+      weakpass="yes"
+    fi
+    
+    # https://weakpass.com/wordlist
+    # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
+    
+    if [ "$weakpass" = "no" ]; then
+      if [ "$DEBUG" = true ]; then
+        echo "Checking the password against weakpass dictionaries"
+      fi
+
+       wget -O /tmp/weakpass.txt https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt > /dev/null 2>&1
+       
+       if [ -f "/tmp/weakpass.txt" ]; then
+            DICTIONARY="dictionary.txt"
+            local input_lower=$(echo "$password_to_check" | tr '[:upper:]' '[:lower:]')
+        
+            # Check if input contains any common dictionary word
+            if grep -qi "^$input_lower$" "$DICTIONARY"; then
+                echo "ERROR: password contains a common dictionary word from https://weakpass.com/wordlist"
+                echo "       Please use stronger password or disable weakpass check with: 'opencli config update weakpass no'."
+                rm dictionary.txt
+                exit 1
+            fi
+            rm dictionary.txt
+       else
+	       echo "WARNING: Error downloading dictionary from https://weakpass.com/wordlist"
+       fi
+    elif [ "$weakpass" = "yes" ]; then
+      if [ "$DEBUG" = true ]; then
+        echo "weakpass is set to 'yes'. Performing action for 'yes'."
+      fi
+      :
+    else
+      if [ "$DEBUG" = true ]; then
+        echo "Invalid weakpass value '$weakpass'. Defaulting to 'yes'."
+      fi
+      weakpass="yes"
+      :
+    fi
+}
+
+
 check_username_is_valid() {
     is_username_forbidden() {
         local check_username="$1"
@@ -126,6 +178,7 @@ check_username_is_valid() {
     
         return 1
     }
+
 
 
     is_username_valid() {
@@ -1077,6 +1130,7 @@ send_email_to_new_user() {
 }
 
 check_username_is_valid                      # validate username first
+validate_password_in_lists $password         # compare with weakpass dictionaries
 set_docker_context_for_container             # get context and use slave server if set
 check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
