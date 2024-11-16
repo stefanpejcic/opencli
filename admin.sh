@@ -97,18 +97,40 @@ usage() {
 
 
 usage_for_notifications() {
-    echo "Usage: opencli admin notifications <get|update> <what>] <value>"
+    echo "Usage: opencli admin notifications <get|update> <what> <value>"
     echo ""
     echo " Commands:"
-    echo "   check                                       Check and write notifications."
     echo "   get <param>                                 Get the value of the specified notification parameter."
     echo "   update <param> <value>                      Update the specified notification parameter with the new value."
     echo ""
     echo "Examples:"
-    echo "  opencli admin notifications check"
-    echo "  opencli admin notifications get ssl"
-    echo "  opencli admin notifications update ssl true"
+    echo "  opencli admin notifications get reboot        - if 'yes' you will receive notification when server is restarted."
+    echo "  opencli admin notifications get login         - if 'yes' you will receive notification for new logins to OpenAdmin."
+    echo "  opencli admin notifications update update yes - receive notification when new OpenPanel update is available."
+    echo "  opencli admin notifications update cpu 90     - receive notification when server CPU usage is over 90%."
+    echo "  opencli admin notifications update du 95      - receive notification when server disk usage is over 95%."
+    echo ""
+    echo "List of all available options: https://dev.openpanel.com/cli/admin.html#Options"
     exit 1
+
+
+reboot=yes
+attack=yes
+limit=yes
+backup=yes
+update=yes
+login=yes
+services=panel,admin,nginx,docker,mysql,named,csf,certbot
+load=20
+cpu=90
+ram=85
+du=85
+swap=40
+
+
+
+
+    
 }
 
 read_config() {
@@ -303,7 +325,7 @@ get_config() {
     elif grep -q "^$param_name=" "$config_file"; then
         echo "Parameter $param_name has no value."
     else
-        echo "Parameter $param_name does not exist. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#get"
+        echo "Parameter $param_name does not exist. Docs: https://dev.openpanel.com/cli/admin.html#Options"
     fi
 }
 
@@ -319,7 +341,7 @@ update_config() {
         echo "Updated $param_name to $new_value"
         
     else
-        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#update"
+        echo "Parameter $param_name not found in the configuration file. Docs: https://dev.openpanel.com/cli/admin.html#Update"
     fi
 }
 
@@ -354,6 +376,9 @@ validate_password_and_username() {
     fi
     '
 }
+
+
+
 
 
 
