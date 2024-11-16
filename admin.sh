@@ -94,6 +94,23 @@ usage() {
 }
 
 
+
+
+usage_for_notifications() {
+    echo "Usage: opencli admin notifications <get|update> <what>] <value>"
+    echo ""
+    echo " Commands:"
+    echo "   check                                       Check and write notifications."
+    echo "   get <param>                                 Get the value of the specified notification parameter."
+    echo "   update <param> <value>                      Update the specified notification parameter with the new value."
+    echo ""
+    echo "Examples:"
+    echo "  opencli admin notifications check"
+    echo "  opencli admin notifications get ssl"
+    echo "  opencli admin notifications update ssl true"
+    exit 1
+}
+
 read_config() {
     config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
     echo "$config"
@@ -474,7 +491,7 @@ case "$1" in
         # Check if $2 and $3 are provided
         if [ -z "$new_username" ] || [ -z "$new_password" ]; then
             #echo "Error: Missing parameters for new admin command."
-            echo "ERROR: Invalid command."
+            echo "ERROR: Invalid 'opencli admin new' command - please provide username and password."
             usage
             exit 1
         fi
@@ -486,53 +503,48 @@ case "$1" in
         # COntrol notification preferences
         command="$2"
         param_name="$3"
-        # Check if $2 and $3 are provided
-        if [ -z "$command" ] || [ -z "$param_name" ]; then
-            #echo "Error: Missing parameters for notifications command."
-            echo "ERROR: Invalid command."
-            usage
-            exit 1
+        if [ "$command" != "check" ]; then
+            if [ -z "$command" ] || [ -z "$param_name" ]; then
+                usage_for_notifications
+                exit 1
+            fi
         fi
-
-case "$command" in
-    check)
-        bash  /usr/local/admin/service/notifications.sh
-        ;;
-    get)
-        get_config "$param_name"
-        ;;
-    update)
-        if [ "$#" -ne 4 ]; then
-            echo "ERROR: Usage: opencli admin notifications update <parameter_name> <new_value>"
-            exit 1
-        fi
-        new_value="$4"
-        update_config "$param_name" "$new_value"
         
-        case "$param_name" in
-            ssl)
-                update_ssl_config "$new_value"
+        case "$command" in
+            check)
+                bash  /usr/local/admin/service/notifications.sh
+                exit 0
                 ;;
-            port)
-                update_port_config "$new_value"
+            get)
+                get_config "$param_name"
                 ;;
-            openpanel_proxy)
-                update_openpanel_proxy_config "$new_value"
-                service nginx reload
+            update)
+                if [ "$#" -ne 4 ]; then
+                    echo "ERROR: Usage: opencli admin notifications update <parameter_name> <new_value>"
+                    exit 1
+                fi
+                new_value="$4"
+                update_config "$param_name" "$new_value"
+                
+                case "$param_name" in
+                    ssl)
+                        update_ssl_config "$new_value"
+                        ;;
+                    port)
+                        update_port_config "$new_value"
+                        ;;
+                    openpanel_proxy)
+                        update_openpanel_proxy_config "$new_value"
+                        service nginx reload
+                        ;;
+                esac
                 ;;
-        esac
-        ;;
-    *)
-        echo "ERROR: Invalid command."
-        usage
-        exit 1
-        ;;
-esac
-
-
-
-
-        
+            *)
+                echo "ERROR: Invalid command."
+                usage
+                exit 1
+                ;;
+        esac        
         ;;
         
     "delete")
