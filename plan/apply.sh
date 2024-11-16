@@ -170,6 +170,8 @@ local bandwidth="$2"
 totalc="${#usernames[@]}"
 counter=0
 
+
+
 for container_name in "${usernames[@]}"
 do
     # Debug echo
@@ -318,9 +320,6 @@ do
                 echo "numOdisk = $numOdisk"
             fi
 
-            
-            numNdisk=$((numNdisk + 7))
-
             addSize=$((numNdisk - numOdisk))
             addInodes=$((Ninodes_limit - Oinodes_limit))
             
@@ -370,6 +369,7 @@ do
         if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then
 
             if (( $addSize > 0 || $addInodes > 0 )) && [ "$noDiskSpace" = false ]; then
+
                 echo "Stopping container $container_name"
                 docker stop $container_name
                 if mount | grep "/home/$container_name" > /dev/null; then
@@ -378,8 +378,8 @@ do
 
                 echo "Stopping active services that use the /home/$container_name directory"
                 cd /root
-                docker compose ps --services
-                docker compose down
+                compose_services=$(docker compose ps --services)
+                docker compose down > /dev/null 2>&1
 
                 #echo "falokejt parametar ${numNdisk}g"
                 fallocate -l ${numNdisk}g /home/storage_file_$container_name
@@ -394,10 +394,11 @@ do
                 echo "Disk limit changed from ${numOdisk}GB to ${numNdisk}GB"
 
 
-                echo "Starting again all services that were active before edit"
-                docker compose up -d $services
-
-
+                echo "Starting again all services that were active before editing disk limit"
+                if [[ "$compose_services" == *"nginx"* ]]; then
+                    bash /usr/local/admin/scripts/server/recreate_hosts
+                fi
+                docker compose up -d $compose_services > /dev/null 2>&1
 
                 if (( $addInodes > 0 )); then
                     #mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
@@ -489,6 +490,10 @@ do
     #mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
     #echo "Finished applying new values for container $container_name ($counter/$totalc)"
 done
+
+echo "Starting again all services that were active before edit"
+docker compose up -d $services
+
 echo ""
 echo "+=============================================================================+"
 echo ""
