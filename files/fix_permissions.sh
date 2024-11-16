@@ -5,9 +5,9 @@
 # Usage: opencli files-fix_permissions [USERNAME] [PATH]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 31.08.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 16.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
