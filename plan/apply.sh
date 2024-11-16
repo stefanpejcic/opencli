@@ -246,7 +246,6 @@ do
     numOdisk=$(echo "$Odisk_limit" | awk '{print $1}')
     numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
 
-
         #if $debug; then
         #echo "          cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth"
         #echo "Old plan: $Ocpu , $Oram, $Odocker_image, $Odisk_limit, $Oinodes_limit, $Obandwith"
@@ -315,9 +314,26 @@ do
         if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then    
             if $debug; then 
                 echo "BOTH MOUNTED"
+                echo "numNdisk = $numNdisk"
+                echo "numOdisk = $numOdisk"
             fi
+
+            
+            numNdisk=$((numNdisk + 7))
+
             addSize=$((numNdisk - numOdisk))
             addInodes=$((Ninodes_limit - Oinodes_limit))
+            
+        else
+            if $debug; then 
+                echo "oMounted = $oMounted"
+                echo "nMounted = $nMounted"
+                echo "debug = $debug"
+                echo "addSize = $addSize"
+                echo "addInodes = $addInodes"
+            else
+            :
+            fi
         fi
 
         #if $debug; then 
@@ -354,10 +370,16 @@ do
         if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then
 
             if (( $addSize > 0 || $addInodes > 0 )) && [ "$noDiskSpace" = false ]; then
+                echo "Stopping container $container_name"
                 docker stop $container_name
                 if mount | grep "/home/$container_name" > /dev/null; then
                     umount /home/$container_name
                 fi
+
+                echo "Stopping active services that use the /home/$container_name directory"
+                cd /root
+                docker compose ps --services
+                docker compose down
 
                 #echo "falokejt parametar ${numNdisk}g"
                 fallocate -l ${numNdisk}g /home/storage_file_$container_name
@@ -366,9 +388,15 @@ do
                 e2fsck -f -y /home/storage_file_$container_name  > /dev/null
                 resize2fs /home/storage_file_$container_name
                 mount -o loop /home/storage_file_$container_name /home/$container_name
+                echo "Starting container $container_name"
                 docker start $container_name
 
                 echo "Disk limit changed from ${numOdisk}GB to ${numNdisk}GB"
+
+
+                echo "Starting again all services that were active before edit"
+                docker compose up -d $services
+
 
 
                 if (( $addInodes > 0 )); then
@@ -379,9 +407,7 @@ do
             elif (($addSize < 0)); then
                 echo "Warning: No change was made to the disk limit, new plan limit is more restrictive which is not allowed"
             else
-
                 echo "No change was made to the disk limit, new plan limit is the same as old limit."
-
             fi
 
         elif [ "$oMounted" = "true" ] && [ "$nMounted" != "true" ]; then
