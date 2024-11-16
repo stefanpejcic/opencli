@@ -67,8 +67,10 @@ apply_permissions_in_container() {
             path="/home/$container_name/$path" # prepend user home directory
         fi
         directory="$path"
+        emails=false
     else   
         directory="/home/$container_name/"
+        emails=true
     fi
 
   # Check if the container exists
@@ -82,19 +84,33 @@ apply_permissions_in_container() {
         docker exec $container_name bash -c "chown -R $verbose 1000:33 $directory"
         owner_result=$?
         
+        if [ "$emails" = "true" ]; then
+            docker exec $container_name bash -c "chown -R $verbose 1000:1000 ${directory}mail/"
+            mail_result=$?
+        fi
+        
         # FILES
         docker exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
         files_result=$?
         
-        # FODLERS
+        # FOLDERS
         docker exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
         folders_result=$?
         
-        # CHECK ALL FOUR
-        if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
-            echo "Permissions applied successfully to $directory"
+        # CHECK ALL 5
+        if [ "$emails" = "true" ]; then
+            if [ $group_result -eq 0 ] && [ $mail_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
+                echo "Permissions applied successfully to $directory"
+            else
+                echo "Error applying permissions to $directory"
+            fi
         else
-            echo "Error applying permissions to $directory"
+        # CHECK ALL 4
+            if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
+                echo "Permissions applied successfully to $directory"
+            else
+                echo "Error applying permissions to $directory"
+            fi
         fi
   else
     echo "Container for user $container_name not found or is not running."
