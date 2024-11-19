@@ -510,7 +510,7 @@ check_or_create_network() {
                 elif command -v yum &> /dev/null; then
                     sudo yum install -y -q iproute2 > /dev/null 2>&1
                 elif command -v dnf &> /dev/null; then
-                    sudo dnf install -y -q iproute2 > /dev/null 2>&1
+                    sudo dnf install -y -q iproute-tc > /dev/null 2>&1
                 else
                     echo "Error: No compatible package manager found. Please install tc manually and try again."
                     exit 1
@@ -518,7 +518,7 @@ check_or_create_network() {
         
                 # Check if installation was successful
                 if ! command -v tc &> /dev/null; then
-                    echo "Error: jq installation failed. Please install jq manually and try again."
+                    echo "Error: tc installation failed. Please install tc manually and try again."
                     exit 1
                 fi
             fi
