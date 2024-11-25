@@ -122,6 +122,34 @@ MemoryAccounting=true
 MemoryLimit=${memory_limit}G
 EOF
 
+
+
+# Check current storage driver in daemon.json
+existing_driver=""
+if [ -f /etc/docker/daemon.json ]; then
+  existing_driver=$(grep -oP '"storage-driver":\s*"\K[^"]+' /etc/docker/daemon.json)
+fi
+
+
+# Determine storage driver to use
+if [ "$existing_driver" = "overlay2" ]; then
+
+    cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  experimental": true,
+  "data-root": "/var/lib/docker",
+  "storage-driver": "overlay2",
+  "cgroup-parent": "docker_limit.slice",
+  "log-driver": "local",
+  "log-opts": {
+      "max-size": "5m"
+      }
+}
+EOF
+
+  
+elif [ "$existing_driver" = "devicemapper" ]; then
+
     # Create or update the Docker daemon configuration file
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
@@ -134,6 +162,23 @@ EOF
   }
 }
 EOF
+
+else
+    cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  experimental": true,
+  "data-root": "/var/lib/docker",
+  "storage-driver": "overlay2",
+  "cgroup-parent": "docker_limit.slice",
+  "log-driver": "local",
+  "log-opts": {
+      "max-size": "5m"
+      }
+}
+EOF
+
+  
+fi
 
     sudo systemctl daemon-reload
     sudo systemctl start docker_limit.slice
