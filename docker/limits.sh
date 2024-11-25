@@ -111,6 +111,8 @@ apply_config() {
     # Calculate % of RAM
     memory_limit=$(echo "scale=2; $total_ram * $RAM_PERCENTAGE / 100 / 1024 / 1024" | bc) # Convert to GB
 
+    # https://docs.docker.com/reference/cli/dockerd/#default-cgroup-parent
+
     # Create the systemd slice file
     cat <<EOF | sudo tee /etc/systemd/system/docker_limit.slice
 [Unit]
