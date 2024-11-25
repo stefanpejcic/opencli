@@ -67,12 +67,14 @@ apply_new_disk_limit_for_docker() {
             echo "STEP 1. - Stop Docker service"
             service docker stop > /dev/null 2>&1
 
-            echo "STEP 2. - Check if loop device is correctly set up"
             initial_size=$(stat --format="%s" /var/lib/docker.img)
             echo "STEP 3. - Check initial size of /var/lib/docker.img: $initial_size bytes"
+
+            echo "STEP 4. -Increase size for /var/lib/docker.img to $new_limit GB"
             dd if=/dev/zero bs=1G count=$new_limit of=/var/lib/docker.img status=progress > /dev/null 2>&1
+            
             final_size=$(stat --format="%s" /var/lib/docker.img)
-            echo "STEP 3. - Check final size of /var/lib/docker.img: $final_size bytes"
+            echo "STEP 5. - Check final size of /var/lib/docker.img: $final_size bytes"
             # Compare initial and final sizes
             if [ "$final_size" -gt "$initial_size" ]; then
                 echo -e "File size successfully increased by $DIFF GB."
@@ -80,11 +82,11 @@ apply_new_disk_limit_for_docker() {
                 echo -e "Error: File size not increased as expected. Please contact support."
                 exit 1
             fi
-            echo "STEP 4. - Check if loop device is correctly set up"
+            echo "STEP 6. - Check if loop device is correctly set up"
             losetup -c /dev/loop0 > /dev/null 2>&1
-            echo "STEP 5. - Resize the file system"
+            echo "STEP 7. - Resize the file system"
             xfs_growfs /var/lib/docker > /dev/null 2>&1
-            echo "STEP 6. - Start Docker service"
+            echo "STEP 8. - Start Docker service"
             service docker start > /dev/null 2>&1
             echo "✔ Storage increase complete and Docker service restarted."
             exit 0
