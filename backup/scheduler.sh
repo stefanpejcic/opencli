@@ -5,9 +5,9 @@
 # Usage: opencli backup-schedule
 # Author: Stefan Pejcic
 # Created: 02.02.2024
-# Last Modified: 09.09.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 25.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -88,7 +88,7 @@ process_backup_job() {
 
     if [ -z "$run_id" ]; then
         local cron_schedule=$(schedule_to_cron "$schedule")
-            printf "%s %s %s %s\n" "$cron_schedule" "/usr/local/bin/opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/crontab
+            printf "%s %s %s %s\n" "$cron_schedule" "/usr/local/bin/opencli backup-run $(basename "$file" .json)" "$flag" >> /etc/cron.d/openpanel_backups
             printf "%s %s %s %s\n" "$cron_schedule" "opencli backup-run $(basename "$file" .json)" "$flag"
     else
         echo "opencli backup-run $(basename "$file" .json)" "$flag"
@@ -119,8 +119,21 @@ ensure_jq_installed() {
     fi
 }
 
+
+# restart cron
+restart_cron_after_edit() {
+    touch /etc/cron.d/openpanel_backups > /dev/null 2>&1
+    chown root:root /etc/cron.d/openpanel_backups > /dev/null 2>&1
+    chmod 0600 /etc/cron.d/openpanel_backups
+    restorecon -R /etc/cron.d/ > /dev/null 2>&1
+    restorecon -R /etc/cron.d/openpanel_backups > /dev/null 2>&1
+    systemctl restart crond.service  > /dev/null 2>&1
+}
+
+
+
 # Remove all previous backup schedules
-sed -i '/\/usr\/local\/bin\/opencli backup-run/d' /etc/crontab
+sed -i '/\/usr\/local\/bin\/opencli backup-run/d' /etc/cron.d/openpanel_backups
 
 ensure_jq_installed
 
@@ -129,6 +142,7 @@ if [ "$run_id" ]; then
     file="/etc/openpanel/openadmin/config/backups/jobs/$run_id.json"
     if [ -f "$file" ]; then
         process_backup_job "$file"
+        restart_cron_after_edit        # run only once
     else
         echo "ERROR: JSON file '$run_id.json' not found."
         exit 1
@@ -139,4 +153,5 @@ else
             process_backup_job "$file"
         fi
     done
+    restart_cron_after_edit        # run once after all jobs
 fi
