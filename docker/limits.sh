@@ -136,7 +136,7 @@ if [ "$existing_driver" = "overlay2" ]; then
 
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
-  experimental": true,
+  "experimental": true,
   "data-root": "/var/lib/docker",
   "storage-driver": "overlay2",
   "cgroup-parent": "docker_limit.slice",
@@ -166,7 +166,7 @@ EOF
 else
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
-  experimental": true,
+  "experimental": true,
   "data-root": "/var/lib/docker",
   "storage-driver": "overlay2",
   "cgroup-parent": "docker_limit.slice",
