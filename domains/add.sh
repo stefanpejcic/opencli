@@ -295,15 +295,10 @@ create_domain_file() {
 
 
 	check_and_add_to_enabled() {
-      
-	    if docker exec nginx sh -c "nginx -t -c /etc/nginx/sites-available/${domain_name}.conf" 2>/dev/null; then
-     		log "Configuration is valid, including it to proxy server and reloading"
+		# https://github.com/stefanpejcic/OpenPanel/issues/283
 		mkdir -p /etc/nginx/sites-enabled/
 		ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
      		docker exec nginx sh -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
-	    else
-	        echo "WARNING: invalid config detected in file /etc/nginx/sites-available/${domain_name}.conf and file will not be included in webseerver - please contact Administrator."
-	    fi
 	}
 
  	# Check if the 'nginx' container is running
