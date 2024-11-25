@@ -138,6 +138,17 @@ fi
 # Determine storage driver to use
 if [ "$existing_driver" = "overlay2" ]; then
 
+
+if [ -f /etc/fedora-release ]; then
+    cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  "experimental": true,
+  "data-root": "/var/lib/docker",
+  "cgroup-parent": "docker_limit.slice",
+  "storage-driver": "overlay2"
+}
+EOF
+else
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
   "experimental": true,
@@ -150,7 +161,7 @@ if [ "$existing_driver" = "overlay2" ]; then
       }
 }
 EOF
-
+fi
   
 elif [ "$existing_driver" = "devicemapper" ]; then
 
@@ -168,6 +179,17 @@ elif [ "$existing_driver" = "devicemapper" ]; then
 EOF
 
 else
+
+if [ -f /etc/fedora-release ]; then
+    cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  "experimental": true,
+  "data-root": "/var/lib/docker",
+  "cgroup-parent": "docker_limit.slice",
+  "storage-driver": "overlay2"
+}
+EOF
+else
     cat <<EOF | sudo tee /etc/docker/daemon.json
 {
   "experimental": true,
@@ -180,7 +202,7 @@ else
       }
 }
 EOF
-
+fi
   
 fi
 
