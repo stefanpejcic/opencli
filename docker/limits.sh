@@ -71,7 +71,7 @@ apply_new_disk_limit_for_docker() {
             echo "STEP 3. - Check initial size of /var/lib/docker.img: $initial_size bytes"
 
             echo "STEP 4. -Increase size for /var/lib/docker.img to $new_limit GB"
-            dd if=/dev/zero bs=1G count=$new_limit of=/var/lib/docker.img status=progress > /dev/null 2>&1
+            dd if=/dev/zero bs=1G count=$DIFF >> /var/lib/docker.img status=progress
             
             final_size=$(stat --format="%s" /var/lib/docker.img)
             echo "STEP 5. - Check final size of /var/lib/docker.img: $final_size bytes"
