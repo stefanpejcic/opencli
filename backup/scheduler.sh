@@ -122,7 +122,7 @@ ensure_jq_installed() {
 
 # restart cron
 restart_cron_after_edit() {
-    touch /etc/cron.d/openpanel_backups > /dev/null 2>&1
+    #touch /etc/cron.d/openpanel_backups > /dev/null 2>&1
     chown root:root /etc/cron.d/openpanel_backups > /dev/null 2>&1
     chmod 0600 /etc/cron.d/openpanel_backups
     restorecon -R /etc/cron.d/ > /dev/null 2>&1
