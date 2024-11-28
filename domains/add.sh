@@ -137,14 +137,26 @@ log "Checking if default vhosts file exists for Nginx"
 file_exists=$(docker exec "$user" test -e "/etc/nginx/sites-enabled/default" && echo "yes" || echo "no")
 
 if [ "$file_exists" == "no" ]; then
-    log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-    docker exec "$user" sh -c "echo 'server {
-        listen 80 default_server;
-        listen [::]:80 default_server;
-        server_name _;
-        deny all;
-        return 444;
-        }' > /etc/nginx/sites-enabled/default"
+    if [[ $VARNISH == true ]]; then
+    		log "Creating default vhost file (with Varnish) for Nginx: /etc/nginx/sites-enabled/default"
+	    docker exec "$user" sh -c "echo 'server {
+	        listen 8080 default_server;
+	        listen [::]:8080 default_server;
+	        server_name _;
+	        deny all;
+	        return 444;
+	        }' > /etc/nginx/sites-enabled/default"
+    else
+    		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
+	    docker exec "$user" sh -c "echo 'server {
+	        listen 80 default_server;
+	        listen [::]:80 default_server;
+	        server_name _;
+	        deny all;
+	        return 444;
+	        }' > /etc/nginx/sites-enabled/default"
+    fi
+ 
 fi
 }
 
@@ -217,9 +229,17 @@ auto_start_webserver_for_user_in_future(){
 vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
+ 		if [[ $VARNISH == true ]]; then
+   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
+   		else
+			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
+  		fi
 	elif [[ $ws == *nginx* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+ 		if [[ $VARNISH == true ]]; then
+   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
+   		else
+			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+  		fi
 	fi
 
 	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
@@ -250,6 +270,19 @@ vhost_files_create() {
  	log "Restarting $ws inside container to apply changes"
 	docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
 
+}
+
+
+check_if_varnish_installed_for_user() {
+# todo: edit to check if running!
+	# VARNISH
+ 	# added in 0.3.7
+	if docker exec "$user" test -f /etc/default/varnish; then
+ 	    log "Varnish is installed"
+      		VARNISH=true
+	else
+ 		VARNISH=false
+	fi
 }
 
 create_domain_file() {
@@ -432,6 +465,7 @@ add_domain() {
     
     	clear_cache_for_user                         # rm cached file for ui
     	make_folder                                  # create dirs on host server
+     	check_if_varnish_installed_for_user	     # use varnish templates
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4                              # get outgoing ip
 	vhost_files_create                           # create file in container
