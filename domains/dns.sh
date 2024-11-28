@@ -5,9 +5,9 @@
 # Usage: opencli domains-dns <DOMAIN>
 # Author: Stefan Pejcic
 # Created: 31.08.2024
-# Last Modified: 31.08.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 28.11.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -44,6 +44,7 @@ usage() {
   echo -e " ${GREEN}$command list${RESET}                   - List all domains with DNS zones on the server."
   echo -e " ${GREEN}$command create <DOMAIN>${RESET}        - Create DNS zone for a domain."
   echo -e " ${GREEN}$command delete <DOMAIN>${RESET}        - Delete DNS zone for a domain."
+  echo -e " ${GREEN}$command default <DOMAIN>${RESET}       - Restart default DNS zone for a domain."
   echo -e " ${GREEN}$command count${RESET}                  - Display total number of DNS zones present on the server."
   echo -e " ${GREEN}$command config${RESET}                 - Check main bind configuration file for syntax errros."
   echo -e " ${GREEN}$command start${RESET}                  - Start the DNS server."
@@ -186,7 +187,6 @@ restore_zone_to_default(){
   domain_name="$1"
   
   # backup zone
-  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/$domain_name.zone.
   mkdir -p /etc/bind/zones/backups/
   mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/backups/$domain_name.zone.$(date +%Y%m%d%H%M%S)
   
@@ -266,6 +266,33 @@ create_dns_zone_for_domain(){
 
     # Create zone content
     timestamp=$(date +"%Y%m%d")
+
+	whoowns_output=$(opencli domains-whoowns "$domain_name")
+	owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain_name': " '{print $2}')
+	IP_SERVER_1="https://ip.openpanel.com"
+	IP_SERVER_2="https://ip.openpanel.com"
+	IP_SERVER_3="https://ip.openpanel.com"
+	
+	 
+	if [ -n "$owner" ]; then
+	    USERNAME="$owner"
+	    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
+	    SERVER_IP=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
+	        if [ -e "$JSON_FILE" ]; then
+	            current_ip=$(jq -r '.ip' "$JSON_FILE")
+	        else
+	            current_ip="$SERVER_IP"
+	        fi
+     	else
+	        current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
+		if [ -z "$current_ip" ]; then
+		    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
+		fi     
+     	fi
+
+
+
+
     
     # Replace placeholders in the template
 	  zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" \
