@@ -127,7 +127,6 @@ get_webserver_for_user(){
 }
 
 replace_80_to_8080() {
-replace_80_to_8080() {
     if [[ $ws == *apache2* ]]; then
         echo "NOT YET FOR APACHE!"
     elif [[ $ws == *nginx* ]]; then
