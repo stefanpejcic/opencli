@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#varnish
 # Author: Stefan Pejcic
 # Created: 21.08.2024
-# Last Modified: 25.08.2024
+# Last Modified: 28.11.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -127,28 +127,38 @@ get_webserver_for_user(){
 }
 
 replace_80_to_8080() {
-	if [[ $ws == *apache2* ]]; then
-		echo "NOT YET FOR APACHE!"
-	elif [[ $ws == *nginx* ]]; then
-        for domain_conf_file in /home/$container_name/etc/nginx/sites-available/*.conf; do
-          sed -i 's/listen 80;/listen 8080;/g' "$domain_conf_file"
-        done  
-       docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
-	fi
-
+replace_80_to_8080() {
+    if [[ $ws == *apache2* ]]; then
+        echo "NOT YET FOR APACHE!"
+    elif [[ $ws == *nginx* ]]; then
+        # Check if there are any .conf files
+        conf_files="/home/$container_name/etc/nginx/sites-available/*.conf"
+        if compgen -G "$conf_files" > /dev/null; then
+            for domain_conf_file in $conf_files; do
+                sed -i 's/listen 80;/listen 8080;/g' "$domain_conf_file"
+            done
+            docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
+        else
+            echo "No configuration files found."
+        fi
+    fi
 }
 
-
 replace_8080_to_80() {
-	if [[ $ws == *apache2* ]]; then
-		echo "NOT YET FOR APACHE!"
-	elif [[ $ws == *nginx* ]]; then
-        for domain_conf_file in /home/$container_name/etc/nginx/sites-available/*.conf; do
-          sed -i 's/listen 8080;/listen 80;/g' "$domain_conf_file"
-        done  
-       docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
-	fi
-
+    if [[ $ws == *apache2* ]]; then
+        echo "NOT YET FOR APACHE!"
+    elif [[ $ws == *nginx* ]]; then
+        # Check if there are any .conf files
+        conf_files="/home/$container_name/etc/nginx/sites-available/*.conf"
+        if compgen -G "$conf_files" > /dev/null; then
+            for domain_conf_file in $conf_files; do
+                sed -i 's/listen 8080;/listen 80;/g' "$domain_conf_file"
+            done
+            docker exec $container_name bash -c "service nginx restart" >/dev/null 2>&1
+        else
+            echo "No configuration files found."
+        fi
+    fi
 }
 
 
@@ -345,7 +355,7 @@ case "$action" in
         ;;
     purge)
         echo "Purge varnish cache for all domains owned by user $container_name"
-        purge_varnish_cache_for_user                      # purge cache 
+        purge_varnish_cache_for_user                      # purge cache
         ;;
     restart)
         echo "Restarting varnish server for user $container_name"
