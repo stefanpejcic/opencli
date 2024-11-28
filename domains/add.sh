@@ -274,25 +274,16 @@ create_domain_file() {
 	# VARNISH
  	# added in 0.2.6
 	if docker exec "$user" test -f /etc/default/varnish; then
-	    echo "Detected Varnish for user, setting Nginx to use port 6081 to proxy to Varnish."
-     	    log "Setting Nginx to use port 6081 and proxy to Varnish Cache"
-		sed -i \
-		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
-		    -e "s|<USERNAME>|$user|g" \
-		    -e "s|<IP>:6081|$user|g" \
-		    -e "s|<LISTEN_IP>|$current_ip|g" \
-		    /etc/nginx/sites-available/${domain_name}.conf
+	    log "Detected Varnish for user, setting Nginx to proxy requests to Varnish in user container."
 	else
-	    #echo "Varnish not detected for user."
+	    log "Setting Nginx to proxy requests to $ws user container."
+	fi
 		sed -i \
 		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
 		    -e "s|<USERNAME>|$user|g" \
 		    -e "s|<IP>|$user|g" \
 		    -e "s|<LISTEN_IP>|$current_ip|g" \
 		    /etc/nginx/sites-available/${domain_name}.conf
-		    
-	fi
-
 
 	check_and_add_to_enabled() {
 		# https://github.com/stefanpejcic/OpenPanel/issues/283
