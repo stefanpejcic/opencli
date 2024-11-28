@@ -115,7 +115,7 @@ setup_firewall(){
 
 # INSIDE
 get_webserver_for_user(){
-	    log "Checking webserver configuration"
+	    echo "Checking webserver configuration"
 	    output=$(opencli webserver-get_webserver_for_user $container_name)
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
