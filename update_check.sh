@@ -74,21 +74,24 @@ update_check() {
         exit 1
     fi
 
-    UPDATE_SERV_1="https://update.openpanel.com/"
-    UPDATE_SERV_2="https://update.openpanel.org/"
+    UPDATE_SERV_1="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/latest"
+    UPDATE_SERV_2="https://update.openpanel.com/"
+    UPDATE_SERV_3="https://update.openpanel.org/"
 
-    # Fetch the remote version from https://update.openpanel.com/
     remote_version=$(curl -s "$UPDATE_SERV_1" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
 
-    # If the first attempt fails, try the second server
     if [ -z "$remote_version" ]; then
         remote_version=$(curl -s "$UPDATE_SERV_2" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
+    fi
+
+    if [ -z "$remote_version" ]; then
+        remote_version=$(curl -s "$UPDATE_SERV_3" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
     fi
     
     # If both attempts fail, handle the error
     if [ -z "$remote_version" ]; then
         echo '{"error": "Error fetching remote version"}' >&2
-        write_notification "Update check failed" "Failed connecting to both $UPDATE_SERV_1 and $UPDATE_SERV_2"
+        write_notification "Update check failed" "Failed connecting to both OpenPanel servers and GitHub"
         exit 1
     fi
 
