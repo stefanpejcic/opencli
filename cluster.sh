@@ -224,7 +224,7 @@ add_slave() {
         fi
     fi
 
-    log_message "Copying SSH public key to master for slave-to-master SSH access..."
+    log_message "Copying SSH public key to slave for master-to-slave SSH access..."
     
     ssh_with_key "$SSH_KEY_PATH" "$SLAVE_USER" "$SLAVE_IP" \
         "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys" < "$PUBLIC_KEY_PATH"
@@ -234,14 +234,26 @@ add_slave() {
         exit 1
     fi
     
-    ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SLAVE_USER@$SLAVE_IP" "echo 'SSH connection successful'"
-    
+    # ADD ON MASTER
+    mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys < "$PUBLIC_KEY_PATH"
     if [ $? -ne 0 ]; then
-        log_message "Error: SSH connection test from slave $SLAVE_IP to master failed."
+        log_message "Error: Failed to copy SSH public key to master server."
+    fi
+
+    ssh_with_key "$SSH_KEY_PATH" "$SLAVE_USER" "$SLAVE_IP" \
+        "touch $SSH_KEY_PATH && chmod 0600 $SSH_KEY_PATH && cat >> $SSH_KEY_PATH" < "$SSH_KEY_PATH"
+
+
+    scp -i $SSH_KEY_PATH $SSH_KEY_PATH "$SLAVE_USER@$SLAVE_IP:/etc/openpanel/openadmin/cluster/" > /dev/null 2>&1
+
+    ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SLAVE_USER@$SLAVE_IP" "
+        echo 'SSH connection to slave successful';
+        ssh -o StrictHostKeyChecking=no -i '$SSH_KEY_PATH' 'root@$current_ip' 'echo SSH connection to MASTER successful'
+    "   
+    if [ $? -ne 0 ]; then
+        log_message "Error: SSH connection test from slave $SLAVE_IP to master $current_ip failed."
         exit 1
     fi
-    
-    
     
     
     
@@ -293,8 +305,8 @@ add_slave() {
         sudo apt-get install scp -y
     fi
     
-    
-    scp -i $SSH_KEY_PATH -r /etc/openpanel/openadmin/cluster/ "$SLAVE_USER@$SLAVE_IP:/etc/openpanel/openadmin/cluster/" > /dev/null 2>&1
+    # cluster does not exist yet on slave!
+    scp -i $SSH_KEY_PATH -r /etc/openpanel/openadmin/cluster/ "$SLAVE_USER@$SLAVE_IP:/etc/openpanel/openadmin/" > /dev/null 2>&1
     
     
     if [ $? -ne 0 ]; then
@@ -309,7 +321,7 @@ add_slave() {
     
     if [ -z "$context_exists" ]; then
         log_message "Creating Docker context for the master on the slave with name 'master'..."
-        ssh -i "$SSH_KEY_PATH" "$SLAVE_USER@$SLAVE_IP" "docker context create master --description='OpenPanel master server' --docker 'host=ssh://$current_ip'" > /dev/null 2>&1
+        ssh -i "$SSH_KEY_PATH" "$SLAVE_USER@$SLAVE_IP" "docker context create master --description='OpenPanel master server' --docker 'host=ssh://root@$current_ip'" > /dev/null 2>&1
     
         if [ $? -ne 0 ]; then
             log_message "Error: Failed to create Docker context for the master on the slave."
@@ -325,10 +337,9 @@ add_slave() {
     log_message "Docker containers running on the slave server $SLAVE_HOSTNAME that are visible from the master:"
     docker --context $SLAVE_HOSTNAME ps
     log_message "Switching to Docker context 'master' on the slave and reading docker info:"
-    
+   
     docker_summary=$(ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o BatchMode=yes "$SLAVE_USER@$SLAVE_IP" \
-        "ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i $SSH_KEY_PATH root@$current_ip \
-        'docker --context master ps'")
+        "'docker --context master ps'")
     
     if [ $? -ne 0 ]; then
         log_message "Error: Failed to switch Docker context to 'master' and retrieve Docker summary from the slave."
