@@ -78,19 +78,10 @@ add_slave() {
     local SLAVE_USER="$1"
     local SLAVE_IP="$2"
     local AUTH_VALUE="${3}"
-    local SSH_KEY_PATH="${HOME}/.ssh/id_rsa"
     local PUBLIC_KEY_PATH="${HOME}/.ssh/id_rsa.pub"
-    debug_echo "Debug: Adding slave with user=$slave_user, ip=$slave_ip, auth=$auth_value"
-
-
-
-  
-  
-  
-  
+ 
     
-    
-    
+   
     
     # Function to execute commands over SSH using password authentication
     ssh_with_password() {
@@ -115,8 +106,10 @@ add_slave() {
     if [ -n "$AUTH_VALUE" ]; then
         if [ -f "$AUTH_VALUE" ]; then
             AUTH_TYPE="key"
+            SSH_KEY_PATH="${AUTH_VALUE}"           
         else
             AUTH_TYPE="password"
+            SSH_KEY_PATH="${HOME}/.ssh/id_rsa"
         fi
     else
         echo "Error: No authentication value provided. Please provide either a password or SSH key path."
@@ -202,9 +195,7 @@ add_slave() {
     ftp - nema promena, posebno su
     clamav - nema promena - na svakom srv će da radi samo za domene i home dir koji je tamo
     '
-    
-    
-    
+       
     
     # STEP 7. setup ssh between servers
     if [ ! -f "$SSH_KEY_PATH" ]; then
@@ -213,27 +204,26 @@ add_slave() {
         if [ $? -ne 0 ]; then
             log_message "Error: Failed to generate SSH key."
             exit 1
+        else
+            log_message "SSH key generated successfully."
         fi
-        log_message "SSH key generated successfully."
+    else
+        log_message "Using SSH key $SSH_KEY_PATH provided by the user"
     fi
     
-    log_message "Copying SSH public key to slave for passwordless SSH..."
     
     if [ "$AUTH_TYPE" == "password" ]; then
+        log_message "Copying SSH public key to slave for passwordless SSH..."
         sshpass -p "$AUTH_VALUE" ssh-copy-id -i "$SSH_KEY_PATH.pub" "$SLAVE_USER@$SLAVE_IP"
         sshpass -p "$AUTH_VALUE" ssh-copy-id -i "$SSH_KEY_PATH" "$SLAVE_USER@$SLAVE_IP"
-    else
-        ssh-copy-id -i "$SSH_KEY_PATH.pub" "$SLAVE_USER@$SLAVE_IP" > /dev/null 2>&1
-        ssh-copy-id -i "$SSH_KEY_PATH" "$SLAVE_USER@$SLAVE_IP" > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            log_message "Error: Failed to copy SSH public key to the slave."
+            exit 1
+        else
+            log_message "SSH public key copied successfully. Future SSH connections will use key-based authentication."
+        fi
     fi
-    
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to copy SSH public key to the slave."
-        exit 1
-    fi
-    
-    log_message "SSH public key copied successfully. Future SSH connections will use key-based authentication."
-    
+
     log_message "Copying SSH public key to master for slave-to-master SSH access..."
     
     ssh_with_key "$SSH_KEY_PATH" "$SLAVE_USER" "$SLAVE_IP" \
