@@ -48,7 +48,6 @@ password="$2"
 email="$3"
 plan_name="$4"
 DEBUG=false             # Default value for DEBUG
-hostname=$(hostname)    # Get the hostname dynamically
 SEND_EMAIL=false        # dont send email by default
 
 
@@ -105,7 +104,14 @@ set_docker_context_for_container() {
 
 
         
-    fi        
+    fi       
+
+    if [ -n "$node_ip_address" ]; then
+        hostname=$(ssh "root@$node_ip_address" "hostname")
+    else
+        hostname=$(hostname)
+    fi
+    
 }
 
 
@@ -649,13 +655,6 @@ get_webserver_from_plan_name() {
 
 change_default_email_and_allow_email_network () {
     # set default sender email address
-    if [ -n "$node_ip_address" ]; then
-        # TODO: Use a custom user or configure SSH instead of using root
-        hostname=$(ssh "root@$node_ip_address" "hostname")
-    else
-        hostname=$(hostname)
-    fi
-
     log "Setting ${username}@${hostname} as the default email address to be used for outgoing emails in /etc/msmtprc"
     
     docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
