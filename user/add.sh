@@ -76,7 +76,7 @@ set_docker_context_for_container() {
     log "Checking if clustering is enabled and which node to use for the new container"
     default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
     
-    if [ -z "$default_context" ]; then
+    if [ -z "$default_context" ] || [ "$default_context" == "default" ]; then
         server_name='default'                                                                                   # use as fallback
         context_flag=""                                                                                         # empty
     else
@@ -1080,7 +1080,7 @@ start_panel_service() {
 		cd /root && docker compose up -d openpanel > /dev/null 2>&1
 	else
 		# added on 0.3.7 to start panel on cluster slave
-  		ssh "root@$node_ip_address" "cd /root && docker compose up -d openpanel > /dev/null 2>&1")
+  		ssh "root@$node_ip_address" "cd /root && docker compose up -d openpanel > /dev/null 2>&1"
 	fi
 }
 
