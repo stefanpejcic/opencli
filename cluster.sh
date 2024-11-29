@@ -54,7 +54,18 @@ log_message() {
 # LIST ALL SERVERS IN CLUSTER
 list_slaves() {
     debug_echo "Debug: Listing all slave users and IPs..."
-    docker context ls
+    # Get the list of Docker contexts
+    printf "%-20s %-10s\n" "Server" "Users"
+    printf "%-20s %-10s\n" "--------------------" "----------"
+
+    # Get the list of Docker contexts
+    contexts=$(docker context ls -q)
+
+    for context in $contexts; do
+        docker context use "$context" >/dev/null 2>&1
+        user_count=$(mysql -e "SELECT COUNT(*) FROM users WHERE server = '$context';" -B --skip-column-names)
+        printf "%-20s %-10s\n" "$context" "$user_count"
+    done
 }
 
 
