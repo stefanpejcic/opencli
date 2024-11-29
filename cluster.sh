@@ -417,7 +417,7 @@ check_slave() {
 usage() {
     echo "Usage:"
     echo "  opencli cluster [--debug] list"
-    echo "  opencli cluster [--debug] add <slave_user> <slave_ip> [<auth_value>]"
+    echo "  opencli cluster [--debug] add <slave_user> <slave_ip> <key_path|password>"
     echo "  opencli cluster [--debug] remove <slave_ip>"
     echo "  opencli cluster [--debug] check <slave_ip>"
     exit 1
