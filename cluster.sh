@@ -54,8 +54,7 @@ log_message() {
 # LIST ALL SERVERS IN CLUSTER
 list_slaves() {
     debug_echo "Debug: Listing all slave users and IPs..."
-    echo "Listing all slave users and IPs..."
-    # Add logic to list slaves here
+    docker context ls
 }
 
 
@@ -406,10 +405,10 @@ check_slave() {
 # HELP
 usage() {
     echo "Usage:"
-    echo "  $0 [--debug] list"
-    echo "  $0 [--debug] add <slave_user> <slave_ip> [<auth_value>]"
-    echo "  $0 [--debug] remove <slave_ip>"
-    echo "  $0 [--debug] check <slave_ip>"
+    echo "  opencli cluster [--debug] list"
+    echo "  opencli cluster [--debug] add <slave_user> <slave_ip> [<auth_value>]"
+    echo "  opencli cluster [--debug] remove <slave_ip>"
+    echo "  opencli cluster [--debug] check <slave_ip>"
     exit 1
 }
 
