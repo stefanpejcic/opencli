@@ -47,7 +47,8 @@ debug_echo() {
 # Function to log messages
 log_message() {
     local LOG_FILE="/var/log/openpanel/admin/cluster.log"
-    echo "$(date): $1" | tee -a $LOG_FILE
+    echo "$(date): $1" | tee -a $LOG_FILE || true
+
 }
 
 # ======================================================================
@@ -127,9 +128,9 @@ add_slave() {
     
     is_ip_whitelisted() {
         if command -v csf >/dev/null 2>&1; then
-            csf -l | grep -q "$SLAVE_IP"
+            csf -l | grep -q "$SLAVE_IP"  >/dev/null 2>&1
         elif command -v ufw >/dev/null 2>&1; then
-            ufw status | grep -q "$SLAVE_IP"
+            ufw status | grep -q "$SLAVE_IP"  >/dev/null 2>&1
         fi
     }
     
@@ -244,7 +245,7 @@ add_slave() {
         "touch $SSH_KEY_PATH && chmod 0600 $SSH_KEY_PATH && cat >> $SSH_KEY_PATH" < "$SSH_KEY_PATH"
 
 
-    scp -i $SSH_KEY_PATH $SSH_KEY_PATH "$SLAVE_USER@$SLAVE_IP:/etc/openpanel/openadmin/cluster/" > /dev/null 2>&1
+    scp -i $SSH_KEY_PATH $SSH_KEY_PATH "$SLAVE_USER@$SLAVE_IP:/root/.ssh/id_rsa" > /dev/null 2>&1
 
     ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SLAVE_USER@$SLAVE_IP" "
         echo 'SSH connection to slave successful';
@@ -337,16 +338,13 @@ add_slave() {
     log_message "Docker containers running on the slave server $SLAVE_HOSTNAME that are visible from the master:"
     docker --context $SLAVE_HOSTNAME ps
     log_message "Switching to Docker context 'master' on the slave and reading docker info:"
-   
-    docker_summary=$(ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o BatchMode=yes "$SLAVE_USER@$SLAVE_IP" \
-        "'docker --context master ps'")
     
+    docker_summary=$(ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o BatchMode=yes "$SLAVE_USER@$SLAVE_IP" "docker --context master ps")
     if [ $? -ne 0 ]; then
         log_message "Error: Failed to switch Docker context to 'master' and retrieve Docker summary from the slave."
         exit 1
     fi
     
-    #docker_summary=$(ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o BatchMode=yes "$SLAVE_USER@$SLAVE_IP" "docker --context master ps")
     log_message "Docker containers running on the master server $(hostname) that are visible from the slave server:"
     echo "$docker_summary"
     
