@@ -53,7 +53,7 @@ get_server_ip() {
     if [[ $result == *"Owner of"* ]]; then
         username=$(echo $result | awk '{print $NF}')
     else
-        echo "rezultat: $result"
+        echo "Domain does not exist on the server or MySQL service is down: $result"
         exit 1
     fi
 
