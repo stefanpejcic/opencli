@@ -5,9 +5,9 @@
 # Usage: opencli user-delete <USERNAME> [-y]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 22.08.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 03.12.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,13 @@ fi
 
 
 # Get username from a command-line argument
-username="$1"
+provided_username="$1"
+
+if [[ "$provided_username" == SUSPENDED_* ]]; then
+    username="${provided_username##*_}"
+else    
+    username=$provided_username
+fi
 
 # Check if the -y flag is provided to skip confirmation
 if [ "$#" -eq 2 ] && [ "$2" == "-y" ]; then
@@ -69,7 +75,7 @@ source /usr/local/admin/scripts/db.sh
 
 get_docker_context_for_user(){
     # GET CONTEXT NAME FOR DOCKER COMMANDS
-    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$username';" -N)
+    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
     
     if [ -z "$server_name" ]; then
         server_name="default" # compatibility with older panel versions before clustering
@@ -90,7 +96,7 @@ get_docker_context_for_user(){
             else
                 echo "ERROR: valid IPv4 address for context $server_name not found!"
                 echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
-                echo "       Make sure that the docker context named $server_nam has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
+                echo "       Make sure that the docker context named $server_name has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
                 exit 1
             fi
         else
@@ -113,18 +119,26 @@ get_docker_context_for_user(){
 
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
-    docker $context_flag stop "$username"  2>/dev/null
-    docker $context_flag rm "$username"  2>/dev/null
+    docker $context_flag stop "$provided_username"  2>/dev/null
+    docker $context_flag rm "$provided_username"  2>/dev/null
 }
 
 
 get_userid_from_db() {
     # Get the user_id from the 'users' table
-    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
+    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$provided_username';" -N)
 
     if [ -z "$user_id" ]; then
-        echo "ERROR: User '$username' not found in the database."
-        exit 1
+        suspended_user=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT username FROM users WHERE username LIKE 'SUSPENDED_%_$provided_username';" -N)
+    
+        if [ -z "$suspended_user" ]; then
+            echo "ERROR: User '$username' not found in the database."
+            exit 1
+        else
+            user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$suspended_user';" -N)
+        fi
+    else
+        suspended_user=$provided_username
     fi
 }
 
@@ -173,14 +187,6 @@ delete_vhosts_files() {
 # Function to delete user from the database
 delete_user_from_database() {
 
-    # Step 1: Get the user_id from the 'users' table
-    user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
-    
-    if [ -z "$user_id" ]; then
-        echo "Error: User '$username' not found in the database."
-        exit 1
-    fi
-
     # Step 2: Get all domain_ids associated with the user_id from the 'domains' table
     domain_ids=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N)
 
@@ -196,7 +202,7 @@ delete_user_from_database() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM active_sessions WHERE user_id='$user_id';"
 
     # Step 6: Delete the user from the 'users' table
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$username';"
+    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$suspended_user';"
 
     echo "User '$username' and associated data deleted from MySQL database successfully."
 }
@@ -235,7 +241,7 @@ disable_ports_in_ufw() {
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
 
-        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
+        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$provided_username")
         if [ -n "$node_ip_address" ]; then
             # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
             ssh "root@$node_ip_address" "tc qdisc del dev docker0 root && tc class del dev docker0 parent 1: classid 1:1 && tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst $ip_address"
@@ -266,13 +272,13 @@ delete_all_user_files() {
         if [ -n "$node_ip_address" ]; then
             # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
             ssh "root@$node_ip_address" "umount /home/storage_file_$username && rm -rf /home/$username && rm -rf /home/storage_file_$username"
-            ssh "root@$node_ip_address" "sed -i.bak '/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d' /etc/fstab"   # on slave
-            sed -i.bak "/\/home\/$old_username \/home\/$old_username fuse.sshfs defaults,_netdev,allow_other 0 0/d" /etc/fstab                # on master
+            ssh "root@$node_ip_address" "sed -i.bak '/\/home\/storage_file_$username \/home\/$username ext4 loop 0 0/d' /etc/fstab"   # on slave
+            sed -i.bak "/\/home\/$username \/home\/$username fuse.sshfs defaults,_netdev,allow_other 0 0/d" /etc/fstab                # on master
         else
             umount /home/storage_file_$username > /dev/null 2>&1
             rm -rf /home/$username > /dev/null 2>&1
             rm -rf /home/storage_file_$username  > /dev/null 2>&1
-            sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1                # only on master
+            sed -i.bak "/\/home\/storage_file_$username \/home\/username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1                # only on master
         fi
 
         rm -rf /etc/openpanel/openpanel/core/stats/$username
@@ -295,7 +301,7 @@ delete_vhosts_files                      # delete nginx conf files from that ser
 edit_firewall_rules                      # close user ports on firewall
 delete_bandwidth_limits                  # delete bandwidth limits for private ip
 remove_docker_container_and_volume       # delete contianer and all docker files
-delete_ftp_users $username
+delete_ftp_users $provided_username
 delete_user_from_database                # delete user from database
 delete_all_user_files                    # permanently delete data
 echo "User $username deleted."           # if we made it
