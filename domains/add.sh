@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 07.11.2024
+# Last Modified: 03.12.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -62,11 +62,11 @@ log() {
 log "Checking if domain already exists on the server"
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     :
+    compare_with_force_domain # dont allow hostname takeover
 else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
 fi
-
 
 
 # get user ID from the database
@@ -357,8 +357,32 @@ update_named_conf() {
     echo "$config_line" >> "$NAMED_CONF_LOCAL"
 }
 
+# added in 0.3.8 so user can not add the server hostname and take over server!
+compare_with_force_domain() {
+	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
+	read_config() {
+	    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
+	    echo "$config"
+	}
+	
+	local config=$(read_config)
+	local force_domain=$(echo "$config" | grep -i 'force_domain' | cut -d'=' -f2)
+
+	if [ -n "$force_domain" ]; then
+	    if [ "$force_domain" == "$domain_name" ]; then
+		echo "ERROR: domain $domain_name can not be added as it is currently used as the server hostname."
+  		exit 1
+	    fi
+	fi
+}
 
 
+edit this ot be if THERE IS FORCE DOMAIN
+    if [ -z "$force_domain" ]; then
+    then compare it wirh $domain_name
+    fi
+    echo "$force_domain"
+}
 
 # Function to create a zone file
 create_zone_file() {
