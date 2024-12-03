@@ -62,7 +62,8 @@ log() {
 log "Checking if domain already exists on the server"
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     :
-    compare_with_force_domain # dont allow hostname takeover
+    compare_with_force_domain                      # dont allow hostname takeover
+    compare_with_dorbidden_domains_list            # dont allow admin-defined domains
 else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
@@ -356,6 +357,22 @@ update_named_conf() {
     # Append the new zone configuration to named.conf.local
     echo "$config_line" >> "$NAMED_CONF_LOCAL"
 }
+
+# added in 0.3.8 so admin can disable some domains!
+compare_with_dorbidden_domains_list() {
+	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
+	
+	if [ -f "forbidden_domains.txt" ]; then
+ 	    echo "Checking domain against forbidden_domains list"
+	    mapfile -t forbidden_domains < forbidden_domains.txt
+
+  		if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
+		    echo "ERROR: $domain_name is a forbidden domain."
+      			exit 1
+		fi    
+	fi
+}
+
 
 # added in 0.3.8 so user can not add the server hostname and take over server!
 compare_with_force_domain() {
