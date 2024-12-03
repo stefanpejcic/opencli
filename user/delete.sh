@@ -241,7 +241,7 @@ disable_ports_in_ufw() {
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
 
-        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$provided_username")
+        ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
         if [ -n "$node_ip_address" ]; then
             # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
             ssh "root@$node_ip_address" "tc qdisc del dev docker0 root && tc class del dev docker0 parent 1: classid 1:1 && tc filter del dev docker0 parent 1: protocol ip prio 16 u32 match ip dst $ip_address"
