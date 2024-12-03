@@ -155,9 +155,6 @@ validate_password_in_lists() {
 	       echo "WARNING: Error downloading dictionary from https://weakpass.com/wordlist"
        fi
     elif [ "$weakpass" = "yes" ]; then
-      if [ "$DEBUG" = true ]; then
-        echo "weakpass is set to 'yes'. Performing action for 'yes'."
-      fi
       :
     else
       if [ "$DEBUG" = true ]; then
