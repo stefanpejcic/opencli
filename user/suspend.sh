@@ -113,7 +113,7 @@ suspend_user_websites() {
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
        if [ -f "/etc/nginx/sites-available/$domain_name.conf" ]; then
-            echo "Suspending domain: $domain_name"
+            echo "- Suspending domain: $domain_name"
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
@@ -133,6 +133,7 @@ suspend_user_websites() {
         fi
         
         if [ "$DEBUG" = true ]; then
+            echo "Reloading nginx to redirect user's suspended domains"
             docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload'
         else
             docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload' > /dev/null 2>&1
@@ -144,6 +145,7 @@ suspend_user_websites() {
 
 stop_docker_container() {
     if [ "$DEBUG" = true ]; then
+        echo "Stopping docker container"
         docker $context_flag stop "$username"
     else
         docker $context_flag stop "$username" > /dev/null 2>&1
