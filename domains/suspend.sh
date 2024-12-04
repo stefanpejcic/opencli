@@ -146,18 +146,18 @@ edit_nginx_vhosts() {
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 0;/set \$suspended_user 1;/g'"
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 0;/set \$suspended_website 1;/g'"
                     sed_status=$?
                 else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 0;/set \$suspended_user 1;/g'" > /dev/null 2>&1
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 0;/set \$suspended_website 1;/g'" > /dev/null 2>&1
                     sed_status=$?
                 fi
             else
                 if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_user 0;/set $suspended_user 1;/g'
+                    sed -i 's/set $suspended_website 0;/set $suspended_website 1;/g'
                     sed_status=$?
                 else
-                    sed -i 's/set $suspended_user 0;/set $suspended_user 1;/g' > /dev/null 2>&1
+                    sed -i 's/set $suspended_website 0;/set $suspended_website 1;/g' > /dev/null 2>&1
                     sed_status=$?
                 fi
             fi
