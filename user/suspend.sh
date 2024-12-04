@@ -117,15 +117,15 @@ suspend_user_websites() {
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 0;/set \$suspended_user 1;/g'"
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g'"
                 else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 0;/set \$suspended_user 1;/g'" > /dev/null 2>&1
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g'" > /dev/null 2>&1
                 fi
             else
                 if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_user 0;/set $suspended_user 1;/g'
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g'
                 else
-                    sed -i 's/set $suspended_user 0;/set $suspended_user 1;/g' > /dev/null 2>&1
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' > /dev/null 2>&1
                 fi
             fi       
         else
