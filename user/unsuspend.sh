@@ -102,7 +102,8 @@ unsuspend_user_websites() {
     user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username LIKE 'SUSPENDED\_%$username';" -N)
     if [ -z "$user_id" ]; then
         echo "ERROR: user $username not found in the database"
-    exit 1
+        exit 1
+    fi
     
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
