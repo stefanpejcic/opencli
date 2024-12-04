@@ -108,7 +108,7 @@ unsuspend_user_websites() {
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
        if [ -f "/etc/nginx/sites-available/$domain_name.conf" ]; then
-            echo "Unsuspending domain: $domain_name"
+            echo "- Unsuspending domain: $domain_name"
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!              
                 if [ "$DEBUG" = true ]; then
@@ -128,6 +128,7 @@ unsuspend_user_websites() {
         fi
         
         if [ "$DEBUG" = true ]; then
+            echo "Reloading nginx to remove redirect of user's suspended domains"
             docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload'
         else
             docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload' > /dev/null 2>&1
@@ -140,10 +141,9 @@ unsuspend_user_websites() {
 start_docker_container() {
         unsuspended_username=$(echo "$suspended_username" | sed 's/^SUSPENDED_[0-9]\{14\}_//')
         if [ "$DEBUG" = true ]; then
-            # Start the Docker container
+            echo "Starting docker container"
             docker start "$unsuspended_username"
         else
-            # Start the Docker container
             docker start "$unsuspended_username" > /dev/null 2>&1
         fi
 }
