@@ -105,6 +105,7 @@ get_docker_context_for_user() {
 
     if [ -z "$user_id" ]; then
         echo "Domain '$domain' not found in the database."
+        exit 1
     else
         username_query="SELECT server FROM users WHERE id = '$user_id'"
         server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_query" -sN)
@@ -135,7 +136,8 @@ get_docker_context_for_user() {
                 echo "       User container is located on node $server_name but there is no docker context with that name."
                 echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
                 exit 1
-            fi        
+            fi    
+        fi
     fi
 }
 
@@ -195,5 +197,5 @@ fi
 # Get the domain name from the command line argument
 domain_name="$1"
 
-get_docker_context_for_user           # get node and ip
-edit_nginx_vhosts                     # remove redirect domain to suspended_website.html
+get_docker_context_for_user "$domain_name"           # get node and ip
+edit_nginx_vhosts                                    # remove redirect domain to suspended_website.html
