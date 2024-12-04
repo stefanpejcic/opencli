@@ -55,7 +55,7 @@ source /usr/local/admin/scripts/db.sh
 
 
 
-get_docker_context_for_user(){
+get_docker_context_for_user() {
     # GET CONTEXT NAME FOR DOCKER COMMANDS
     server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$username';" -N)
     
@@ -107,7 +107,8 @@ suspend_user_websites() {
     user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
     if [ -z "$user_id" ]; then
         echo "ERROR: user $username not found in the database"
-    exit 1
+        exit 1
+    fi
     
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
