@@ -101,7 +101,7 @@ get_docker_context_for_user(){
 unsuspend_user_websites() {
     user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username LIKE 'SUSPENDED\_%$username';" -N)
     if [ -z "$user_id" ]; then
-        echo "ERROR: user $username not found in the database"
+        echo "ERROR: user $username is not suspended or not found in the database."
         exit 1
     fi
     
@@ -112,15 +112,15 @@ unsuspend_user_websites() {
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!              
                 if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 1;/set \$suspended_user 0;/g'"
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 0;/g'"
                 else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user 1;/set \$suspended_user 0;/g'" > /dev/null 2>&1
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 0;/g'" > /dev/null 2>&1
                 fi              
             else
                 if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_user 1;/set $suspended_user 0;/g'
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 0;/g'
                 else
-                    sed -i 's/set $suspended_user 1;/set $suspended_user 0;/g' > /dev/null 2>&1
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 0;/g' > /dev/null 2>&1
                 fi
             fi       
         else
