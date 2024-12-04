@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/suspend.sh
-# Description: Duspend a domain name
+# Description: Suspend a domain name
 # Usage: opencli domains-suspend <DOMAIN-NAME>
 # Author: Stefan Pejcic
 # Created: 04.11.2024
