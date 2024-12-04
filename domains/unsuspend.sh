@@ -5,7 +5,7 @@
 # Usage: opencli domains-unsuspend <DOMAIN-NAME>
 # Author: Stefan Pejcic
 # Created: 04.11.2024
-# Last Modified: 04.11.2024
+# Last Modified: 04.12.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -141,7 +141,8 @@ get_docker_context_for_user() {
 
 
 edit_nginx_vhosts() {
-       if [ -f "/etc/nginx/sites-available/$domain_name.conf" ]; then
+       domain_vhost="/etc/nginx/sites-available/$domain_name.conf"
+       if [ -f "$domain_vhost" ]; then
             if [ "$DEBUG" = true ]; then
               echo "Unsuspending domain: $domain_name"
             fi
@@ -149,18 +150,18 @@ edit_nginx_vhosts() {
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 1;/set \$suspended_website 0;/g'"
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 1;/set \$suspended_website 0;/g' $domain_vhost"
                     sed_status=$?
                 else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 1;/set \$suspended_website 0;/g'" > /dev/null 2>&1
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_website 1;/set \$suspended_website 0;/g' $domain_vhost" > /dev/null 2>&1
                     sed_status=$?
                 fi
             else
                 if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_website 1;/set $suspended_website 0;/g'
+                    sed -i 's/set $suspended_website 1;/set $suspended_website 0;/g' $domain_vhost
                     sed_status=$?
                 else
-                    sed -i 's/set $suspended_website 1;/set $suspended_website 0;/g' > /dev/null 2>&1
+                    sed -i 's/set $suspended_website 1;/set $suspended_website 0;/g' $domain_vhost > /dev/null 2>&1
                     sed_status=$?
                 fi
             fi
