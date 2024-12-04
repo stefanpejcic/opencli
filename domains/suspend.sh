@@ -142,7 +142,10 @@ get_docker_context_for_user() {
 
 edit_nginx_vhosts() {
        if [ -f "/etc/nginx/sites-available/$domain_name.conf" ]; then
-            echo "Suspending domain: $domain_name"
+            if [ "$DEBUG" = true ]; then
+              echo "Suspending domain: $domain_name"
+            fi
+            
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
