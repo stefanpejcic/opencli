@@ -112,20 +112,21 @@ suspend_user_websites() {
     
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
-       if [ -f "/etc/nginx/sites-available/$domain_name.conf" ]; then
+       domain_vhost="/etc/nginx/sites-available/$domain_name.conf"
+       if [ -f "$domain_vhost" ]; then
             echo "- Suspending domain: $domain_name"
             if [ -n "$node_ip_address" ]; then
                 # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
                 if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g'"
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g' $domain_vhost"
                 else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g'" > /dev/null 2>&1
+                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g' $domain_vhost" > /dev/null 2>&1
                 fi
             else
                 if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g'
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' $domain_vhost
                 else
-                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' > /dev/null 2>&1
+                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' $domain_vhost > /dev/null 2>&1
                 fi
             fi       
         else
