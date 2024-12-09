@@ -5,9 +5,9 @@
 # Usage: opencli license verify 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 08.06.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 09.12.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -126,8 +126,14 @@ get_license_key_and_verify_on_my_openpanel() {
             else
                 echo -e "${GREEN}License is valid${RESET}"
             fi
-            
-            service admin restart
+
+            # Check if --no-restart flag is present
+            if [[ " $@ " =~ " --no-restart " ]]; then
+                  echo "License key added successfuly - please restart OpenAdmin service to enable new features."
+		  exit 0
+            else
+                service admin restart
+            fi
 
         else
             # Check if --json flag is present
