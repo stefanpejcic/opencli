@@ -68,6 +68,12 @@ usage() {
           JSON="no"
         fi
 
+        # Check if --json flag is present
+        if [[ " $@ " =~ " --no-restart " ]]; then
+          NO_RESTART="yes"
+        else
+          NO_RESTART="no"
+        fi
 
 # open conf file
 read_config() {
@@ -128,11 +134,12 @@ get_license_key_and_verify_on_my_openpanel() {
             fi
 
             # Check if --no-restart flag is present
-            if [[ " $@ " =~ " --no-restart " ]]; then
-                  echo "License key added successfuly - please restart OpenAdmin service to enable new features."
+            if [[ "$NO_RESTART" == "yes" ]]; then
+                  echo "Please restart OpenAdmin service to enable new features."
 		  exit 0
             else
                 service admin restart
+		echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
             fi
 
         else
@@ -160,11 +167,19 @@ save_license_to_file() {
             else
                 echo -e "License key ${GREEN}${new_key}${RESET} added."
             fi
-            
-            service admin restart > /dev/null #might fail!
-            enable_emails_module  > /dev/null
-            docker restart openpanel  > /dev/null
 
+	    enable_emails_module  > /dev/null
+	    docker restart openpanel > /dev/null &
+	     
+            # Check if --no-restart flag is present
+            if [[ "$NO_RESTART" == "yes" ]]; then
+                  echo "Please restart OpenAdmin service to enable new features."
+		  exit 0
+            else
+	            service admin restart > /dev/null
+	     	    echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
+
+            fi
         else
             # Check if --json flag is present
             if [[ " $@ " =~ " --json " ]]; then
