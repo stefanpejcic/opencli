@@ -397,8 +397,7 @@ else
     fi
     
     if grep -qF "$marker" "$nginx_conf_path"; then
-        :
-        #echo "Configuration already exists. No changes made."
+        echo "Configuration already exists. No changes made."
     else 
         # Find the position of the last closing brace
         last_brace_position=$(awk '/\}/{y=x; x=NR} END{print y}' "$nginx_conf_path")
@@ -407,11 +406,9 @@ else
         awk -v content="$nginx_config_content" -v pos="$last_brace_position" 'NR == pos {print $0 ORS content; next} {print}' "$nginx_conf_path" > temp_file
         mv temp_file "$nginx_conf_path"
     
-        echo "Nginx configuration editedd successfully, reloading.."
-    
-        docker exec nginx sh -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
-    
+        echo "Nginx configuration edited successfully, reloading.."
     fi
+    docker exec nginx sh -c "nginx -t > /dev/null 2>&1 && nginx -s reload > /dev/null 2>&1"
 fi
 }
 
@@ -427,7 +424,7 @@ check_ssl_validity() {
     certbot_check_command=("docker" "exec" "certbot" "certbot" "certificates" "--non-interactive" "--cert-name" "$domain_url")
 
     # Run Certbot command to check SSL validity
-    if "${certbot_check_command[@]}" | grep -q "Expiry Date:.*VALID"; then
+    if "${certbot_check_command[@]}" | grep -q "Expiry Date:.*(VALID)"; then
         echo "SSL is valid. Checking if in use by Nginx.."
 
         nginx_conf_path="/etc/nginx/sites-available/$domain_url.conf"
@@ -447,6 +444,8 @@ check_ssl_validity() {
                 modify_nginx_conf "$domain_url" "le"
             fi
         fi
+    elif "${certbot_check_command[@]}" | grep -q "Expiry Date:.*(INVALID: EXPIRED)"; then
+        echo "SSL is expired. Proceeding with SSL generation."
     else
         echo "SSL is not valid. Proceeding with SSL generation."
     fi
