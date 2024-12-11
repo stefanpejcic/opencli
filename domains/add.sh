@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 03.12.2024
+# Last Modified: 11.12.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -121,7 +121,7 @@ fi
 
 
 
-get_server_ipv4() {
+get_server_ipv4_or_ipv6() {
 	# IP SERVERS
 	SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
  	log "Checking IPv4 address for the account"
@@ -131,10 +131,52 @@ get_server_ipv4() {
 	    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
 	fi
 
-        current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
-	# If site is not available, get the ipv4 from the hostname -I
+	get_ip() {
+	    local ip_version=$1
+	    local server1=$2
+	    local server2=$3
+	    local server3=$4
+	
+	    if [ "$ip_version" == "-4" ]; then
+	        log "Trying to fetch IPv4 address..."
+		    curl --silent --max-time 2 $ip_version $server1 || \
+		    wget --timeout=2 -qO- $server2 || \
+		    curl --silent --max-time 2 $ip_version $server3
+	    else
+	        log "Trying to fetch IPv6 address..."
+		    curl --silent --max-time 2 $ip_version $server1 || \
+		    curl --silent --max-time 2 $ip_version $server3
+	    fi
+
+	}
+
+	# use public IPv4
+	current_ip=$(get_ip "-4" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
+
+	# fallback from the server
 	if [ -z "$current_ip" ]; then
-	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
+	    log "Fetching IPv4 from local hostname..."
+	    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+	fi
+ 
+ 	IPV4="yes"
+  
+	# public IPv6
+	if [ -z "$current_ip" ]; then
+ 	    IPV4="no"
+	    log "No IPv4 found. Checking IPv6 address..."
+	    current_ip=$(get_ip "-6" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
+	    # Fallback to hostname IPv6 if no IPv6 from servers
+	    if [ -z "$current_ip" ]; then
+	        log "Fetching IPv6 from local hostname..."
+	        current_ip=$(ip addr | grep 'inet6 ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+	    fi
+	fi
+	
+	# no :(
+	if [ -z "$current_ip" ]; then
+	    echo "Error: Unable to determine IP address (IPv4 or IPv6)."
+	    exit 1
 	fi
 }
 
@@ -341,12 +383,25 @@ create_domain_file() {
 	else
 	    log "Setting Nginx to proxy requests to $ws user container."
 	fi
+
+	if [ "$IPV4" == "yes" ]; then
 		sed -i \
 		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
 		    -e "s|<USERNAME>|$user|g" \
 		    -e "s|<IP>|$user|g" \
 		    -e "s|<LISTEN_IP>|$current_ip|g" \
 		    /etc/nginx/sites-available/${domain_name}.conf
+	else
+		sed -i \
+		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
+		    -e "s|<USERNAME>|$user|g" \
+		    -e "s|<IP>|$user|g" \
+		    -e "s|<LISTEN_IP>|[$current_ip]:80|g" \
+		    /etc/nginx/sites-available/${domain_name}.conf
+	fi
+
+
+
 
 	check_and_add_to_enabled() {
 		# https://github.com/stefanpejcic/OpenPanel/issues/283
@@ -406,31 +461,35 @@ compare_with_dorbidden_domains_list() {
 
 # Function to create a zone file
 create_zone_file() {
-    ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
     ZONE_FILE_DIR='/etc/bind/zones/'
     CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
-    log "Creating DNS zone file: $ZONE_FILE_DIR$domain_name.zone"
-    zone_template=$(<"$ZONE_TEMPLATE_PATH")
+	if [ "$IPV4" == "yes" ]; then
+ 		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
+    		log "Creating DNS zone file with AAAA records: $ZONE_FILE_DIR$domain_name.zone"
+	else
+  		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template_ipv6.txt'
+        	log "Creating DNS zone file with A records: $ZONE_FILE_DIR$domain_name.zone"
+	fi
 
-	# Function to extract value from config file
+   zone_template=$(<"$ZONE_TEMPLATE_PATH")
+   
+   # get nameservers
 	get_config_value() {
 	    local key="$1"
 	    grep -E "^\s*${key}=" "$CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
 	}
-
-
 
     ns1=$(get_config_value 'ns1')
     ns2=$(get_config_value 'ns2')
 
     # Fallback
     if [ -z "$ns1" ]; then
-        ns1='ns1.openpanel.co'
+        ns1='ns1.openpanel.org'
     fi
 
     if [ -z "$ns2" ]; then
-        ns2='ns2.openpanel.co'
+        ns2='ns2.openpanel.org'
     fi
 
     # Create zone content
@@ -511,7 +570,7 @@ add_domain() {
     	make_folder                                  # create dirs on host server
      	check_if_varnish_installed_for_user	     # use varnish templates
     	get_webserver_for_user                       # nginx or apache
-    	get_server_ipv4                              # get outgoing ip
+    	get_server_ipv4_or_ipv6                      # get outgoing ip
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
         create_zone_file                             # create zone
