@@ -433,18 +433,46 @@ create_storage_file_and_mount_if_needed() {
                 fi
 
     log "Configuring disk and inodes limits for the user"
-    
+
+
+enable_mount_quotas() {
+  sudo mount -o remount / > /dev/null 2>&1
+  sudo quotacheck -cug / > /dev/null 2>&1
+  sudo quotaon / > /dev/null 2>&1
+  sudo modprobe quota_v2 > /dev/null 2>&1
+  sudo quotaon / > /dev/null 2>&1
+  sudo mount -o remount / > /dev/null 2>&1
+  sudo quotacheck -cug / > /dev/null 2>&1
+}
+
+
     if [ "$storage_file" -ne 0 ]; then
     	storage_in_blocks=$((storage_file * 1024000))
                 if [ -n "$node_ip_address" ]; then
                     log "Setting storage size of ${storage_file}GB and $inodes inodes for the user on server $node_ip_address"
                     # TODO: Use a custom user or configure SSH instead of using root
-                    ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes"
+                    ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /"
+		    # TODO: run enable_mount_quotas on ssh!
+
                 else
                     log "Setting storage size of ${storage_file}GB and $inodes inodes for the user"
-      		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes
+      		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
+	    	    enable_mount_quotas
+                fi
+    else
+
+                if [ -n "$node_ip_address" ]; then
+                    log "Setting unlimited storage and inodes for the user on server $node_ip_address"
+                    # TODO: Use a custom user or configure SSH instead of using root
+                    ssh "root@$node_ip_address" "setquota -u $username 0 0 0 0 /"
+		    # TODO: run enable_mount_quotas on ssh!
+                else
+                    log "Setting unlimited storage and inodes for the user"
+      		    setquota -u $username 0 0 0 0 /
+	            enable_mount_quotas
                 fi
     fi
+    
     # Create and set permissions for user directory
     if [ -n "$node_ip_address" ]; then
         log "Creating directories for the user on server $node_ip_address"
