@@ -424,16 +424,25 @@ check_if_docker_image_exists() {
 
 # create storage file
 create_storage_file_and_mount_if_needed() {
-    log "Checking if storage file needs to be created and mounted for the user"
-    if [ "$storage_file" -ne 0 ]; then
                 if [ -n "$node_ip_address" ]; then
-                    log "Creating storage file of ${storage_file}GB for the user on server $node_ip_address"
-                    # TODO: Use a custom user or configure SSH instead of using root
-                    ssh "root@$node_ip_address" "fallocate -l ${storage_file}g /home/storage_file_$username && mkfs.ext4 -N $inodes /home/storage_file_$username"
+                    log "Creating user $username on server $node_ip_address"
+                    ssh "root@$node_ip_address" "useradd -m -d /home/$username $username"
                 else
-                    log "Creating storage file of ${storage_file}GB for the user"
-                    fallocate -l ${storage_file}g /home/storage_file_$username
-                    mkfs.ext4 -N $inodes /home/storage_file_$username
+                   log "Creating user $username"
+		    useradd -m -d /home/$username $username
+                fi
+
+    log "Configuring disk and inodes limits for the user"
+    
+    if [ "$storage_file" -ne 0 ]; then
+    	storage_in_blocks=$((storage_file * 1024000))
+                if [ -n "$node_ip_address" ]; then
+                    log "Setting storage size of ${storage_file}GB and $inodes inodes for the user on server $node_ip_address"
+                    # TODO: Use a custom user or configure SSH instead of using root
+                    ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes"
+                else
+                    log "Setting storage size of ${storage_file}GB and $inodes inodes for the user"
+      		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes
                 fi
     fi
     # Create and set permissions for user directory
@@ -484,17 +493,10 @@ create_storage_file_and_mount_if_needed() {
         if [ -n "$node_ip_address" ]; then
             log "Mounting the /home/$username partition for the user on server $node_ip_address"
             # TODO: Use a custom user or configure SSH instead of using root
-            ssh "root@$node_ip_address" "mount -o loop /home/storage_file_$username /home/$username"
-            ssh "root@$node_ip_address" "echo \"/home/storage_file_$username /home/$username ext4 loop 0 0\" | tee -a /etc/fstab"      # mount on remote (slave) server for nginx and certbot
             ensure_sshfs_is_installed
             sshfs root@$node_ip_address:/home/$username/ /home/$username/
             echo "root@$node_ip_address:/home/$username/ /home/$username/ fuse.sshfs defaults,_netdev,allow_other 0 0" >> /etc/fstab   # mount on master for openpanel container
-        else
-            log "Mounting the /home/$username partition for the user"
-            mount -o loop /home/storage_file_$username /home/$username
-            echo "/home/storage_file_$username /home/$username ext4 loop 0 0" >> /etc/fstab                                            # mount on master only
         fi
-
     fi
 }
 
@@ -851,18 +853,17 @@ check_container_status() {
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" "umount /home/$username"
              umount /home/$username
-        else
-             umount /home/$username
         fi
         
         docker $context_flag rm -f "$username"
         
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
-            ssh "root@$node_ip_address" "rm -rf /home/$username && rm /home/storage_file_$username"
+            ssh "root@$node_ip_address" "setquota -u $username 0 0 0 0 / && userdel -r $username && rm -rf /home/$username"
         else
-            rm -rf /home/$username
-            rm /home/storage_file_$username
+            setquota -u $username 0 0 0 0 /
+	    userdel -r $username
+	    rm -rf /home/$username
         fi
         
         exit 1
