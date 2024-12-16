@@ -692,7 +692,13 @@ echo '{
   "data-root": "/home/$username/docker-data"
 }' > /home/$username/.config/docker/daemon.json
 
-chown -R $username:$username /home/$username/docker-data
+mkdir -p /home/$username/bin
+chmod 0777 /home/$username/bin
+chmod 0777 /home/$username
+chown -R $user_id:$user_id /home/$username
+#chown -R $username:$username /home/$username/docker-data
+
+
 
 cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit"
 # ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
@@ -768,7 +774,14 @@ sudo systemctl restart apparmor.service
 
 
 
-machinectl shell $username@ -- bash -c "
+machinectl shell $username@ /bin/bash -c "
+
+	mkdir -p /home/$username/.docker/run
+	chmod 700 /home/$username/.docker/run
+	chown $username:$username /home/$username/.docker/run
+
+
+    cd /home/$username/bin
     # Install Docker rootless
     curl -fsSL https://get.docker.com/rootless | sh
     systemctl --user start docker
@@ -787,17 +800,10 @@ machinectl shell $username@ -- bash -c "
 
     # Source the updated bashrc and start Docker rootless
     source ~/.bashrc
-    PATH=/home/$username/bin:/sbin:/usr/sbin:\$PATH nohup /home/$username/bin/dockerd-rootless.sh &> /dev/null &
+    PATH=/home/$username/bin:/sbin:/usr/sbin:/usr/bin:\$PATH nohup /home/$username/bin/dockerd-rootless.sh &> /dev/null &
 "
 
-
-
-
-
-#sudo -u $username sh -c "curl -fsSL https://get.docker.com/rootless | sh"
-#sudo -u $username sh -c "systemctl --user start docker"
-#sudo -u $username sh -c "systemctl --user enable docker"
-
+# PATH=/home/ggdru22ge/bin:/sbin:/usr/sbin:/usr/bin:\$PATH /home/ggdru22ge/bin/dockerd-rootless.sh
 }
 
 
@@ -982,7 +988,7 @@ if [ "$DEBUG" = true ]; then
     echo "      --restart unless-stopped \\"
     echo "      --hostname $hostname $docker_image"
 fi
-        $docker_cmd > /dev/null 2>&1
+        machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 }
 
 
@@ -1286,14 +1292,15 @@ set_docker_context_for_container             # get context and use slave server 
 check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
-############docker_rootless
 print_debug_info_before_starting_creation    # print debug info
 check_or_create_network                      # check network exists or create it
 check_if_docker_image_exists                 # if no image, exit
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_storage_file_and_mount_if_needed      # create home fodler and storage mount
+docker_rootless
+
 run_docker                                   # run docker container
-check_container_status                       # run docker container
+#check_container_status                       # run docker container
 display_private_ip_on_debug_only             # get ipv4 of container
 open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
