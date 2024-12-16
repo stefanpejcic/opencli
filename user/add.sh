@@ -684,8 +684,7 @@ get_webserver_from_plan_name() {
 
 docker_rootless() {
 
-mkdir -p /home/$username/docker-data
-mkdir -p /home/$username/.config/docker
+mkdir -p /home/$username/docker-data /home/$username/.config/docker
 touch /home/$username/.config/docker/daemon.json
 
 echo '{
@@ -693,9 +692,10 @@ echo '{
 }' > /home/$username/.config/docker/daemon.json
 
 mkdir -p /home/$username/bin
-chmod 0777 /home/$username/bin
-chmod 0777 /home/$username
-chown -R $user_id:$user_id /home/$username
+#chmod 0777 /home/$username/bin
+#chmod 0777 /home/$username
+chmod 777 -R /home/
+##############chown -R $user_id:$user_id /home/$username # treba id iz kontejnera!
 #chown -R $username:$username /home/$username/docker-data
 
 
@@ -769,21 +769,20 @@ loginctl enable-linger $username
 
 sudo systemctl restart apparmor.service
 
-
-#systemctl disable --now docker.service docker.socket
-
-
-
 machinectl shell $username@ /bin/bash -c "
 
 	mkdir -p /home/$username/.docker/run
 	chmod 700 /home/$username/.docker/run
-	chown $username:$username /home/$username/.docker/run
+	sudo chmod 755 -R /home/$username/
+	chown -R $username:$username /home/$username/
 
+	#sudo chown $username:$username /home/$username/.docker/run
+	#sudo chown -R $username:$username /home/$username ##################
 
+ 
     cd /home/$username/bin
     # Install Docker rootless
-    curl -fsSL https://get.docker.com/rootless | sh
+    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless
     systemctl --user start docker
     systemctl --user enable docker
 
@@ -803,7 +802,7 @@ machinectl shell $username@ /bin/bash -c "
     PATH=/home/$username/bin:/sbin:/usr/sbin:/usr/bin:\$PATH nohup /home/$username/bin/dockerd-rootless.sh &> /dev/null &
 "
 
-# PATH=/home/ggdru22ge/bin:/sbin:/usr/sbin:/usr/bin:\$PATH /home/ggdru22ge/bin/dockerd-rootless.sh
+# PATH=/home/pretragua/bin:/sbin:/usr/sbin:/usr/bin:\$PATH /home/pretragua/bin/dockerd-rootless.sh
 }
 
 
