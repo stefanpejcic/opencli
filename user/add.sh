@@ -710,6 +710,26 @@ EOT
 
 
 
+
+ filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+
+
+
+ cat <<EOF > ~/${filename}
+abi <abi/4.0>,
+include <tunables/global>
+
+"$HOME/bin/rootlesskit" flags=(unconfined) {
+  userns,
+
+  include if exists <local/${filename}>
+}
+EOF
+
+
+mv ~/${filename} /etc/apparmor.d/${filename}
+
+
 # Define the sudoers file path
 SUDOERS_FILE="/etc/sudoers"
 
@@ -743,9 +763,40 @@ loginctl enable-linger $username
 
 sudo systemctl restart apparmor.service
 
-sudo -u $username sh -c "curl -fsSL https://get.docker.com/rootless | sh"
-sudo -u $username sh -c "systemctl --user start docker"
-sudo -u $username sh -c "systemctl --user enable docker"
+
+#systemctl disable --now docker.service docker.socket
+
+
+
+machinectl shell $username@ -- bash -c "
+    # Install Docker rootless
+    curl -fsSL https://get.docker.com/rootless | sh
+    systemctl --user start docker
+    systemctl --user enable docker
+
+    # Setup environment for rootless Docker
+    source ~/.bashrc
+    echo \$PATH
+
+    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
+    /home/$username/bin/dockerd-rootless-setuptool.sh install
+
+    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
+    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
+    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
+
+    # Source the updated bashrc and start Docker rootless
+    source ~/.bashrc
+    PATH=/home/$username/bin:/sbin:/usr/sbin:\$PATH nohup /home/$username/bin/dockerd-rootless.sh &> /dev/null &
+"
+
+
+
+
+
+#sudo -u $username sh -c "curl -fsSL https://get.docker.com/rootless | sh"
+#sudo -u $username sh -c "systemctl --user start docker"
+#sudo -u $username sh -c "systemctl --user enable docker"
 
 }
 
