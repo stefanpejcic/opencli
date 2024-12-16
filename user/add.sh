@@ -436,13 +436,9 @@ create_storage_file_and_mount_if_needed() {
 
 
 enable_mount_quotas() {
-  sudo mount -o remount / > /dev/null 2>&1
-  sudo quotacheck -cug / > /dev/null 2>&1
-  sudo quotaon / > /dev/null 2>&1
-  sudo modprobe quota_v2 > /dev/null 2>&1
-  sudo quotaon / > /dev/null 2>&1
-  sudo mount -o remount / > /dev/null 2>&1
-  sudo quotacheck -cug / > /dev/null 2>&1
+	sudo mount -o remount,rw /dev/vda1 > /dev/null 2>&1
+	sudo quotacheck -cug /dev/vda1 > /dev/null 2>&1
+	sudo quotacheck -m -cug /dev/vda1 > /dev/null 2>&1
 }
 
 
