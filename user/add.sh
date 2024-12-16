@@ -427,9 +427,19 @@ create_storage_file_and_mount_if_needed() {
                 if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
                     ssh "root@$node_ip_address" "useradd -m -d /home/$username $username"
+		    user_id=$(ssh "root@$node_ip_address" "id -u $username")
+			if [ $? -ne 0 ]; then
+			    echo "Failed creating linux user $username on server $node_ip_address"
+			    exit 1
+			fi
                 else
                    log "Creating user $username"
 		    useradd -m -d /home/$username $username
+      		    user_id=$(id -u $username)	
+			if [ $? -ne 0 ]; then
+			    echo "Failed creating linux user $username"
+			    exit 1
+			fi
                 fi
 
     log "Configuring disk and inodes limits for the user"
@@ -672,7 +682,72 @@ get_webserver_from_plan_name() {
 
 
 
+docker_rootless() {
 
+mkdir -p /home/$username/docker-data
+mkdir -p /home/$username/.config/docker
+touch /home/$username/.config/docker/daemon.json
+
+echo '{
+  "data-root": "/home/$username/docker-data"
+}' > /home/$username/.config/docker/daemon.json
+
+chown -R $username:$username /home/$username/docker-data
+
+cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit"
+# ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
+abi <abi/4.0>,
+include <tunables/global>
+
+/home/$username/bin/rootlesskit flags=(unconfined) {
+  userns,
+
+  # Site-specific additions and overrides. See local/README for details.
+  include if exists <local/home.$username.bin.rootlesskit>
+}
+EOT
+
+
+
+
+# Define the sudoers file path
+SUDOERS_FILE="/etc/sudoers"
+
+# Backup the sudoers file before editing
+cp "$SUDOERS_FILE" "$SUDOERS_FILE.bak"
+echo "Backup of the sudoers file created at $SUDOERS_FILE.bak."
+
+# Add user to sudoers file with no password requirement
+echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
+
+# Check if the change was successful
+if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
+    echo "Successfully added $username to sudoers file with passwordless sudo permissions."
+else
+    echo "Failed to update the sudoers file. Please check the syntax."
+    exit 1
+fi
+
+# Verify the sudoers file using visudo
+visudo -c
+if [[ $? -eq 0 ]]; then
+    echo "sudoers file syntax is valid. The changes have been applied."
+else
+    echo "The sudoers file contains syntax errors. Restoring the backup."
+    mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
+    exit 1
+fi
+
+
+loginctl enable-linger $username
+
+sudo systemctl restart apparmor.service
+
+sudo -u $username sh -c "curl -fsSL https://get.docker.com/rootless | sh"
+sudo -u $username sh -c "systemctl --user start docker"
+sudo -u $username sh -c "systemctl --user enable docker"
+
+}
 
 
 
@@ -845,7 +920,6 @@ if [ "$DEBUG" = true ]; then
     echo "$AVAILABLE_PORTS"
 
     log "Creating container with the docker run command:"
-    
     echo "docker $context_flag run -d --name $username $ports_param \\"
     echo "      --network $docker_network_name \\"
     echo "      --cpus=$cpu --memory=$ram $disk_limit_param \\"
@@ -1161,6 +1235,7 @@ set_docker_context_for_container             # get context and use slave server 
 check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
+docker_rootless
 print_debug_info_before_starting_creation    # print debug info
 check_or_create_network                      # check network exists or create it
 check_if_docker_image_exists                 # if no image, exit
