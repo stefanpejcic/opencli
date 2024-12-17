@@ -797,25 +797,25 @@ machinectl shell $username@ /bin/bash -c "
     
 	mkdir -p ~/.config/systemd/user/
 	cat > ~/.config/systemd/user/docker.service <<EOF
-	[Unit]
-	Description=Docker Application Container Engine (Rootless)
-	After=network.target
+[Unit]
+Description=Docker Application Container Engine (Rootless)
+After=network.target
 	
-	[Service]
-	Environment=PATH=$HOME/bin:$PATH
-	Environment=DOCKER_HOST=unix://%t/docker.sock
-	ExecStart=$HOME/bin/dockerd-rootless.sh
-	Restart=on-failure
-	StartLimitBurst=3
-	StartLimitInterval=60s
+[Service]
+Environment=PATH=$HOME/bin:$PATH
+Environment=DOCKER_HOST=unix://%t/docker.sock
+ExecStart=$HOME/bin/dockerd-rootless.sh
+Restart=on-failure
+StartLimitBurst=3
+StartLimitInterval=60s
 	
-	[Install]
-	WantedBy=default.target
-	EOF
+[Install]
+WantedBy=default.target
+EOF
 
-	systemctl --user daemon-reload
-	systemctl --user enable docker
-	systemctl --user start docker
+systemctl --user daemon-reload
+systemctl --user enable docker
+systemctl --user start docker
 "
 
 
@@ -976,7 +976,7 @@ local disk_limit_param=""
       local ports_param="-P"
     fi
 
-local docker_cmd="docker $context_flag run --network $docker_network_name -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
+local docker_cmd="docker $context_flag run -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
@@ -990,7 +990,6 @@ if [ "$DEBUG" = true ]; then
 
     log "Creating container with the docker run command:"
     echo "docker $context_flag run -d --name $username $ports_param \\"
-    echo "      --network $docker_network_name \\"
     echo "      --cpus=$cpu --memory=$ram $disk_limit_param \\"
     echo "      -v /home/$username/var/crons:/var/spool/cron/crontabs \\"
     echo "      -v /home/$username:/home/$username \\"
@@ -1305,7 +1304,7 @@ check_running_containers                     # make sure container name is avail
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
-check_or_create_network                      # check network exists or create it
+#################check_or_create_network                      # check network exists or create it
 #######check_if_docker_image_exists                 # if no image, exit
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_storage_file_and_mount_if_needed      # create home fodler and storage mount
