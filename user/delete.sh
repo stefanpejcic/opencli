@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/delete.sh
 # Description: Delete user account and permanently remove all their data.
-# Usage: opencli user-delete <USERNAME> [-y]
+# Usage: opencli user-delete <username> [-y] [--all]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 03.12.2024
+# Last Modified: 17.12.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -29,48 +29,49 @@
 ################################################################################
 
 # Check if the correct number of command-line arguments is provided
-if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
-    echo "Usage: opencli user-delete <username> [-y]"
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
+    echo "Usage: opencli user-delete <username> [-y] [--all]"
     exit 1
 fi
 
 
+# Default values
+skip_confirmation=false
+delete_all=false
 
-# Get username from a command-line argument
-provided_username="$1"
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        --all)
+            delete_all=true
+            ;;
+        -y)
+            skip_confirmation=true
+            ;;
+        *)
+            provided_username="$arg"
+            ;;
+    esac
+done
 
-if [[ "$provided_username" == SUSPENDED_* ]]; then
-    username="${provided_username##*_}"
-else    
-    username=$provided_username
-fi
-
-# Check if the -y flag is provided to skip confirmation
-if [ "$#" -eq 2 ] && [ "$2" == "-y" ]; then
-    skip_confirmation=true
-else
-    skip_confirmation=false
-fi
-
-# Function to confirm actions with the user
+# ----------------- Confirmation Function -----------------
 confirm_action() {
     if [ "$skip_confirmation" = true ]; then
         return 0
     fi
 
-    read -r -p "This will permanently delete user '$username' and all of its data from the server. Please confirm [Y/n]: " response
+    # Ask for confirmation
+    read -r -p "This will permanently delete user '$1' and all associated data. Confirm? [Y/n]: " response
     response=${response,,} # Convert to lowercase
-    if [[ $response =~ ^(yes|y| ) ]]; then
-        return 0
-    else
-        echo "Operation canceled."
+    if [[ ! $response =~ ^(yes|y| ) ]]; then
+        ((current_user_index--))
+        echo "Operation canceled for user '$1'."
         exit 0
     fi
 }
 
-# DB
-source /usr/local/admin/scripts/db.sh
 
+source /usr/local/admin/scripts/db.sh
 
 
 get_docker_context_for_user(){
@@ -292,18 +293,70 @@ delete_all_user_files() {
 
 
 
+# MAIN
 
 
 
-# MAIN EXECUTION
-confirm_action                           # yes
-get_userid_from_db                       # check if user exists
-get_docker_context_for_user              # on which server is the container running
-delete_vhosts_files                      # delete nginx conf files from that server
-edit_firewall_rules                      # close user ports on firewall
-delete_bandwidth_limits                  # delete bandwidth limits for private ip
-remove_docker_container_and_volume       # delete contianer and all docker files
-delete_ftp_users $provided_username
-delete_user_from_database                # delete user from database
-delete_all_user_files                    # permanently delete data
-echo "User $username deleted."           # if we made it
+delete_user() {
+    # Get username from a command-line argument
+    local provided_username="$1"
+    
+    if [[ "$provided_username" == SUSPENDED_* ]]; then
+        username="${provided_username##*_}"
+    else    
+        username=$provided_username
+    fi
+    
+    confirm_action "$username"
+    
+    # MAIN EXECUTION
+    get_userid_from_db                       # check if user exists
+    get_docker_context_for_user              # on which server is the container running
+    delete_vhosts_files                      # delete nginx conf files from that server
+    edit_firewall_rules                      # close user ports on firewall
+    delete_bandwidth_limits                  # delete bandwidth limits for private ip
+    remove_docker_container_and_volume       # delete contianer and all docker files
+    delete_ftp_users $provided_username
+    delete_user_from_database                # delete user from database
+    delete_all_user_files                    # permanently delete data
+    echo "User $username deleted."           # if we made it
+}
+
+
+
+# ----------------- Delete All Users -----------------
+if [ "$delete_all" = true ]; then
+  all_users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+
+  # Check if no sites found
+  if [[ -z "$all_users" || "$all_users" == "No users." ]]; then
+    echo "No users found in the database."
+    exit 1
+  fi
+
+    total_users=$(echo "$all_users" | wc -w)
+
+    # Loop through all users and delete them
+
+    current_user_index=1
+    for user in $all_users; do
+        echo "- $user ($current_user_index/$total_users)"
+        delete_user "$user"
+    echo "------------------------------"
+    ((current_user_index++))
+    done
+    echo "DONE."
+
+    echo "$current_user_index users have been deleted."
+    exit 0
+fi
+
+
+# ----------------- Single User Deletion -----------------
+if [ -z "$provided_username" ]; then
+    echo "Error: Username is required unless --all is specified."
+    exit 1
+fi
+
+
+delete_user "$provided_username"
