@@ -766,14 +766,15 @@ else
 fi
 
 
-loginctl enable-linger $username
+####loginctl enable-linger $username
 
 sudo systemctl restart apparmor.service
 
 machinectl shell $username@ /bin/bash -c "
 
 
- 
+ 	sudo loginctl enable-linger $USER
+  
 	mkdir -p /home/$username/.docker/run
 	chmod 700 /home/$username/.docker/run
 	sudo chmod 755 -R /home/$username/
