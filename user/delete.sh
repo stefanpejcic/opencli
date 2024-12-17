@@ -64,7 +64,6 @@ confirm_action() {
     read -r -p "This will permanently delete user '$1' and all associated data. Confirm? [Y/n]: " response
     response=${response,,} # Convert to lowercase
     if [[ ! $response =~ ^(yes|y| ) ]]; then
-        ((current_user_index--))
         echo "Operation canceled for user '$1'."
         exit 0
     fi
@@ -346,8 +345,7 @@ if [ "$delete_all" = true ]; then
     ((current_user_index++))
     done
     echo "DONE."
-
-    echo "$current_user_index users have been deleted."
+    echo "$((current_user_index - 1)) users have been deleted."
     exit 0
 fi
 
