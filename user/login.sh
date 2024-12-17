@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/login.sh
-# Description: Login as the root user inside a users docker container.
+# Description: Login as a user container.
 # Usage: opencli user-login <USERNAME>
 # Author: Stefan Pejcic
 # Created: 21.10.2023
-# Last Modified: 04.11.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 17.12.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -65,5 +65,14 @@ else
     fi
 fi
 
-echo "Accessing root user in container: $selected_user"
-docker exec -it $selected_user /bin/bash
+if [ $(docker ps -q -f name=$selected_user) ]; then
+    docker exec -it "$selected_user" /bin/bash
+else
+    if id "$selected_user" &>/dev/null; then
+       #su "$selected_user"      # log as the user on host os
+        su "$selected_user" -c "docker exec -it $selected_user /bin/bash" # log as user then in container
+       #sudo su -l "$selected_user" -s /bin/bash # log as user with bash but docker env not enabled!
+    else
+        echo "Neither container nor the user $selected_user exist on the server."
+    fi
+fi
