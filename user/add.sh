@@ -766,24 +766,17 @@ else
 fi
 
 
-####loginctl enable-linger $username
-
 sudo systemctl restart apparmor.service
 
+loginctl enable-linger $username
+
+mkdir -p /home/$username/.docker/run
+chmod 700 /home/$username/.docker/run
+chmod 755 -R /home/$username/
+chown -R $username:$username /home/$username/
+ 
 machinectl shell $username@ /bin/bash -c "
 
-
- 	sudo loginctl enable-linger $USER
-  
-	mkdir -p /home/$username/.docker/run
-	chmod 700 /home/$username/.docker/run
-	sudo chmod 755 -R /home/$username/
-	chown -R $username:$username /home/$username/
-
-	#sudo chown $username:$username /home/$username/.docker/run
-	#sudo chown -R $username:$username /home/$username ##################
-
- 
     cd /home/$username/bin
     # Install Docker rootless
     wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless
