@@ -859,15 +859,7 @@ run_docker() {
 
 log "Checking specified disk size for docker container"
 
-    local disk_limit_param=""
-    " '
-    # off
-    if [ "$disk_limit" -ne 0 ]; then
-            disk_limit_param="--storage-opt size=${disk_limit}G"
-    else
-        echo "Run with NO disk size limit."
-    fi
-    '
+local disk_limit_param=""
 
 # TODO:
 # check ports on remote server!
