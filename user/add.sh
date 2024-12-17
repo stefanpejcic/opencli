@@ -688,9 +688,10 @@ docker_rootless() {
 mkdir -p /home/$username/docker-data /home/$username/.config/docker
 touch /home/$username/.config/docker/daemon.json
 
-echo '{
-  "data-root": "/home/$username/docker-data"
-}' > /home/$username/.config/docker/daemon.json
+echo "{
+  \"data-root\": \"/home/$username/docker-data\"
+}" > /home/$username/.config/docker/daemon.json
+
 
 mkdir -p /home/$username/bin
 #chmod 0777 /home/$username/bin
@@ -802,9 +803,9 @@ Description=Docker Application Container Engine (Rootless)
 After=network.target
 	
 [Service]
-Environment=PATH=$HOME/bin:$PATH
+Environment=PATH=/home/$username/bin:$PATH
 Environment=DOCKER_HOST=unix://%t/docker.sock
-ExecStart=$HOME/bin/dockerd-rootless.sh
+ExecStart=/home/$username/bin/dockerd-rootless.sh
 Restart=on-failure
 StartLimitBurst=3
 StartLimitInterval=60s
