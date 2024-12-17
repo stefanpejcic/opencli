@@ -772,6 +772,8 @@ sudo systemctl restart apparmor.service
 
 machinectl shell $username@ /bin/bash -c "
 
+
+ 
 	mkdir -p /home/$username/.docker/run
 	chmod 700 /home/$username/.docker/run
 	sudo chmod 755 -R /home/$username/
@@ -784,9 +786,7 @@ machinectl shell $username@ /bin/bash -c "
     cd /home/$username/bin
     # Install Docker rootless
     wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless
-    systemctl --user start docker
-    systemctl --user enable docker
-
+   
     # Setup environment for rootless Docker
     source ~/.bashrc
     echo \$PATH
@@ -800,10 +800,33 @@ machinectl shell $username@ /bin/bash -c "
 
     # Source the updated bashrc and start Docker rootless
     source ~/.bashrc
-    PATH=/home/$username/bin:/sbin:/usr/sbin:/usr/bin:\$PATH nohup /home/$username/bin/dockerd-rootless.sh &> /dev/null &
+    
+	mkdir -p ~/.config/systemd/user/
+	cat > ~/.config/systemd/user/docker.service <<EOF
+	[Unit]
+	Description=Docker Application Container Engine (Rootless)
+	After=network.target
+	
+	[Service]
+	Environment=PATH=$HOME/bin:$PATH
+	Environment=DOCKER_HOST=unix://%t/docker.sock
+	ExecStart=$HOME/bin/dockerd-rootless.sh
+	Restart=on-failure
+	StartLimitBurst=3
+	StartLimitInterval=60s
+	
+	[Install]
+	WantedBy=default.target
+	EOF
+
+	systemctl --user daemon-reload
+	systemctl --user enable docker
+	systemctl --user start docker
 "
 
+
 # PATH=/home/pretragua/bin:/sbin:/usr/sbin:/usr/bin:\$PATH /home/pretragua/bin/dockerd-rootless.sh
+
 }
 
 
@@ -836,11 +859,14 @@ run_docker() {
 log "Checking specified disk size for docker container"
 
     local disk_limit_param=""
+    " '
+    # off
     if [ "$disk_limit" -ne 0 ]; then
             disk_limit_param="--storage-opt size=${disk_limit}G"
     else
         echo "Run with NO disk size limit."
     fi
+    '
 
 # TODO:
 # check ports on remote server!
@@ -1003,7 +1029,7 @@ check_container_status() {
     container_status=$(docker $context_flag inspect -f '{{.State.Status}}' "$username")
     
     if [ "$container_status" != "running" ]; then
-        echo "ERROR: Container status is not 'running'. Cleaning up..."    
+        echo "ERROR: Container status is not 'running'. Cleaning up..."
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" "umount /home/$username"
