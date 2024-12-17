@@ -6,9 +6,9 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 16.11.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 17.12.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
