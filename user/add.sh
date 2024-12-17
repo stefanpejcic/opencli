@@ -685,6 +685,8 @@ get_webserver_from_plan_name() {
 
 docker_rootless() {
 
+log "Configuring Docker in Rootless mode"
+
 mkdir -p /home/$username/docker-data /home/$username/.config/docker
 touch /home/$username/.config/docker/daemon.json
 
