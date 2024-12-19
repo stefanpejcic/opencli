@@ -46,10 +46,6 @@ print_usage() {
     
 }
 
-
-mkdir -p /var/log/letsencrypt/
-touch /var/log/letsencrypt/letsencrypt.log
-
 get_server_ip() {
     domain_url=$1
     result=$(opencli domains-whoowns $domain_url)
@@ -163,7 +159,7 @@ generate_ssl_with_http01() {
                 echo "Skipping file-based verification because certificate exists."
             else
                 echo "Retrying SSL generation for ${domain_url} using file-based verification:"
-                                
+                
                 # FILE VALIDATION
                 if [[ $DRY_RUN -eq 1 ]]; then
                 certbot_command=(
@@ -172,7 +168,6 @@ generate_ssl_with_http01() {
                     "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
                     "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
                     "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                    "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
                     "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
                     "certbot/certbot" "certonly" "--preferred-challenges=http"
                     "--webroot" "--webroot-path=/home/${username}/${domain_url}/"
@@ -187,7 +182,6 @@ generate_ssl_with_http01() {
                     "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
                     "-v" "/etc/nginx/sites-available:/etc/nginx/sites-available"
                     "-v" "/etc/nginx/sites-enabled:/etc/nginx/sites-enabled"
-                    "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
                     "-v" "/home/${username}/${domain_url}/:/home/${username}/${domain_url}/"
                     "certbot/certbot" "certonly" "--preferred-challenges=http"
                     "--webroot" "--webroot-path=/home/${username}/${domain_url}/"
@@ -214,7 +208,6 @@ generate_ssl_with_http01() {
                         -v /var/lib/letsencrypt:/var/lib/letsencrypt \
                         -v /etc/nginx/sites-available:/etc/nginx/sites-available \
                         -v /etc/nginx/sites-enabled:/etc/nginx/sites-enabled \
-                        -v /var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log \
                         -v /home/${username}/${domain_url}/:/home/${username}/${domain_url}/ \
                         certbot/certbot certonly --webroot \
                         --webroot-path=/home/${username}/${domain_url}/ \
@@ -255,7 +248,6 @@ generate_ssl_with_dns01() {
             "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
             "certbot/certbot" "certonly" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
@@ -273,7 +265,6 @@ generate_ssl_with_dns01() {
             "-v" "/var/lib/letsencrypt:/var/lib/letsencrypt"
             "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
             "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-            "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
             "certbot/certbot" "certonly" "--manual"
             "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
             "--preferred-challenges" "dns" "--debug-challenges"
@@ -296,7 +287,6 @@ generate_ssl_with_dns01() {
                         "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
                         "-v" "/var/run/docker.sock:/var/run/docker.sock"
                         "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                        "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
                         "certbot/certbot" "certonly" "--manual"
                         "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
                         "--preferred-challenges" "dns" "--debug-challenges"
@@ -311,7 +301,6 @@ generate_ssl_with_dns01() {
                     "-v" "/etc/bind/zones/${domain_url}.zone:/etc/bind/zones/${domain_url}.zone"
                     "-v" "/var/run/docker.sock:/var/run/docker.sock"
                     "-v" "/etc/letsencrypt/acme-dns-auth.py:/etc/letsencrypt/acme-dns-auth.py"
-                    "-v" "/var/log/letsencrypt/letsencrypt.log:/var/log/letsencrypt/letsencrypt.log"
                     "certbot/certbot" "certonly" "--manual"
                     "--manual-auth-hook" "/etc/letsencrypt/acme-dns-auth.py"
                     "--preferred-challenges" "dns" "--debug-challenges"
