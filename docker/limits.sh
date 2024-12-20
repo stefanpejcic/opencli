@@ -44,63 +44,11 @@ read_config() {
                     ;;
             esac
         done < "$config_file"
-    DISK_LIMIT=$(df --block-size=1G /dev/loop0 | awk 'NR==2 {print $2}' | sed 's/G//') # GB!
     else
         echo "Error: Config file $config_file not found."
         exit 1
     fi
 }
-
-
-apply_new_disk_limit_for_docker() {
-    new_limit="$1"
-    if [[ "$new_limit" =~ ^[0-9]+$ ]]; then
-        if [ "$new_limit" -gt "$DISK_LIMIT" ]; then
-            echo "- Storage allocated to Docker: $DISK_LIMIT GB"
-            echo "- New limit defined for Docker: $new_limit GB"
-            DIFF=$((new_limit - DISK_LIMIT))
-            echo ""
-            echo "Starting increasing the storage file /var/lib/docker.img for $DIFF GB"
-            echo "Please wait.."
-            echo "if this process gets interupted and Docker is not working, continue it from the terminal with command: 'opencli docker-limits --apply $new_limit'"
-            echo ""
-            echo "STEP 1. - Stop Docker service"
-            service docker stop > /dev/null 2>&1
-
-            initial_size=$(stat --format="%s" /var/lib/docker.img)
-            echo "STEP 3. - Check initial size of /var/lib/docker.img: $initial_size bytes"
-
-            echo "STEP 4. - Increase size for /var/lib/docker.img to $new_limit GB"
-            dd if=/dev/zero bs=1G count=$DIFF >> /var/lib/docker.img status=progress
-            
-            final_size=$(stat --format="%s" /var/lib/docker.img)
-            echo "STEP 5. - Check final size of /var/lib/docker.img: $final_size bytes"
-            # Compare initial and final sizes
-            if [ "$final_size" -gt "$initial_size" ]; then
-                echo -e "File size successfully increased by $DIFF GB."
-            else
-                echo -e "Error: File size not increased as expected. Please contact support."
-                exit 1
-            fi
-            echo "STEP 6. - Check if loop device is correctly set up"
-            losetup -c /dev/loop0 > /dev/null 2>&1
-            echo "STEP 7. - Resize the file system"
-            xfs_growfs /var/lib/docker > /dev/null 2>&1
-            echo "STEP 8. - Start Docker service"
-            service docker start > /dev/null 2>&1
-            echo "✔ Storage increase complete and Docker service restarted."
-            exit 0
-            
-        else
-            echo "✘ Error: storage size can not be decreased for Docker!"
-            exit 1
-        fi
-        echo "✘ Error: storage size must be defined as a number!"
-        exit 1
-    fi
-}
-
-
 
 
 # Function to create or update systemd slice file and Docker daemon configuration
@@ -215,18 +163,13 @@ fi
 # Main script logic
 if [ "$1" == "--apply" ]; then
     read_config
-    if [[ "$2" =~ ^[0-9]+$ ]]; then
-        apply_new_disk_limit_for_docker $2
-    else
-        apply_config
-    fi
+    apply_config
     exit 0
 elif [ "$1" == "--read" ]; then
     read_config
     echo "[DOCKER]"
     echo "max_ram=$RAM_PERCENTAGE"
     echo "max_cpu=$CPU_PERCENTAGE"
-    echo "max_disk=$DISK_LIMIT"
     exit 0
 else
     echo "Usage: $0 [--apply | --read]"
