@@ -388,8 +388,8 @@ print_debug_info_before_starting_creation() {
         echo "- docker image:      $docker_image"
         echo "- cpu limit:         $cpu"
         echo "- memory limit:      $ram"
-        echo "- storage size:      $disk_limit"
-        echo "- inodes limit:      $inodes"
+        echo "- storage:           $disk_limit GB"
+        echo "- inodes:            $inodes"
         echo "- port speed:        $bandwidth"
         echo "- docker network:    $docker_network_name"
     fi
@@ -584,7 +584,7 @@ mkdir -p /home/$username/bin
 chmod 777 -R /home/
 
 
-cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit"
+cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
 # ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
 abi <abi/4.0>,
 include <tunables/global>
@@ -597,15 +597,9 @@ include <tunables/global>
 }
 EOT
 
+filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
 
-
-
-
- filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
-
-
-
- cat <<EOF > ~/${filename}
+cat <<EOF > ~/${filename} 2>/dev/null
 abi <abi/4.0>,
 include <tunables/global>
 
@@ -616,9 +610,7 @@ include <tunables/global>
 }
 EOF
 
-
 mv ~/${filename} /etc/apparmor.d/${filename}
-
 
 SUDOERS_FILE="/etc/sudoers"
 
@@ -644,9 +636,7 @@ fi
 
 
 sudo systemctl restart apparmor.service   >/dev/null 2>&1
-
 loginctl enable-linger $username   >/dev/null 2>&1
-
 mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
 chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
 chmod 755 -R /home/$username/   >/dev/null 2>&1
@@ -662,7 +652,7 @@ machinectl shell $username@ /bin/bash -c "
     source ~/.bashrc
 
     chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
-    /home/$username/bin/dockerd-rootless-setuptool.sh install
+    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
 
     echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
     echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
@@ -689,9 +679,9 @@ StartLimitInterval=60s
 WantedBy=default.target
 EOF
 
-systemctl --user daemon-reload
-systemctl --user enable docker
-systemctl --user start docker
+systemctl --user daemon-reload > /dev/null 2>&1
+systemctl --user enable docker > /dev/null 2>&1
+systemctl --user start docker > /dev/null 2>&1
 "
 
 
