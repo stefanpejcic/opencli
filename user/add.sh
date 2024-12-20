@@ -464,11 +464,11 @@ enable_mount_quotas() {
     if [ -n "$node_ip_address" ]; then
         log "Creating directories for the user on server $node_ip_address"
     # TODO: Use a custom user or configure SSH instead of using root
-        ssh "root@$node_ip_address" "mkdir -p /home/$username && chown 1000:33 /home/$username && chmod 755 /home/$username && chmod g+s /home/$username"
+        ssh "root@$node_ip_address" "mkdir -p /home/$username && chown $username:33 /home/$username && chmod 755 /home/$username && chmod g+s /home/$username"
     else
         log "Creating directories for the user"
         mkdir -p /home/$username
-        chown 1000:33 /home/$username
+        chown $username:33 /home/$username
         chmod 755 /home/$username
         chmod g+s /home/$username
     fi
