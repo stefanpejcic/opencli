@@ -620,49 +620,46 @@ EOF
 mv ~/${filename} /etc/apparmor.d/${filename}
 
 
-# Define the sudoers file path
 SUDOERS_FILE="/etc/sudoers"
 
-# Add user to sudoers file with no password requirement
 echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
-
-# Check if the change was successful
 if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
-    echo "Successfully added $username to sudoers file with passwordless sudo permissions."
+    :
+    #DEBUG: echo "Successfully added $username to sudoers file with passwordless sudo permissions."
 else
     echo "Failed to update the sudoers file. Please check the syntax."
-    exit 1
+    #exit 1
 fi
 
 # Verify the sudoers file using visudo
-visudo -c
+visudo -c 
 if [[ $? -eq 0 ]]; then
-    echo "sudoers file syntax is valid. The changes have been applied."
+    :
+    #echo "sudoers file syntax is valid. The changes have been applied."
 else
     echo "The sudoers file contains syntax errors. Restoring the backup."
     mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
-    exit 1
+    #exit 1
 fi
 
 
-sudo systemctl restart apparmor.service
+sudo systemctl restart apparmor.service   >/dev/null 2>&1
 
-loginctl enable-linger $username
+loginctl enable-linger $username   >/dev/null 2>&1
 
-mkdir -p /home/$username/.docker/run
-chmod 700 /home/$username/.docker/run
-chmod 755 -R /home/$username/
-chown -R $username:$username /home/$username/
+mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
+chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
+chmod 755 -R /home/$username/   >/dev/null 2>&1
+chown -R $username:$username /home/$username/   >/dev/null 2>&1
  
 machinectl shell $username@ /bin/bash -c "
 
     cd /home/$username/bin
     # Install Docker rootless
-    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless
+    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
    
     # Setup environment for rootless Docker
     source ~/.bashrc
-    echo \$PATH
 
     chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
     /home/$username/bin/dockerd-rootless-setuptool.sh install
