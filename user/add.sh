@@ -968,7 +968,7 @@ set_ssh_user_password_inside_container() {
 	su $username -c "docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1"
       echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd"
       su $username -c "docker $context_flag exec $username usermod -aG www-data $username"
-      su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username"
+      #############su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username"
       if [ "$DEBUG" = true ]; then
         echo "User $uid_1000_user renamed to $username with password: $password"
       fi
