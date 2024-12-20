@@ -983,26 +983,24 @@ set_ssh_user_password_inside_container() {
     # Hash password
     hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
-    
-    
-    uid_1000_user=$(docker $context_flag exec $username getent passwd 1000 | cut -d: -f1)
+    uid_1000_user=$(su $username -c "docker $context_flag exec $username getent passwd 1000 | cut -d: -f1")
     
     if [ -n "$uid_1000_user" ]; then
         log "User with UID 1000 exists: $uid_1000_user"
-        log "Renaming user $uid_1000_user to $username and setting its password..."   
-      docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1
-      echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd
-      docker $context_flag exec $username usermod -aG www-data $username
-      docker $context_flag exec $username chmod -R g+w /home/$username
+        log "Renaming user $uid_1000_user to $username and setting its password..."  
+	su $username -c "docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1"
+      echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd"
+      su $username -c "docker $context_flag exec $username usermod -aG www-data $username"
+      su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username"
       if [ "$DEBUG" = true ]; then
         echo "User $uid_1000_user renamed to $username with password: $password"
       fi
     else
         log "Creating SSH user $username inside the docker container..."
-        docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1
-        echo "$username:$password" | docker $context_flag exec -i "$username" chpasswd > /dev/null 2>&1
-        docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1
-        docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1
+         su $username -c " docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1"
+        echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd > /dev/null 2>&1"
+         su $username -c "docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1"
+         su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1"
         log "SSH user $username created with password: $password"
     fi
 }
@@ -1010,15 +1008,16 @@ set_ssh_user_password_inside_container() {
 
 
 
-
+ su $username -c "
 
 phpfpm_config() {
-        log "Changing the username used for php-fpm services inside the docker container..."
-        docker $context_flag exec $username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$username"'/' {} \;  > /dev/null 2>&1
-        # restart version
-        log "Setting container services..."
-        docker $context_flag exec $username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'  > /dev/null 2>&1
+    log "Changing the username used for php-fpm services inside the docker container..."
+    su $username -c "docker $context_flag exec $username find /etc/php/ -type f -name 'www.conf' -exec sed -i 's/user = .*/user = $username/' {} \;" > /dev/null 2>&1
+
+    log "Setting container services..."
+    su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
 }
+
 
 
 
