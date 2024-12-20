@@ -423,7 +423,7 @@ check_if_docker_image_exists() {
 # and execute there!
 
 # create storage file
-create_storage_file_and_mount_if_needed() {
+create_user_and_set_quota() {
                 if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
                     ssh "root@$node_ip_address" "useradd -m -d /home/$username $username"
@@ -1308,7 +1308,7 @@ print_debug_info_before_starting_creation    # print debug info
 #################check_or_create_network                      # check network exists or create it
 #######check_if_docker_image_exists                 # if no image, exit
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
-create_storage_file_and_mount_if_needed      # create home fodler and storage mount
+create_user_and_set_quota
 docker_rootless
 
 run_docker                                   # run docker container
