@@ -86,8 +86,11 @@ elif [[ "$1" == "--all" ]]; then
   done
   echo "DONE."
   
+  repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+  
 elif [ $# -eq 1 ]; then
   process_user "$1"
+  repquota -u / > /etc/openpanel/openpanel/core/users/repquota
 else
   usage
   exit 1
