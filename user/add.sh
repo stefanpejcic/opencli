@@ -443,7 +443,7 @@ enable_mount_quotas() {
 
                 else
                     log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
-		    enable_mount_quotas # must be before setquota!
+		    ########enable_mount_quotas # must be before setquota!
       		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
 	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
@@ -456,7 +456,7 @@ enable_mount_quotas() {
 		    # TODO: run enable_mount_quotas on ssh!
                 else
                     log "Setting unlimited storage and inodes for the user"
-		    enable_mount_quotas # must be before setquota!
+		    ############enable_mount_quotas # must be before setquota!
       		    setquota -u $username 0 0 0 0 /
 	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
