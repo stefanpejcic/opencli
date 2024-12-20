@@ -23,7 +23,6 @@ opencli domains-user
 opencli domains-whoowns
 opencli faq
 opencli files-fix_permissions
-opencli files-remount
 opencli firewall-reset
 opencli ftp-add
 opencli ftp-setup
