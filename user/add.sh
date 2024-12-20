@@ -399,22 +399,6 @@ print_debug_info_before_starting_creation() {
 
 
 
-
-# Check if the Docker image exists locally
-check_if_docker_image_exists() {
-    log "Checking if docker image $docker_image exists on server"
-    if ! docker $context_flag images -q "$docker_image" >/dev/null 2>&1; then
-        echo "WARNING: Docker image '$image_to_use' does not exist on this server. Attempting to pull..."
-            if docker $context_flag pull "$image_to_use"; then
-            echo "Image '$image_to_use' pulled successfully."
-        else
-            echo "ERROR: Docker image '$image_to_use' does not exist and pull failed."
-            exit 1 
-        fi
-    fi   
-}
-
-
 # TODO:
 # check if remote server
 # and execute there!
@@ -533,101 +517,6 @@ enable_mount_quotas() {
     fi
 }
 
-
-
-## Function to create a Docker network with bandwidth limiting
-check_or_create_network() {
-   
-     ensure_tc_is_installed() {
-            # Check if tc is installed
-            if ! command -v tc &> /dev/null; then
-                # Detect the package manager and install tc
-                if command -v apt-get &> /dev/null; then
-                    sudo apt-get update > /dev/null 2>&1
-                    sudo apt-get install -y -qq iproute2 > /dev/null 2>&1
-                elif command -v yum &> /dev/null; then
-                    sudo yum install -y -q iproute2 > /dev/null 2>&1
-                elif command -v dnf &> /dev/null; then
-                    sudo dnf install -y -q iproute-tc > /dev/null 2>&1
-                else
-                    echo "Error: No compatible package manager found. Please install tc manually and try again."
-                    exit 1
-                fi
-        
-                # Check if installation was successful
-                if ! command -v tc &> /dev/null; then
-                    echo "Error: tc installation failed. Please install tc manually and try again."
-                    exit 1
-                fi
-            fi
-   }
-
-
-    
-    create_docker_network() {
-    
-      for ((i = 18; i < 255; i++)); do
-        subnet="172.$i.0.0/16"
-        gateway="172.$i.0.1"
-    
-        # Check if the subnet is already in use
-        used_subnets=$(docker $context_flag network ls --format "{{.Name}}" | while read -r network_name; do
-          docker $context_flag network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
-        done)
-    
-        if [[ $used_subnets =~ $subnet ]]; then
-          continue  # Skip if the subnet is already in use
-        fi
-        # Create the Docker network
-        docker $context_flag network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$docker_network_name"
-
-
-        # Extract the network interface name for the gateway IP
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
-            gateway_interface=$(ssh "root@$node_ip_address" "ip route | grep $gateway | awk '{print $3}'")
-        else
-            gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
-        fi
-
-        ensure_tc_is_installed
-        # TODO : ON REMOTE SERVER!
-
-        # Limit the gateway bandwidth
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
-            gateway_interface=$(ssh "root@$node_ip_address" "tc qdisc add dev $gateway_interface root tbf rate ${bandwidth}mbit burst ${bandwidth}mbit latency 3ms")
-        else
-            tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
-        fi
-
-        found_subnet=1  # Set the flag to indicate success
-        break
-      done
-      if [ $found_subnet -eq 0 ]; then
-        echo "ERROR: No available subnet found for docker. Exiting."
-        exit 1  # Exit with an error code
-      fi
-    }
-
-    log "Checking if docker network $docker_network_name exists for plan"
-    # Check if DEBUG is true and the Docker network exists
-    if [ "$DEBUG" = true ] && docker $context_flag network inspect "$docker_network_name" >/dev/null 2>&1; then
-        # Docker network exists, DEBUG is true so show message
-        echo "Docker network '$docker_network_name' already exists"
-    elif [ "$DEBUG" = false ] && docker $context_flag network inspect "$docker_network_name" >/dev/null 2>&1; then
-        # Docker network exists, but DEBUG is not true so we dont show anything
-        :
-    elif [ "$DEBUG" = false ]; then
-        # Docker network does not exist, we need to create it but dont show any output..
-        create_docker_network "$docker_network_name" "$bandwidth"  >/dev/null 2>&1
-    else
-        # Docker network does not exist, we need to create it..
-        echo "Docker network '$docker_network_name' does not exist. Creating..."
-        create_docker_network "$docker_network_name" "$bandwidth"
-    fi
-
-}
 
 
 
@@ -1004,50 +893,6 @@ fi
 
 
 
-
-
-
-# Check the status of the created container
-check_container_status() {
-    log "Checking if the docker container is running.."
-    container_status=$(docker $context_flag inspect -f '{{.State.Status}}' "$username")
-    
-    if [ "$container_status" != "running" ]; then
-        echo "ERROR: Container status is not 'running'. Cleaning up..."
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
-            ssh "root@$node_ip_address" "umount /home/$username"
-             umount /home/$username
-        fi
-        
-        docker $context_flag rm -f "$username"
-        
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
-            ssh "root@$node_ip_address" "setquota -u $username 0 0 0 0 / && userdel -r $username && rm -rf /home/$username"
-        else
-            setquota -u $username 0 0 0 0 /
-	    userdel -r $username
-	    rm -rf /home/$username
-        fi
-        
-        exit 1
-    fi
-}
-
-
-
-
-
-display_private_ip_on_debug_only() {
-    ip_address=$(docker $context_flag container inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$username")
-    log "Private IP address that will be used for the user: $ip_address"
-}
-
-
-
-
-
 # TODO:
 # OPEN ON REMOTE FIREWALL!!!
 
@@ -1213,28 +1058,6 @@ copy_skeleton_files() {
 
 
 
-# TODO:
-# opencli server-recreate_hosts run on remote server
-
-# add user to hosts file and reload nginx
-recreate_hosts_file() {
-    if [ -n "$node_ip_address" ]; then
-        log "Recreating the /etc/hosts file on server $node_ip_address"
-        ssh "root@$node_ip_address" "opencli server-recreate_hosts" > /dev/null 2>&1
-    else
-        log "Recreating the /etc/hosts file"
-        opencli server-recreate_hosts > /dev/null 2>&1
-    fi
-    log "Reloading Nginx service"
-    docker $context_flag restart nginx  > /dev/null 2>&1 # must restart, reload does not remount /etc/hosts
-    ######docker exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
-}
-
-
-
-
-
-
 start_panel_service() {
 	# from 0.2.5 panel service is not started until acc is created
 	log "Checking if OpenPanel service is already running, or starting it.."
@@ -1246,9 +1069,6 @@ start_panel_service() {
   		ssh "root@$node_ip_address" "cd /root && docker compose up -d openpanel > /dev/null 2>&1"
 	fi
 }
-
-
-
 
 
 
@@ -1303,22 +1123,17 @@ check_running_containers                     # make sure container name is avail
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
-#################check_or_create_network                      # check network exists or create it
-#######check_if_docker_image_exists                 # if no image, exit
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
 
 run_docker                                   # run docker container
-#check_container_status                       # run docker container
-display_private_ip_on_debug_only             # get ipv4 of container
 open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
 phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
-#DEPRECATED#recreate_hosts_file                          # write username and private docker ip in /etc/hosts
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
