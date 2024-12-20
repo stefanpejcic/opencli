@@ -464,7 +464,7 @@ enable_mount_quotas() {
                     log "Setting storage size of ${storage_file}GB and $inodes inodes for the user"
 		    enable_mount_quotas # must be before setquota!
       		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
-	    	    
+	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
     else
 
@@ -477,6 +477,7 @@ enable_mount_quotas() {
                     log "Setting unlimited storage and inodes for the user"
 		    enable_mount_quotas # must be before setquota!
       		    setquota -u $username 0 0 0 0 /
+	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
     fi
     
