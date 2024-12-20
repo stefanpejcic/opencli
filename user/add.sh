@@ -295,7 +295,7 @@ fi
 get_plan_info_and_check_requirements() {
     log "Getting information from the database for plan $plan_name"
     # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
-    query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, storage_file, id FROM plans WHERE name = '$plan_name'"
+    query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, id FROM plans WHERE name = '$plan_name'"
     
     # Execute the MySQL query and store the results in variables
     cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -320,10 +320,8 @@ get_plan_info_and_check_requirements() {
     # 5. is GB in disk_limit
     inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
     bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
-    storage_file=$(echo "$cpu_ram_info" | awk '{print $8}' | sed 's/ //;s/B//')
-    # 9. is GB in storage_file
-    plan_id=$(echo "$cpu_ram_info" | awk '{print $10}')
-    disk_size_needed_for_docker_and_storage=$((disk_limit + storage_file))
+    plan_id=$(echo "$cpu_ram_info" | awk '{print $8}')
+    disk_size_needed_for_docker_and_storage=$(disk_limit)
     
     # Get the available free space on the disk
     if [ -n "$node_ip_address" ]; then
@@ -391,8 +389,7 @@ print_debug_info_before_starting_creation() {
         echo "- docker image:      $docker_image"
         echo "- cpu limit:         $cpu"
         echo "- memory limit:      $ram"
-        echo "- container size:    $disk_limit"
-        echo "- storage file:      $storage_file"
+        echo "- storage size:      $disk_limit"
         echo "- inodes limit:      $inodes"
         echo "- port speed:        $bandwidth"
         echo "- docker network:    $docker_network_name"
@@ -452,16 +449,16 @@ enable_mount_quotas() {
 }
 
 
-    if [ "$storage_file" -ne 0 ]; then
-    	storage_in_blocks=$((storage_file * 1024000))
+    if [ "$disk_limit" -ne 0 ]; then
+    	storage_in_blocks=$((disk_limit * 1024000))
                 if [ -n "$node_ip_address" ]; then
-                    log "Setting storage size of ${storage_file}GB and $inodes inodes for the user on server $node_ip_address"
+                    log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user on server $node_ip_address"
                     # TODO: Use a custom user or configure SSH instead of using root
                     ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /"
 		    # TODO: run enable_mount_quotas on ssh!
 
                 else
-                    log "Setting storage size of ${storage_file}GB and $inodes inodes for the user"
+                    log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
 		    enable_mount_quotas # must be before setquota!
       		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
 	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
@@ -525,7 +522,7 @@ enable_mount_quotas() {
 
     
     # Mount storage file if needed
-    if [ "$storage_file" -ne 0 ] && [ "$disk_limit" -ne 0 ]; then
+    if [ "$disk_limit" -ne 0 ]; then
         if [ -n "$node_ip_address" ]; then
             log "Mounting the /home/$username partition for the user on server $node_ip_address"
             # TODO: Use a custom user or configure SSH instead of using root
