@@ -44,8 +44,6 @@ opencli plan-list
 opencli plan-usage
 opencli report
 opencli server-ips
-opencli server-on_startup
-opencli server-stats
 opencli ssl-domain
 opencli ssl-hostname
 opencli ssl-user
