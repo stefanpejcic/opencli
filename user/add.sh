@@ -924,13 +924,12 @@ local disk_limit_param=""
               for ((port=32768; port<=65535; port++)); do
                   if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                       found_ports+=("$port")
-                      if [ ${#found_ports[@]} -ge 4 ]; then
+                      if [ ${#found_ports[@]} -ge 5 ]; then
                           break
                       fi
                   fi
               done
         
-              # Print the found ports to return them back to the local script
               echo "${found_ports[@]}"
             '
         else
@@ -938,7 +937,7 @@ local disk_limit_param=""
             for ((port=32768; port<=65535; port++)); do
                 if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                     found_ports+=("$port")
-                    if [ ${#found_ports[@]} -ge 4 ]; then
+                    if [ ${#found_ports[@]} -ge 5 ]; then
                         break
                     fi
                 fi
@@ -959,7 +958,6 @@ local disk_limit_param=""
       fi
     }
 
-
     # Find available ports
     AVAILABLE_PORTS=$(find_available_ports)
 
@@ -969,11 +967,11 @@ local disk_limit_param=""
     SECOND_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $2}')
     THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
     FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
+    FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
     
     # todo: better validation!
-    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE"; then
-      # for fixed ports! local ports_param="-p 9022:22 -p 33600:3306 -p 33681:7681 -p 33080:8080" #custom ports for 22 3306 7681 8080
-      local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080"
+    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
+      local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080 -p $FIFTH_NEXT_AVAILABLE:80"
     else
       #echo "DEBUG: Error: some ports are invalid."
       local ports_param="-P"
@@ -1322,7 +1320,7 @@ change_default_email_and_allow_email_network # added in 0.2.5 to allow users to 
 phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
-recreate_hosts_file                          # write username and private docker ip in /etc/hosts
+#DEPRECATED#recreate_hosts_file                          # write username and private docker ip in /etc/hosts
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
