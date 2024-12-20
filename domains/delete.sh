@@ -138,7 +138,7 @@ vhost_files_delete() {
 delete_domain_file() {
   log "Removing domain from the proxy"
 	rm /etc/nginx/sites-available/${domain_name}.conf >/dev/null 2>&1
-	rm /etc/nginx/sites-available/${domain_name}.conf >/dev/null 2>&1
+	rm /etc/nginx/sites-enabled/${domain_name}.conf >/dev/null 2>&1
 	rm /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf >/dev/null 2>&1
 
  	# Check if the 'nginx' container is running
