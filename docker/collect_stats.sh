@@ -28,62 +28,70 @@
 # THE SOFTWARE.
 ################################################################################
 
-output_dir="/etc/openpanel/openpanel/core/stats"
+output_dir="/etc/openpanel/openpanel/core/users/"
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
-# fix bug with high ram usage reported for containers
-sync
-echo 1 > /proc/sys/vm/drop_caches
-
-ensure_jq_installed() {
-    # Check if jq is installed
-    if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-
-        # Check if installation was successful
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
+usage() {
+    echo "Usage: opencli docker-collect_stats <username> OR opencli docker-collect_stats --all"
+    echo ""  
 }
 
-ensure_jq_installed
 
-# Loop through the Docker containers and extract data
-docker stats --no-stream --format '{{json .}}' | while read -r container_stats; do
-  # Extract relevant data from the JSON
-  cpu_percent=$(echo "$container_stats" | jq -r '.CPUPerc' | sed 's/%//')
-  mem_percent=$(echo "$container_stats" | jq -r '.MemPerc' | sed 's/%//')
-  net_io=$(echo "$container_stats" | jq -r '.NetIO' | awk '{print $1}' | sed 's/B//')
-  block_io=$(echo "$container_stats" | jq -r '.BlockIO' | awk '{print $1}' | sed 's/B//')
+# DB
+source /usr/local/admin/scripts/db.sh
 
-  # Extract the username (Name field from the Docker stats)
-  username=$(echo "$container_stats" | jq -r '.Name')
 
-  # Define the output file path
-  output_file="$output_dir/$username/$current_datetime.json"
 
-  # Create the directory if it doesn't exist
-  mkdir -p "$(dirname "$output_file")"
+process_user() {
+    local username="$1"
+    output_file="$output_dir/$username/docker_usage.txt"  
+    current_usage=$(su $username -c "docker stats --no-stream --format '{{json .}}' $username")
+    echo "$current_datetime $current_usage" >> $output_file
+    echo ""
+    echo $current_usage
+    echo ""
+}  
 
-  # Create the JSON data and write it to the output file
-  json_data="{\"cpu_percent\": $cpu_percent, \"mem_percent\": $mem_percent, \"net_io\": \"$net_io\", \"block_io\": \"$block_io\"}"
-  # NOTE: net_io and block_io also contain the unit so should be used as strings.
-  echo "$json_data" > "$output_file"
 
-  echo "Data for $username written to $output_file"
 
-  #echo "$json_data"
-done
+
+
+
+# Check if username is provided as an argument
+if [ $# -eq 0 ]; then
+  usage
+  exit 1
+elif [[ "$1" == "--all" ]]; then
+
+    sync
+    echo 1 > /proc/sys/vm/drop_caches
+
+  # Fetch list of users from opencli user-list --json
+  users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+
+  # Check if no sites found
+  if [[ -z "$users" || "$users" == "No users." ]]; then
+    echo "No users found in the database."
+    exit 1
+  fi
+
+  # Get total user count
+  total_users=$(echo "$users" | wc -w)
+
+  # Iterate over each user
+  current_user_index=1
+  for user in $users; do
+    echo "Processing user: $user ($current_user_index/$total_users)"
+    process_user "$user"
+    echo "------------------------------"
+    ((current_user_index++))
+  done
+  echo "DONE."
+    
+elif [ $# -eq 1 ]; then
+  process_user "$1"
+else
+  usage
+  exit 1
+fi
+
