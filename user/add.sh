@@ -974,9 +974,10 @@ set_ssh_user_password_inside_container() {
     
     uid_1000_user=$(su $username -c "docker $context_flag exec $username getent passwd 1000 | cut -d: -f1")
     
-    if [ -n "$uid_1000_user" ]; then
-        log "User with UID 1000 exists: $uid_1000_user"
-        log "Renaming user $uid_1000_user to $username and setting its password..."  
+    # todo if 1000, skip!
+    if [ "$user_id" -eq 1000 ] && [ -n "$uid_1000_user" ]; then
+        log "User has UID of 1000 and same id user exists in the container: $uid_1000_user"
+        log "Renaming user $uid_1000_user inside contianer to $username and setting its password..."  
 	su $username -c "docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1"
       echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd"
       su $username -c "docker $context_flag exec $username usermod -aG www-data $username"
@@ -985,12 +986,12 @@ set_ssh_user_password_inside_container() {
         echo "User $uid_1000_user renamed to $username with password: $password"
       fi
     else
-        log "Creating SSH user $username inside the docker container..."
-         su $username -c "docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1"
-        echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd > /dev/null 2>&1"
-         su $username -c "docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1"
-         su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1"
-        log "SSH user $username created with password: $password"
+	log "Creating SSH user $username inside the Docker container..."
+	su $username -c "docker $context_flag exec $username useradd -u $user_id -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1"
+	echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd > /dev/null 2>&1"
+	su $username -c "docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1"
+	su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1"
+	log "SSH user $username created with UID: $user_id and password: $password"
     fi
 }
 
