@@ -321,7 +321,6 @@ get_plan_info_and_check_requirements() {
     inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
     bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
     plan_id=$(echo "$cpu_ram_info" | awk '{print $8}')
-    disk_size_needed_for_docker_and_storage=$(disk_limit)
     
     # Get the available free space on the disk
     if [ -n "$node_ip_address" ]; then
@@ -334,8 +333,8 @@ get_plan_info_and_check_requirements() {
     
     
     # Compare the available free space with the disk limit of the plan
-    if [ "$current_free_space" -lt "$disk_size_needed_for_docker_and_storage" ]; then
-        echo "WARNING: Insufficient disk space on the server. Required: ${disk_size_needed_for_docker_and_storage}GB, Available: ${current_free_space}GB"
+    if [ "$current_free_space" -lt "$disk_limit" ]; then
+        echo "WARNING: Insufficient disk space on the server. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
        #### exit 1
     fi
 
@@ -393,7 +392,6 @@ print_debug_info_before_starting_creation() {
         echo "- inodes limit:      $inodes"
         echo "- port speed:        $bandwidth"
         echo "- docker network:    $docker_network_name"
-        echo "- total disk needed: $disk_size_needed_for_docker_and_storage"
     fi
 }
 
