@@ -2,8 +2,8 @@
 ################################################################################
 # Script Name: plan/edit.sh
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
-# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth new_storage_file
-# Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 0 0 10 500000 1 1 1 openpanel_nginx 500 10
+# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth
+# Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 0 0 10 500000 1 1 1 openpanel_nginx 500
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
 # Last Modified: 25.04.2024
@@ -90,20 +90,6 @@ elif [ "$old_plan_name" != "$new_plan_name" ]; then
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
     flags+=( "--net" )
 fi
-
-# STORAGE FILE
-if [ "$old_storage_file" == "$storage_file" ]; then
-    if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Disk limit is not changed, nothing to do."
-    fi
-elif [ "$int_storage_file" -gt "$int_old_storage_file" ]; then
-    if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Disk limit increased, will update all existing docker containers storage file."
-    fi
-    #INCREASE CONTAINERS SIZE
-    flags+=( "--dsk" )
-fi
-
 }
 
 
@@ -119,7 +105,7 @@ update_plan() {
   local plan_id="$1"
 
   # Get old paln data, and if different, we will initiate the `opencli plan-apply` script
-  sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth, storage_file FROM plans WHERE id='$plan_id'"
+  sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth FROM plans WHERE id='$plan_id'"
   result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
   
   old_plan_name=$(echo "$result" | awk '{print $1}')
@@ -128,8 +114,7 @@ update_plan() {
   old_cpu=$(echo "$result" | awk '{print $5}')
   old_ram=$(echo "$result" | awk '{print $6}')
   old_bandwidth=$(echo "$result" | awk '{print $7}')
-  int_old_storage_file=$(echo "$result" | awk '{print $8}')
-   
+  
   new_plan_name="$2"
   description="$3"
   ftp_limit="$4"
@@ -143,15 +128,12 @@ update_plan() {
   int_ram="${12}"
   docker_image="${13}"
   bandwidth="${14}"
-  int_storage_file="${15}"
 
-  # Format disk_limit and storage_file with 'GB' 
+  # Format disk_limit with 'GB' 
   disk_limit="${int_disk_limit} GB"
-  storage_file="${int_storage_file} GB"
   
   # format without GB for old limits
   old_disk_limit="${int_old_disk_limit} GB"
-  old_storage_file="${int_old_storage_file} GB"
   int_old_ram=${old_ram%"g"}
   
   # Ensure inodes_limit is not less than 500000
@@ -177,7 +159,6 @@ if [ "$DEBUG" = true ]; then
   echo "Old CPU:          $old_cpu"
   echo "Old RAM:          $old_ram"
   echo "Old Bandwidth:    $old_bandwidth"
-  echo "Old Storage File: $old_storage_file"
   echo "+===================================+"
   echo "New plan information:"
   echo "Name:             $new_plan_name"
@@ -188,7 +169,6 @@ if [ "$DEBUG" = true ]; then
   echo "RAM:              $ram"
   echo "Docker image:     $docker_image"
   echo "Bandwidth:        $bandwidth"
-  echo "Storage File:     $storage_file"
   echo "FTP accounts:     $ftp_limit"
   echo "Email accounts:   $emails_limit"
   echo "Total domains:    $domains_limit"
@@ -202,6 +182,11 @@ fi
 
 ### contruct opencli plan-apply command if needed!
 
+# TODO CELA SEKCIJA
+#
+#
+
+##
 
 # STORAGE FILE
 if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
@@ -352,7 +337,6 @@ cpu=""
 ram=""
 docker_image=""
 bandwidth=""
-storage_file=""
 
 # opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 docker_image="nginx:latest" bandwidth=100 storage="10"
 for arg in "$@"; do
@@ -402,9 +386,6 @@ for arg in "$@"; do
     bandwidth=*)
       bandwidth="${arg#*=}"
       ;;
-    storage=*)
-      storage_file="${arg#*=}"
-      ;;
     *)
       echo "Unknown argument: $arg"
       ;;
@@ -432,4 +413,4 @@ if [ -z "$existing_plan" ]; then
   exit 1
 fi
 
-update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth" "$storage_file"
+update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
