@@ -879,7 +879,7 @@ open_ports_on_firewall() {
     extract_host_port() {
         local port_number="$1"
         local host_port
-        host_port=$(docker $context_flag port "$username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+	host_port=$(su $username -c "docker $context_flag port \"$username\" | grep \"${port_number}/tcp\" | awk -F: '{print \$2}' | awk '{print \$1}'")
         echo "$host_port"
     }
     
