@@ -78,6 +78,8 @@ elif [[ "$1" == "--all" ]]; then
   # Get total user count
   total_users=$(echo "$users" | wc -w)
 
+  repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+
   # Iterate over each user
   current_user_index=1
   for user in $users; do
@@ -89,6 +91,7 @@ elif [[ "$1" == "--all" ]]; then
   echo "DONE."
     
 elif [ $# -eq 1 ]; then
+    repquota -u / > /etc/openpanel/openpanel/core/users/repquota
   process_user "$1"
 else
   usage
