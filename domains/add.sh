@@ -39,6 +39,7 @@ fi
 # Parameters
 domain_name="$1"
 user="$2"
+container_name="$2"
 
 if ! [[ "$domain_name" =~ ^(xn--[a-z0-9-]+\.[a-z0-9-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$ ]]; then
     echo "FATAL ERROR: Invalid domain name: $domain_name"
@@ -84,6 +85,23 @@ compare_with_force_domain() {
 
 
 
+
+
+
+# added in 0.3.8 so admin can disable some domains!
+compare_with_dorbidden_domains_list() {
+	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
+	
+	if [ -f "forbidden_domains.txt" ]; then
+ 	    echo "Checking domain against forbidden_domains list"
+	    mapfile -t forbidden_domains < forbidden_domains.txt
+
+  		if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
+		    echo "ERROR: $domain_name is a forbidden domain."
+      			exit 1
+		fi    
+	fi
+}
 
 
 
@@ -195,7 +213,7 @@ clear_cache_for_user() {
 make_folder() {
 	log "Creating document root directory /home/$user/$domain_name"
 	mkdir -p /home/$user/$domain_name
-	docker exec $user bash -c "chown $user:33 /home/$user/$domain_name"
+	su $user -c "docker exec $container_name bash -c 'chown $user:33 /home/$user/$domain_name'"
 	chmod -R g+w /home/$user/$domain_name
 }
 
@@ -206,27 +224,27 @@ make_folder() {
 check_and_create_default_file() {
 #extra step needed for nginx
 log "Checking if default vhosts file exists for Nginx"
-file_exists=$(docker exec "$user" test -e "/etc/nginx/sites-enabled/default" && echo "yes" || echo "no")
+file_exists=$(su "$user" -c "docker exec $container_name test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
 
 if [ "$file_exists" == "no" ]; then
     if [[ $VARNISH == true ]]; then
     		log "Creating default vhost file (with Varnish) for Nginx: /etc/nginx/sites-enabled/default"
-	    docker exec "$user" sh -c "echo 'server {
-	        listen 8080 default_server;
-	        listen [::]:8080 default_server;
-	        server_name _;
-	        deny all;
-	        return 444;
-	        }' > /etc/nginx/sites-enabled/default"
+		su "$user" -c "docker exec $container_name sh -c 'echo \"server {
+		    listen 8080 default_server;
+		    listen [::]:8080 default_server;
+		    server_name _;
+		    deny all;
+		    return 444;
+		}\" > /etc/nginx/sites-enabled/default'"
     else
     		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-	    docker exec "$user" sh -c "echo 'server {
-	        listen 80 default_server;
-	        listen [::]:80 default_server;
-	        server_name _;
-	        deny all;
-	        return 444;
-	        }' > /etc/nginx/sites-enabled/default"
+		su "$user" -c "docker exec $container_name sh -c 'echo \"server {
+		    listen 80 default_server;
+		    listen [::]:80 default_server;
+		    server_name _;
+		    deny all;
+		    return 444;
+		}\" > /etc/nginx/sites-enabled/default'"
     fi
  
 fi
@@ -279,9 +297,9 @@ add_domain_to_clamav_list(){
 
 start_default_php_fpm_service() {
         log "Starting service for the default PHP version ${php_version}"
-	docker exec $user service php${php_version}-fpm start >/dev/null 2>&1
+	su "$user" -c "docker exec $container_name service php${php_version}-fpm start >/dev/null 2>&1"
         log "Checking and setting PHP service to automatically start on reboot"
-	docker exec $user sed -i "s/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/" /etc/entrypoint.sh >/dev/null 2>&1
+	su "$user" -c "docker exec $container_name sed -i 's/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/' /etc/entrypoint.sh >/dev/null 2>&1"
 }
 
 
@@ -289,9 +307,9 @@ start_default_php_fpm_service() {
 auto_start_webserver_for_user_in_future(){
         log "Checking and setting $ws service to automatically start on reboot"
 	if [[ $ws == *apache2* ]]; then
-		docker exec $user sed -i 's/APACHE_STATUS="off"/APACHE_STATUS="on"/' /etc/entrypoint.sh
+		su "$user" -c "docker exec $container_name sed -i 's/APACHE_STATUS=\"off\"/APACHE_STATUS=\"on\"/' /etc/entrypoint.sh"
 	elif [[ $ws == *nginx* ]]; then
-		docker exec $user sed -i 's/NGINX_STATUS="off"/NGINX_STATUS="on"/' /etc/entrypoint.sh
+		su "$user" -c "docker exec $container_name sed -i 's/NGINX_STATUS=\"off\"/NGINX_STATUS=\"on\"/' /etc/entrypoint.sh"
 	fi
 }
 
@@ -318,29 +336,26 @@ vhost_files_create() {
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
-	docker exec $user bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log"  >/dev/null 2>&1
-	
-	docker cp $vhost_docker_template $user:$vhost_in_docker_file  >/dev/null 2>&1
-	
-	user_gateway=$(docker inspect $user | jq -r '.[0].NetworkSettings.Networks | .[] | .Gateway' | head -n 1)
-	
-	
+	su "$user" -c "docker exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1"
+	su "$user" -c "docker cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1"
+
+  	# gateway is always 172.17.0.0/16
 	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
 	
 	# Execute the sed command inside the Docker container
-	docker exec $user /bin/bash -c "
+	su "$user" -c "docker exec $container_name /bin/bash -c \"
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
 	    -e 's|<PHP>|php${php_version}|g' \
-	    -e 's|172.17.0.1|$user_gateway|g' \
 	    -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
 	    $vhost_in_docker_file
-	"
+	\""
+
 	
-	docker exec $user bash -c "mkdir -p /etc/$ws/sites-enabled/" >/dev/null 2>&1
+	su "$user" -c "docker exec $container_name bash -c \"mkdir -p /etc/$ws/sites-enabled/\" >/dev/null 2>&1"
  	log "Restarting $ws inside container to apply changes"
-	docker exec $user bash -c "ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  >/dev/null 2>&1
+	su "$user" -c "docker exec $container_name bash -c \"ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart\" >/dev/null 2>&1"
 
 }
 
@@ -349,7 +364,7 @@ check_if_varnish_installed_for_user() {
 # todo: edit to check if running!
 	# VARNISH
  	# added in 0.3.7
-	if docker exec "$user" test -f /etc/default/varnish; then
+	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish"; then
  	    log "Varnish is installed"
       		VARNISH=true
 	else
@@ -372,33 +387,36 @@ create_domain_file() {
 	cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
 	
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
-	
+
+	port_in_user_container=$(su "$user" -c "docker inspect -f '{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' $user")
+ 	localhost_and_port="localhost:$port_in_user_container"
 	mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
 	touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
 	# VARNISH
  	# added in 0.2.6
-	if docker exec "$user" test -f /etc/default/varnish; then
+	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish" > /dev/null 2>&1; then
 	    log "Detected Varnish for user, setting Nginx to proxy requests to Varnish in user container."
 	else
 	    log "Setting Nginx to proxy requests to $ws user container."
 	fi
 
+
+
+
 	if [ "$IPV4" == "yes" ]; then
+ 		ip_format_for_nginx="$current_ip"
+   	else
+		ip_format_for_nginx="[$current_ip]:80"
+    	fi
+
 		sed -i \
 		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
 		    -e "s|<USERNAME>|$user|g" \
-		    -e "s|<IP>|$user|g" \
-		    -e "s|<LISTEN_IP>|$current_ip|g" \
+		    -e "s|<IP>|$localhost_and_port|g" \
+		    -e "s|<LISTEN_IP>|$ip_format_for_nginx|g" \
 		    /etc/nginx/sites-available/${domain_name}.conf
-	else
-		sed -i \
-		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
-		    -e "s|<USERNAME>|$user|g" \
-		    -e "s|<IP>|$user|g" \
-		    -e "s|<LISTEN_IP>|[$current_ip]:80|g" \
-		    /etc/nginx/sites-available/${domain_name}.conf
-	fi
+
 
 
 
@@ -407,7 +425,7 @@ create_domain_file() {
 		# https://github.com/stefanpejcic/OpenPanel/issues/283
 		mkdir -p /etc/nginx/sites-enabled/
 		ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-     		docker exec nginx sh -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
+     		su "$user" -c "docker exec nginx sh -c 'nginx -t && nginx -s reload' >/dev/null 2>&1"
 	}
 
  	# Check if the 'nginx' container is running
@@ -442,20 +460,7 @@ update_named_conf() {
     echo "$config_line" >> "$NAMED_CONF_LOCAL"
 }
 
-# added in 0.3.8 so admin can disable some domains!
-compare_with_dorbidden_domains_list() {
-	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
-	
-	if [ -f "forbidden_domains.txt" ]; then
- 	    echo "Checking domain against forbidden_domains list"
-	    mapfile -t forbidden_domains < forbidden_domains.txt
 
-  		if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
-		    echo "ERROR: $domain_name is a forbidden domain."
-      			exit 1
-		fi    
-	fi
-}
 
 
 
@@ -511,7 +516,7 @@ create_zone_file() {
     # Reload BIND service
     if [ $(docker ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, adding the zone"
-	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+	su "$user" -c "docker exec openpanel_dns rndc reconfig >/dev/null 2>&1"
     else
 	log "DNS service is not started, starting now"
         cd /root && docker compose up -d bind9  >/dev/null 2>&1
