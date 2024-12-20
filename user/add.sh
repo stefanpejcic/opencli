@@ -997,7 +997,7 @@ set_ssh_user_password_inside_container() {
       fi
     else
         log "Creating SSH user $username inside the docker container..."
-         su $username -c " docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1"
+         su $username -c "docker $context_flag exec $username useradd -m -s /bin/bash -d /home/$username $username > /dev/null 2>&1"
         echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd > /dev/null 2>&1"
          su $username -c "docker $context_flag exec $username usermod -aG www-data $username > /dev/null 2>&1"
          su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1"
@@ -1006,9 +1006,6 @@ set_ssh_user_password_inside_container() {
 }
 
 
-
-
- su $username -c "
 
 phpfpm_config() {
     log "Changing the username used for php-fpm services inside the docker container..."
