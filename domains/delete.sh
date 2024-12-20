@@ -123,12 +123,12 @@ vhost_files_delete() {
  	vhost_ln_in_docker_file="/etc/$ws/sites-enabled/${domain_name}.conf"
 
 	log "Deleting $vhost_in_docker_file"
-	su - $user -c "docker exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1"
-	su - $user -c "docker exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1"
+	su $user -c "docker exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1"
+	su $user -c "docker exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1"
 	
 	  
  	log "Restarting $ws inside container to apply changes"
-	su - $user -c "docker exec $user bash -c 'service $ws restart' >/dev/null 2>&1"
+	su $user -c "docker exec $user bash -c 'service $ws restart' >/dev/null 2>&1"
 
 	logs_dir="/var/log/$ws/domlogs"
 	log "Deleting access logs for the domain"
