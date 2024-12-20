@@ -581,12 +581,7 @@ echo "{
 
 
 mkdir -p /home/$username/bin
-#chmod 0777 /home/$username/bin
-#chmod 0777 /home/$username
 chmod 777 -R /home/
-##############chown -R $user_id:$user_id /home/$username # treba id iz kontejnera!
-#chown -R $username:$username /home/$username/docker-data
-
 
 
 cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit"
@@ -627,10 +622,6 @@ mv ~/${filename} /etc/apparmor.d/${filename}
 
 # Define the sudoers file path
 SUDOERS_FILE="/etc/sudoers"
-
-# Backup the sudoers file before editing
-cp "$SUDOERS_FILE" "$SUDOERS_FILE.bak"
-echo "Backup of the sudoers file created at $SUDOERS_FILE.bak."
 
 # Add user to sudoers file with no password requirement
 echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
