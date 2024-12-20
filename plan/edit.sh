@@ -182,63 +182,11 @@ fi
 
 ### contruct opencli plan-apply command if needed!
 
-# TODO CELA SEKCIJA
-#
-#
-
-##
-
-# STORAGE FILE
-if [ "$int_old_storage_file" -eq 0 ] && [ "$int_storage_file" -ne 0 ]; then
-
-    # Construct SQL query to select plan name based on ID
-    local sql="SELECT name FROM plans WHERE id='$plan_id'"
-    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-    local new_plan_name=$(echo "$result" | awk 'NR>1')
-    count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-    if [ "$count" -ne 0 ]; then   
-        echo "ERROR: Docker does not support changing limit if plan is already unlimited. Disk limit cannot be changed from ∞ to $int_disk_limit."
-        exit 0
-    fi
-
-
-
-elif [ "$int_storage_file" -eq 0 ] && [ "$int_old_storage_file" -ne 0 ]; then
-    # Construct SQL query to select plan name based on ID
-    local sql="SELECT name FROM plans WHERE id='$plan_id'"
-    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-    local new_plan_name=$(echo "$result" | awk 'NR>1')
-    count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-    if [ "$count" -ne 0 ]; then   
-        echo "ERROR: Docker does not support changing limit from a limit to be unlimited. Disk limit cannot be changed from $int_old_storage_file to ∞."
-        exit 0
-    fi
-elif [ "$int_storage_file" -lt "$int_old_storage_file" ]; then
-        # Construct SQL query to select plan name based on ID
-        local sql="SELECT name FROM plans WHERE id='$plan_id'"
-        local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-        local new_plan_name=$(echo "$result" | awk 'NR>1')
-        count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-        if [ "$count" -ne 0 ]; then  
-           echo "ERROR: Docker does not support decreasing image size. Can not change disk usage limit from $int_old_disk_limit to $int_disk_limit."
-        exit 0
-        fi
-fi
-
-
-
-
-
-
-
-
-
-
 
 if [ "$docker_image" = "None" ]; then
-  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
+  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth WHERE id='$plan_id';"
 else
-  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth, storage_file='$storage_file' WHERE id='$plan_id';"
+  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth WHERE id='$plan_id';"
 fi
  
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
@@ -311,7 +259,7 @@ check_plan_exists() {
 }
 
 if [ "$#" -lt 13 ]; then
-    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth storage_file"
+    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
     exit 1
 fi
 
@@ -338,7 +286,7 @@ ram=""
 docker_image=""
 bandwidth=""
 
-# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 docker_image="nginx:latest" bandwidth=100 storage="10"
+# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 docker_image="nginx:latest" bandwidth=100
 for arg in "$@"; do
   case $arg in
     --debug)
