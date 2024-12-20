@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-output_dir="/etc/openpanel/openpanel/core/users/"
+output_dir="/etc/openpanel/openpanel/core/users"
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
 usage() {
