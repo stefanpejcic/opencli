@@ -54,7 +54,7 @@ log() {
 
 
 log "Checking owner for domain $domain_name"
-whoowns_output=$(opencli domains-whoowns "$domain")
+whoowns_output=$(opencli domains-whoowns "$domain_name")
 owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain_name': " '{print $2}')
 
 if [ -n "$owner" ]; then
@@ -65,7 +65,7 @@ else
 fi
 
 
-domain_id=$(mysql -se "SELECT id FROM domains WHERE domain_url = '$domain_name';")
+domain_id=$(mysql -se "SELECT domain_id FROM domains WHERE domain_url = '$domain_name';")
 if [[ -z "$domain_id" ]]; then
     echo "Domain ID not found in the database for domain $domain_name' - make sure that domain exists on the server and mysql service is running."
   exit 1
@@ -123,12 +123,13 @@ vhost_files_delete() {
  	vhost_ln_in_docker_file="/etc/$ws/sites-enabled/${domain_name}.conf"
 
 	log "Deleting $vhost_in_docker_file"
-  docker exec $user bash -c "rm $vhost_in_docker_file"  >/dev/null 2>&1
-  docker exec $user bash -c "rm $vhost_ln_in_docker_file"  >/dev/null 2>&1
-  
+	su - $user -c "docker exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1"
+	su - $user -c "docker exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1"
+	
+	  
  	log "Restarting $ws inside container to apply changes"
-	docker exec $user bash -c "service $ws restart"  >/dev/null 2>&1
-  
+	su - $user -c "docker exec $user bash -c 'service $ws restart' >/dev/null 2>&1"
+
 	logs_dir="/var/log/$ws/domlogs"
 	log "Deleting access logs for the domain"
 	rm $logs_dir/${domain_name}.log  >/dev/null 2>&1
@@ -237,7 +238,7 @@ delete_domain_from_mysql(){
 }
 
 delete_domain() {
-    local user_id="$1"
+    local user="$1"
     local domain_name="$2"
     
     delete_websites $domain_name                     # delete sites associated with domain id
@@ -245,7 +246,7 @@ delete_domain() {
     delete_domain_from_mysql $domain_name            # delete
 
     # Verify if the domain was deleted successfully
-    local verify_query="SELECT COUNT(*) FROM domains WHERE  = '$' AND domain_name = '$domain_name' AND domain_url = '$domain_name';"
+    local verify_query="SELECT COUNT(*) FROM domains WHERE domain_name = '$domain_name';"
     local result=$(mysql -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
@@ -268,4 +269,4 @@ delete_domain() {
 
 
 
-delete_domain "$domain_name"
+delete_domain "$user" "$domain_name"
