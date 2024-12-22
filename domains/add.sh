@@ -261,6 +261,8 @@ get_webserver_for_user(){
 	 	check_and_create_default_file
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
+	    elif [[ $output == *litespeed* ]]; then
+	        ws="litespeed"
 	    else
 	        ws="unknown"
 	    fi
@@ -310,6 +312,8 @@ auto_start_webserver_for_user_in_future(){
 		su "$user" -c "docker exec $container_name sed -i 's/APACHE_STATUS=\"off\"/APACHE_STATUS=\"on\"/' /etc/entrypoint.sh"
 	elif [[ $ws == *nginx* ]]; then
 		su "$user" -c "docker exec $container_name sed -i 's/NGINX_STATUS=\"off\"/NGINX_STATUS=\"on\"/' /etc/entrypoint.sh"
+	elif [[ $ws == *litespeed* ]]; then
+		su "$user" -c "docker exec $container_name sed -i 's/LITESPEED_STATUS=\"off\"/LITESPEED_STATUS=\"on\"/' /etc/entrypoint.sh"
 	fi
 }
 
@@ -329,6 +333,12 @@ vhost_files_create() {
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
    		else
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+  		fi
+	elif [[ $ws == *litespeed* ]]; then
+ 		if [[ $VARNISH == true ]]; then
+   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_litespeed_domain.conf"
+   		else
+			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_litespeed_domain.conf"
   		fi
 	fi
 
