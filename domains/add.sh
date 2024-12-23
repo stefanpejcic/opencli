@@ -468,7 +468,7 @@ create_domain_file() {
 		# https://github.com/stefanpejcic/OpenPanel/issues/283
 		mkdir -p /etc/nginx/sites-enabled/
 		ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-     		su "$user" -c "docker exec nginx sh -c 'nginx -t && nginx -s reload' >/dev/null 2>&1"
+     		docker exec nginx sh -c 'nginx -t && nginx -s reload' >/dev/null 2>&1
 	}
 
  	# Check if the 'nginx' container is running
