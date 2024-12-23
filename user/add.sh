@@ -880,7 +880,8 @@ else
 	echo "ERROR: Container status is not 'running'. Cleaning up..."
 	docker rm -f "$username" > /dev/null 2>&1
 	docker context rm "$username" > /dev/null 2>&1
-	userdel -r $username > /dev/null 2>&1
+        killall -u $username > /dev/null 2>&1
+        deluser --remove-home $username > /dev/null 2>&1
   	exit 1
 fi
 
