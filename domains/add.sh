@@ -382,6 +382,17 @@ check_if_varnish_installed_for_user() {
 	fi
 }
 
+
+
+generated_self_signed_ssl(){
+	mkdir -p /etc/nginx/ssl/$domain_url/
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+	    -keyout /etc/nginx/ssl/$domain_url/privkey.pem \
+	    -out /etc/nginx/ssl/$domain_url/fullchain.pem \
+ 	    -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN=<$domain_url>"   
+}
+
+
 create_domain_file() {
 
 	if [ -f /etc/nginx/modsec/main.conf ]; then
@@ -586,15 +597,21 @@ add_domain() {
      	check_if_varnish_installed_for_user	     # use varnish templates
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip
+
+	generated_self_signed_ssl			#dddddddddddd
+     
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
         create_zone_file                             # create zone
 	update_named_conf                            # include zone
+
+	start_ssl_generation_in_bg                   # start certbot
+
+ 
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
  	add_domain_to_clamav_list                    # added in 0.3.4    
-	start_ssl_generation_in_bg                   # start certbot
         echo "Domain $domain_name added successfully"
         #echo "Domain $domain_name has been added for user $user."
     else
