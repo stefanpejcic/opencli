@@ -832,7 +832,7 @@ local disk_limit_param=""
 	FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
 	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
 
-	echo "DEBUG: Available ports: $AVAILABLE_PORTS"
+	#echo "DEBUG: Available ports: $AVAILABLE_PORTS"
 
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
@@ -854,7 +854,7 @@ local docker_cmd="docker $context_flag run -d --name $username $ports_param $dis
 
 
 if [ "$DEBUG" = true ]; then
-    echo "$AVAILABLE_PORTS"
+    #echo "$AVAILABLE_PORTS"
 
     log "Creating container with the docker run command:"
     echo "docker $context_flag run -d --name $username $ports_param \\"
