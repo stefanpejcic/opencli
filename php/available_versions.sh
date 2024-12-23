@@ -85,6 +85,8 @@ file_path="$directory/php_available_versions.json"
 if ! mkdir -p "$directory"; then
     echo "Error: Unable to create directory $directory"
     exit 1
+else
+    chown -R $username $directory
 fi
 
 get_available_php_versions() {
