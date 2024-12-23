@@ -76,13 +76,12 @@ source /usr/local/admin/scripts/db.sh
 get_docker_context_for_user(){
     # GET CONTEXT NAME FOR DOCKER COMMANDS
     server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
-    
     if [ -z "$server_name" ]; then
-        server_name="default" # compatibility with older panel versions before clustering
-        context_flag=""
+        server_name=$provided_username # compatibility with older panel versions before clustering
+        context_flag="--context $provided_username"
         node_ip_address=""
     elif [ "$server_name" == "default" ]; then
-        context_flag=""
+        context_flag="--context $provided_username"
         node_ip_address=""
     else
         context_flag="--context $server_name"
@@ -90,29 +89,13 @@ get_docker_context_for_user(){
         context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")
     
         if [ -n "$context_info" ]; then
-            endpoint=$(echo "$context_info" | awk '{print $2}')
-            if [[ "$endpoint" == ssh://* ]]; then
-                node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
-            else
-                echo "ERROR: valid IPv4 address for context $server_name not found!"
-                echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
-                echo "       Make sure that the docker context named $server_name has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
-                exit 1
-            fi
+           #############uderdelrte hre!!!!!
+           : #delete_context
         else
-            echo "ERROR: docker context with name $server_name does not exist!"
-            echo "       User container is located on node $server_name but there is no docker context with that name."
-            echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
-            exit 1
+            :
         fi
         
     fi
-
-
-
-    # context         - node name
-    # context_flag    - docker context to use in docker commands
-    # node_ip_address - ipv4 to use for ssh
     
 }
 
@@ -279,7 +262,8 @@ delete_all_user_files() {
             umount /home/storage_file_$username > /dev/null 2>&1
             rm -rf /home/$username > /dev/null 2>&1
             rm -rf /home/storage_file_$username  > /dev/null 2>&1
-            userdel -r $username > /dev/null 2>&1
+            killall -u $username > /dev/null 2>&1
+            deluser --remove-home $username > /dev/null 2>&1
             sed -i.bak "/\/home\/storage_file_$username \/home\/username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1                # only on master
         fi
 
