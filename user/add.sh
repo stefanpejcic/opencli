@@ -873,7 +873,7 @@ fi
 
 
 
-container_status=$(docker --context ps $username --filter "name=^/${username}$" --format "{{.Names}}")
+container_status=$(docker --context  $username ps --filter "name=^/${username}$" --format "{{.Names}}")
 if [ "$container_status" == "$username" ]; then
   echo "Container '$username' is running."
 else
