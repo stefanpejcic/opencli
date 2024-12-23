@@ -6,9 +6,9 @@
 #        opencli webserver-get_webserver_for_user <USERNAME> --update
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 10.06.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 23.12.2024
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # THE SOFTWARE.
 ################################################################################
@@ -18,9 +18,10 @@ determine_web_server() {
     # Check for Apache inside the container
     if docker exec "$username" which apache2 &> /dev/null; then
         echo "apache"
-    # Check for Nginx inside the container
     elif docker exec "$username" which nginx &> /dev/null; then
         echo "nginx"
+    elif docker exec "$username" which openlitespeed &> /dev/null; then
+        echo "litespeed"
     else
         echo "unknown"
     fi
