@@ -353,7 +353,7 @@ virtualHost $domain_name{
     setUIDMode               0
     chrootMode               0
     configFile               conf/vhosts/${domain_name}.conf
-} >> /usr/local/lsws/conf/httpd_config.conf
+}" >> /usr/local/lsws/conf/httpd_config.conf
 
 
 
