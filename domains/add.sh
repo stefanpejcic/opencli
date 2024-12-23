@@ -118,15 +118,28 @@ fi
 
 
 # get user ID from the database
-get_user_id() {
+get_user_info() {
     local user="$1"
-    local query="SELECT id FROM users WHERE username = '${user}';"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
     
-    user_id=$(mysql -se "$query")
-    echo "$user_id"
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
 }
 
-user_id=$(get_user_id "$user")
+
+result=$(get_user_info "$user")
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
 
 
 if [ -z "$user_id" ]; then
@@ -213,7 +226,7 @@ clear_cache_for_user() {
 make_folder() {
 	log "Creating document root directory /home/$user/$domain_name"
 	mkdir -p /home/$user/$domain_name
-	su $user -c "docker exec $container_name bash -c 'chown $user:33 /home/$user/$domain_name'"
+	docker --context $context exec $container_name bash -c 'chown $user:33 /home/$user/$domain_name'
 	chmod -R g+w /home/$user/$domain_name
 }
 
@@ -224,27 +237,27 @@ make_folder() {
 check_and_create_default_file() {
 #extra step needed for nginx
 log "Checking if default vhosts file exists for Nginx"
-file_exists=$(su "$user" -c "docker exec $container_name test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
+file_exists=$(docker --context $context exec $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
 
 if [ "$file_exists" == "no" ]; then
     if [[ $VARNISH == true ]]; then
     		log "Creating default vhost file (with Varnish) for Nginx: /etc/nginx/sites-enabled/default"
-		su "$user" -c "docker exec $container_name sh -c 'echo \"server {
+		docker --context $context exec $container_name bash -c 'echo \"server {
 		    listen 8080 default_server;
 		    listen [::]:8080 default_server;
 		    server_name _;
 		    deny all;
 		    return 444;
-		}\" > /etc/nginx/sites-enabled/default'"
+		}\" > /etc/nginx/sites-enabled/default'
     else
     		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-		su "$user" -c "docker exec $container_name sh -c 'echo \"server {
+		docker --context $context exec $container_name bash -c 'echo \"server {
 		    listen 80 default_server;
 		    listen [::]:80 default_server;
 		    server_name _;
 		    deny all;
 		    return 444;
-		}\" > /etc/nginx/sites-enabled/default'"
+		}\" > /etc/nginx/sites-enabled/default'
     fi
  
 fi
@@ -299,9 +312,9 @@ add_domain_to_clamav_list(){
 
 start_default_php_fpm_service() {
         log "Starting service for the default PHP version ${php_version}"
-	su "$user" -c "docker exec $container_name service php${php_version}-fpm start >/dev/null 2>&1"
+	docker --context $context exec $container_name bash -c "service php${php_version}-fpm start >/dev/null 2>&1"
         log "Checking and setting PHP service to automatically start on reboot"
-	su "$user" -c "docker exec $container_name sed -i 's/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/' /etc/entrypoint.sh >/dev/null 2>&1"
+	docker --context $context exec $container_name bash -c "sed -i 's/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/' /etc/entrypoint.sh >/dev/null 2>&1"
 }
 
 
@@ -309,6 +322,7 @@ start_default_php_fpm_service() {
 auto_start_webserver_for_user_in_future(){
         log "Checking and setting $ws service to automatically start on reboot"
 	if [[ $ws == *apache2* ]]; then
+ 		######docker --context $context exec $container_name bash -c  
 		su "$user" -c "docker exec $container_name sed -i 's/APACHE_STATUS=\"off\"/APACHE_STATUS=\"on\"/' /etc/entrypoint.sh"
 	elif [[ $ws == *nginx* ]]; then
 		su "$user" -c "docker exec $container_name sed -i 's/NGINX_STATUS=\"off\"/NGINX_STATUS=\"on\"/' /etc/entrypoint.sh"
@@ -317,6 +331,15 @@ auto_start_webserver_for_user_in_future(){
 	fi
 }
 
+
+# NOT USED!
+run_command_in_context() {
+	local container_name="$1"
+ 	local context="$2"
+  	local command="$3"
+
+	docker --context $context exec $container_name bash -c "$command"
+}
 
 
 
@@ -342,7 +365,7 @@ vhost_files_create() {
  $restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
 
-echo "
+docker --context $context exec $container_name bash -c "echo '
 virtualHost $domain_name{
     vhRoot                   /home/${username}/${domain_name}/
     allowSymbolLink          1
@@ -353,7 +376,7 @@ virtualHost $domain_name{
     setUIDMode               0
     chrootMode               0
     configFile               conf/vhosts/${domain_name}.conf
-}" >> /usr/local/lsws/conf/httpd_config.conf
+}' >> /usr/local/lsws/conf/httpd_config.conf"
 
 
 
