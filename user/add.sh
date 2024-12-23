@@ -870,6 +870,22 @@ if [ "$DEBUG" = true ]; then
     echo "      --hostname $hostname $docker_image"
 fi
         machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
+
+
+
+container_status=$(docker --context ps $username --filter "name=^/${username}$" --format "{{.Names}}")
+if [ "$container_status" == "$username" ]; then
+  echo "Container '$username' is running."
+else
+	echo "ERROR: Container status is not 'running'. Cleaning up..."
+	docker rm -f "$username" > /dev/null 2>&1
+	docker context rm "$username" > /dev/null 2>&1
+	userdel -r $username > /dev/null 2>&1
+  	exit 1
+fi
+
+
+
 }
 
 
@@ -1113,7 +1129,7 @@ print_debug_info_before_starting_creation    # print debug info
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
-
+create_context
 run_docker                                   # run docker container
 open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
@@ -1122,7 +1138,6 @@ phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
-create_context
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 
