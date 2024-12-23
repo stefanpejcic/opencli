@@ -288,7 +288,9 @@ delete_all_user_files() {
 }
 
 
-
+delete_context() {
+    docker context rm $username  > /dev/null 2>&1
+}
 
 
 
@@ -318,6 +320,7 @@ delete_user() {
     delete_ftp_users $provided_username
     delete_user_from_database                # delete user from database
     delete_all_user_files                    # permanently delete data
+    delete_context                        
     echo "User $username deleted."           # if we made it
 }
 
