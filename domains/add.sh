@@ -323,18 +323,41 @@ auto_start_webserver_for_user_in_future(){
 vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
+ 		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+   $restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
    		else
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
-  		fi
+  		fi      
 	elif [[ $ws == *nginx* ]]; then
+ $restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+ 		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
    		else
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
   		fi
 	elif [[ $ws == *litespeed* ]]; then
+ $restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
+ 		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
+
+echo "
+virtualHost $domain_name{
+    vhRoot                   /home/${username}/${domain_name}/
+    allowSymbolLink          1
+    enableScript             1
+    restrained               1
+    maxKeepAliveReq
+    smartKeepAlive
+    setUIDMode               0
+    chrootMode               0
+    configFile               conf/vhosts/${domain_name}.conf
+} >> /usr/local/lsws/conf/httpd_config.conf
+
+
+
+   
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_litespeed_domain.conf"
    		else
@@ -342,7 +365,6 @@ vhost_files_create() {
   		fi
 	fi
 
-	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
@@ -365,7 +387,7 @@ vhost_files_create() {
 	
 	su "$user" -c "docker exec $container_name bash -c \"mkdir -p /etc/$ws/sites-enabled/\" >/dev/null 2>&1"
  	log "Restarting $ws inside container to apply changes"
-	su "$user" -c "docker exec $container_name bash -c \"ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart\" >/dev/null 2>&1"
+	su "$user" -c "docker exec $container_name bash -c \"$restart_in_container_command\" >/dev/null 2>&1"
 
 }
 
@@ -598,7 +620,7 @@ add_domain() {
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip
 
-	generated_self_signed_ssl			#dddddddddddd
+	####3generated_self_signed_ssl			#dddddddddddd
      
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
