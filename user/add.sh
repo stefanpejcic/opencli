@@ -725,7 +725,6 @@ local disk_limit_param=""
 #
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
-      log "Checking available ports to use for the docker container"
       local found_ports=()
                   
         
@@ -812,42 +811,47 @@ local disk_limit_param=""
 
     }
     
-    validate_port() {
-      local port=$1
-      if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 32768 ] && [ "$port" -le 65535 ]; then
-        return 0  # Port is valid
-      else
-        return 1  # Port is invalid
-      fi
-    }
+	validate_port() {
+	  local port=$1
+	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 32768 ] && [ "$port" -le 65535 ]; then
+	    return 0
+	  else
+	    echo "DEBUG: Invalid port detected: $port"
+	    return 1
+	  fi
+	}
 
     # Find available ports
+    log "Checking available ports to use for the docker container"
     AVAILABLE_PORTS=$(find_available_ports)
 
-    
     # Split the ports into variables
-    FIRST_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $1}')
-    SECOND_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $2}')
-    THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
-    FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
-    FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
-    
+	FIRST_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $1}')
+	SECOND_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $2}')
+	THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
+	FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
+	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
+
+	echo "DEBUG: Available ports: $AVAILABLE_PORTS"
+
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
-      local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080 -p $FIFTH_NEXT_AVAILABLE:80"
+ 	local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080 -p $FIFTH_NEXT_AVAILABLE:80"
     else
-      #echo "DEBUG: Error: some ports are invalid."
       local ports_param="-P"
     fi
 
 local docker_cmd="docker $context_flag run -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
       -v /home/$username/var/crons:/var/spool/cron/crontabs \
       -v /home/$username:/home/$username \
+      -v /home/$username/var/lib/mysql:/var/lib/mysql \
+      -v /home/$username/var/lib/php/sessions:/var/lib/php/sessions \
       -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
       -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
       -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \
       --restart unless-stopped \
       --hostname $hostname $docker_image"
+
 
 if [ "$DEBUG" = true ]; then
     echo "$AVAILABLE_PORTS"
@@ -857,6 +861,8 @@ if [ "$DEBUG" = true ]; then
     echo "      --cpus=$cpu --memory=$ram $disk_limit_param \\"
     echo "      -v /home/$username/var/crons:/var/spool/cron/crontabs \\"
     echo "      -v /home/$username:/home/$username \\"
+    echo "      -v /home/$username/var/lib/mysql:/var/lib/mysql \\"
+    echo "      -v /home/$username/var/lib/php/sessions:/var/lib/php/sessions \\"
     echo "      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \\"
     echo "      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \\"
     echo "      -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \\"
@@ -1041,15 +1047,23 @@ start_panel_service() {
 		# added on 0.3.7 to start panel on cluster slave
   		ssh "root@$node_ip_address" "cd /root && docker compose up -d openpanel > /dev/null 2>&1"
 	fi
+
+
+
+ 
 }
 
 
+create_context() {
+	docker context create $username \
+	  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock"
+}
 
 save_user_to_db() {
     log "Saving new user to database"
     
         # Insert data into MySQL database
-    mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$server_name');"
+    mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$username');"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
@@ -1108,6 +1122,7 @@ phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
+create_context
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 
