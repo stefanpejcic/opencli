@@ -452,35 +452,61 @@ create_domain_file() {
 	if [ "$IPV4" == "yes" ]; then
  		ip_format_for_nginx="$current_ip"
    	else
-		ip_format_for_nginx="[$current_ip]:80"
+		ip_format_for_nginx="[$current_ip]"
     	fi
 
-		sed -i \
-		    -e "s|<DOMAIN_NAME>|$domain_name|g" \
-		    -e "s|<USERNAME>|$user|g" \
-		    -e "s|<IP>|$localhost_and_port|g" \
-		    -e "s|<LISTEN_IP>|$ip_format_for_nginx|g" \
-		    /etc/nginx/sites-available/${domain_name}.conf
+     # todo: include only if dedi ip in caddy file!
+
+mkdir -p /etc/openpanel/openpanel/core/users/$user/
+
+domains_file="/etc/openpanel/openpanel/core/users/$user/domains"
+backup_file="/tmp/${user}_domains.bak"
+
+cp $domains_file $backup_file
+
+# then appped
+echo "$domain_name, *.$domain_name {
+    reverse_proxy $user:80
+    tls {
+        on_demand
+    }
+}" >> $domains_file
+
+# Function to validate and reload Caddy service
+check_and_add_to_enabled() {
+    # Validate the Caddyfile
+    docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        # If validation is successful, reload the Caddy service
+        docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        return 0
+    else
+        # If validation fails, revert the domains file and return an error
+        echo "Validation failed, reverting changes."
+        cp "$backup_file" "$domains_file"
+        return 1
+    fi
+}
 
 
-
-
-
-	check_and_add_to_enabled() {
-		# https://github.com/stefanpejcic/OpenPanel/issues/283
-		mkdir -p /etc/nginx/sites-enabled/
-		ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
-     		docker exec nginx sh -c 'nginx -t && nginx -s reload' >/dev/null 2>&1
-	}
-
- 	# Check if the 'nginx' container is running
-	if [ $(docker ps -q -f name=nginx) ]; then
- 	    log "Webserver is running, validating new domain configuration"
+ 	# Check if the 'caddy' container is running
+	if [ $(docker ps -q -f name=caddy) ]; then
+ 	    log "Caddy is running, validating new domain configuration"
 		check_and_add_to_enabled
+		  if [ $? -eq 0 ]; then
+		    echo "Domain successfully added and Caddy reloaded."
+		else
+		    echo "Failed to add domain configuration, changes reverted."
+		fi
 	else
-	    log "Webserver is not running, starting now"
-            cd /root && docker compose up -d nginx  >/dev/null 2>&1
+	    log "Caddy is not running, starting now"
+            cd /root && docker compose up -d caddy  >/dev/null 2>&1
 	    check_and_add_to_enabled
+		if [ $? -eq 0 ]; then
+		    echo "Domain successfully added and Caddy reloaded."
+		else
+		    echo "Failed to add domain configuration, changes reverted."
+		fi
 	fi
 
 
