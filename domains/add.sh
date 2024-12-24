@@ -456,8 +456,8 @@ create_domain_file() {
 
 	port_in_user_container=$(su "$user" -c "docker inspect -f '{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' $user")
  	localhost_and_port="localhost:$port_in_user_container"
-	mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
-	touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
+	#######mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
+	#######touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
 	# VARNISH
  	# added in 0.2.6
