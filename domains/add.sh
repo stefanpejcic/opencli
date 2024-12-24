@@ -284,18 +284,6 @@ get_webserver_for_user(){
 
 
 
-start_ssl_generation_in_bg(){	
-	# from 0.2.5 bind,nginx,certbot services are not started until domain is added
- 	log "Checking and starting the ssl generation service"
-	cd /root && docker compose up -d certbot >/dev/null 2>&1
-  	# from 0.2.8 this is hadled by opencli as well
- 	log "Starting Let'sEncrypt SSL generation in background"
-	opencli ssl-domain $domain_name > /dev/null 2>&1 & disown
-
-}
-
-
-
 add_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
  	local domain_path="/home/$user/$domain_name"
@@ -427,15 +415,6 @@ check_if_varnish_installed_for_user() {
 	fi
 }
 
-
-
-generated_self_signed_ssl(){
-	mkdir -p /etc/nginx/ssl/$domain_url/
-	openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-	    -keyout /etc/nginx/ssl/$domain_url/privkey.pem \
-	    -out /etc/nginx/ssl/$domain_url/fullchain.pem \
- 	    -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN=<$domain_url>"   
-}
 
 
 create_domain_file() {
@@ -641,18 +620,11 @@ add_domain() {
     	make_folder                                  # create dirs on host server
      	check_if_varnish_installed_for_user	     # use varnish templates
     	get_webserver_for_user                       # nginx or apache
-    	get_server_ipv4_or_ipv6                      # get outgoing ip
-
-	####3generated_self_signed_ssl			#dddddddddddd
-     
+    	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
         create_zone_file                             # create zone
-	update_named_conf                            # include zone
-
-	start_ssl_generation_in_bg                   # start certbot
-
- 
+	update_named_conf                            # include zone 
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
