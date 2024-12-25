@@ -96,16 +96,6 @@ get_webserver_for_user(){
 
 
 
-rm_ssl_from_certbot(){	
- 	log "Checking and starting the ssl service"
-	cd /root && docker compose up -d certbot >/dev/null 2>&1
- 	log "Removing Let'sEncrypt SSL certificates in background"
-	docker exec certbot certbot delete --cert-name $domain_name > /dev/null 2>&1 & disown
-
-}
-
-
-
 rm_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
  	local domain_path="/home/$user/$domain_name"
@@ -135,16 +125,39 @@ vhost_files_delete() {
 	rm $logs_dir/${domain_name}.log  >/dev/null 2>&1
 }
 
+
+
+# Function to validate and reload Caddy service
+check_and_add_to_enabled() {
+    # Validate the Caddyfile
+    docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        # If validation is successful, reload the Caddy service
+        docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        return 0
+    else
+        # If validation fails, revert the domains file and return an error
+        echo "Validation failed, reverting changes."
+        cp "$backup_file" "$domains_file"
+        return 1
+    fi
+}
+
+
+
 delete_domain_file() {
   log "Removing domain from the proxy"
-	rm /etc/nginx/sites-available/${domain_name}.conf >/dev/null 2>&1
-	rm /etc/nginx/sites-enabled/${domain_name}.conf >/dev/null 2>&1
-	rm /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf >/dev/null 2>&1
+ 
+	mkdir -p /etc/openpanel/openpanel/core/users/$user/
+	domains_file="/etc/openpanel/openpanel/core/users/$user/domains"
+	backup_file="/tmp/${user}_domains.bak"
+	cp $domains_file $backup_file
+ 
+ 	sed -i "/$domain_name, \*.$domain_name {/,/}/d" $domains_file
 
- 	# Check if the 'nginx' container is running
-	if [ $(docker ps -q -f name=nginx) ]; then
- 	    log "Webserver is running, reloading configuration"
-	    docker exec nginx sh -c "nginx -t && nginx -s reload"  >/dev/null 2>&1
+	if [ $(docker ps -q -f name=caddy) ]; then
+ 	    log "Caddy is running, reloading configuration"
+	    check_and_add_to_enabled
 	fi   
 }
 
@@ -259,7 +272,6 @@ delete_domain() {
         delete_mail_mountpoint                       # delete mountpoint to mailserver
         delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
-        rm_ssl_from_certbot                          # certbot delete
         echo "Domain $domain_name deleted successfully"
     else
         log "Deleting domain $domain_name failed! Contact administrator to check if the mysql database is running."
