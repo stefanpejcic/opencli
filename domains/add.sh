@@ -334,16 +334,17 @@ run_command_in_context() {
 vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
- 		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-   restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
    		else
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
   		fi      
 	elif [[ $ws == *nginx* ]]; then
- restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
- 		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+ 		
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
    		else
@@ -370,7 +371,7 @@ virtualHost $domain_name{
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
-	docker --context $user exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1
+	docker --context $user exec $container_name bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log" >/dev/null 2>&1
 	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
@@ -385,12 +386,6 @@ virtualHost $domain_name{
 	    -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
 	    $vhost_in_docker_file
 	\""
-
-	
-	su "$user" -c "docker exec $container_name bash -c \"mkdir -p /etc/$ws/sites-enabled/\" >/dev/null 2>&1"
- 	log "Restarting $ws inside container to apply changes"
-	su "$user" -c "docker exec $container_name bash -c \"$restart_in_container_command\" >/dev/null 2>&1"
-
 }
 
 
@@ -425,7 +420,7 @@ create_domain_file() {
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
 
 	port_in_user_container=$(su "$user" -c "docker inspect -f '{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' $user")
- 	localhost_and_port="localhost:$port_in_user_container"
+ 	localhost_and_port="127.0.0.1:$port_in_user_container"
 	#######mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
 	#######touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
@@ -458,7 +453,7 @@ cp $domains_file $backup_file
 
 # then appped
 echo "$domain_name, *.$domain_name {
-    reverse_proxy $user:80
+    reverse_proxy $localhost_and_port
     tls {
         on_demand
     }
