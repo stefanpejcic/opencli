@@ -161,6 +161,8 @@ get_server_ipv4_or_ipv6() {
 	else
 	    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
 	fi
+ 
+	        log "Trying to fetch IP address..."
 
 	get_ip() {
 	    local ip_version=$1
@@ -169,12 +171,10 @@ get_server_ipv4_or_ipv6() {
 	    local server3=$4
 	
 	    if [ "$ip_version" == "-4" ]; then
-	        log "Trying to fetch IPv4 address..."
 		    curl --silent --max-time 2 $ip_version $server1 || \
 		    wget --timeout=2 -qO- $server2 || \
 		    curl --silent --max-time 2 $ip_version $server3
 	    else
-	        log "Trying to fetch IPv6 address..."
 		    curl --silent --max-time 2 $ip_version $server1 || \
 		    curl --silent --max-time 2 $ip_version $server3
 	    fi
@@ -421,10 +421,10 @@ create_domain_file() {
 
 	if [ -f /etc/nginx/modsec/main.conf ]; then
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf_with_modsec"
-     	    log "Creating vhosts proxy file for Nginx with ModSecurity on host server"
+     	    log "Creating vhosts proxy file for Caddy with ModSecurity on host server"
 	else
 	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf"
-     	    log "Creating vhosts proxy file for Nginx on host server"
+     	    log "Creating Caddy configuration for the domain"
 	fi
 	
 	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
@@ -476,15 +476,14 @@ echo "$domain_name, *.$domain_name {
 # Function to validate and reload Caddy service
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        # If validation is successful, reload the Caddy service
+    output=$(docker exec caddy caddy validate --config /etc/caddy/Caddyfile)
+
+    if echo "$output" | grep -q "Valid configuration"; then
         docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
-        # If validation fails, revert the domains file and return an error
-        echo "Validation failed, reverting changes."
-        cp "$backup_file" "$domains_file"
+        #echo "Validation failed, reverting changes."
+        #cp "$backup_file" "$domains_file"
         return 1
     fi
 }
@@ -493,23 +492,16 @@ check_and_add_to_enabled() {
  	# Check if the 'caddy' container is running
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, validating new domain configuration"
-		check_and_add_to_enabled
-		  if [ $? -eq 0 ]; then
-		    echo "Domain successfully added and Caddy reloaded."
-		else
-		    echo "Failed to add domain configuration, changes reverted."
-		fi
 	else
 	    log "Caddy is not running, starting now"
             cd /root && docker compose up -d caddy  >/dev/null 2>&1
-	    check_and_add_to_enabled
+     	fi
+	    	check_and_add_to_enabled
 		if [ $? -eq 0 ]; then
 		    echo "Domain successfully added and Caddy reloaded."
 		else
 		    echo "Failed to add domain configuration, changes reverted."
 		fi
-	fi
-
 
     
 }
@@ -573,16 +565,13 @@ create_zone_file() {
     timestamp=$(date +"%Y%m%d")
     
     # Replace placeholders in the template
-	zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" \
-	                                           -e "s/{ns1}/$ns1/g" \
-	                                           -e "s/{ns2}/$ns2/g" \
-	                                           -e "s/{server_ip}/$current_ip/g" \
-	                                           -e "s/YYYYMMDD/$timestamp/g")
-
-    # Ensure the directory exists
+	zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
+                                           -e "s|{ns1}|$ns1|g" \
+                                           -e "s|{ns2}|$ns2|g" \
+                                           -e "s|{server_ip}|$current_ip|g" \
+                                           -e "s|YYYYMMDD|$timestamp|g")
+ 
     mkdir -p "$ZONE_FILE_DIR"
-
-    # Write the zone content to the zone file
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
