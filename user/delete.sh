@@ -223,24 +223,12 @@ edit_firewall_rules(){
 
 
 delete_all_user_files() {
-        if [ -n "$node_ip_address" ]; then
-            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
-            ssh "root@$node_ip_address" "umount /home/storage_file_$username && rm -rf /home/$username && rm -rf /home/storage_file_$username"
-            ssh "root@$node_ip_address" "userdel -r $username"
-            ssh "root@$node_ip_address" "sed -i.bak '/\/home\/storage_file_$username \/home\/$username ext4 loop 0 0/d' /etc/fstab"   # on slave
-            sed -i.bak "/\/home\/$username \/home\/$username fuse.sshfs defaults,_netdev,allow_other 0 0/d" /etc/fstab                # on master
-        else
-            umount /home/storage_file_$username > /dev/null 2>&1
             rm -rf /home/$username > /dev/null 2>&1
-            rm -rf /home/storage_file_$username  > /dev/null 2>&1
             killall -u $username > /dev/null 2>&1
             deluser --remove-home $username > /dev/null 2>&1
-            sed -i.bak "/\/home\/storage_file_$username \/home\/username ext4 loop 0 0/d" /etc/fstab > /dev/null 2>&1                # only on master
-        fi
-
-        rm -rf /etc/openpanel/openpanel/core/stats/$username
-        rm -rf /etc/openpanel/openpanel/core/users/$username
-        rm -rf /etc/openpanel/docker/compose/$username
+            rm -rf /etc/openpanel/openpanel/core/stats/$username
+            rm -rf /etc/openpanel/openpanel/core/users/$username
+            rm -rf /etc/openpanel/docker/compose/$username
 }
 
 
