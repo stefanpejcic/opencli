@@ -335,14 +335,14 @@ vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
  		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-   $restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+   restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
    		else
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
   		fi      
 	elif [[ $ws == *nginx* ]]; then
- $restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+ restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
@@ -350,7 +350,7 @@ vhost_files_create() {
 			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
   		fi
 	elif [[ $ws == *litespeed* ]]; then
- $restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
+ restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
 
 docker --context $context exec $container_name bash -c "echo '
@@ -461,6 +461,7 @@ mkdir -p /etc/openpanel/openpanel/core/users/$user/
 
 domains_file="/etc/openpanel/openpanel/core/users/$user/domains"
 backup_file="/tmp/${user}_domains.bak"
+touch $domains_file
 
 cp $domains_file $backup_file
 
