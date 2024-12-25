@@ -567,6 +567,27 @@ get_webserver_from_plan_name() {
 
 
 
+docker_compose() {
+
+log "Configuring Docker Compose"
+
+machinectl shell $username@ /bin/bash -c "
+DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+
+mkdir -p $DOCKER_CONFIG/cli-plugins
+
+curl -SL https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose
+
+chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+docker compose version
+"
+
+}
+
+
 
 docker_rootless() {
 
@@ -836,52 +857,68 @@ local disk_limit_param=""
 
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
- 	local ports_param="-p $FIRST_NEXT_AVAILABLE:22 -p $SECOND_NEXT_AVAILABLE:3306 -p $THIRD_NEXT_AVAILABLE:7681 -p $FOURTH_NEXT_AVAILABLE:8080 -p $FIFTH_NEXT_AVAILABLE:80"
+ 	local ports_param="$FIRST_NEXT_AVAILABLE:22 $SECOND_NEXT_AVAILABLE:3306 $THIRD_NEXT_AVAILABLE:7681 $FOURTH_NEXT_AVAILABLE:8080 $FIFTH_NEXT_AVAILABLE:80"
     else
-      local ports_param="-P"
+      local ports_param=""
     fi
 
-local docker_cmd="docker $context_flag run -d --name $username $ports_param $disk_limit_param --cpus=$cpu --memory=$ram \
-      -v /home/$username/var/crons:/var/spool/cron/crontabs \
-      -v /home/$username:/home/$username \
-      -v /home/$username/var/lib/mysql:/var/lib/mysql \
-      -v /home/$username/var/lib/php/sessions:/var/lib/php/sessions \
-      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \
-      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \
-      -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \
-      --restart unless-stopped \
-      --hostname $hostname $docker_image"
 
+
+
+mkdir -p /etc/openpanel/docker/compose/$username/
+cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
+
+cd /etc/openpanel/docker/compose/$username/ && docker compose up -d
+
+
+cat <<EOF > /etc/openpanel/docker/compose/$username/.env
+# User-specific settings
+username=$username
+docker_image=$docker_image:latest
+hostname=$hostname
+
+# Resources
+cpu=$cpu
+ram=$ram
+
+# Ports
+ports_param="$ports_param"
+
+# Path
+path=$path
+EOF
+
+echo ".env file created successfully"
+
+cat /etc/openpanel/docker/compose/$username/.env
+
+
+
+
+
+
+local docker_cmd="cd /etc/openpanel/docker/compose/$username/ && docker compose up -d"
 
 if [ "$DEBUG" = true ]; then
     #echo "$AVAILABLE_PORTS"
 
-    log "Creating container with the docker run command:"
-    echo "docker $context_flag run -d --name $username $ports_param \\"
-    echo "      --cpus=$cpu --memory=$ram $disk_limit_param \\"
-    echo "      -v /home/$username/var/crons:/var/spool/cron/crontabs \\"
-    echo "      -v /home/$username:/home/$username \\"
-    echo "      -v /home/$username/var/lib/mysql:/var/lib/mysql \\"
-    echo "      -v /home/$username/var/lib/php/sessions:/var/lib/php/sessions \\"
-    echo "      -v /home/$username/etc/$path/sites-available:/etc/$path/sites-available \\"
-    echo "      -v /etc/openpanel/skeleton/motd:/etc/motd:ro \\"
-    echo "      -v /etc/openpanel/nginx/default_page.html:/etc/$path/default_page.html:ro \\"
-    echo "      --restart unless-stopped \\"
-    echo "      --hostname $hostname $docker_image"
+    log "Creating container with the docker compose command:"
+    echo "$docker_cmd"
 fi
         machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 
 
 
-container_status=$(docker --context  $username ps --filter "name=^/${username}$" --format "{{.Names}}")
-if [ "$container_status" == "$username" ]; then
-  echo "Container '$username' is running."
+compose_running=$(docker --context $username compose ls)
+
+if echo "$compose_running" | grep -q "/etc/openpanel/docker/compose/$username/docker-compose.yml"; then
+    :
 else
-	echo "ERROR: Container status is not 'running'. Cleaning up..."
-	docker rm -f "$username" > /dev/null 2>&1
-	docker context rm "$username" > /dev/null 2>&1
-        killall -u $username > /dev/null 2>&1
-        deluser --remove-home $username > /dev/null 2>&1
+    echo "docker-compose.yml for $username is not found."
+	#docker rm -f "$username" > /dev/null 2>&1
+	#docker context rm "$username" > /dev/null 2>&1
+        #killall -u $username > /dev/null 2>&1
+        #deluser --remove-home $username > /dev/null 2>&1
   	exit 1
 fi
 
@@ -1130,6 +1167,7 @@ print_debug_info_before_starting_creation    # print debug info
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
+docekr_compose
 create_context
 run_docker                                   # run docker container
 open_ports_on_firewall                       # open ports on csf or ufw
