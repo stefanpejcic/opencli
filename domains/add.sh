@@ -476,10 +476,10 @@ echo "$domain_name, *.$domain_name {
 # Function to validate and reload Caddy service
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
     if [ $? -eq 0 ]; then
         # If validation is successful, reload the Caddy service
-        docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
         # If validation fails, revert the domains file and return an error
