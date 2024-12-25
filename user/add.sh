@@ -570,17 +570,12 @@ get_webserver_from_plan_name() {
 docker_compose() {
 
 log "Configuring Docker Compose"
-
+compose_url="https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64"
 machinectl shell $username@ /bin/bash -c "
-DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
-
-mkdir -p $DOCKER_CONFIG/cli-plugins
-
-curl -SL https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose
-
-chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
-
-chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
+mkdir -p /home/$username/.docker/cli-plugins
+curl -sSL $compose_url -o /home/$username/.docker/cli-plugins/docker-compose
+chmod +x /home/$username/.docker/cli-plugins/docker-compose
 
 docker compose version
 "
@@ -737,10 +732,6 @@ temp_fix_for_nginx_default_site_missing() {
 
 run_docker() {
 
-log "Checking specified disk size for docker container"
-
-local disk_limit_param=""
-
 # TODO:
 # check ports on remote server!
 #
@@ -857,9 +848,17 @@ local disk_limit_param=""
 
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
- 	local ports_param="$FIRST_NEXT_AVAILABLE:22 $SECOND_NEXT_AVAILABLE:3306 $THIRD_NEXT_AVAILABLE:7681 $FOURTH_NEXT_AVAILABLE:8080 $FIFTH_NEXT_AVAILABLE:80"
+	port_1="$FIRST_NEXT_AVAILABLE:22"
+	port_2="$SECOND_NEXT_AVAILABLE:3306"
+	port_3="$THIRD_NEXT_AVAILABLE:7681"
+	port_4="$FOURTH_NEXT_AVAILABLE:8080"
+	port_5="$FIFTH_NEXT_AVAILABLE:80"
     else
-      local ports_param=""
+	port_1=""
+	port_2=""
+	port_3=""
+	port_4=""
+	port_5=""
     fi
 
 
@@ -882,14 +881,19 @@ cpu=$cpu
 ram=$ram
 
 # Ports
-ports_param="$ports_param"
+port_1="$port_1"
+port_2="$port_2"
+port_3="$port_3"
+port_4="$port_4"
+port_5="$port_5"
+ports="$ports_param"
 
 # Path
 path=$path
 EOF
 
-echo ".env file created successfully"
-
+log ".env file created successfully"
+log ""
 cat /etc/openpanel/docker/compose/$username/.env
 
 
@@ -901,7 +905,7 @@ local docker_cmd="cd /etc/openpanel/docker/compose/$username/ && docker compose 
 
 if [ "$DEBUG" = true ]; then
     #echo "$AVAILABLE_PORTS"
-
+    log ""
     log "Creating container with the docker compose command:"
     echo "$docker_cmd"
 fi
@@ -1167,7 +1171,7 @@ print_debug_info_before_starting_creation    # print debug info
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
-docekr_compose
+docker_compose
 create_context
 run_docker                                   # run docker container
 open_ports_on_firewall                       # open ports on csf or ufw
