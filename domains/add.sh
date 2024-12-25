@@ -365,22 +365,13 @@ virtualHost $domain_name{
     chrootMode               0
     configFile               conf/vhosts/${domain_name}.conf
 }' >> /usr/local/lsws/conf/httpd_config.conf"
-
-
-
-   
- 		if [[ $VARNISH == true ]]; then
-   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_litespeed_domain.conf"
-   		else
-			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_litespeed_domain.conf"
-  		fi
 	fi
 
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
-	su "$user" -c "docker exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1"
-	su "$user" -c "docker cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1"
+	docker --context $user exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1"
+	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
 	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
