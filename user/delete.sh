@@ -132,40 +132,10 @@ get_userid_from_db() {
 # Delete all users domains vhosts files from Nginx
 delete_vhosts_files() {
 
-    # Get all domain_names associated with the user_id from the 'domains' table
-    domain_names=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
-
-    # Disable Nginx virtual hosts, delete SSL and configuration files for each domain
-    for domain_name in $domain_names; do
-
-       if [ -d "/etc/live/letsencrypt/$domain_name" ]; then
-            echo "revoking and deleting existing Let's Encrypt certificate"
-            docker $context_flag exec certbot sh -c "certbot revoke -n --cert-name $domain_name"
-            docker $context_flag exec certbot sh -c "certbot delete -n --cert-name $domain_name"           
-        else
-            # TODO: delete paid SSLs also!
-            echo "Doman had no Let's Encrypt certificate"
-        fi
-
-        echo "Deleting files /etc/nginx/sites-available/$domain_name.conf and /etc/nginx/sites-enabled/$domain_name.conf"
+    rm -rf /etc/openpanel/openpanel/core/users/${username}/domains
+    docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
     
-        if [ -n "$node_ip_address" ]; then
-            # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
-            ssh "root@$node_ip_address" "rm /etc/nginx/sites-available/$domain_name.conf && rm /etc/nginx/sites-enabled/$domain_name.conf"
-        else
-            rm /etc/nginx/sites-available/$domain_name.conf
-            rm /etc/nginx/sites-enabled/$domain_name.conf
-        fi
-
-    done
-
-    # TODO: RUN THIS ON REMOTE SERVER!
-    
-    # Reload Nginx to apply changes
-    opencli server-recreate_hosts  > /dev/null 2>&1
-    docker $context_flag exec nginx bash -c "nginx -t && nginx -s reload"  > /dev/null 2>&1
-
-    echo "SSL Certificates, Nginx Virtual hosts and configuration files for all of user '$username' domains deleted successfully."
+    echo "Configuration and SSL certificates for all of user '$username' domains deleted successfully."
 }
 
 # Function to delete user from the database
