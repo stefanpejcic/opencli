@@ -370,7 +370,7 @@ virtualHost $domain_name{
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
-	docker --context $user exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1"
+	docker --context $user exec $container_name bash -c 'mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log' >/dev/null 2>&1
 	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
