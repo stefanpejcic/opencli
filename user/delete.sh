@@ -102,8 +102,9 @@ get_docker_context_for_user(){
 
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
-    docker $context_flag stop "$provided_username"  2>/dev/null
-    docker $context_flag rm "$provided_username"  2>/dev/null
+    cd /etc/openpanel/docker/compose/$provided_username && docker compose down $provided_username   2>/dev/null
+    #docker $context_flag stop "$provided_username"  2>/dev/null
+    #docker $context_flag rm "$provided_username"  2>/dev/null
 }
 
 
@@ -269,6 +270,7 @@ delete_all_user_files() {
 
         rm -rf /etc/openpanel/openpanel/core/stats/$username
         rm -rf /etc/openpanel/openpanel/core/users/$username
+        rm -rf /etc/openpanel/docker/compose/$username
 }
 
 
