@@ -32,7 +32,7 @@
 
 # Check if the correct number of arguments are provided
 if [ "$#" -lt 1 ]; then
-    echo "Usage: opencli domains-add <DOMAIN_NAME> [--debug]"
+    echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"
     exit 1
 fi
 
