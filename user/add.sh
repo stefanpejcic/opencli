@@ -1150,10 +1150,10 @@ send_email_to_new_user() {
 }
 
 
-reload_user_quotas() {
-	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota   
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-}
+    reload_user_quotas() {
+    	quotacheck -avm > /dev/null
+    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    }
 
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
