@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/add.sh
 # Description: Add a domain name for user.
-# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> --debug
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [DOCUMENT_ROOT] --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 11.12.2024
+# Last Modified: 26.12.2024
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
