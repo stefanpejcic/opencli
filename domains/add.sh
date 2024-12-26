@@ -421,10 +421,8 @@ create_domain_file() {
 
 	port_in_user_container=$(su "$user" -c "docker inspect -f '{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' $user")
  	localhost_and_port="127.0.0.1:$port_in_user_container"
-	#######mkdir -p /etc/openpanel/openpanel/core/users/${user}/domains/
-	#######touch /etc/openpanel/openpanel/core/users/${user}/domains/${domain_name}-block_ips.conf
 
-	# VARNISH
+ # VARNISH
  	# added in 0.2.6
 	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish" > /dev/null 2>&1; then
 	    log "Detected Varnish for user, setting Nginx to proxy requests to Varnish in user container."
