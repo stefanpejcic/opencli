@@ -424,12 +424,6 @@ create_user_and_set_quota() {
     log "Configuring disk and inodes limits for the user"
 
 
-enable_mount_quotas() {
-	sudo mount -o remount,rw /dev/vda1 > /dev/null 2>&1
-	sudo quotacheck -cug /dev/vda1 > /dev/null 2>&1
-	sudo quotacheck -m -cug /dev/vda1 > /dev/null 2>&1
-}
-
 
     if [ "$disk_limit" -ne 0 ]; then
     	storage_in_blocks=$((disk_limit * 1024000))
@@ -437,11 +431,9 @@ enable_mount_quotas() {
                     log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user on server $node_ip_address"
                     # TODO: Use a custom user or configure SSH instead of using root
                     ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /"
-		    # TODO: run enable_mount_quotas on ssh!
 
                 else
                     log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
-		    enable_mount_quotas # must be before setquota!
       		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
 	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
@@ -451,10 +443,8 @@ enable_mount_quotas() {
                     log "Setting unlimited storage and inodes for the user on server $node_ip_address"
                     # TODO: Use a custom user or configure SSH instead of using root
                     ssh "root@$node_ip_address" "setquota -u $username 0 0 0 0 /"
-		    # TODO: run enable_mount_quotas on ssh!
                 else
                     log "Setting unlimited storage and inodes for the user"
-		    enable_mount_quotas # must be before setquota!
       		    setquota -u $username 0 0 0 0 /
 	    	    repquota -u / > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
                 fi
@@ -1174,6 +1164,7 @@ docker_rootless
 docker_compose
 create_context
 run_docker                                   # run docker container
+quotacheck -avm > /dev/null 2>&1
 open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
@@ -1183,6 +1174,5 @@ create_backup_dirs_for_each_index            # added in 0.3.1 so that new users 
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
-
 # if we made it this far
 exit 0 
