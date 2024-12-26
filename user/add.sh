@@ -585,7 +585,7 @@ echo "{
 
 
 mkdir -p /home/$username/bin
-chmod 777 -R /home/
+chmod 755 -R /home/$username/ >/dev/null 2>&1
 
 
 cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
