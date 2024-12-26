@@ -397,10 +397,10 @@ rename_user_in_db() {
 }
 
 
-
-
-
-
+reload_user_quotas() {
+	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota   
+	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+}
 
 
 replace_username_in_phpfpm_configs() {
@@ -448,6 +448,7 @@ rename_docker_container                                                    # ren
 edit_nginx_files_on_host_server "$old_username" "$new_username"            # edit and reload nginx conf
 edit_firewall_ports_comments                                               # firewall ports
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
+reload_user_quotas
 change_default_email                                                       # change default email
 #TODO: rename ftp accounts suffix!
 
