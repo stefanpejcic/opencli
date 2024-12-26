@@ -620,12 +620,12 @@ add_domain() {
     local user_id="$1"
     local domain_name="$2"
     log "Adding $domain_name to the domains database"
-    local insert_query="INSERT INTO domains (user_id, domain_name, domain_url) VALUES ('$user_id', '$domain_name', '$domain_name');"
+    local insert_query="INSERT INTO domains (user_id, docroot, domain_url) VALUES ('$user_id', '$docroot', '$domain_name');"
     mysql -e "$insert_query"
     result=$(mysql -se "$query")
 
     # Verify if the domain was added successfully
-    local verify_query="SELECT COUNT(*) FROM domains WHERE user_id = '$user_id' AND domain_name = '$domain_name' AND domain_url = '$domain_name';"
+    local verify_query="SELECT COUNT(*) FROM domains WHERE user_id = '$user_id' AND docroot = '$docroot' AND domain_url = '$domain_name';"
     local result=$(mysql -N -e "$verify_query")
 
     if [ "$result" -eq 1 ]; then
