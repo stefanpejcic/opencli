@@ -456,7 +456,8 @@ create_user_and_set_quota() {
     else
         log "Creating directories for the user"
         mkdir -p /home/$username
-        chown $username:33 /home/$username
+	mkdir -p /home/$username/files
+        chown $username:33 /home/$username/files
         chmod 755 /home/$username
         chmod g+s /home/$username
     fi
@@ -1017,7 +1018,7 @@ set_ssh_user_password_inside_container() {
     if [ "$user_id" -eq 1000 ] && [ -n "$uid_1000_user" ]; then
         log "User has UID of 1000 and same id user exists in the container: $uid_1000_user"
         log "Renaming user $uid_1000_user inside contianer to $username and setting its password..."  
-	su $username -c "docker $context_flag exec $username usermod -l $username -d /home/$username -m $uid_1000_user > /dev/null 2>&1"
+	su $username -c "docker $context_flag exec $username usermod -l $username -d /home/$username/files -m $uid_1000_user > /dev/null 2>&1"
       echo "$username:$password" | su $username -c "docker $context_flag exec -i $username chpasswd"
       su $username -c "docker $context_flag exec $username usermod -aG www-data $username"
       #############su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username"
@@ -1032,6 +1033,7 @@ set_ssh_user_password_inside_container() {
 	su $username -c "docker $context_flag exec $username chmod -R g+w /home/$username > /dev/null 2>&1"
 	log "SSH user $username created with UID: $user_id and password: $password"
     fi
+    
 }
 
 
