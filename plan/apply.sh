@@ -287,22 +287,6 @@ do
     fi
 done
 
-echo "Starting again all services that were active before edit"
-docker compose up -d $services
-
-echo ""
-echo "+=============================================================================+"
-echo ""
-echo "COMPLETED!"
-
-
-if [ "$debug" = true ]; then
-    #regenerate /etc/hosts
-    opencli server-recreate_hosts && docker exec nginx nginx -s reload
-else
-    opencli server-recreate_hosts > /dev/null
-    docker exec nginx nginx -s reload > /dev/null
-fi
 
 #cleanup
 find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; > /dev/null
