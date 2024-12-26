@@ -127,6 +127,11 @@ get_userid_from_db() {
 }
 
 
+reload_user_quotas() {
+	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota   
+	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+}
+
 # TODO: delete on remote nginx server!
 
 # Delete all users domains vhosts files from Nginx
@@ -224,8 +229,8 @@ edit_firewall_rules(){
 
 delete_all_user_files() {
             rm -rf /home/$username > /dev/null 2>&1
-            killall -u $username > /dev/null 2>&1
-            deluser --remove-home $username > /dev/null 2>&1
+            killall -u $username -9  > /dev/null 2>&1
+            deluser --remove-home $username  > /dev/null 2>&1
             rm -rf /etc/openpanel/openpanel/core/stats/$username
             rm -rf /etc/openpanel/openpanel/core/users/$username
             rm -rf /etc/openpanel/docker/compose/$username
@@ -264,7 +269,8 @@ delete_user() {
     delete_ftp_users $provided_username
     delete_user_from_database                # delete user from database
     delete_all_user_files                    # permanently delete data
-    delete_context                        
+    delete_context  
+    reload_user_quotas
     echo "User $username deleted."           # if we made it
 }
 
