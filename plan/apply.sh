@@ -126,7 +126,7 @@ get_current_plan_id() {
 # Function to fetch plan limits for a given plan ID smece format
 get_plan_limits() {
     local plan_id="$1"
-    local query="SELECT cpu, ram, docker_image, storage_file, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
+    local query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 }
 
