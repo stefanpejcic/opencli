@@ -127,10 +127,10 @@ get_userid_from_db() {
 }
 
 
-reload_user_quotas() {
-	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota   
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-}
+    reload_user_quotas() {
+    	quotacheck -avm > /dev/null
+    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    }
 
 # TODO: delete on remote nginx server!
 
