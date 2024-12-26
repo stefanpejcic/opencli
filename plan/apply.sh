@@ -111,8 +111,16 @@ fi
 # Function to fetch the current plan ID for the container
 get_current_plan_id() {
     local container="$1"
-    local query="SELECT plan_id FROM users WHERE username = '$container'"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
+    local query="SELECT plan_id, server FROM users WHERE username = '$container'"
+    local result
+    result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query")
+
+    # Extract plan_id and server from the result
+    current_plan_id=$(echo "$result" | awk '{print $1}')
+    server=$(echo "$result" | awk '{print $2}')
+    if [[ -z "$server" || "$server" == "default" ]]; then
+        server="$container"
+    fi
 }
 
 # Function to fetch plan limits for a given plan ID smece format
@@ -140,39 +148,7 @@ get_plan_name() {
 }
 
 ## Function to create a Docker network with bandwidth limiting
-create_docker_network() {
 
-local name="$1"
-local bandwidth="$2"
-  for ((i = 18; i < 255; i++)); do
-    subnet="172.$i.0.0/16"
-    gateway="172.$i.0.1"
-
-    # Check if the subnet is already in use
-    used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
-      docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
-    done)
-
-    if [[ $used_subnets =~ $subnet ]]; then
-      continue  # Skip if the subnet is already in use
-    fi
-    # Create the Docker network
-    docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
-
-    # Extract the network interface name for the gateway IP
-    gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
-
-    # Limit the gateway bandwidth
-    sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
-
-    found_subnet=1  # Set the flag to indicate success
-    break
-  done
-  if [ $found_subnet -eq 0 ]; then
-    echo "No available subnet found. Exiting."
-    exit 1  # Exit with an error code
-  fi
-}
 
 
 totalc="${#usernames[@]}"
@@ -188,7 +164,7 @@ do
     echo "Processing user: $container_name (${counter}/${totalc})"
     echo ""
     # Fetch current plan ID for the container
-    current_plan_id=$(get_current_plan_id "$container_name")
+    get_current_plan_id "$container_name"
     current_plan_name=$(get_plan_name "$current_plan_id")
     new_plan_name=$(get_plan_name "$new_plan_id")
 
@@ -199,7 +175,7 @@ do
     fi
 
 
-    if docker inspect "$container_name" >/dev/null 2>&1; then
+    if docker --context $server inspect "$container_name" >/dev/null 2>&1; then
         if $debug; then
             echo "DEBUG: Container $container_name exists!"
         fi
@@ -238,29 +214,24 @@ do
     Oram=$(get_plan_limit "$current_plan_id" "ram")
     
     Ndocker_image=$(get_plan_limit "$new_plan_id" "docker_image")
-    Odocker_image=$(docker inspect $container_name | grep '"Image":' | grep -v 'sha' | awk -F '"' '{print $4}')
-    Ndisk_limit=$(get_plan_limit "$new_plan_id" "storage_file")
-    Odisk_limit=$(get_plan_limit "$current_plan_id" "storage_file")
+    Odocker_image=$(docker --context $server inspect $container_name | grep '"Image":' | grep -v 'sha' | awk -F '"' '{print $4}')
+    Ndisk_limit=$(get_plan_limit "$new_plan_id" "disk_limit")
     Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
-    Oinodes_limit=$(get_plan_limit "$current_plan_id" "inodes_limit")
     #ne zanima me band
-    Nbandwidth=$(get_plan_limit "$new_plan_id" "bandwidth")
-    Obandwidth=$(get_plan_limit "$current_plan_id" "bandwidth")
 
     #Serverski limiti za provere
-    free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
     maxCPU=$(nproc)
     maxRAM=$(free -g | awk '/^Mem/ {print $2}')
     numOram=$(echo "$Oram" | tr -d 'g')
     numNram=$(echo "$Nram" | tr -d 'g')
-    numOdisk=$(echo "$Odisk_limit" | awk '{print $1}')
     numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
+    storage_in_blocks=$((numNdisk * 1024000))
 
-        #if $debug; then
-        #echo "          cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth"
-        #echo "Old plan: $Ocpu , $Oram, $Odocker_image, $Odisk_limit, $Oinodes_limit, $Obandwith"
-        #echo "New plan: $Ncpu , $Nram, $Ndocker_image, $Ndisk_limit, $Ninodes_limit, $Nbandwith"
-        #fi
+    reload_user_quotas() {
+    	quotacheck -avm > /dev/null
+    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    }
+
 
         if $debug; then
             if [[ "$Ndocker_image" != "$Odocker_image" ]]; then
@@ -276,7 +247,7 @@ do
         if (( $numNram > $maxRAM )); then
             echo "Error: New RAM value exceeds the server limit, not enough physical memory - $numNram > $maxRam."
         else
-            docker update --memory="$Nram" --memory-swap="$Nram" "$container_name" > /dev/null
+            docker --context $server update --memory="$Nram" --memory-swap="$Nram" "$container_name" > /dev/null
             echo "RAM limit set to ${numNram}GB."
             echo ""
         fi
@@ -286,7 +257,7 @@ do
         if (( $Ncpu > $maxCPU )); then
             echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
         else
-            docker update --cpus="$Ncpu" "$container_name" > /dev/null
+            docker --context $server update --cpus="$Ncpu" "$container_name" > /dev/null
             echo "CPU limit set to $Ncpu cores."
             echo ""
         fi
@@ -296,207 +267,24 @@ do
     ####### DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK #######
     ####################################################################################################################################################################################
     if [ "$partial" != "true" ] || [ "$dodsk" = "true" ]; then
+        setquota -u $username $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /
+        reload_user_quotas
+        
 
-        if (($numNdisk>0)); then
-            nMounted=true
-        else
-            nMounted=false
-        fi
-
-        oMounted=true
-        if df -BG | grep -q "/home/$container_name"; then
-            # Directory is mounted
-            curSize=$(df -BG | grep "/home/$container_name" | awk 'NR==1 {print $3}' | sed 's/G//')
-                if $debug; then
-                    echo "storage file IS currently mounted, current size: ${curSize}G"
-                fi
-        else
-            # Directory is not mounted
-            curSize=$(du -sBG "/home/$container_name" | awk '{print $1}' | sed 's/G//')
-                if $debug; then
-                    echo "storage file IS NOT currently mounted, current size: ${curSize}G" 
-                fi
-            oMounted=false
-        fi
-
-        addSize=0
-        addInodes=0
-        if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then    
-            if $debug; then 
-                echo "BOTH MOUNTED"
-                echo "numNdisk = $numNdisk"
-                echo "numOdisk = $numOdisk"
-            fi
-
-            addSize=$((numNdisk - numOdisk))
-            addInodes=$((Ninodes_limit - Oinodes_limit))
-            
-        else
-            if $debug; then 
-                echo "oMounted = $oMounted"
-                echo "nMounted = $nMounted"
-                echo "debug = $debug"
-                echo "addSize = $addSize"
-                echo "addInodes = $addInodes"
-            else
-            :
-            fi
-        fi
-
-        #if $debug; then 
-        #    echo "New plan Disk limit - Old plan Disk limit = $addSize (set to 0 if new or old plan is unlimited)" 
-        #fi
-
-        #curInode=$(find /home/$container_name/. | wc -l)
-
-        noDiskSpace=false
-        if (( $numNdisk > $free_space )); then
-            echo "Error: Insufficient space on disk for storage file, no changes to disk limit were made, Available: ${free_space}GB - Required: $Ndisk_limit."
-            noDiskSpace=true
-        fi
-
-    #   if (( $curSize > $numNdisk && $numNdisk!=0 )); then
-    #        echo "Error: Current size on disk exceeds the limits of the new plan - $curSize > $numNdisk."
-    #   fi
-
-    #   if (( $curInode > $Ninodes_limit )); then
-    #        echo "Error: Current inode usage exceeds the limits of the new plan - $curInode > $Ninodes_limit."
-    #   fi
-
-        #if (( $addInodes < 0 && $numNdisk!=0 )); then
-        #    echo "Error: Storage downgrades are not possible."
-        #fi
-
-        if $debug; then
-            echo "Difference in disk_limit: $Odisk_limit to $Ndisk_limit"
-            #echo "Difference in inodes_limit: $Oinodes_limit to $Ninodes_limit"
-            echo "New limits must be larger than or equal to old limits."
-        fi
-
-                        ###DEO KOJI ZAPRAVO RADI NESTO###
-        if [ "$oMounted" = "true" ] && [ "$nMounted" = "true" ]; then
-
-            if (( $addSize > 0 || $addInodes > 0 )) && [ "$noDiskSpace" = false ]; then
-
-                echo "Stopping container $container_name"
-                docker stop $container_name
-                if mount | grep "/home/$container_name" > /dev/null; then
-                    umount /home/$container_name
-                fi
-
-                echo "Stopping active services that use the /home/$container_name directory"
-                cd /root
-                compose_services=$(docker compose ps --services)
-                docker compose down > /dev/null 2>&1
-
-                #echo "falokejt parametar ${numNdisk}g"
-                fallocate -l ${numNdisk}g /home/storage_file_$container_name
-
-                #fix+resize FSystem
-                e2fsck -f -y /home/storage_file_$container_name  > /dev/null
-                resize2fs /home/storage_file_$container_name
-                mount -o loop /home/storage_file_$container_name /home/$container_name
-                echo "Starting container $container_name"
-                docker start $container_name
-
-                echo "Disk limit changed from ${numOdisk}GB to ${numNdisk}GB"
-
-
-                echo "Starting again all services that were active before editing disk limit"
-                if [[ "$compose_services" == *"nginx"* ]]; then
-                    bash /usr/local/admin/scripts/server/recreate_hosts
-                fi
-                docker compose up -d $compose_services > /dev/null 2>&1
-
-                if (( $addInodes > 0 )); then
-                    #mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name
-                    echo "Warning: Increasing Inode limit is not possible, old plan limit remains"
-                fi
-
-            elif (($addSize < 0)); then
-                echo "Warning: No change was made to the disk limit, new plan limit is more restrictive which is not allowed"
-            else
-                echo "No change was made to the disk limit, new plan limit is the same as old limit."
-            fi
-
-        elif [ "$oMounted" = "true" ] && [ "$nMounted" != "true" ]; then
-
-            echo "Warning: disk size limit can't be set to unlimited after filesystem creation, original plan limit remains."
-                #umount /home/$container_name
-                #rm /home/storage_file_$container_name
-
-        elif [ "$oMounted" != "true" ] && [ "$nMounted" = "true" ]; then
-            echo "Warning: disk usage cannot be limited after user was created on an unlimited plan, disk usage remains unlimited."
-            #if [ "$free_space" -le "$numNdisk" ]; then
-            #    echo "Error: Not enough free space on disk for storage file creation, no limit enforced on container, switch to a smaller plan or free up disk space."
-            #else
-                #docker stop $container_name
-                #fallocate -l ${numNdisk}g /home/storage_file_$container_name 
-                #mkfs.ext4 -N $Ninodes_limit /home/storage_file_$container_name 
-                #mount -o loop /home/storage_file_$container_name /home/$container_name
-                #docker start $container_name
-                #if $debug; then
-                #    echo "Container disk usage now limited to ${numNdisk}G"
-                #fi
-            #fi
-        else
-            echo "No change in disk, both new and original plan are unlimited."
-        fi
+        
+        
     fi
-    ##echo "Difference in bandwidth: $Obandwidth to $Nbandwidth"
 
     ################################################################################################################################################################################
     # NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI #            
     ################################################################################################################################################################################
 
-    # Remove the current Docker network from the container
-    #docker network disconnect "$current_plan_name" "$container_name"
-    #novi catch all networks
     if [ "$partial" != "true" ] || [ "$donet" = "true" ]; then
-            NETWORKS=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.NetworkID}} {{end}}' "$container_name")
-            conngood=false
-            # Loop through each network and disconnect the container
-            for network in $NETWORKS; do
-                if [ "$network" != "$new_plan_name" ]; then
-                    #ovaj check ne radi jer NETWORKS nisu plain text pa ce ga uvek iskljuciti sa mreze iako je vec na pravoj
-                    docker network disconnect "$network" "$container_name"
-                    echo "container disconnected from network: ('$network')"
-                else
-                    conngood=true
-                fi
-            done
-
-        if [ "$conngood" = "true" ]; then
-            #ovo ne radi jer NETWORKS nisu plain text uvek ide u else
-            echo "container already connected to network: ('$new_plan_name')"
-        else
-            # Check if DEBUG is true and the Docker network exists
-            if docker network inspect "$new_plan_name" >/dev/null 2>&1; then
-            
-                if $debug; then
-                    echo "DEBUG: Docker network '$new_plan_name' already exists, attempting to connect container..."
-                fi
-                    docker network connect "$new_plan_name" "$container_name"
-                    echo " Container $container_name successfully connected to network '$new_plan_name'."   
-            else
-                # Docker network does not exist, we need to create it..
-                echo "Docker network '"$new_plan_name"' does not exist. Creating..."
-                create_docker_network ""$new_plan_name"" "$Nbandwidth"
-                echo "connecting container to network '"$new_plan_name"'..."
-                docker network connect "$new_plan_name" "$container_name"
-            fi
-        fi
+        #sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+        :
 
 
-
-            # Compare limits and list the differences
-            #diff_output=$(diff -u <(echo "$current_plan_limits") <(echo "$new_plan_limits"))
-    echo ""
     fi
-    #Menja ID
-    #query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
-    #mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
-    #echo "Finished applying new values for container $container_name ($counter/$totalc)"
 done
 
 echo "Starting again all services that were active before edit"
@@ -506,13 +294,6 @@ echo ""
 echo "+=============================================================================+"
 echo ""
 echo "COMPLETED!"
-
-if [ "$debug" = true ]; then
-    echo "DEBUG: Deleting unused docker networks"
-    docker network prune -f
-else
-    docker network prune -f >/dev/null 2>&1
-fi
 
 
 if [ "$debug" = true ]; then
