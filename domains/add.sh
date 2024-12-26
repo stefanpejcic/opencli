@@ -47,8 +47,14 @@ if ! [[ "$domain_name" =~ ^(xn--[a-z0-9-]+\.[a-z0-9-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{
 fi
 
 debug_mode=false
+docroot=""
 if [[ "$3" == "--debug" ]]; then
     debug_mode=true
+    if [[ -n "$4" ]]; then
+        docroot="$4"
+    fi
+elif [[ "$3" == "--docroot" && -n "$4" ]]; then
+    docroot="$4"
 fi
 
 
@@ -59,8 +65,17 @@ log() {
     fi
 }
 
+if [[ -n "$docroot" && ! "$docroot" =~ ^/home/$user/files/ ]]; then
+    echo "FATAL ERROR: Invalid docroot. It must start with /home/$user/files/"
+    exit 1
+fi
 
-
+if [[ -n "$docroot" ]]; then
+    log "Using document root: $docroot"
+else
+    docroot="/home/$user/files/$domain_name"
+    log "No document root specified, using /home/$user/files/$domain_name"
+fi
 
 # added in 0.3.8 so user can not add the server hostname and take over server!
 compare_with_force_domain() {
@@ -224,10 +239,10 @@ clear_cache_for_user() {
 
 
 make_folder() {
-	log "Creating document root directory /home/$user/$domain_name"
-	mkdir -p /home/$user/$domain_name
-	docker --context $context exec $container_name bash -c 'chown $user:33 /home/$user/$domain_name'
-	chmod -R g+w /home/$user/$domain_name
+	log "Creating document root directory $docroot"
+	docker --context $context exec $container_name bash -c 'mkdir -p $docroot'
+	docker --context $context exec $container_name bash -c 'chown $user:33 $docroot'
+	docker --context $context exec $container_name bash -c 'chmod -R g+w $docroot' #maybe back
 }
 
 
@@ -286,11 +301,10 @@ get_webserver_for_user(){
 
 add_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
- 	local domain_path="/home/$user/$domain_name"
 	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
  	if [ -f $domains_list ]; then
-      		log "ClamAV Upload Scanner is enabled - Adding $domain_path for monitoring"
-		echo "$domain_path" >> "$domains_list"
+      		log "ClamAV Upload Scanner is enabled - Adding $docroot for monitoring"
+		echo "$docroot" >> "$domains_list"
 		# not needed since we also watch the domains list file for changes! 
   		#service clamav_monitor restart > /dev/null 2>&1
  	fi
@@ -356,7 +370,7 @@ restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled
 
 docker --context $context exec $container_name bash -c "echo '
 virtualHost $domain_name{
-    vhRoot                   /home/${username}/${domain_name}/
+    vhRoot                   ${docroot}/
     allowSymbolLink          1
     enableScript             1
     restrained               1
@@ -383,7 +397,7 @@ virtualHost $domain_name{
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
 	    -e 's|<PHP>|php${php_version}|g' \
-	    -e 's|<DOCUMENT_ROOT>|/home/$user/$domain_name|g' \
+	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
 	\""
 }
