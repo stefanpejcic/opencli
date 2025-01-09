@@ -1010,8 +1010,9 @@ set_ssh_user_password_inside_container() {
     fi
     
     # Hash password
-    hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
-    
+    venv_path="/usr/local/admin/venv"
+    hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+
     uid_1000_user=$(su $username -c "docker $context_flag exec $username getent passwd 1000 | cut -d: -f1")
     
     # todo if 1000, skip!
