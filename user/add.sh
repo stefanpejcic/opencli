@@ -1065,7 +1065,7 @@ copy_skeleton_files() {
       default_php_version="php8.2"
     fi
 
-
+	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
         echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
         echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
