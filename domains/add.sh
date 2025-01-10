@@ -404,7 +404,7 @@ virtualHost $domain_name{
 	"
 
 
-       docker --context $user exec $container_name $restart_in_container_command > /dev/null 2>&1
+       docker --context $user exec $container_name bash -c "$restart_in_container_command" > /dev/null 2>&1
  
 }
 
