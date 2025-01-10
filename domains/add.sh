@@ -402,6 +402,10 @@ virtualHost $domain_name{
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
 	"
+
+
+       docker --context $user exec $container_name $restart_in_container_command > /dev/null 2>&1
+ 
 }
 
 
