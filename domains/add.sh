@@ -392,14 +392,14 @@ virtualHost $domain_name{
 	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
 	
 	# Execute the sed command inside the Docker container
-	su "$user" -c "docker exec $container_name /bin/bash -c \"
+	docker --context $user exec $container_name bash -c \"
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
 	    -e 's|<PHP>|php${php_version}|g' \
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
-	\""
+	\"
 }
 
 
