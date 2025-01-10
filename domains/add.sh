@@ -385,21 +385,23 @@ virtualHost $domain_name{
 	log "Creating $vhost_in_docker_file"
 	logs_dir="/var/log/$ws/domlogs"
 	
-	docker --context $user exec $container_name bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log" >/dev/null 2>&1
-	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file >/dev/null 2>&1
+	docker --context $user exec $container_name bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log" > /dev/null 2>&1
+	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file > /dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
 	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
-	
-	# Execute the sed command inside the Docker container
-	docker --context $user exec $container_name bash -c \"
+
+
+ 	docker --context $user exec $container_name touch $vhost_in_docker_file > /dev/null 2>&1 # to be removed!
+
+	docker --context "$user" exec "$container_name" bash -c "
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
 	    -e 's|<PHP>|php${php_version}|g' \
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
-	\"
+	"
 }
 
 
