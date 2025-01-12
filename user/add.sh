@@ -1105,7 +1105,8 @@ start_panel_service() {
 
 create_context() {
 	docker context create $username \
-	  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock"
+	  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock" \
+   	  --description "$username"
 }
 
 save_user_to_db() {
