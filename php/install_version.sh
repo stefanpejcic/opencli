@@ -75,6 +75,23 @@ default_extensions=(
 )
 
 
+
+
+get_context_for_user() {
+
+     source /usr/local/admin/scripts/db.sh
+     
+        username_query="SELECT server FROM users WHERE username = '$username'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$username
+        fi
+}
+
+
+
+
+
 extensions_file="/etc/openpanel/php/extensions.txt"
 
 if [[ -f "$extensions_file" ]]; then
@@ -92,8 +109,15 @@ done
 
 echo "## Started installation for PHP version $php_version"
 
+get_context_for_user
+
+
+
+
+
+
 # Check if php version already installed
-if docker exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php${php_version}-fpm\""; then
+if docker --context $context exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php${php_version}-fpm\""; then
   echo "## ERROR: PHP $php_version is already installed."
   if [[ -f "$extensions_file" ]]; then
     echo "## Setting php extensions specified from the $extensions_file file.."
@@ -103,7 +127,7 @@ if docker exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php${php_versi
 else
   echo "## PHP $php_version is not installed, starting installation.."  
   install_php() {
-    docker exec "$container_name" bash -c "
+    docker --context $context exec "$container_name" bash -c "
       apt-get update && 
       apt --fix-broken install && 
       dpkg --configure -a && 
@@ -116,7 +140,7 @@ else
   count=0
   while [ $count -lt $retries ]; do
     # Check if `apt-get` is currently running and wait if necessary
-    if ! docker exec "$container_name" bash -c "fuser /var/lib/apt/lists/lock >/dev/null 2>&1"; then
+    if ! docker --context $context exec "$container_name" bash -c "fuser /var/lib/apt/lists/lock >/dev/null 2>&1"; then
       install_php
       if [ $? -eq 0 ]; then
         break
@@ -142,7 +166,7 @@ else
 
 
   # Check if actually installed
-  if docker exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php$php_version\""; then
+  if docker --context $context exec "$container_name" bash -c "dpkg -l | grep -q \"ii  php$php_version\""; then
     # Proceed to extensions..
     echo "## PHP version $php_version is now installed, setting default PHP extensions.."
   else
@@ -153,7 +177,7 @@ fi
 
 
 # uodate just once, then start extensions
-docker exec "$container_name" bash -c "apt-get update"
+docker --context $context exec "$container_name" bash -c "apt-get update"
 
 
 # Output the resulting list (for debugging purposes)
@@ -162,11 +186,11 @@ echo "extensions that will be installed: ${extensions_to_install[@]}"
 
 # Install php extensions
 for extension in "${extensions_to_install[@]}"; do
-  if docker exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
+  if docker --context $context exec "$container_name" dpkg -l | grep -q "ii  $extension"; then
     echo "## $extension is already installed."
   else
     # Install the extension
-    docker exec "$container_name" bash -c "apt-get install -y $extension"
+    docker --context $context exec "$container_name" bash -c "apt-get install -y $extension"
     echo "## PHP extension $extension is now successfully installed."
   fi
 done
@@ -204,9 +228,9 @@ if [[ -f "$ini_file" ]]; then
 
         # Execute the sed command in the Docker container
         ###echo "$key = $value"
-        docker exec "$container_name" bash -c "$sed_command /etc/php/$php_version/cli/php.ini"
+        docker --context $context exec "$container_name" bash -c "$sed_command /etc/php/$php_version/cli/php.ini"
         wait $!
-        docker exec "$container_name" bash -c "$sed_command /etc/php/$php_version/fpm/php.ini"
+        docker --context $context exec "$container_name" bash -c "$sed_command /etc/php/$php_version/fpm/php.ini"
         wait $!
     done < "$ini_file"
     echo "Finished setting limits."
@@ -218,44 +242,44 @@ else
     echo "sendmail_path = '/usr/bin/msmtp -t'"
     echo "max_execution_time = 600"
     
-    docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/fpm/php.ini"
      wait $!
-    docker exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/cli/php.ini"
-     wait $!
-
-     
-    docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
-     wait $!
-    docker exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/cli/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 1024M/' /etc/php/$php_version/cli/php.ini"
      wait $!
 
      
-    docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/fpm/php.ini"
      wait $!
-    docker exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
-     wait $!
-
-     
-    docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
-     wait $!
-    docker exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/cli/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^opcache.enable=.*/opcache.enable=1/' /etc/php/$php_version/cli/php.ini"
      wait $!
 
      
-    docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/fpm/php.ini"
      wait $!
-    docker exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^max_input_time = .*/max_input_time = 600/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^memory_limit = .*/memory_limit = -1/' /etc/php/$php_version/cli/php.ini"
+     wait $!
+
+     
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/fpm/php.ini"
+     wait $!
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^post_max_size = .*/post_max_size = 1024M/' /etc/php/$php_version/cli/php.ini"
      wait $!
 
      
      
-    docker exec "$container_name" sh -c "sed -i 's|^;sendmail_path = .*|sendmail_path = /usr/bin/msmtp -t|' /etc/php/$php_version/fpm/php.ini"
+    docker --context $context exec "$container_name" sh -c "sed -i 's|^;sendmail_path = .*|sendmail_path = /usr/bin/msmtp -t|' /etc/php/$php_version/fpm/php.ini"
      wait $!
-    docker exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/cli/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's|^;sendmail_path = .*|sendmail_path = "/usr/bin/msmtp -t"|' /etc/php/$php_version/cli/php.ini"
      wait $!
      
-    docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
-    docker exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/fpm/php.ini"
+    docker --context $context exec "$container_name" bash -c "sed -i 's/^max_execution_time = .*/max_execution_time = 600/' /etc/php/$php_version/cli/php.ini"
 
     echo "Finished setting limits."
 
@@ -268,11 +292,11 @@ fi
 
 
 echo "## Setting service for PHP $php_version"
-docker exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
+docker --context $context exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
 wait $!
 echo "## Starting installed PHP versions.."
-docker exec $container_name bash -c "service php${php_version}-fpm restart"
+docker --context $context exec $container_name bash -c "service php${php_version}-fpm restart"
 
-# STARTS ALL VERSIONS #docker exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
+# STARTS ALL VERSIONS #docker --context $context exec $container_name bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
 
 echo "## PHP version $php_version is successfully installed."
