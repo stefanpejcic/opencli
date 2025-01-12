@@ -91,8 +91,8 @@ fi
 
 get_available_php_versions() {
 # Run the command to fetch PHP versions and store them in a JSON file
-if docker exec "$username" apt-get update > /dev/null 2>&1 && \
-    available_versions=$(docker exec "$username" bash -c "apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print \$1}' | grep -vFf <(dpkg -l | awk '/^ii/ {print \$2}')"
+if docker --context $context exec "$username" apt-get update > /dev/null 2>&1 && \
+    available_versions=$(docker --context $context exec "$username" bash -c "apt-cache search php-fpm | grep -v '^php-fpm' | awk '{print \$1}' | grep -vFf <(dpkg -l | awk '/^ii/ {print \$2}')"
     ); then
 
     # Format the versions into JSON
@@ -129,5 +129,18 @@ else
     exit 1
 fi
 }
+
+get_context_for_user() {
+
+     source /usr/local/admin/scripts/db.sh
+     
+        username_query="SELECT server FROM users WHERE id = '$user_id'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$username
+        fi
+}
+
 ensure_jq_installed
+get_context_for_user
 get_available_php_versions
