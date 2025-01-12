@@ -134,7 +134,7 @@ get_context_for_user() {
 
      source /usr/local/admin/scripts/db.sh
      
-        username_query="SELECT server FROM users WHERE id = '$user_id'"
+        username_query="SELECT server FROM users WHERE username = '$username'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then
             context=$username
