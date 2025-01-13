@@ -240,9 +240,9 @@ clear_cache_for_user() {
 
 make_folder() {
 	log "Creating document root directory $docroot"
-	docker --context $context exec $container_name bash -c 'mkdir -p $docroot'
-	docker --context $context exec $container_name bash -c 'chown $user:33 $docroot'
-	docker --context $context exec $container_name bash -c 'chmod -R g+w $docroot' #maybe back
+	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
+	docker --context $context exec $container_name bash -c "chown $user:33 $docroot"
+	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
 }
 
 
