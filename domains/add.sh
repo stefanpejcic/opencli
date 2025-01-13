@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/add.sh
 # Description: Add a domain name for user.
-# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [DOCUMENT_ROOT] --debug
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 26.12.2024
+# Last Modified: 13.01.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -48,14 +48,27 @@ fi
 
 debug_mode=false
 docroot=""
-if [[ "$3" == "--debug" ]]; then
-    debug_mode=true
-    if [[ -n "$4" ]]; then
-        docroot="$4"
-    fi
-elif [[ "$3" == "--docroot" && -n "$4" ]]; then
-    docroot="$4"
-fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --debug)
+            debug_mode=true
+            shift
+            ;;
+        --docroot)
+            if [[ -n "$2" ]]; then
+                docroot="$2"
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --docroot"
+                exit 1
+            fi
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 
 # used for flask route to show progress..
