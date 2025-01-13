@@ -42,7 +42,7 @@ get_domain_owner() {
     fi
     
     # Query to fetch the user_id for the specified domain
-    user_id_query="SELECT user_id FROM domains WHERE domain_name = '$domain'"
+    user_id_query="SELECT user_id FROM domains WHERE domain_url = '$domain'"
     
     # Execute the query and fetch the user_id
     user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$user_id_query" -sN)
