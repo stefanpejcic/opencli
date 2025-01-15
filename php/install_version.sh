@@ -69,14 +69,12 @@ default_extensions=(
 )
 
 
-
-
 get_context_for_user() {
      source /usr/local/admin/scripts/db.sh
-        username_query="SELECT server FROM users WHERE username = '$username'"
+        username_query="SELECT server FROM users WHERE username = '$container_name'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then
-            context=$username
+            context=$container_name
         fi
 }
 
