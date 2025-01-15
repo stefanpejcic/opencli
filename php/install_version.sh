@@ -38,12 +38,6 @@ fi
 container_name="$1"
 php_version="$2"
 
-# Check if the Docker container with the given name exists
-if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
-  echo "Error: Docker container with the name '$container_name' does not exist."
-  exit 1
-fi
-
 # Define the default extensions
 default_extensions=(
   fpm
@@ -78,9 +72,7 @@ default_extensions=(
 
 
 get_context_for_user() {
-
      source /usr/local/admin/scripts/db.sh
-     
         username_query="SELECT server FROM users WHERE username = '$username'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then
@@ -90,6 +82,12 @@ get_context_for_user() {
 
 
 
+make_sure_container_exists() {
+  if ! docker --context $context ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
+    echo "Error: Docker container with the name '$container_name' does not exist."
+    exit 1
+  fi
+}
 
 
 extensions_file="/etc/openpanel/php/extensions.txt"
@@ -110,7 +108,7 @@ done
 echo "## Started installation for PHP version $php_version"
 
 get_context_for_user
-
+make_sure_container_exists
 
 
 
