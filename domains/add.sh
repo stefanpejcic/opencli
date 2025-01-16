@@ -366,7 +366,7 @@ restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
    		else
-			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_apache_domain.conf"
+			vhost_docker_template="/etc/openpanel/nginx/vhosts/1.0/docker_apache_domain.conf"
   		fi      
 	elif [[ $ws == *nginx* ]]; then
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
@@ -375,7 +375,7 @@ restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled
  		if [[ $VARNISH == true ]]; then
    			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
    		else
-			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_nginx_domain.conf"
+			vhost_docker_template="/etc/openpanel/nginx/vhosts/1.0/docker_nginx_domain.conf"
   		fi
 	elif [[ $ws == *litespeed* ]]; then
  restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
