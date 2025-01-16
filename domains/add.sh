@@ -496,20 +496,18 @@ create_domain_file() {
 
      # todo: include only if dedi ip in caddy file!
 
-mkdir -p /etc/openpanel/openpanel/core/users/$user/
+mkdir -p /etc/openpanel/caddy/domains/
 
-domains_file="/etc/openpanel/openpanel/core/users/$user/domains"
-backup_file="/tmp/${user}_domains.bak"
+domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
+backup_file="/tmp/${domain_name}.bak"
 touch $domains_file
 
 cp $domains_file $backup_file
 
 # then appped
 echo "$domain_name, *.$domain_name {
-    reverse_proxy $localhost_and_port
-    tls {
-        on_demand
-    }
+reverse_proxy $localhost_and_port
+tls { on_demand }
 }" >> $domains_file
 
 # Function to validate and reload Caddy service
