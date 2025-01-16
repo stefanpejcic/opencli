@@ -507,7 +507,9 @@ cp $domains_file $backup_file
 # then appped
 echo "$domain_name, *.$domain_name {
 reverse_proxy $localhost_and_port
-tls { on_demand }
+	tls {
+		on_demand
+	}
 }" >> $domains_file
 
 # Function to validate and reload Caddy service
