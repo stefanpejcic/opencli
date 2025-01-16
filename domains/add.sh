@@ -452,8 +452,30 @@ create_domain_file() {
 	
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
 
-	port_in_user_container=$(su "$user" -c "docker inspect -f '{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' $user")
- 	localhost_and_port="127.0.0.1:$port_in_user_container"
+	get_port_for_80() {
+	    local username="$1"
+	    local env_file="/etc/openpanel/docker/compose/${username}/.env"
+	
+	    # Check if the file exists
+	    if [[ ! -f "$env_file" ]]; then
+	        echo "Error: .env file not found for user $username"
+	        return 1
+	    fi
+	
+	    # Extract the port mapping for :80
+	    local port_mapping
+	    port_mapping=$(grep -oP 'port_\d+="\K[0-9]+(?=:80")' "$env_file")
+	
+	    if [[ -n "$port_mapping" ]]; then
+	        echo "$port_mapping"
+	    else
+	        echo "Error: No port mapping found for :80"
+	        return 1
+	    fi
+	}
+
+	port=$(get_port_for_80 "$user")
+ 	localhost_and_port="127.0.0.1:$port"
 
  # VARNISH
  	# added in 0.2.6
