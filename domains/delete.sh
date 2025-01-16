@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: domains/add.sh
-# Description: Add a domain name for user.
+# Script Name: domains/delete.sh
+# Description: Delete a domain name.
 # Usage: opencli domains-delete <DOMAIN_NAME> --debug
 # Author: Stefan Pejcic
 # Created: 07.11.2024
-# Last Modified: 07.11.2024
+# Last Modified: 16.01.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -138,7 +138,6 @@ check_and_add_to_enabled() {
     else
         # If validation fails, revert the domains file and return an error
         echo "Validation failed, reverting changes."
-        cp "$backup_file" "$domains_file"
         return 1
     fi
 }
@@ -149,12 +148,8 @@ delete_domain_file() {
   log "Removing domain from the proxy"
  
 	mkdir -p /etc/openpanel/openpanel/core/users/$user/
-	domains_file="/etc/openpanel/openpanel/core/users/$user/domains"
-	backup_file="/tmp/${user}_domains.bak"
-	cp $domains_file $backup_file
- 
- 	sed -i "/$domain_name, \*.$domain_name {/,/}/d" $domains_file
-
+	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf" 
+ 	rm -rf $domains_file
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
 	    check_and_add_to_enabled
@@ -259,7 +254,7 @@ delete_domain() {
     delete_domain_from_mysql $domain_name            # delete
 
     # Verify if the domain was deleted successfully
-    local verify_query="SELECT COUNT(*) FROM domains WHERE domain_name = '$domain_name';"
+    local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
     local result=$(mysql -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
