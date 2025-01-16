@@ -875,7 +875,6 @@ port_2="$port_2"
 port_3="$port_3"
 port_4="$port_4"
 port_5="$port_5"
-ports="$ports_param"
 
 # Path
 path=$path
