@@ -5,7 +5,7 @@
 # Usage: opencli files-fix_permissions [USERNAME] [PATH]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 16.11.2024
+# Last Modified: 18.01.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -62,39 +62,74 @@ apply_permissions_in_container() {
 
     if [ -n "$path" ]; then
         # this is also checked on the backend
-        if [[ $path != /home/$container_name/* ]]; then
+        if [[ $path != /home/$container_name/files/* ]]; then
             path="${path#/}" # strip / from beginning if relative path is sued
-            path="/home/$container_name/$path" # prepend user home directory
+            path="/home/$container_name/files/$path" # prepend user home directory
         fi
         directory="$path"
         emails=false
     else   
-        directory="/home/$container_name/"
+        directory="/home/$container_name/files/"
         emails=true
     fi
 
+
+        if id "$container_name" &>/dev/null; then
+            user_id=$(id -u $container_name)
+        else
+            echo "User '$container_name' does not exist."
+            exit 1
+        fi
+
+
+
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    user_info=$(mysql -se "$query")
+    
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$container_name)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $container_name does not exist."
+    exit 1
+fi
+
+
   # Check if the container exists
-  if docker inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
+  if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
         
         # WWW-DATA GROUP
-        docker exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
+        docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
         group_result=$?
         
         # USERNAME OWNER
-        docker exec $container_name bash -c "chown -R $verbose 1000:33 $directory"
+        docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
         owner_result=$?
         
         if [ "$emails" = "true" ]; then
-            docker exec $container_name bash -c "chown -R $verbose 1000:1000 ${directory}mail/"
+            docker --context $context exec $container_name bash -c "chown -R $verbose $user_id:1000 /home/$container_name/mail/"
             mail_result=$?
         fi
         
         # FILES
-        docker exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
+        docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
         files_result=$?
         
         # FOLDERS
-        docker exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
+        docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
         folders_result=$?
         
         # CHECK ALL 5
