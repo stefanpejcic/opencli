@@ -15,17 +15,44 @@
 
 # Function to determine the current web server inside the user's container
 determine_web_server() {
+
+    result=$(get_user_info "$username")
+    user_id=$(echo "$result" | cut -d',' -f1)
+    context=$(echo "$result" | cut -d',' -f2)
+
+    if [ -z "$user_id" ]; then
+        echo "FATAL ERROR: user $username does not exist."
+        exit 1
+    fi
+
+
     # Check for Apache inside the container
-    if docker exec "$username" which apache2 &> /dev/null; then
+    if docker --context $context exec "$username" which apache2 &> /dev/null; then
         echo "apache"
-    elif docker exec "$username" which nginx &> /dev/null; then
+    elif docker --context $context exec "$username" which nginx &> /dev/null; then
         echo "nginx"
-    elif docker exec "$username" which openlitespeed &> /dev/null; then
+    elif docker --context $context exec "$username" which openlitespeed &> /dev/null; then
         echo "litespeed"
     else
         echo "unknown"
     fi
 }
+
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
 
 # Check if the username is provided as a command-line argument
 if [ $# -lt 1 ]; then
@@ -41,6 +68,7 @@ config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
 
 # Check if the --update flag is provided
 if [ "$2" == "--update" ]; then
+
     # Determine the current web server
     current_web_server=$(determine_web_server)
 
