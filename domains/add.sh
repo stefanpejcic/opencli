@@ -546,6 +546,52 @@ check_and_add_to_enabled() {
 }
 
 
+create_rdnc() {
+	RNDC_KEY_PATH="/etc/bind/rndc.key"
+	RETRY_LIMIT_FOR_RDNC=5
+	RETRY_COUNT_RDNC=0
+ 
+     if [ ! -f "$RNDC_KEY_PATH" ]; then
+	log "Generating rndc.key for DNS zone management."
+	
+	while [ $RETRY_COUNT_RDNC -lt $RETRY_LIMIT_FOR_RDNC ]; do
+	    log "Attempt $((RETRY_COUNT_RDNC + 1)) to generate rndc.key..."
+	    
+	    # Run the Docker command to generate rndc.key
+	    timeout 30 docker run -it --rm \
+	        -v /etc/bind/:/etc/bind/ \
+	        --entrypoint=/bin/sh \
+	        ubuntu/bind9:latest \
+	        -c 'rndc-confgen -a -A hmac-sha256 -b 256 -c /etc/bind/rndc.key'
+	
+	    if [ $? -ne 0 ]; then
+	        echo "Error: Generating rndc.key failed. DNS service is not started."
+	        
+		    # Check if the file exists
+		    if [ -f "$RNDC_KEY_PATH" ]; then
+		 	:
+		    else
+		        debug_log "Error: rndc.key not found after attempt $((RETRY_COUNT_RDNC + 1))."
+		    fi
+	
+	    RETRY_COUNT_RDNC=$((RETRY_COUNT_RDNC + 1))
+	    sleep 2
+	    fi
+
+	done
+	    if [ -f "$RNDC_KEY_PATH" ]; then
+	        log "rndc.key successfully generated."
+	        chmod 0777 -R /etc/bind
+	    else
+		log "Failed to generate rndc.key after $RETRY_LIMIT attempts. DNS not started."
+	    fi
+    fi
+
+
+
+
+
+
 update_named_conf() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
@@ -678,6 +724,7 @@ add_domain() {
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
+        create_rdnc                                  # check if rdnc key exists or generate
         create_zone_file                             # create zone
 	update_named_conf                            # include zone 
  	auto_start_webserver_for_user_in_future      # edit entrypoint
