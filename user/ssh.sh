@@ -48,10 +48,41 @@ if [[ "$action" != "check" && "$action" != "enable" && "$action" != "disable" ]]
     print_usage
 fi
 
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "container_name)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $container_name does not exist."
+    exit 1
+fi
+
+
 # Run the action inside the Docker container
 case $action in
     check)
-        docker exec "$container_name" service ssh status
+        docker --context $context exec "$container_name" service ssh status
         # Check if checking status was successful
         if [ $? -eq 0 ]; then
             echo "SSH service is running in container $container_name."
@@ -60,7 +91,7 @@ case $action in
         fi
         ;;
     enable)
-        docker exec "$container_name" service ssh start
+        docker --context $context exec "$container_name" service ssh start
         # Check if enabling was successful
         if [ $? -eq 0 ]; then
             echo "SSH service enabled successfully in container $container_name."
@@ -69,7 +100,7 @@ case $action in
         fi
         ;;
     disable)
-        docker exec "$container_name" service ssh stop
+        docker --context $context exec "$container_name" service ssh stop
         # Check if disabling was successful
         if [ $? -eq 0 ]; then
             echo "SSH service disabled successfully in container $container_name."
