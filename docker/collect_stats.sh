@@ -5,9 +5,9 @@
 # Usage: opencli docker-collect_stats
 # Author: Petar Curic, Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 09.96.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 17.01.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,38 @@ source /usr/local/admin/scripts/db.sh
 process_user() {
     local username="$1"
     output_file="$output_dir/$username/docker_usage.txt"  
-    current_usage=$(su $username -c "docker stats --no-stream --format '{{json .}}' $username")
+
+
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$username)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $username does not exist."
+    exit 1
+fi
+
+    current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' $username")
+    
     echo "$current_datetime $current_usage" >> $output_file
     echo ""
     echo $current_usage
