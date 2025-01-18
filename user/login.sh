@@ -5,7 +5,7 @@
 # Usage: opencli user-login <USERNAME>
 # Author: Stefan Pejcic
 # Created: 21.10.2023
-# Last Modified: 17.12.2024
+# Last Modified: 17.01.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -65,14 +65,44 @@ else
     fi
 fi
 
-if [ $(docker ps -q -f name=$selected_user) ]; then
-    docker exec -it "$selected_user" /bin/bash
+
+
+
+
+# get user ID from the database
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$selected_user)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $selected_user does not exist."
+    exit 1
 else
-    if id "$selected_user" &>/dev/null; then
-       #su "$selected_user"      # log as the user on host os
-        su "$selected_user" -c "docker exec -it $selected_user /bin/bash" # log as user then in container
-       #sudo su -l "$selected_user" -s /bin/bash # log as user with bash but docker env not enabled!
+    if id "$selected_user" &>/dev/null; then     
+       docker --context $context exec -it $selected_user /bin/bash # log as user then in container
     else
         echo "Neither container nor the user $selected_user exist on the server."
+        exit 1
     fi
 fi
+
