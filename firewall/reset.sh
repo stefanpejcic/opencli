@@ -193,7 +193,37 @@ elif [ "$FIREWALL" = "UFW" ]; then
         local container_name="$1"
         local port_number="$2"
         local host_port
-        host_port=$(docker port "$container_name" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$container_name")
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $container_name does not exist."
+    exit 1
+fi
+
+        host_port=$(docker--context $context port "$container_name" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
         echo "$host_port"
     }
 
