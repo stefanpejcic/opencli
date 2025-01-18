@@ -6,9 +6,9 @@
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#change-password
 # Author: Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 30.11.2023
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 17.01.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -119,8 +119,38 @@ fi
 # Check if --ssh flag is provided
 if [ "$ssh_flag" = true ]; then
     if [ "$DEBUG" = true ]; then
+
+
+# get user ID from the database
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$username)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+if [ -z "$context" ]; then
+    echo "FATAL ERROR: Docker context for user $username does not exist or mysql is not running."
+    exit 1
+fi
+    
         # Change the user password in the Docker container
-        echo "$username:$new_password" | docker exec -i "$username" chpasswd
+        echo "$username:$new_password" | docker --context $context exec -i "$username" chpasswd
         if [ "$random_flag" = true ]; then
             echo "SSH user $username in Docker container now also have password: $new_password"
         else
@@ -128,7 +158,7 @@ if [ "$ssh_flag" = true ]; then
         fi
     else
         # Change the user password in the Docker container
-        echo "$username:$new_password" | docker exec -i "$username" chpasswd
+        echo "$username:$new_password" | docker --context $context exec -i "$username" chpasswd
     fi
     
 fi
