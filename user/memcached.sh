@@ -49,10 +49,43 @@ if [[ "$action" != "check" && "$action" != "enable" && "$action" != "disable" ]]
     print_usage
 fi
 
+
+# get user ID from the database
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$container_name)
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+#echo "User ID: $user_id"
+#echo "Context: $context"
+
+
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $container_name does not exist."
+    exit 1
+fi
+
+
+
 # Run the action inside the Docker container
 case $action in
     check)
-        response=$(docker exec "$container_name" service memcached status 2>&1)
+        response=$(docker --context $context exec "$container_name" service memcached status 2>&1)
         # Check if checking status was successful
         if [ $? -eq 0 ]; then
             echo "Memcached is running in container $container_name."
@@ -65,7 +98,7 @@ case $action in
         fi
         ;;
     enable)
-        response=$(docker exec "$container_name" service memcached start 2>&1)
+        response=$(docker --context $context exec "$container_name" service memcached start 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
             echo "Memcached enabled successfully for user $container_name."
@@ -78,7 +111,7 @@ case $action in
         fi
         ;;
     disable)
-        response=$(docker exec "$container_name" service memcached stop 2>&1)
+        response=$(docker --context $context exec "$container_name" service memcached stop 2>&1)
         # Check if enable was successful
         if [ $? -eq 0 ]; then
             echo "Memcached disabled successfully for user $container_name."
