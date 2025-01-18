@@ -39,20 +39,43 @@ username="$1"
 config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
 
 
-
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
 
 # Function to update PHP version in the configuration file
 update_php_version() {
     local new_php_version="$1"
     local config_file="$2"
 
-    # Use sed to update the PHP version in the configuration file
-    sed -i "s/\(default_php_version:\s*\)\(php\?\)\?[0-9.]\+/\\1$new_php_version/" "$config_file"
 
+    result=$(get_user_info "$username")
+    user_id=$(echo "$result" | cut -d',' -f1)
+    context=$(echo "$result" | cut -d',' -f2)
 
-    # set the php version to be used on terminal!
-    docker exec $username bash -c "update-alternatives --set php /usr/bin/php$new_php_version"
-    
+    if [ -z "$user_id" ]; then
+        echo "FATAL ERROR: user $username does not exist."
+        exit 1
+    fi
+
+    if docker --context "$context" exec "$username" bash -c "update-alternatives --set php /usr/bin/php$new_php_version"; then
+        sed -i "s/\(default_php_version:\s*\)\(php\?\)\?[0-9.]\+/\\1$new_php_version/" "$config_file"
+        echo "Default PHP version for user '$username' updated to: $new_php_version"
+    else
+        echo "Failed to update the PHP version in docker container and configuration file not updated."
+        exit 1
+    fi
+
 }
 
 # Function to validate the PHP version format
@@ -82,7 +105,6 @@ if [ "$2" == "--update" ]; then
     new_php_version="$3"
     validate_php_version "$new_php_version"
     update_php_version "$new_php_version" "$config_file"
-    echo "Default PHP version for user '$username' updated to: $new_php_version"
 else
     # Use awk to extract the PHP version from the YAML file
     php_version=$(awk '/default_php_version/ {print $2}' "$config_file")
