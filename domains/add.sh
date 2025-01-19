@@ -479,18 +479,55 @@ create_domain_file() {
 mkdir -p /etc/openpanel/caddy/domains/
 
 domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
-backup_file="/tmp/${domain_name}.bak"
 touch $domains_file
 
-cp $domains_file $backup_file
 
-# then appped
+
+append_manually_conf() {
+
+log "Unable to detect if ModSecurity is configured."
+
+# appped
 echo "$domain_name, *.$domain_name {
 reverse_proxy $localhost_and_port
 	tls {
 		on_demand
 	}
 }" >> $domains_file
+}
+
+
+sed_values_in_domain_conf() {
+	domain_conf=$(echo "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
+                                           -e "s|<BACKEND_PROXY>|$localhost_and_port|g")
+ 
+    echo "$domain_conf" > "$domains_file"
+}
+
+
+
+DOCKER_COMPOSE_FILE="/root/docker-compose.yml"
+if [ -f "$DOCKER_COMPOSE_FILE" ]; then
+    CADDY_IMAGE=$(grep -oP '(?<=image:\s).*' "$DOCKER_COMPOSE_FILE" | grep 'caddy')
+
+    if [[ "$CADDY_IMAGE" == *"openpanel/caddy-coraza"* ]]; then
+	conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
+     	log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
+        sed_values_in_domain_conf
+    elif [[ "$CADDY_IMAGE" == *"caddy:latest"* || "$CADDY_IMAGE" == *"caddy"* ]]; then
+	conf_template="/etc/openpanel/caddy/templates/domain.conf"
+     	log "Creating Caddy configuration for the domain, without ModSecurity"
+      	sed_values_in_domain_conf
+    else
+        append_manually_conf
+    fi
+else
+    append_manually_conf
+fi
+
+
+
+
 
 # Function to validate and reload Caddy service
 check_and_add_to_enabled() {
