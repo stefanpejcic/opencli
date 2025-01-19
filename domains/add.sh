@@ -434,7 +434,9 @@ create_domain_file() {
 
 	get_port_for_80() {
 	    local username="$1"
+            local inside_port="$2"
 	    local env_file="/etc/openpanel/docker/compose/${username}/.env"
+	    regex="port_\d+=\"\K[0-9]+(?=:$inside_port\")"
 	
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
@@ -443,18 +445,18 @@ create_domain_file() {
 	    fi
 	
 	    # Extract the port mapping for :80
-	    local port_mapping
-	    port_mapping=$(grep -oP 'port_\d+="\K[0-9]+(?=:80")' "$env_file")
-	
+	    local nonssl_port_mapping
+	    port_mapping=$(grep -oP "$regex" "$env_file")
 	    if [[ -n "$port_mapping" ]]; then
 	        echo "$port_mapping"
 	    else
-	        echo "Error: No port mapping found for :80"
+	        echo "Error: No port mapping found for :$inside_port"
 	        return 1
 	    fi
 	}
 
-	port=$(get_port_for_80 "$user")
+	non_ssl_port=$(get_port_mapping "$user" "80")
+        ssl_port=$(get_port_mapping "$user" "443")
  	localhost_and_port="127.0.0.1:$port"
 
  # VARNISH
@@ -482,24 +484,10 @@ domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 touch $domains_file
 
 
-
-append_manually_conf() {
-
-log "Unable to detect if ModSecurity is configured."
-
-# appped
-echo "$domain_name, *.$domain_name {
-reverse_proxy $localhost_and_port
-	tls {
-		on_demand
-	}
-}" >> $domains_file
-}
-
-
 sed_values_in_domain_conf() {
 	domain_conf=$(echo "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
-                                           -e "s|<BACKEND_PROXY>|$localhost_and_port|g")
+                                           -e "s|<SSL_PORT>|$ssl_port|g" \
+                                           -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
  
     echo "$domain_conf" > "$domains_file"
 }
@@ -519,10 +507,12 @@ if [ -f "$DOCKER_COMPOSE_FILE" ]; then
      	log "Creating Caddy configuration for the domain, without ModSecurity"
       	sed_values_in_domain_conf
     else
-        append_manually_conf
+        echo "ERROR: unable to detect any services. Contact support."
+	exit 1
     fi
 else
-    append_manually_conf
+        echo "ERROR: unable to detect any services. Contact support."
+	exit 1
 fi
 
 
