@@ -69,7 +69,7 @@ get_user_info() {
 }
 
 
-result=$(get_user_info "$container_name)
+result=$(get_user_info "$container_name")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
