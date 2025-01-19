@@ -268,26 +268,16 @@ log "Checking if default vhosts file exists for Nginx"
 file_exists=$(docker --context $context exec $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
 
 if [ "$file_exists" == "no" ]; then
-    if [[ $VARNISH == true ]]; then
-    		log "Creating default vhost file (with Varnish) for Nginx: /etc/nginx/sites-enabled/default"
-		docker --context $context exec $container_name bash -c 'echo \"server {
-		    listen 8080 default_server;
-		    listen [::]:8080 default_server;
-		    server_name _;
-		    deny all;
-		    return 444;
-		}\" > /etc/nginx/sites-enabled/default'
-    else
     		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-		docker --context $context exec $container_name bash -c 'echo \"server {
+		docker --context $context exec $container_name bash -c 'cat > /etc/nginx/sites-enabled/default <<EOF
+		server {
 		    listen 80 default_server;
 		    listen [::]:80 default_server;
 		    server_name _;
 		    deny all;
 		    return 444;
-		}\" > /etc/nginx/sites-enabled/default'
-    fi
- 
+		}
+		EOF' 
 fi
 }
 
@@ -438,18 +428,8 @@ check_if_varnish_installed_for_user() {
 
 create_domain_file() {
 
-	if [ -f /etc/nginx/modsec/main.conf ]; then
-	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf_with_modsec"
-     	    log "Creating vhosts proxy file for Caddy with ModSecurity on host server"
-	else
-	    conf_template="/etc/openpanel/nginx/vhosts/domain.conf"
-     	    log "Creating Caddy configuration for the domain"
-	fi
-	
 	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
-	
-	cp $conf_template /etc/nginx/sites-available/${domain_name}.conf
-	
+
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
 
 	get_port_for_80() {
