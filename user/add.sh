@@ -787,7 +787,7 @@ run_docker() {
               for ((port=32768; port<=65535; port++)); do
                   if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                       found_ports+=("$port")
-                      if [ ${#found_ports[@]} -ge 5 ]; then
+                      if [ ${#found_ports[@]} -ge 6 ]; then
                           break
                       fi
                   fi
@@ -800,7 +800,7 @@ run_docker() {
             for ((port=32768; port<=65535; port++)); do
                 if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                     found_ports+=("$port")
-                    if [ ${#found_ports[@]} -ge 5 ]; then
+                    if [ ${#found_ports[@]} -ge 6 ]; then
                         break
                     fi
                 fi
@@ -832,22 +832,25 @@ run_docker() {
 	THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
 	FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
 	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
+        SIXTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $6}')
 
 	#echo "DEBUG: Available ports: $AVAILABLE_PORTS"
 
     # todo: better validation!
-    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE"; then
+    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE" && validate_port "$SIXTH_NEXT_AVAILABLE"; then
 	port_1="$FIRST_NEXT_AVAILABLE:22"
 	port_2="$SECOND_NEXT_AVAILABLE:3306"
 	port_3="$THIRD_NEXT_AVAILABLE:7681"
 	port_4="$FOURTH_NEXT_AVAILABLE:8080"
 	port_5="$FIFTH_NEXT_AVAILABLE:80"
+        port_6="$SIXTH_NEXT_AVAILABLE:443"
     else
 	port_1=""
 	port_2=""
 	port_3=""
 	port_4=""
 	port_5=""
+	port_6=""
     fi
 
 
@@ -875,6 +878,7 @@ port_2="$port_2"
 port_3="$port_3"
 port_4="$port_4"
 port_5="$port_5"
+port_6="$port_6"
 
 # Path
 path=$path
