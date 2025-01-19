@@ -577,7 +577,6 @@ create_rdnc() {
 	    RETRY_COUNT_RDNC=$((RETRY_COUNT_RDNC + 1))
 	    sleep 2
 	    fi
-
 	done
 	    if [ -f "$RNDC_KEY_PATH" ]; then
 	        log "rndc.key successfully generated."
@@ -587,7 +586,7 @@ create_rdnc() {
 	    fi
     fi
 
-
+}
 
 
 
