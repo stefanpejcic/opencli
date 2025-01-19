@@ -269,15 +269,22 @@ file_exists=$(docker --context $context exec $container_name bash -c "test -e /e
 
 if [ "$file_exists" == "no" ]; then
     		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-		docker --context $context exec $container_name bash -c 'cat > /etc/nginx/sites-enabled/default <<EOF
-		server {
-		    listen 80 default_server;
-		    listen [::]:80 default_server;
-		    server_name _;
-		    deny all;
-		    return 444;
-		}
-		EOF' 
+
+tempfile=$(mktemp) 
+
+# Create the Nginx configuration file
+echo "server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    deny all;
+    return 444;
+}" > "$tempfile"
+
+# Copy the file to the container
+docker --context "$context" cp "$tempfile" "$container_name:/etc/nginx/sites-enabled/default" > /dev/null 2>&1
+rm "$tempfile" > /dev/null 2>&1
+  
 fi
 }
 
@@ -432,7 +439,7 @@ create_domain_file() {
 
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
 
-	get_port_for_80() {
+	get_port_mapping() {
 	    local username="$1"
             local inside_port="$2"
 	    local env_file="/etc/openpanel/docker/compose/${username}/.env"
@@ -485,7 +492,7 @@ touch $domains_file
 
 
 sed_values_in_domain_conf() {
-	domain_conf=$(echo "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
+	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
                                            -e "s|<SSL_PORT>|$ssl_port|g" \
                                            -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
  
