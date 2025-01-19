@@ -63,19 +63,16 @@ get_user_info() {
 }
 
 
-result=$(get_user_info "$username)
+result=$(get_user_info "$username")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
-
-#echo "User ID: $user_id"
-#echo "Context: $context"
 
 if [ -z "$user_id" ]; then
     echo "FATAL ERROR: user $username does not exist."
     exit 1
 fi
 
-    current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' $username")
+    current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' $username)
     
     echo "$current_datetime $current_usage" >> $output_file
     echo ""
@@ -108,9 +105,9 @@ elif [[ "$1" == "--all" ]]; then
 
   # Get total user count
   total_users=$(echo "$users" | wc -w)
-
-  repquota -u / > /etc/openpanel/openpanel/core/users/repquota
-
+  if command -v repquota > /dev/null 2>&1; then
+      repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+  fi
   # Iterate over each user
   current_user_index=1
   for user in $users; do
@@ -122,7 +119,9 @@ elif [[ "$1" == "--all" ]]; then
   echo "DONE."
     
 elif [ $# -eq 1 ]; then
-    repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+      if command -v repquota > /dev/null 2>&1; then
+          repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+      fi
   process_user "$1"
 else
   usage
