@@ -84,13 +84,9 @@ get_user_info() {
     echo "$user_id,$context"
 }
 
-
-result=$(get_user_info "$selected_user)
+result=$(get_user_info "$selected_user")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
-
-#echo "User ID: $user_id"
-#echo "Context: $context"
 
 
 
@@ -99,7 +95,7 @@ if [ -z "$user_id" ]; then
     exit 1
 else
     if id "$selected_user" &>/dev/null; then     
-       docker --context $context exec -it $selected_user /bin/bash # log as user then in container
+       docker --context $context exec -it $selected_user /bin/bash
     else
         echo "Neither container nor the user $selected_user exist on the server."
         exit 1
