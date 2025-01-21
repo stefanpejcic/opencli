@@ -64,27 +64,34 @@ fi
 whoowns_output=$(opencli domains-whoowns "$domain")
 owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
-if [ -n "$owner" ]; then
-    container_name="$owner" # Assuming the container name is the same as the owner's username
 
-    # Determine the web server type for the user
-    #echo "Determining the web server type for user: $owner..."
+get_context_for_user() {
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$USERNAME'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$USERNAME
+        fi
+}
+
+if [ -n "$owner" ]; then
+    container_name="$owner"
+    
     web_server_info=$(opencli webserver-get_webserver_for_user "$owner")
     web_server_type=$(echo "$web_server_info" | awk '{print $NF}')
-    #echo "Web server info: $web_server_info"
-    #echo "Web server type: $web_server_type"
 
     if [ -n "$web_server_type" ]; then
-        #echo "Web server type for user $owner: $web_server_type"
 
+    get_context_for_user
+    
         if [ "$web_server_type" == "nginx" ]; then
             # Use Nginx configuration path
             nginx_conf_path="/etc/nginx/sites-available/$domain.conf"
-            php_version=$(docker exec "$container_name" grep -o "php[0-9.]\+" "$nginx_conf_path" | head -n 1)
+            php_version=$(docker --context $context exec "$container_name" grep -o "php[0-9.]\+" "$nginx_conf_path" | head -n 1)
         elif [ "$web_server_type" == "apache" ]; then
             # Use Apache2 configuration path
             apache_conf_path="/etc/apache2/sites-available/$domain.conf"
-            php_version=$(docker exec "$container_name" grep -o "php[0-9.]\+" "$apache_conf_path" | head -n 1)
+            php_version=$(docker --context $context exec "$container_name" grep -o "php[0-9.]\+" "$apache_conf_path" | head -n 1)
         else
             echo "Unknown web server type '$web_server_type' for user '$owner'." >&2
             exit 1
@@ -100,14 +107,14 @@ if [ -n "$owner" ]; then
                     # Use sed to replace the old PHP version with the new one in the configuration file inside the container
                     if [ "$web_server_type" == "nginx" ]; then
                         echo "Updating PHP version in the Nginx configuration file..."
-                        docker exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$nginx_conf_path"
+                        docker --context $context exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$nginx_conf_path"
                         # Restart Nginx to apply the changes
-                        docker exec "$container_name" service nginx reload    
+                        docker --context $context exec "$container_name" service nginx reload    
                     elif [ "$web_server_type" == "apache" ]; then
                         echo "Updating PHP version in the Apache configuration file..."
-                        docker exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$apache_conf_path"
+                        docker --context $context exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$apache_conf_path"
                         # Restart Apache to apply the changes
-                        docker exec "$container_name" service apache2 reload    
+                        docker --context $context exec "$container_name" service apache2 reload    
                     fi
                     echo "Updated PHP version in the configuration file to $new_php_version"
                 else
