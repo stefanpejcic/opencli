@@ -5,7 +5,7 @@
 # Usage: opencli domains-delete <DOMAIN_NAME> --debug
 # Author: Stefan Pejcic
 # Created: 07.11.2024
-# Last Modified: 16.01.2025
+# Last Modified: 21.01.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -107,18 +107,48 @@ rm_domain_to_clamav_list(){
 }
 
 
+
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+
+
 vhost_files_delete() {
 	
 	vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
  	vhost_ln_in_docker_file="/etc/$ws/sites-enabled/${domain_name}.conf"
 
+result=$(get_user_info "$user")
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $user does not exist."
+    exit 1
+fi
+
+
+
 	log "Deleting $vhost_in_docker_file"
-	su $user -c "docker exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1"
-	su $user -c "docker exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1"
+	docker --context $context exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1
+	docker --context $context exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1
 	
 	  
  	log "Restarting $ws inside container to apply changes"
-	su $user -c "docker exec $user bash -c 'service $ws restart' >/dev/null 2>&1"
+	docker --context $context exec $user bash -c 'service $ws restart' >/dev/null 2>&1
 
 	logs_dir="/var/log/$ws/domlogs"
 	log "Deleting access logs for the domain"
