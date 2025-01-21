@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: admin.sh
-# Description: Manage OpenAdmin service and admin configuration.
+# Description: Manage OpenAdmin service and Administrators.
 # Usage: opencli admin <setting_name> 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 05.09.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 21.001.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
