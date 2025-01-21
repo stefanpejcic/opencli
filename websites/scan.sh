@@ -36,12 +36,22 @@ get_domain_id() {
     echo  $result
 }
 
+get_context_for_user() {
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$current_username'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$current_username
+        fi
+}
+
+
 #Function to run WordPress CLI commands
 run_wp_cli() {
     local username="$1"
     local path="$2"
     local command="$3"
-    docker exec "$current_username" bash -c "wp --allow-root --path=${path} ${command}"
+    docker --context $context exec "$current_username" bash -c "wp --allow-root --path=${path} ${command}"
 }
 
 check_site_already_exists_in_db() {
@@ -62,7 +72,7 @@ check_site_already_exists_in_db() {
 run_for_single_user() {
 
 current_username=$1
-
+get_context_for_user
 # Base directory to scan for wp-config.php files
 base_directory="/home/${current_username}"
 
@@ -184,17 +194,3 @@ else
   echo "Usage: opencli websites-scan <USERNAME> OR opencli websites-scan -all"
   exit 1
 fi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
