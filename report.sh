@@ -130,7 +130,6 @@ run_command "df -h" "Disk Information"
 run_command "opencli --version" "OpenPanel version"
 run_command "mysql --protocol=tcp --version" "MySQL Version"
 run_command "python3 --version" "Python version"
-#####run_command "docker exec openadmin bash -c 'python3 --version'" "Python Version"
 run_command "docker info" "Docker Information"
 
 # Run OpenCLI commands if --cli flag is provided
