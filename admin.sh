@@ -187,7 +187,7 @@ fi
 add_new_user() {
     local username="$1"
     local password="$2"
-    local password_hash=$(python3 /usr/local/admin/core/users/hash $password) 
+    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
@@ -236,8 +236,8 @@ update_username() {
 # Function to update the password for provided user
 update_password() {
     local username="$1"
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local password_hash=$(python3 /usr/local/admin/core/users/hash $new_password) 
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")    
+    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$new_password")
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 $db_file_path "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
