@@ -36,12 +36,16 @@ fi
 
 container_name="$1"
 
-# Check if the Docker container with the given name exists
-if ! docker ps -a --format '{{.Names}}' | grep -q "^$container_name$"; then
-  echo "Error: Docker container with the name '$container_name' does not exist."
-  exit 1
-fi
+get_context_for_user() {
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$container_name'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$container_name
+        fi
+}
 
-# Run the command to list installed PHP versions inside the Docker container,
-# then filter out the "default" version
-docker exec "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default'
+
+get_context_for_user
+
+docker --context $context exec "$container_name" update-alternatives --list php | awk -F'/' '{print $NF}' | grep -v 'default'
