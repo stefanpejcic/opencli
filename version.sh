@@ -1,14 +1,14 @@
 #!/bin/bash
 ################################################################################
 # Script Name: version.sh
-# Description: Displays the current (installed) version of OpenPanel.
+# Description: Displays the current (installed) version of OpenPanel docker image.
 # Usage: opencli version 
 #        opencli v
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 15.11.2023
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 21.01.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,14 +29,18 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-# Check version
 version_check() {
-    if [ -f "/usr/local/panel/version" ]; then
-        local_version=$(cat "/usr/local/panel/version")
-        echo $local_version
+    if [ -f "/root/docker-compose.yml" ]; then
+        image_version=$(grep -A 1 "openpanel:" /root/docker-compose.yml | grep "image:" | awk -F':' '{print $2}' | xargs)
+        
+        if [ -n "$image_version" ]; then
+            echo $image_version
+        else
+            echo '{"error": "OpenPanel service or image version not found"}' >&2
+            exit 1
+        fi
     else
-        echo '{"error": "Local version file not found"}' >&2
+        echo '{"error": "Docker Compose file not found"}' >&2
         exit 1
     fi
 }
