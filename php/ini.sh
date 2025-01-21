@@ -44,6 +44,18 @@ VALUE=$4
 # Get PHP versions on the host machine
 PHP_VERSIONS=$(opencli php-enabled_php_versions $USERNAME)
 
+
+get_context_for_user() {
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$USERNAME'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$USERNAME
+        fi
+}
+
+get_context_for_user
+
 # Loop through PHP versions based on the action
 for VERSION in $PHP_VERSIONS; do
     # Strip "php" prefix from the version
@@ -53,12 +65,12 @@ for VERSION in $PHP_VERSIONS; do
     PHP_INI_PATH="/etc/php/$VERSION/fpm/php.ini"
 
     # Check if PHP ini file exists
-    if docker exec -it $USERNAME [ -f "$PHP_INI_PATH" ]; then
+    if docker --context $context exec -it $USERNAME [ -f "$PHP_INI_PATH" ]; then
         # Handle different actions: get or set
         case "$ACTION" in
             "get")
                 # Display the current setting value
-                CURRENT_VALUE=$(docker exec -it $USERNAME awk -F '=' '/^'"$SETTING"'[ \t]*=/ {gsub(/[ \t]+/, "", $2); print $2}' "$PHP_INI_PATH")
+                CURRENT_VALUE=$(docker --context $context exec -it $USERNAME awk -F '=' '/^'"$SETTING"'[ \t]*=/ {gsub(/[ \t]+/, "", $2); print $2}' "$PHP_INI_PATH")
                 echo "Current $SETTING setting in $PHP_INI_PATH for PHP version $VERSION: $CURRENT_VALUE"
                 ;;
             "set")
@@ -66,15 +78,15 @@ for VERSION in $PHP_VERSIONS; do
                 if [ -z "$VALUE" ]; then
                     echo "Error: Value is required for setting $SETTING in $PHP_INI_PATH for PHP version $VERSION"
                 else
-                    docker exec -it $USERNAME sed -i "s/;\{0,1\}$SETTING =.*/$SETTING = $VALUE/" "$PHP_INI_PATH"
+                    docker --context $context exec -it $USERNAME sed -i "s/;\{0,1\}$SETTING =.*/$SETTING = $VALUE/" "$PHP_INI_PATH"
                     echo "Setting $SETTING updated to $VALUE in $PHP_INI_PATH for PHP version $VERSION"
 
                     # Check the status of PHP-FPM service
-                    SERVICE_STATUS=$(docker exec -it $USERNAME service php$VERSION-fpm status)
+                    SERVICE_STATUS=$(docker --context $context exec -it $USERNAME service php$VERSION-fpm status)
 
                     # If PHP-FPM service is active, restart it
                     if [[ $SERVICE_STATUS == *"active"* ]]; then
-                        docker exec -it $USERNAME service php$VERSION-fpm restart
+                        docker --context $context exec -it $USERNAME service php$VERSION-fpm restart
                         echo "PHP-FPM service restarted for PHP version $VERSION"
                     fi
                 fi
