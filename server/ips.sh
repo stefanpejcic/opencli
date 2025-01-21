@@ -48,6 +48,16 @@ fi
 
 current_server_main_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
 
+get_context_for_user() {
+     USERNAME="$1"
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$USERNAME'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$USERNAME
+        fi
+}
+
 # Create or overwrite the JSON file for user
 create_ip_file() {
     USERNAME=$1
@@ -57,7 +67,8 @@ create_ip_file() {
 }
 
 for username in $usernames; do
-    user_ip=$(docker exec "$username" bash -c "curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3")
+    get_context_for_user $username
+    user_ip=$(docker --context $context exec "$username" bash -c "curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3")
     echo $username - $user_ip
     if [[ "$user_ip" != "$current_server_main_ip" ]]; then
         create_ip_file "$username" "$user_ip"
