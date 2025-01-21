@@ -67,10 +67,10 @@ owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
 get_context_for_user() {
      source /usr/local/admin/scripts/db.sh
-        username_query="SELECT server FROM users WHERE username = '$USERNAME'"
+        username_query="SELECT server FROM users WHERE username = '$owner'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then
-            context=$USERNAME
+            context=$owner
         fi
 }
 
