@@ -39,26 +39,29 @@ USERNAME="$1"
 action="$2"
 entrypoint_path="/etc/entrypoint.sh"
 
-# Check if the container exists
-container_id=$(docker ps -q -f name="$USERNAME")
-if [ -z "$container_id" ]; then
-    echo "ERROR: Docker container for username '$USERNAME' not found."
-    exit 1
-fi
+
+get_context_for_user() {
+     source /usr/local/admin/scripts/db.sh
+        username_query="SELECT server FROM users WHERE username = '$USERNAME'"
+        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        if [ -z "$context" ]; then
+            context=$USERNAME
+        fi
+}
 
 
 set_root_user_passwd(){
     USERNAME="$1"
-    password_hash=$(docker exec "$container_id" bash -c "getent shadow $USERNAME | cut -d: -f2")
+    password_hash=$(docker --context $context exec "$container_id" bash -c "getent shadow $USERNAME | cut -d: -f2")
     if [ -z "$password_hash" ]; then
         echo "ERROR: Failed to retrieve password hash for user $user_1000."
         exit 1
     else
         escaped_password_hash=$(echo "$password_hash" | sed 's/\$/\\\$/g')
-        docker exec "$container_id" bash -c "sed -i 's|^root:[^:]*:|root:$escaped_password_hash:|' /etc/shadow"
+        docker --context $context exec "$container_id" bash -c "sed -i 's|^root:[^:]*:|root:$escaped_password_hash:|' /etc/shadow"
         
         if [ $? -eq 0 ]; then
-            docker exec "$container_id" bash -c "sed -i 's/SUDO=\"[^\"]*\"/SUDO=\"YES\"/' \"$entrypoint_path\""
+            docker --context $context exec "$container_id" bash -c "sed -i 's/SUDO=\"[^\"]*\"/SUDO=\"YES\"/' \"$entrypoint_path\""
             if [ $? -eq 0 ]; then
                 #echo "Successfully set the password for root user to match password of user $USERNAME."
                 echo "'su -' access enabled for user $USERNAME."
@@ -73,12 +76,12 @@ set_root_user_passwd(){
 
 reset_root_user_password() {
     strong_password=$(openssl rand -base64 32)
-    password_hash=$(docker exec "$container_id" bash -c "echo $strong_password | openssl passwd -1 -stdin")
-    docker exec "$container_id" bash -c 'sed -i "s/^root:[^:]*:/root:$password_hash:/" /etc/shadow'
+    password_hash=$(docker --context $context exec "$container_id" bash -c "echo $strong_password | openssl passwd -1 -stdin")
+    docker --context $context exec "$container_id" bash -c 'sed -i "s/^root:[^:]*:/root:$password_hash:/" /etc/shadow'
     if [ $? -eq 0 ]; then
         #echo "User $ Successfully set a strong password for the root user."
-        docker exec "$container_id" sed -i "s/SUDO=\"[^\"]*\"/SUDO=\"NO\"/" "$entrypoint_path"
-        docker exec "$container_id" sed -i "/^sudo:.*$USERNAME/d" /etc/group 
+        docker --context $context exec "$container_id" sed -i "s/SUDO=\"[^\"]*\"/SUDO=\"NO\"/" "$entrypoint_path"
+        docker --context $context exec "$container_id" sed -i "/^sudo:.*$USERNAME/d" /etc/group 
         echo "'su -' access disabled for user $USERNAME."
     else
         echo "ERROR: Failed to update root's password to a strong password."
@@ -87,7 +90,7 @@ reset_root_user_password() {
 
 check_sudo_status(){
 
-        status=$(docker exec "$container_id" grep -m 1 -o 'SUDO="[^"]*"' "$entrypoint_path" | cut -d'"' -f2)
+        status=$(docker --context $context exec "$container_id" grep -m 1 -o 'SUDO="[^"]*"' "$entrypoint_path" | cut -d'"' -f2)
         if [ "$status" == "YES" ]; then
             echo "'su -' is enabled for user ${USERNAME}."
         elif [ "$status" == "NO" ]; then
@@ -113,4 +116,5 @@ manage_sudo_access() {
 }
 
 
+get_context_for_user
 manage_sudo_access
