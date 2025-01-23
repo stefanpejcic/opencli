@@ -40,10 +40,10 @@ usage() {
 }
 
 get_page_speed() {
-  local domain=$1
+  local website_url=$1
   local strategy=$2
-  local encoded_domain=$(printf '%s' "$domain" | jq -s -R -r @uri)
-  local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$encoded_domain&strategy=$strategy")
+  local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
+  local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$website_url&strategy=$strategy")
   
   local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score')
   local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue')
@@ -59,10 +59,10 @@ get_page_speed() {
 # Function to generate report for a domain
 generate_report() {
   local website=$1
-  local desktop_speed=$(get_page_speed "$domain" "desktop")
-  local mobile_speed=$(get_page_speed "$domain" "mobile")
+  local desktop_speed=$(get_page_speed "$website" "desktop")
+  local mobile_speed=$(get_page_speed "$website" "mobile")
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local filename="/etc/openpanel/openpanel/websites/$(echo "$domain" | sed 's|https\?://||' | sed 's|/|_|g').json"
+  local filename="/etc/openpanel/openpanel/websites/$(echo "$website" | sed 's|https\?://||' | sed 's|/|_|g').json"
   
   cat <<EOF > "$filename"
 {
