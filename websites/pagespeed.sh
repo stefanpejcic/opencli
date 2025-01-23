@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: websites/pagespeed.sh
-# Description: Get Google PageSpeed data for a website
-# Usage: opencli websites-pagespeed <DOMAIN>
+# Description: Check Google PageSpeed data for website(s)
+# Usage: opencli websites-pagespeed <DOMAIN> [-all]
 # Author: Stefan Pejcic
 # Created: 27.06.2024
-# Last Modified: 27.06.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 23.01.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,11 @@ if ! command -v jq &> /dev/null; then
   exit 1
 fi
 
-# Function to get page speed
+usage() {
+  echo "Usage: opencli websites-pagespeed <website> OR opencli websites-pagespeed -all"
+  exit 1
+}
+
 get_page_speed() {
   local domain=$1
   local strategy=$2
@@ -49,18 +53,21 @@ get_page_speed() {
   echo "{\"performance_score\": $performance_score, \"first_contentful_paint\": \"$first_contentful_paint\", \"speed_index\": \"$speed_index\", \"interactive\": \"$interactive\"}"
 }
 
+
+
+
 # Function to generate report for a domain
 generate_report() {
-  local domain=$1
+  local website=$1
   local desktop_speed=$(get_page_speed "$domain" "desktop")
   local mobile_speed=$(get_page_speed "$domain" "mobile")
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local filename="/etc/openpanel/openpanel/websites/$(echo "$domain" | sed 's|https\?://||' | sed 's|/|_|g')_speed.json"
+  local filename="/etc/openpanel/openpanel/websites/$(echo "$domain" | sed 's|https\?://||' | sed 's|/|_|g').json"
   
   cat <<EOF > "$filename"
 {
   "timestamp": "$timestamp",
-  "domain": "$domain",
+  "website": "$website",
   "desktop_speed": $desktop_speed,
   "mobile_speed": $mobile_speed
 }
@@ -72,25 +79,21 @@ EOF
 mkdir -p /etc/openpanel/openpanel/websites
 
 if [ $# -eq 0 ]; then
-  echo "Usage: $0 <domain> OR $0 -all"
-  exit 1
-elif [[ "$1" == "-all" ]]; then
-  # Fetch list of domains from opencli websites-all
-  domains=$(opencli websites-all)
+  usage
+elif [[ "$1" == "-all" || "$1" == "--all" ]]; then
 
-  # Check if no sites found
-  if [[ -z "$domains" || "$domains" == "No sites found in the database." ]]; then
+  websites=$(opencli websites-all)
+
+  if [[ -z "$websites" || "$websites" == "No sites found in the database." ]]; then
     echo "No sites found in the database or opencli command error."
     exit 1
   fi
 
-  # Iterate over each domain and generate report
-  for domain in $domains; do
-    generate_report "$domain"
+  for website in $websites; do
+    generate_report "$website"
   done
 elif [ $# -eq 1 ]; then
   generate_report "$1"
 else
-  echo "Usage: $0 <domain> OR $0 -all"
-  exit 1
+  usage  
 fi
