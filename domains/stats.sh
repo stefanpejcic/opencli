@@ -132,7 +132,10 @@ process_single_or_all_users() {
 }
 
 
-
-check_if_reports_are_enabled   # added in 0.2.8
-configure_goaccess             # setup database and data for container
-process_single_or_all_users    # actual generation
+# use flock to disable script running multiple times
+(
+ flock -s 200
+ check_if_reports_are_enabled   # added in 0.2.8
+ configure_goaccess             # setup database and data for container
+ process_single_or_all_users    # actual generation
+)200>/var/lock/caddy_stats.lock
