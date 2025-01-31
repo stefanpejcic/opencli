@@ -1157,11 +1157,16 @@ send_email_to_new_user() {
 }
 
 
-    reload_user_quotas() {
-    	quotacheck -avm > /dev/null
-    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-    }
+reload_user_quotas() {
+    quotacheck -avm > /dev/null
+    repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+}
 
+
+# MAIN
+
+(
+flock -s 200
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 set_docker_context_for_container             # get context and use slave server if set
@@ -1186,5 +1191,4 @@ start_panel_service                          # start user panel if not running
 opencli docker-collect_stats $username
 save_user_to_db                              # finally save user to mysql db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
-# if we made it this far
-exit 0
+)200>/var/lock/openpanel_user_add.lock
