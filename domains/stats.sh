@@ -90,7 +90,7 @@ process_logs() {
     else
 
         for domain in $domains; do
-            local log_file="/var/log/nginx/domlogs/${domain}/access.log"
+            local log_file="/var/log/caddy/domlogs/${domain}/access.log"
             local output_dir="/var/log/caddy/stats/${username}/"
             local html_output="${output_dir}/${domain}.html"
             local sed_command="s/Dashboard/$domain/g"
@@ -99,6 +99,7 @@ process_logs() {
     
             cat "$log_file" | docker run --memory="256m" --cpus="0.5" \
                -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+               -v /var/log/caddy/:/var/log/caddy/ \
                --rm -i -e LANG=EN allinurl/goaccess \
                -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html \
                --log-format=COMBINED \
