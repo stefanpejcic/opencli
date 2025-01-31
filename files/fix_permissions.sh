@@ -97,13 +97,11 @@ get_user_info() {
 
 
 result=$(get_user_info "$container_name")
-user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
 
-
-if [ -z "$user_id" ]; then
-    echo "FATAL ERROR: user $container_name does not exist."
+if [ -z "$context" ]; then
+    echo "FATAL ERROR: user $container_name does not have a valid docker context."
     exit 1
 fi
 
@@ -112,11 +110,13 @@ fi
   if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
 
         # USERNAME OWNER
-        docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
+        #docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
+        chown -R $verbose $user_ud:33 $directory
         owner_result=$?
         
         # WWW-DATA GROUP
-        docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
+        #docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
+        find $directory -print0 | xargs -0 chmod $verbose -R g+w
         group_result=$?
         
         
@@ -126,11 +126,13 @@ fi
         fi
         
         # FILES
-        docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
+        #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
+        find $directory -type f -print0 | xargs -0 chmod $verbose 644
         files_result=$?
         
         # FOLDERS
-        docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
+        #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
+        find $directory -type d -print0 | xargs -0 chmod $verbose 755
         folders_result=$?
         
         # CHECK ALL 5
