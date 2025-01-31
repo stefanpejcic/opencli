@@ -1,16 +1,16 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/stats.sh
-# Description: Parse nginx access logs for users domains and generate static html
+# Description: Parse caddy access logs for users domains and generate static html
 # Usage: opencli domains-stats
 #        opencli domains-stats --debug
 #        opencli domains-stats <USERNAME>
 #        opencli domains-stats <USERNAME> --debug
 # Author: Radovan Jecmenica
 # Created: 14.12.2023
-# Last Modified: 11.06.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 01.02.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ configure_goaccess() {
 process_logs() {
     local username="$1"
     local excluded_ips_file="/etc/openpanel/openpanel/core/users/$username/domains/excluded_ips_for_goaccess"
-    local container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
+    #local container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
     local excluded_ips=""
 
     if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
@@ -90,14 +90,14 @@ process_logs() {
     else
 
         for domain in $domains; do
-            local log_file="/var/log/nginx/domlogs/${domain}.log"
-            local output_dir="/var/log/nginx/stats/${username}/"
+            local log_file="/var/log/nginx/domlogs/${domain}/access.log"
+            local output_dir="/var/log/caddy/stats/${username}/"
             local html_output="${output_dir}/${domain}.html"
             local sed_command="s/Dashboard/$domain/g"
     
             mkdir -p "$output_dir"
     
-            cat $log_file | docker run --memory="256m" --cpus="0.5" -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb --rm -i -e LANG=EN allinurl/goaccess -e "$excluded_ips" -e "$container_ip" --ignore-panel=KEYPHRASES -a -o html --log-format COMBINED - > $html_output
+            cat $log_file | docker run --memory="256m" --cpus="0.5" -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb --rm -i -e LANG=EN allinurl/goaccess -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html --log-format COMBINED - > $html_output
     
             sed -i "$sed_command" "$html_output" > /dev/null 2>&1
     
