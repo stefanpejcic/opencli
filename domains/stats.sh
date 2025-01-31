@@ -97,8 +97,14 @@ process_logs() {
     
             mkdir -p "$output_dir"
     
-            cat $log_file | docker run --memory="256m" --cpus="0.5" -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb --rm -i -e LANG=EN allinurl/goaccess -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html --log-format COMBINED - > $html_output
-    
+            cat "$log_file" | docker run --memory="256m" --cpus="0.5" \
+               -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+               --rm -i -e LANG=EN allinurl/goaccess \
+               -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html \
+               --log-format=COMBINED \
+               > "$html_output"
+            
+            
             sed -i "$sed_command" "$html_output" > /dev/null 2>&1
     
             if [ "$DEBUG" = true ]; then
