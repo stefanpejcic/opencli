@@ -110,14 +110,15 @@ fi
 
   # Check if the container exists
   if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
+
+        # USERNAME OWNER
+        docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
+        owner_result=$?
         
         # WWW-DATA GROUP
         docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
         group_result=$?
         
-        # USERNAME OWNER
-        docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
-        owner_result=$?
         
         if [ "$emails" = "true" ]; then
             docker --context $context exec $container_name bash -c "chown -R $verbose $user_id:1000 /home/$container_name/mail/"
