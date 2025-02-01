@@ -328,20 +328,6 @@ fi
   user_list=$(opencli user-list --json)
   
 
-
-  
-    
-  # Loop through each user
-  echo "$user_list" | jq -c '.[]' | while read -r user; do
-      username=$(echo "$user" | jq -r '.username')
-      if [[ "$username" != *"_"* ]]; then
-          echo "Enabling emails for: $username"
-          docker network connect openmail_network "$username"
-      else
-          echo "Skipping suspended user $username"
-      fi
-  done
-
 # at end lets add all domains
 process_all_domains_and_start
   
