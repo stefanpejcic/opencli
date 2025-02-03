@@ -1188,7 +1188,7 @@ phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
-opencli docker-collect_stats $username
-save_user_to_db                              # finally save user to mysql db
+save_user_to_db                              # save user to mysql db
+opencli docker-collect_stats $username       # must be after insert in db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 )200>/var/lock/openpanel_user_add.lock
