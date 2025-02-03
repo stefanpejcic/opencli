@@ -1092,17 +1092,7 @@ copy_skeleton_files() {
 start_panel_service() {
 	# from 0.2.5 panel service is not started until acc is created
 	log "Checking if OpenPanel service is already running, or starting it.."
-	
-	if [ "$server_name" = 'default' ]; then
-		cd /root && docker compose up -d openpanel > /dev/null 2>&1
-	else
-		# added on 0.3.7 to start panel on cluster slave
-  		ssh "root@$node_ip_address" "cd /root && docker compose up -d openpanel > /dev/null 2>&1"
-	fi
-
-
-
- 
+	cd /root && docker compose up -d openpanel > /dev/null 2>&1
 }
 
 
