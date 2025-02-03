@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 21.01.2025
+# Last Modified: 03.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
