@@ -134,13 +134,20 @@ get_userid_from_db() {
 
 # TODO: delete on remote nginx server!
 
-# Delete all users domains vhosts files from Nginx
+# Delete all users domains vhosts files from Caddy
 delete_vhosts_files() {
 
-    rm -rf /etc/openpanel/openpanel/core/users/${username}/domains
+    local all_user_domains=$(opencli domains-user $username)
+    deleted_count=0 
+    
+    for domain in $all_user_domains; do
+        rm /etc/openpanel/caddy/${username}/domains/${domain}.conf >/dev/null 2>&1
+        deleted_count=$((deleted_count + 1))
+    done
+    
     docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
     
-    echo "Configuration and SSL certificates for all of user '$username' domains deleted successfully."
+    echo "Configuration (VirutalHosts) for $deleted_count domain(s) of user '$username' deleted successfully."
 }
 
 # Function to delete user from the database
