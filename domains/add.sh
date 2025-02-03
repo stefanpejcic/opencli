@@ -268,26 +268,24 @@ clear_cache_for_user() {
 
 
 get_user_uid() {
-	local username="$1"
-	UID=$(awk -F: -v user="$username" '$1 == user {print $3}' /hostfs/etc/passwd)
+	user_uid=$(awk -F: -v user="$container_name" '$1 == user {print $3}' /hostfs/etc/passwd)
 	
 	# Check if UID was found
-	if [ -n "$UID" ]; then
-	    echo "$UID"
+	if [ -n "$user_uid" ]; then
+	    echo "$user_uid"
 	else
-	    echo "User '$username' not found on teh server!"
-	    exit 2
+	    echo "$container_name"
 	fi
 }
 
 
 
 make_folder() {
-	uid=$(get_user_uid)
+	user_uid=$(get_user_uid)
 	log "Creating document root directory $docroot"
-	docker --context $context exec $container_name bash -c "chown $uid /home/$user/files/"
+	docker --context $context exec $container_name bash -c "chown $user_uid /home/$user/files/"
 	docker --context $context exec -u $context $container_name bash -c "mkdir -p $docroot"
-	docker --context $context exec $container_name bash -c "chown $uid:33 $docroot"
+	docker --context $context exec $container_name bash -c "chown $user_uid:33 $docroot"
 	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
 }
 
