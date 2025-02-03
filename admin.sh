@@ -144,16 +144,30 @@ get_ssl_status() {
     [[ "$ssl_status" == "yes" ]] && echo true || echo false
 }
 
-get_force_domain() {
-    config=$(read_config)
-    force_domain=$(echo "$config" | grep -i 'force_domain' | cut -d'=' -f2)
+get_admin_url() {
+    caddyfile="/etc/openpanel/caddy/Caddyfile"
+    CADDY_CERT_DIR="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/"
 
-    if [ -z "$force_domain" ]; then
+    domain_block=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag {print}' "$caddyfile")
+    domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
+    domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
+    domain=$(echo "$domain" | sed 's|^http[s]*://||')
+        
+    if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
         ip=$(get_public_ip)
-        force_domain="$ip"
+        admin_url="http://${ip}:2087/"
+    else
+        if [ -f "${CADDY_CERT_DIR}/${domain}/${domain}.crt" ] && [ -f "${CADDY_CERT_DIR}/${domain}/${domain}.key" ]; then
+            admin_url="https://${domain}:2087/"
+        else
+            ip=$(get_public_ip)
+            admin_url="http://${ip}:2087/"
+        fi
     fi
-    echo "$force_domain"
+    
+    echo "$admin_url"    
 }
+
 
 get_public_ip() {
     ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
@@ -167,18 +181,12 @@ get_public_ip() {
 
 
 detect_service_status() {
-if systemctl is-active --quiet $service_name; then
-    if [ "$(get_ssl_status)" == true ]; then
-        hostname=$(get_force_domain)
-        admin_url="https://${hostname}:2087/"
+    if systemctl is-active --quiet $service_name; then
+        admin_url=$(get_admin_url)
+        echo -e "${GREEN}●${RESET} OpenAdmin is running and is available on: $admin_url"
     else
-        ip=$(get_public_ip)
-        admin_url="http://${ip}:2087/"
+         echo -e "${RED}×${RESET} OpenAdmin is not running. To enable it run 'opencli admin on' "
     fi
-    echo -e "${GREEN}●${RESET} OpenAdmin is running and is available on: $admin_url"
-else
-     echo -e "${RED}×${RESET} OpenAdmin is not running. To enable it run 'opencli admin on' "
-fi
 }
 
 
