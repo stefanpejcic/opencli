@@ -285,19 +285,17 @@ get_user_uid() {
 make_folder() {
 	uid=$(get_user_uid)
 	log "Creating document root directory $docroot"
-	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
+	docker --context $context exec $container_name bash -c "chown $uid /home/$user/files/"
+	docker --context $context exec -u $context $container_name bash -c "mkdir -p $docroot"
 	docker --context $context exec $container_name bash -c "chown $uid:33 $docroot"
 	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
 }
 
 
-
-
-
 check_and_create_default_file() {
 #extra step needed for nginx
 log "Checking if default vhosts file exists for Nginx"
-file_exists=$(docker --context $context exec $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
+file_exists=$(docker --context $context exec  -u $context $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
 
 if [ "$file_exists" == "no" ]; then
     		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
@@ -374,17 +372,6 @@ auto_start_webserver_for_user_in_future(){
 		su "$user" -c "docker exec $container_name sed -i 's/LITESPEED_STATUS=\"off\"/LITESPEED_STATUS=\"on\"/' /etc/entrypoint.sh"
 	fi
 }
-
-
-# NOT USED!
-run_command_in_context() {
-	local container_name="$1"
- 	local context="$2"
-  	local command="$3"
-
-	docker --context $context exec $container_name bash -c "$command"
-}
-
 
 
 vhost_files_create() {
