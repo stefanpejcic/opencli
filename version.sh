@@ -31,7 +31,7 @@
 
 version_check() {
     if [ -f "/root/docker-compose.yml" ]; then
-        image_version=$(grep -A 1 "openpanel:" /root/docker-compose.yml | grep "image:" | awk -F':' '{print $2}' | xargs)
+        image_version=$(grep -A 1 "openpanel:" /root/docker-compose.yml | grep "image:" | awk -F':' '{print $3}' | xargs)
         
         if [ -n "$image_version" ]; then
             echo $image_version
