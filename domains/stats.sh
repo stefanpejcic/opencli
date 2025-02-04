@@ -53,12 +53,12 @@ done
 check_if_reports_are_enabled() {
     enabled_modules=$(grep '^enabled_modules=' "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
     # Check if 'domains_visitors' is in the list of enabled modules
-    if echo "$enabled_modules" | grep -q 'domains_visitors'; then
-        # 'domains_visitors' is enabled
+    if echo "$enabled_modules" | grep -q 'goaccess'; then
+        # 'goaccess' is enabled
         :
     else
         # 'domains_visitors' is not enabled
-        echo "ERROR: 'domains_visitors' module is not enabled. Skipping report generation."
+        echo "'goaccess' module is not enabled. Skipping report generation."
         exit 1
     fi
 }
