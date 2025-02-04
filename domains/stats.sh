@@ -96,22 +96,26 @@ process_logs() {
             local sed_command="s/Dashboard/$domain/g"
     
             mkdir -p "$output_dir"
-    
-            cat "$log_file" | docker run --memory="256m" --cpus="0.5" \
-               -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-               -v /var/log/caddy/:/var/log/caddy/ \
-               --rm -i -e LANG=EN allinurl/goaccess \
-               -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html \
-               --log-format=COMBINED \
-               > "$html_output"
-            
-            
-            sed -i "$sed_command" "$html_output" > /dev/null 2>&1
-    
-            if [ "$DEBUG" = true ]; then
-                echo "Processed domain $domain for user $username with IP exclusions"
+            if [ -s "$log_file" ]; then
+                docker run --memory="256m" --cpus="0.5" \
+                   -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
+                   -v ${log_file}:/var/log/caddy/access.log \
+                   -v ${output_dir}:${output_dir}\
+                   --rm -i -e LANG=EN allinurl/goaccess \
+                   -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html \
+                   --log-format=CADDY /var/log/caddy/access.log \
+                   > "$html_output"
+              
+                
+                sed -i "$sed_command" "$html_output" > /dev/null 2>&1
+        
+                if [ "$DEBUG" = true ]; then
+                    echo "Processed domain $domain for user $username with IP exclusions"
+                else
+                    echo "Processed domain $domain for user $username"
+                fi
             else
-                echo "Processed domain $domain for user $username"
+                echo "Skipped empty log file for domain $domain of user $username"
             fi
         done
         
