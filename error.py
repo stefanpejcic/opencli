@@ -1,4 +1,4 @@
-import docker
+import subprocess
 import argparse
 
 '''
@@ -8,33 +8,38 @@ Display logs for error code
 def extract_error_log_from_docker(error_code):
     container_name = 'openpanel'
 
-    client = docker.from_env()
-
+    # Use subprocess to get the container logs
     try:
-        container = client.containers.get(container_name)
-    except docker.errors.NotFound:
-        return f"Container '{container_name}' is not running."
+        result = subprocess.run(
+            ['docker', 'logs', '--since=10m', container_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        return f"Error while fetching logs: {e.stderr}"
 
-    logs = container.logs(tail=10000, stream=False).decode('utf-8').splitlines()
+    logs = result.stdout.splitlines()
 
-    result = []
+    result_log = []
     found_error_code = False
 
     for line in reversed(logs):
         if found_error_code:
-            result.append(line.strip())
+            result_log.append(line.strip())
             if 'ERROR' in line:
                 break
         elif error_code in line:
             found_error_code = True
-            result.append(line.strip())
+            result_log.append(line.strip())
 
-    result.reverse()
+    result_log.reverse()
 
     if not found_error_code:
         return f"Error Code '{error_code}' not found in the {container_name} logs."
 
-    return result
+    return result_log
 
 def main():
     parser = argparse.ArgumentParser(description="Extract error logs from the OpenPanel container by error code.")
