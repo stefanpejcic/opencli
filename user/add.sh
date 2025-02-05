@@ -901,7 +901,7 @@ if [ "$DEBUG" = true ]; then
     log "Creating container with the docker compose command:"
     echo "$docker_cmd"
 fi
-        machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
+        machinectl shell $username@ /bin/bash -c "$docker_cmd"
 
 
 
@@ -910,7 +910,7 @@ compose_running=$(docker --context $username compose ls)
 if echo "$compose_running" | grep -q "/etc/openpanel/docker/compose/$username/docker-compose.yml"; then
     :
 else
-    echo "docker-compose.yml for $username is not found."
+    echo "docker-compose.yml for $username is not found or the container did not start!"
 	#docker rm -f "$username" > /dev/null 2>&1
 	#docker context rm "$username" > /dev/null 2>&1
         #killall -u $username > /dev/null 2>&1
