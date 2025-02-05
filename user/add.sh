@@ -1156,7 +1156,7 @@ reload_user_quotas() {
 # MAIN
 
 (
-flock -s 200
+flock -n 200 || { echo "Error: Another instance of the script is already running. Exiting."; exit 1; }
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 set_docker_context_for_container             # get context and use slave server if set
