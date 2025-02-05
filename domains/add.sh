@@ -542,21 +542,17 @@ fi
 
 
 
-
-# Function to validate and reload Caddy service
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    output=$(docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1)
-
-    if echo "$output" | grep -q "Valid configuration"; then
+    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+        # Wait for validation to finish before proceeding
         docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
-        #echo "Validation failed, reverting changes."
-        #cp "$backup_file" "$domains_file"
         return 1
     fi
 }
+
 
 
  	# Check if the 'caddy' container is running
