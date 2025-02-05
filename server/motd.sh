@@ -11,8 +11,11 @@
 # Author: Stefan Pejcic (stefan@pejcic.rs)                                               #
 ##########################################################################################
 
-VERSION=$(cat /usr/local/panel/version)
+VERSION=$(opencli version)
 CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
+COMPOSE_FILE_PATH='/root/docker-compose.yml'
+CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
+CADDY_CERT_DIR="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/"
 OUTPUT_FILE='/etc/openpanel/skeleton/motd'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -20,81 +23,100 @@ RESET='\033[0m'
 
 DOCS_LINK="https://openpanel.com/docs/user/intro/"
 FORUM_LINK="https://community.openpanel.org/"
-DISCORD_LINK="https://discord.openpanel.com/"
+DISCORD_LINK="https://discord.openpanel.org/"
+
+read_config() {
+    local section="$1"
+    if [[ -z "$section" ]]; then
+        section="GENERAL"
+    fi
+
+    if [[ ! -f "$CONFIG_FILE_PATH" || ! -s "$CONFIG_FILE_PATH" ]]; then
+        echo -e  "${RED}FATAL ERROR:${RESET} OpenPanel main configuration file $CONFIG_FILE_PATH is empty or missing!"
+        echo -e  "OpenPanel and OpenAdmin services will not work!"    
+        echo -e  ""
+        echo -e  "Restore configuration from a backup or download defaults from $GITHUB_CONF_REPO"
+        exit 1
+    fi
+    
+    awk -F '=' -v section="$section" '
+        BEGIN {flag=0}
+        /^\[/{flag=0}
+        $0 == "[" section "]" {flag=1; next}
+        flag && /^[^ \t]+/ {gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}
+    ' "$CONFIG_FILE_PATH"
+}
+
+get_license() {
+    config=$(read_config "LICENSE")
+    LICENSE_KEY=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
+    
+    if [[ $LICENSE_KEY =~ ^enterprise ]]; then
+        LICENSE="${GREEN}Enterprise${RESET} edition"
+    elif [ -z "$LICENSE_KEY" ]; then
+        LICENSE="${RED}Community${RESET} edition"
+    else 
+        LICENSE="" # older versions <0.2.1
+    fi
+    echo "$LICENSE"
+}
 
 
-# IP SERVERS
-SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
-if [ -f "$SCRIPT_PATH" ]; then
-    source "$SCRIPT_PATH"
+
+get_public_ip() {
+    ip=$(curl --silent --max-time 1 -4 https://ip.openpanel.com || wget --timeout=1 -qO- https://ipv4.openpanel.com || curl --silent --max-time 1 -4 https://ifconfig.me)
+    
+    if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        ip=$(hostname -I | awk '{print $1}')
+    fi
+    
+    echo "$ip"
+}
+
+
+get_user_url() {
+    domain_block=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag {print}' "$CADDY_FILE")
+    domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
+    domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
+    domain=$(echo "$domain" | sed 's|^http[s]*://||')
+    port="2083" # TODO!
+    if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
+        ip=$(get_public_ip)
+        user_url="http://${ip}:${port}/"
+    else
+        if [ -f "${CADDY_CERT_DIR}/${domain}/${domain}.crt" ] && [ -f "${CADDY_CERT_DIR}/${domain}/${domain}.key" ]; then
+            user_url="https://${domain}:${port}/"
+        else
+            ip=$(get_public_ip)
+            user_url="http://${ip}:${port}/"
+        fi
+    fi
+    
+    echo "$user_url"    
+}
+
+user_url=$(get_user_url)
+
+regex="^[0-9]+\.[0-9]+\.[0-9]+$"
+if [[ $VERSION =~ $regex ]]; then
+    VERSION="v$VERSION"
 else
-    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+    VERSION=""
 fi
 
-
+LICENSE=$(get_license)
 
 
 
 mkdir -p /etc/openpanel/skeleton/
 touch $OUTPUT_FILE
 
-read_config() {
-    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
-    echo "$config"
-}
 
-get_ssl_status() {
-    config=$(read_config)
-    ssl_status=$(echo "$config" | grep -i 'ssl' | cut -d'=' -f2)
-    [[ "$ssl_status" == "yes" ]] && echo true || echo false
-}
-
-get_custom_port() {
-    config=$(read_config)
-    custom_port=$(echo "$config" | grep -i 'port' | cut -d'=' -f2)
-    echo $custom_port
-}
-
-custom_port=$(get_custom_port)
-
-if [ -z "$custom_port" ]; then 
-    PORT="2083"
-else  
-    PORT="$custom_port"
-fi
-
-get_force_domain() {
-    config=$(read_config)
-    force_domain=$(echo "$config" | grep -i 'force_domain' | cut -d'=' -f2)
-
-    if [ -z "$force_domain" ]; then
-        ip=$(get_public_ip)
-        force_domain="$ip"
-    fi
-    echo "$force_domain"
-}
-
-get_public_ip() {
-    ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
-
-    if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        ip=$(hostname -I | awk '{print $1}')
-    fi
-    echo "$ip"
-}
-
-if [ "$(get_ssl_status)" == true ]; then
-    hostname=$(get_force_domain)
-    user_url="https://${hostname}:${PORT}/"
-else
-    ip=$(get_public_ip)
-    user_url="http://${ip}:${PORT}/"
-fi
 
 {
     echo -e  "================================================================"
     echo -e  ""
-    echo -e  "This server has installed OpenPanel 🚀"
+    echo -e  "This server has installed OpenPanel ${LICENSE} ${VERSION} 🚀"
     echo -e  ""
     echo -e  "OPENPANEL LINK: ${GREEN}${user_url}${RESET}"
     echo -e  ""
