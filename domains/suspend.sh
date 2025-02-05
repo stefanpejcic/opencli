@@ -62,16 +62,19 @@ edit_nginx_vhosts() {
        suspended_dir="/etc/openpanel/caddy/suspended_domains/"
        conf_template="/etc/openpanel/caddy/templates/suspended.conf"
        mkdir -p $suspended_dir
-       if [ -f "$domain_vhost" ]; then
-                       
-            cp $domain_vhost $suspended_dir  > /dev/null 2>&1
-        	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g")
-            echo "$domain_conf" > "$domain_vhost"
-            validate_conf
-         
-        else
-            echo "ERROR: vhost file for domain $domain_name does not exist"
-        fi
+       if [ -f "${suspended_dir}${domain_name}.conf" ]; then
+		echo "Domain is already suspended."
+	else
+	       if [ -f "$domain_vhost" ]; then      
+	            cp $domain_vhost $suspended_dir  > /dev/null 2>&1
+	            domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g")
+	            echo "$domain_conf" > "$domain_vhost"
+	            validate_conf
+	         
+	        else
+	            echo "ERROR: vhost file for domain $domain_name does not exist"
+	        fi
+	fi
 }
 
 
