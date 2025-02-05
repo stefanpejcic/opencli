@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+(
+flock -n 200 || { echo "Error: Another instance of the script is already running. Exiting."; exit 1; }
 output_dir="/etc/openpanel/openpanel/core/users"
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
@@ -106,6 +108,7 @@ elif [[ "$1" == "--all" ]]; then
   # Get total user count
   total_users=$(echo "$users" | wc -w)
   if command -v repquota > /dev/null 2>&1; then
+      quotacheck -avm > /dev/null
       repquota -u / > /etc/openpanel/openpanel/core/users/repquota
   fi
   # Iterate over each user
@@ -120,6 +123,7 @@ elif [[ "$1" == "--all" ]]; then
     
 elif [ $# -eq 1 ]; then
       if command -v repquota > /dev/null 2>&1; then
+          quotacheck -avm > /dev/null
           repquota -u / > /etc/openpanel/openpanel/core/users/repquota
       fi
   process_user "$1"
@@ -128,3 +132,4 @@ else
   exit 1
 fi
 
+)200>/root/openpanel_docker_collect_stats.lock
