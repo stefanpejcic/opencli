@@ -78,16 +78,16 @@ log() {
     fi
 }
 
-if [[ -n "$docroot" && ! "$docroot" =~ ^/home/$user/files/ ]]; then
-    echo "FATAL ERROR: Invalid docroot. It must start with /home/$user/files/"
+if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
+    echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
     exit 1
 fi
 
 if [[ -n "$docroot" ]]; then
     log "Using document root: $docroot"
 else
-    docroot="/home/$user/files/$domain_name"
-    log "No document root specified, using /home/$user/files/$domain_name"
+    docroot="/var/www/html/$domain_name"
+    log "No document root specified, using /var/www/html/$domain_name"
 fi
 
 # added in 0.3.8 so user can not add the server hostname and take over server!
