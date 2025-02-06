@@ -74,15 +74,6 @@ apply_permissions_in_container() {
     fi
 
 
-        if id "$container_name" &>/dev/null; then
-            user_id=$(id -u $container_name)
-        else
-            echo "User '$container_name' does not exist."
-            exit 1
-        fi
-
-
-
 
 get_user_info() {
     local user="$1"
@@ -110,8 +101,8 @@ fi
   if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
 
         # USERNAME OWNER
-        #docker --context $context exec $container_name bash -c "chown -R $verbose $user_ud:33 $directory"
-        chown -R $verbose $user_ud:33 $directory
+        docker --context $context exec $container_name bash -c "chown -R $verbose 0:33 $directory"
+        #chown -R $verbose $user_ud:33 $directory
         owner_result=$?
         
         # WWW-DATA GROUP
@@ -121,7 +112,7 @@ fi
         
         
         if [ "$emails" = "true" ]; then
-            docker --context $context exec $container_name bash -c "chown -R $verbose $user_id:1000 /home/$container_name/mail/"
+            docker --context $context exec $container_name bash -c "chown -R $verbose 0:1000 /home/$container_name/mail/"
             mail_result=$?
         fi
         
