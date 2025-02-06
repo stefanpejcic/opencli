@@ -118,9 +118,8 @@ fi
 
 # Check if --ssh flag is provided
 if [ "$ssh_flag" = true ]; then
-    if [ "$DEBUG" = true ]; then
 
-
+    
 # get user ID from the database
 get_user_info() {
     local user="$1"
@@ -149,16 +148,18 @@ if [ -z "$context" ]; then
     exit 1
 fi
     
+    
+    if [ "$DEBUG" = true ]; then
         # Change the user password in the Docker container
-        echo "$username:$new_password" | docker --context $context exec -i "$username" chpasswd
+        echo "root:$new_password" | docker --context $context exec -i root chpasswd
         if [ "$random_flag" = true ]; then
-            echo "SSH user $username in Docker container now also have password: $new_password"
+            echo "SSH root user in container now also have password: $new_password"
         else
-            echo "SSH user $username password changed."
+            echo "SSH user root password changed."
         fi
     else
         # Change the user password in the Docker container
-        echo "$username:$new_password" | docker --context $context exec -i "$username" chpasswd
+        echo "root:$new_password" | docker --context $context exec -i root chpasswd
     fi
     
 fi
