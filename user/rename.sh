@@ -351,8 +351,8 @@ rename_user_in_db() {
 
 
 reload_user_quotas() {
-	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+	local file="/etc/openpanel/openpanel/core/users/repquota"
+	sed -i -E "s/\b${OLD_USERNAME} /${NEW_USERNAME} /g" "$file"
 }
 
 
@@ -383,7 +383,7 @@ get_ipv4_for_user                                                          # get
 rename_docker_container                                                    # rename docker, doh! 
 edit_firewall_ports_comments                    # TODOOOO                           # firewall ports
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
-reload_user_quotas
+# we dotnt cjhange context!  reload_user_quotas "$old_username" "$new_username"
 change_default_email                                                       # change default email
 #TODO: rename ftp accounts suffix!
 
