@@ -82,7 +82,7 @@ ensure_jq_installed() {
 
 
 # Check if the login log file exists for the user
-login_log_file="/home/$username/.lastlogin"
+login_log_file="/etc/openpanel/openpanel/core/users/$username/.lastlogin"
 if [ ! -f "$login_log_file" ]; then
     echo "Login log file not found for user: $username"
     exit 1
