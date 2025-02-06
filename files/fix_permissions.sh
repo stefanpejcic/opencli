@@ -62,14 +62,14 @@ apply_permissions_in_container() {
 
     if [ -n "$path" ]; then
         # this is also checked on the backend
-        if [[ $path != /home/$container_name/files/* ]]; then
+        if [[ $path != /var/www/html/* ]]; then
             path="${path#/}" # strip / from beginning if relative path is sued
-            path="/home/$container_name/files/$path" # prepend user home directory
+            path="/var/www/html/$path" # prepend user home directory
         fi
         directory="$path"
         emails=false
     else   
-        directory="/home/$container_name/files/"
+        directory="/var/www/html/"
         emails=true
     fi
 
