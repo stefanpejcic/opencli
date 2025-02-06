@@ -129,8 +129,8 @@ check_if_container_name_taken(){
 
 
     # Check if Docker container with the same username exists
-    if docker inspect "$new_username" >/dev/null 2>&1; then
-        echo "Error: Docker container with the same username '$new_username' already exists. Aborting."
+    if docker context inspect "$new_username" >/dev/null 2>&1; then
+        echo "Error: Docker context with the same username '$new_username' already exists. Aborting."
         exit 1
     fi
 
@@ -156,63 +156,26 @@ check_if_exists_in_db() {
         echo "Error: Username '$new_username' already exists."
         exit 1
     fi
+
+    context_exists_query="SELECT COUNT(*) FROM users WHERE context = '$new_username'"
+    context_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
+    
+    # count > 0) show error and exit
+    if [ "$context_exists_count" -gt 0 ]; then
+        echo "Error: Context '$new_username' already exists."
+        exit 1
+    fi
+    
 }
 
-
-edit_mount_point_and_mv_files() {
-    ########### DONE CHECKS, RUN THE REMOUNT
-    mv /home/$old_username /home/$new_username > /dev/null 2>&1
-    umount /home/storage_file_$old_username > /dev/null 2>&1
-    mv /home/storage_file_$old_username /home/storage_file_$new_username > /dev/null 2>&1
-    mount -o loop /home/storage_file_$new_username /home/$new_username > /dev/null 2>&1
-    sed -i.bak "/\/home\/storage_file_$old_username \/home\/$old_username ext4 loop 0 0/c\/home\/storage_file_$new_username \/home\/$new_username ext4 loop 0 0" /etc/fstab  > /dev/null 2>&1
-}
 
 
 rename_docker_container() {
 # Check if the container exists
-if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
+if docker --context ${context} ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
 
+	docker --context ${context} rename "$old_username" "$new_username" > /dev/null 2>&1
 
-    determine_web_server() {
-        # Check for Apache inside the container
-        if docker exec "$old_username" which apache2 &> /dev/null; then
-            echo "apache2"
-        # Check for Nginx inside the container
-        elif docker exec "$old_username" which nginx &> /dev/null; then
-            echo "nginx"
-        else
-            echo "unknown"
-        fi
-    }
-
-     if [ "$DEBUG" = true ]; then
-         echo "Checking webserver for user $old_username"
-     fi
- 
-     current_web_server=$(determine_web_server)
-     
-     if [ "$DEBUG" = true ]; then
-         echo "Web server: $determine_web_server"
-     fi
-    
-        if [ "$DEBUG" = true ]; then
-            echo "Renaming ssh user $old_username to  $new_username inside the docker container and editing $current_web_server files."
-            docker exec "$old_username" \
-            bash -c "usermod -l $new_username $old_username && \
-                        sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
-                        service $current_web_server reload"
-    
-                docker rename "$old_username" "$new_username"
-                echo "Container renamed successfully."
-        else
-                docker exec "$old_username" \
-                bash -c "usermod -l $new_username $old_username && \
-                            sed -i \"s#/home/$old_username#/home/$new_username#g\" /etc/$current_web_server/sites-available/* && \
-                            service $current_web_server reload" > /dev/null 2>&1
-                            
-                docker rename "$old_username" "$new_username" > /dev/null 2>&1
-        fi
     else
         echo "Error: Container '$old_username' not found."
         exit 1
@@ -220,16 +183,49 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
 }
 
 
+
+
+get_context() {
+
+
+# get user ID from the database
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+result=$(get_user_info "$container_name")
+user_id=$(echo "$result" | cut -d',' -f1)
+context=$(echo "$result" | cut -d',' -f2)
+
+if [ -z "$user_id" ]; then
+    echo "FATAL ERROR: user $container_name does not exist."
+    exit 1
+fi
+
+
+}
+
 mv_user_data() {
-
-
 
     if [ "$DEBUG" = true ]; then
         mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" 
         rm /etc/openpanel/openpanel/core/users/$new_username/data.json
+	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/
     else
         mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
         rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
+	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/
     fi
 
 }
@@ -259,48 +255,11 @@ get_ipv4_for_user() {
 
 
 
-edit_nginx_files_on_host_server() {
-    USERNAME=$1
-    NEW_USERNAME=$2
-    NGINX_CONF_PATH="/etc/nginx/sites-available"
-    ALL_DOMAINS=$(opencli domains-user $USERNAME)
-
-    if [ "$DEBUG" = true ]; then
-        # Loop through Nginx configuration files for the user
-        for domain in $ALL_DOMAINS; do
-            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
-            if [ -f "$DOMAIN_CONF" ]; then
-                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF"                    # proxy_pass https://XXXXXX;
-                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF"                  # proxy_pass https://XXXXXX;
-                sed -i "s#users/$old_username#users/$NEW_USERNAME#g" "$DOMAIN_CONF"                      # include /etc/openpanel/openpanel/core/users/XXXX/domains/DOMAIN-block_ips.conf;
-                echo "Username updated in $DOMAIN_CONF to $NEW_USERNAME."
-            fi
-        done
-        echo "Reloading nginx.."
-        opencli server-recreate_hosts
-        docker exec nginx bash -c "nginx -t && nginx -s reload"
-    else
-        # Loop through Nginx configuration files for the user
-        for domain in $ALL_DOMAINS; do
-            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
-            if [ -f "$DOMAIN_CONF" ]; then
-                sed -i "s#http://$old_username#http://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1    # proxy_pass https://XXXXXX;
-                sed -i "s#https://$old_username#https://$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1  # proxy_pass https://XXXXXX;
-                sed -i "s#users/$old_username#users/$NEW_USERNAME#g" "$DOMAIN_CONF" > /dev/null 2>&1      # include /etc/openpanel/openpanel/core/users/XXXX/domains/DOMAIN-block_ips.conf;
-            fi
-        done
-        # Restart Nginx to apply changes
-        opencli server-recreate_hosts > /dev/null 2>&1
-        docker exec nginx bash -c "nginx -t && nginx -s reload" > /dev/null 2>&1
-    fi
-
-
-}
 
 
 change_default_email () {
     hostname=$(hostname)
-    docker exec "$new_username" bash -c "sed -i 's/^from\s\+.*/from       ${new_username}@${hostname}/' /etc/msmtprc"
+    docker --context $context exec "$new_username" bash -c "sed -i 's/^from\s\+.*/from       ${new_username}@${hostname}/' /etc/msmtprc"
 }
 
 
@@ -403,22 +362,6 @@ reload_user_quotas() {
 }
 
 
-replace_username_in_phpfpm_configs() {
-    old_username="$1" # Assuming $1 is the old username
-    new_username="$2" # Assuming $2 is the new username
-    
-    if [ "$DEBUG" = true ]; then
-        # change user in www.conf file for each php-fpm verison
-        docker exec $new_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \;
-        # restart version
-        docker exec $new_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done'
-    else
-        # change user in www.conf file for each php-fpm verison
-        docker exec $new_username find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$new_username"'/' {} \; > /dev/null 2>&1
-        # restart version
-        docker exec $new_username bash -c 'for phpv in $(ls /etc/php/); do if [[ -d "/etc/php/$phpv/fpm" ]]; then service php${phpv}-fpm restart; fi done' > /dev/null 2>&1
-    fi    
-}
 
 
 
@@ -439,14 +382,12 @@ edit_firewall_ports_comments() {
 check_username_is_valid                                                    # validate username first
 check_if_container_name_taken                                              # check in docker namespaces
 check_if_exists_in_db                                                      # check in mysql db
-edit_mount_point_and_mv_files                                              # /home/username/
+get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
 ensure_jq_installed                                                        # just helper for parsing json
 get_ipv4_for_user                                                          # get shared or dedi ip to be used for nginx files
-replace_username_in_phpfpm_configs "$old_username" "$new_username"         # edit inside container 
 rename_docker_container                                                    # rename docker, doh! 
-edit_nginx_files_on_host_server "$old_username" "$new_username"            # edit and reload nginx conf
-edit_firewall_ports_comments                                               # firewall ports
+edit_firewall_ports_comments                    # TODOOOO                           # firewall ports
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
 reload_user_quotas
 change_default_email                                                       # change default email
