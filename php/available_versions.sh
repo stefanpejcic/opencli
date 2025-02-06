@@ -78,7 +78,7 @@ if [ -z "$username" ]; then
 fi
 
 # Define the directory and file path
-directory="/home/$username/etc/.panel/php"
+directory="/etc/openpanel/openpanel/core/users/$username/php"
 file_path="$directory/php_available_versions.json"
 
 # Ensure the directory exists
