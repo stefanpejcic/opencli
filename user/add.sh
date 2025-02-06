@@ -859,7 +859,7 @@ run_docker() {
 mkdir -p /etc/openpanel/docker/compose/$username/
 cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
 
-cd /etc/openpanel/docker/compose/$username/ && docker compose up -d
+cd /etc/openpanel/docker/compose/$username/ && docker compose up -d > /dev/null 2>&1
 
 
 cat <<EOF > /etc/openpanel/docker/compose/$username/.env
