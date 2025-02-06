@@ -452,14 +452,11 @@ create_user_and_set_quota() {
     if [ -n "$node_ip_address" ]; then
         log "Creating directories for the user on server $node_ip_address"
     # TODO: Use a custom user or configure SSH instead of using root
-        ssh "root@$node_ip_address" "mkdir -p /home/$username && chown $username:33 /home/$username && chmod 755 /home/$username && chmod g+s /home/$username"
+        ssh "root@$node_ip_address" "chmod 755 /var/www/html/ && chmod g+s /var/www/html/"
     else
         log "Creating directories for the user"
-        mkdir -p /home/$username
-	mkdir -p /home/$username/files
-        chown $username:33 /home/$username/files
-        chmod 755 /home/$username
-        chmod g+s /home/$username
+        chmod 755 /var/www/html/
+        chmod g+s /var/www/html/
     fi
 
 
@@ -1018,7 +1015,7 @@ set_ssh_user_password_inside_container() {
     
       echo "root:$password" | docker $context_flag exec chpasswd"
       docker $context_flag exec $username usermod -aG www-data root
-      docker $context_flag exec $username chmod -R g+w /home/$username/files/"
+      docker $context_flag exec $username chmod -R g+w /var/www/html/"
       if [ "$DEBUG" = true ]; then
         echo "SSH password set to: $password"
       fi
