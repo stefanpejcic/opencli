@@ -184,6 +184,9 @@ delete_domain_file() {
  	    log "Caddy is running, reloading configuration"
 	    check_and_add_to_enabled
 	fi   
+	 #stats and logs
+ 	rm -rf /var/log/caddy/domlogs/$domain_name/
+  	rm -rf /var/log/caddy/stats/$user/$domain_name.html
 }
 
 
