@@ -157,7 +157,7 @@ check_if_exists_in_db() {
         exit 1
     fi
 
-    context_exists_query="SELECT COUNT(*) FROM users WHERE context = '$new_username'"
+    context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$new_username'"
     context_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
     
     # count > 0) show error and exit
@@ -204,12 +204,12 @@ get_user_info() {
 }
 
 
-result=$(get_user_info "$container_name")
+result=$(get_user_info "$old_username")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
 if [ -z "$user_id" ]; then
-    echo "FATAL ERROR: user $container_name does not exist."
+    echo "ERROR: user $old_username does not exist."
     exit 1
 fi
 
@@ -218,15 +218,9 @@ fi
 
 mv_user_data() {
 
-    if [ "$DEBUG" = true ]; then
-        mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" 
-        rm /etc/openpanel/openpanel/core/users/$new_username/data.json
-	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/
-    else
         mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
         rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
-	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/
-    fi
+	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/ > /dev/null 2>&1
 
 }
 
@@ -357,8 +351,8 @@ rename_user_in_db() {
 
 
 reload_user_quotas() {
-	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota   
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+	quotacheck -avm > /etc/openpanel/openpanel/core/users/repquota > /dev/null 2>&1
+	repquota -u / > /etc/openpanel/openpanel/core/users/repquota
 }
 
 
