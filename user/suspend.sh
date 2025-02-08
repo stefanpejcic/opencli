@@ -59,43 +59,8 @@ get_docker_context_for_user() {
     # GET CONTEXT NAME FOR DOCKER COMMANDS
     server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$username';" -N)
     
-    if [ -z "$server_name" ]; then
-        server_name="default" # compatibility with older panel versions before clustering
-        context_flag=""
-        node_ip_address=""
-    elif [ "$server_name" == "default" ]; then
-        context_flag=""
-        node_ip_address=""
-    else
-        context_flag="--context $server_name"
-        # GET IPV4 FOR SSH COMMANDS
-        context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")
-    
-        if [ -n "$context_info" ]; then
-            endpoint=$(echo "$context_info" | awk '{print $2}')
-            if [[ "$endpoint" == ssh://* ]]; then
-                node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
-            else
-                echo "ERROR: valid IPv4 address for context $server_name not found!"
-                echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
-                echo "       Make sure that the docker context named $server_name has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
-                exit 1
-            fi
-        else
-            echo "ERROR: docker context with name $server_name does not exist!"
-            echo "       User container is located on node $server_name but there is no docker context with that name."
-            echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
-            exit 1
-        fi
-        
-    fi
+    context_flag="--context $server_name"
 
-
-
-    # context         - node name
-    # context_flag    - docker context to use in docker commands
-    # node_ip_address - ipv4 to use for ssh
-    
 }
 
 
@@ -112,34 +77,23 @@ suspend_user_websites() {
     
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
-       domain_vhost="/etc/nginx/sites-available/$domain_name.conf"
+       domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
        if [ -f "$domain_vhost" ]; then
             echo "- Suspending domain: $domain_name"
-            if [ -n "$node_ip_address" ]; then
-                # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
-                if [ "$DEBUG" = true ]; then
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g' $domain_vhost"
-                else
-                    ssh "root@$node_ip_address" "sed -i 's/set \$suspended_user [01];/set \$suspended_user 1;/g' $domain_vhost" > /dev/null 2>&1
-                fi
-            else
-                if [ "$DEBUG" = true ]; then
-                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' $domain_vhost
-                else
-                    sed -i 's/set $suspended_user [01];/set $suspended_user 1;/g' $domain_vhost > /dev/null 2>&1
-                fi
-            fi       
         else
             echo "WARNING: vhost file for domain $domain_name does not exist -Skipping"
         fi
-        
-        if [ "$DEBUG" = true ]; then
-            echo "Reloading nginx to redirect user's suspended domains"
-            docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload'
-        else
-            docker $context_flag exec nginx sh -c 'nginx -t && nginx -s reload' > /dev/null 2>&1
-        fi
+
+        cp $domain_vhost /etc/openpanel/caddy/suspended_domains/$domain_name.conf
+        cp $suspended_template $domain_vhost
+        # todo sed
     done
+
+        if [ "$DEBUG" = true ]; then
+            echo "Reloading caddy to redirect user's suspended domains"
+        fi
+            docker restart caddy > /dev/null 2>&1
+    
 }
 
 
