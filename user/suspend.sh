@@ -70,7 +70,34 @@ get_docker_context_for_user() {
 
 
 
+check_and_add_to_enabled() {
+    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+        docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        return 0
+    else
+        return 1
+    fi
+}
 
+validate_conf() {
+
+  	if [ $(docker ps -q -f name=caddy) ]; then
+        :
+	else
+        cd /root && docker compose up -d caddy  >/dev/null 2>&1
+     fi
+     
+	check_and_add_to_enabled
+ 
+	if [ $? -eq 0 ]; then
+		:
+  #echo "Domain suspended successfully."
+	else
+        mv ${suspended_dir}${domain_name}.conf  $domain_vhost > /dev/null 2>&1
+        check_and_add_to_enabled
+		#echo "ERROR: Failed to validate conf after suspend, changes reverted."
+	fi
+}
 
 
 suspend_user_websites() {
@@ -91,17 +118,13 @@ suspend_user_websites() {
            cp $domain_vhost ${suspended_dir}${domain_name}.conf
        fi
 
-
-           cp $conf_template $domain_vhost
-       
-
+domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g")
+	            
+echo "$domain_conf" > "$domain_vhost"
+	        
     done
-
-        if [ "$DEBUG" = true ]; then
-            echo "Reloading caddy to redirect user's suspended domains"
-        fi
-            docker restart caddy > /dev/null 2>&1
     
+        validate_conf
 }
 
 
