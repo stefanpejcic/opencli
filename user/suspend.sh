@@ -38,6 +38,11 @@ fi
 username="$1"
 DEBUG=false  # Default value for DEBUG
 
+       suspended_dir="/etc/openpanel/caddy/suspended_domains/"
+       conf_template="/etc/openpanel/caddy/templates/suspended_user.conf"
+       mkdir -p $suspended_dir
+
+
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
     case $arg in
@@ -74,19 +79,22 @@ suspend_user_websites() {
         echo "ERROR: user $username not found in the database"
         exit 1
     fi
+
     
     domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
        domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
-       if [ -f "$domain_vhost" ]; then
-            echo "- Suspending domain: $domain_name"
-        else
-            echo "WARNING: vhost file for domain $domain_name does not exist -Skipping"
-        fi
 
-        cp $domain_vhost /etc/openpanel/caddy/suspended_domains/$domain_name.conf
-        cp $suspended_template $domain_vhost
-        # todo sed
+       if [ -f "${suspended_dir}${domain_name}.conf" ]; then
+	    	:
+       else       
+           cp $domain_vhost ${suspended_dir}${domain_name}.conf
+       fi
+
+
+           cp $conf_template $domain_vhost
+       
+
     done
 
         if [ "$DEBUG" = true ]; then
