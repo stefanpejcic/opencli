@@ -107,7 +107,7 @@ fi
         
         # WWW-DATA GROUP
         #docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
-        find $directory -print0 | xargs -0 chmod $verbose -R g+w
+        docker --context $context exec $container_name bash -c "find $directory -print0 | xargs -0 chmod $verbose -R g+w"
         group_result=$?
         
         
@@ -118,12 +118,12 @@ fi
         
         # FILES
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
-        find $directory -type f -print0 | xargs -0 chmod $verbose 644
+        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
         files_result=$?
         
         # FOLDERS
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
-        find $directory -type d -print0 | xargs -0 chmod $verbose 755
+        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
         folders_result=$?
         
         # CHECK ALL 5
