@@ -67,31 +67,14 @@ write_notification() {
 # Define the route to check for updates
 update_check() {
     # Read the local version from /usr/local/panel/version
-    if [ -f "/usr/local/panel/version" ]; then
-        local_version=$(cat "/usr/local/panel/version")
-    else
-        echo '{"error": "Local version file not found"}' >&2
-        exit 1
-    fi
+    local_version=$(opencli version)
 
-    UPDATE_SERV_1="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/latest"
-    UPDATE_SERV_2="https://update.openpanel.com/"
-    UPDATE_SERV_3="https://update.openpanel.org/"
-
-    remote_version=$(curl -s "$UPDATE_SERV_1" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
-
-    if [ -z "$remote_version" ]; then
-        remote_version=$(curl -s "$UPDATE_SERV_2" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
-    fi
-
-    if [ -z "$remote_version" ]; then
-        remote_version=$(curl -s "$UPDATE_SERV_3" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | tr -d '\r')
-    fi
-    
-    # If both attempts fail, handle the error
+    remote_version=$(curl -s "https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/website/docusaurus.config.js" | grep -oP '(?<=label: ")[0-9]+\.[0-9]+\.[0-9]+')
+   
+    # If github unreachable
     if [ -z "$remote_version" ]; then
         echo '{"error": "Error fetching remote version"}' >&2
-        write_notification "Update check failed" "Failed connecting to both OpenPanel servers and GitHub"
+        write_notification "Update check failed" "Failed connecting to GitHub"
         exit 1
     fi
 
