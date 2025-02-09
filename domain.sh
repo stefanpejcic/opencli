@@ -73,7 +73,7 @@ CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 update_domain() {
 
       update_caddyfile() {
-      
+
             sed -i "/on_demand_https/!s/\([a-zA-Z0-9.-]\+\)\( {\)/$new_hostname\2/g" $CADDY_FILE
             
             if [[ $new_hostname == 'example.net' ]]; then
@@ -100,8 +100,7 @@ update_domain() {
 
 success_msg() {
             if [[ $new_hostname == 'example.net' ]]; then
-                new_hostname=$(get_server_ipv4)
-                echo "$server_ip is now set for accessing the OpenPanel and OpenAdmin interfaces."      
+                new_hostname="$server_ip"
             fi
             
             echo "$new_hostname is now set for accessing the OpenPanel and OpenAdmin interfaces."             
@@ -109,8 +108,7 @@ success_msg() {
 
 
 
-
-      server_ip=($get_server_ipv4)
+      server_ip=$(get_server_ipv4)
       update_caddyfile
       update_redirects
       success_msg
