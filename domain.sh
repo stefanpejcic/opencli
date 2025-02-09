@@ -28,11 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
-
+CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 
 get_server_ipv4(){
-	# Get server ipv4
- 
 	# list of ip servers for checks
 	IP_SERVER_1="https://ip.openpanel.com"
 	IP_SERVER_2="https://ipv4.openpanel.com"
@@ -68,7 +66,15 @@ get_server_ipv4(){
 }
 
 
-CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
+
+do_reload() {
+   if [[ "$3" != '--no-restart' ]]; then
+       cd /root
+       docker compose restart caddy openpanel > /dev/null 2>&1
+   fi
+}
+
+
 
 update_domain() {
 
@@ -111,6 +117,7 @@ success_msg() {
       server_ip=$(get_server_ipv4)
       update_caddyfile
       update_redirects
+      do_reload
       success_msg
 
 }
@@ -121,7 +128,7 @@ get_current_domain() {
     # Extract current domain from Caddyfile
     current_domain=$(grep -oP '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' /etc/openpanel/caddy/Caddyfile | head -n 1)
     if [[ $current_domain == 'example.net' ]]; then
-      current_domain=$(get_server_ipv4)
+        current_domain=$(get_server_ipv4)
     fi
     echo "$current_domain"
 }
