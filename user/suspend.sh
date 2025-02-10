@@ -30,7 +30,7 @@
 
 # Check if the correct number of command-line arguments is provided
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    echo "Usage: $0 <username>"
+	echo "Usage: opencli user-suspend <username>"
     exit 1
 fi
 
@@ -38,9 +38,9 @@ fi
 username="$1"
 DEBUG=false  # Default value for DEBUG
 
-       suspended_dir="/etc/openpanel/caddy/suspended_domains/"
-       conf_template="/etc/openpanel/caddy/templates/suspended_user.conf"
-       mkdir -p $suspended_dir
+suspended_dir="/etc/openpanel/caddy/suspended_domains/"
+conf_template="/etc/openpanel/caddy/templates/suspended_user.conf"
+mkdir -p $suspended_dir
 
 
 # Parse optional flags to enable debug mode when needed!
