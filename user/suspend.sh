@@ -108,7 +108,7 @@ suspend_user_websites() {
     fi
 
     
-    domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_name FROM domains WHERE user_id='$user_id';" -N)
+    domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" -N)
     for domain_name in $domain_names; do
        domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
 
@@ -119,7 +119,7 @@ suspend_user_websites() {
        fi
 
 domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g")
-	            
+      
 echo "$domain_conf" > "$domain_vhost"
 	        
     done
