@@ -264,24 +264,7 @@ clear_cache_for_user() {
 
 
 
-
-
-
-get_user_uid() {
-	user_uid=$(awk -F: -v user="$container_name" '$1 == user {print $3}' /hostfs/etc/passwd)
-	
-	# Check if UID was found
-	if [ -n "$user_uid" ]; then
-	    echo "$user_uid"
-	else
-	    echo "$container_name"
-	fi
-}
-
-
-
 make_folder() {
-	user_uid=$(get_user_uid)
 	log "Creating document root directory $docroot"
 	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
 	docker --context $context exec $container_name bash -c "chown 0:33 $docroot"
