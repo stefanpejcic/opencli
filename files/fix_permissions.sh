@@ -67,10 +67,8 @@ apply_permissions_in_container() {
             path="/var/www/html/$path" # prepend user home directory
         fi
         directory="$path"
-        emails=false
     else   
         directory="/var/www/html/"
-        emails=true
     fi
 
 
@@ -101,46 +99,31 @@ fi
   if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
 
         # USERNAME OWNER
-        docker --context $context exec $container_name bash -c "chown -R $verbose 0:33 $directory"
+        docker --context $context exec $container_name bash -c "chown -R $verbose 0:33 $directory"  > /dev/null 2>&1
         #chown -R $verbose $user_ud:33 $directory
         owner_result=$?
         
         # WWW-DATA GROUP
         #docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
-        docker --context $context exec $container_name bash -c "find $directory -print0 | xargs -0 chmod $verbose -R g+w"
+        docker --context $context exec $container_name bash -c "find $directory -print0 | xargs -0 chmod $verbose -R g+w"  > /dev/null 2>&1
         group_result=$?
-        
-        
-        if [ "$emails" = "true" ]; then
-            docker --context $context exec $container_name bash -c "chown -R $verbose 0:1000 /home/$container_name/mail/"
-            mail_result=$?
-        fi
-        
+
         # FILES
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
-        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
+        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"  > /dev/null 2>&1
         files_result=$?
         
         # FOLDERS
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
-        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"
+        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 755"  > /dev/null 2>&1
         folders_result=$?
         
-        # CHECK ALL 5
-        if [ "$emails" = "true" ]; then
-            if [ $group_result -eq 0 ] && [ $mail_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
-                echo "Permissions applied successfully to $directory"
-            else
-                echo "Error applying permissions to $directory"
-            fi
-        else
         # CHECK ALL 4
             if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
                 echo "Permissions applied successfully to $directory"
             else
                 echo "Error applying permissions to $directory"
             fi
-        fi
   else
     echo "Container for user $container_name not found or is not running."
   fi
