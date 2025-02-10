@@ -1013,7 +1013,7 @@ set_ssh_user_password_inside_container() {
     venv_path="/usr/local/admin/venv"
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
-      echo "root:$password" | docker $context_flag exec chpasswd"
+      echo "root:$password" | docker $context_flag exec $username chpasswd"
       docker $context_flag exec $username usermod -aG www-data root
       docker $context_flag exec $username chmod -R g+w /var/www/html/"
       if [ "$DEBUG" = true ]; then
