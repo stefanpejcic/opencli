@@ -1,0 +1,208 @@
+#!/bin/bash
+################################################################################
+# Script Name: domains/docroot.sh
+# Description: View and change docroot for a domain.
+# Usage: opencli domains-docroot <DOMAIN_NAME> [update </var/www/html/>] --debug
+# Author: Stefan Pejcic
+# Created: 10.02.2025
+# Last Modified: 10.02.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+################################################################################
+
+debug_mode=false
+args=()
+
+# Process arguments and check for --debug
+for arg in "$@"; do
+    if [[ "$arg" == "--debug" ]]; then
+        debug_mode=true
+    else
+        args+=("$arg")  # Store non-debug arguments
+    fi
+done
+
+# Ensure at least one non-debug argument is provided
+if [[ ${#args[@]} -lt 1 ]]; then
+    echo "Usage: opencli domains-docroot <domain> [update <docroot>] [--debug]"
+    exit 1
+fi
+
+domain="${args[0]}"
+action="${args[1]:-}"
+new_docroot="${args[2]:-}"
+
+log() {
+    if $debug_mode; then
+        echo "$1"
+    fi
+}
+
+
+log "Debug Mode: ON"
+log "Domain: $domain"
+log "Action: ${action:-None}"
+log "New Docroot: ${new_docroot:-None}"
+
+
+################################## helpers
+
+# get user ID from the database
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+get_user_context() {
+
+  result=$(get_user_info "$user")
+  user_id=$(echo "$result" | cut -d',' -f1)
+  context=$(echo "$result" | cut -d',' -f2)
+
+  if [ -z "$user_id" ]; then
+      echo "FATAL ERROR: user $user does not exist."
+      exit 1
+  fi
+}
+
+validate_docroot() {
+
+  log "Updating document root for doamin: $domain to: $new_docroot"
+  if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
+      echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
+      exit 1
+  fi
+
+}
+
+
+make_folder() {  
+  	log "Creating document root directory $docroot"
+  	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
+  	docker --context $context exec $container_name bash -c "chown 0:33 $docroot"
+  	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
+ 
+}
+
+
+
+get_webserver_for_user(){
+	    log "Checking webserver configuration"
+	    output=$(opencli webserver-get_webserver_for_user $user)
+	    if [[ $output == *nginx* ]]; then
+	        ws="nginx"
+	    elif [[ $output == *apache* ]]; then
+	        ws="apache2"
+	    elif [[ $output == *litespeed* ]]; then
+	        ws="litespeed"
+	    else
+	        ws="unknown"
+	    fi
+}
+
+
+vhost_file_edit() {
+
+	if [[ $ws == *apache2* ]]; then
+    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf"
+    restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  
+	elif [[ $ws == *nginx* ]]; then
+    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf"
+    restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
+ 		
+	elif [[ $ws == *litespeed* ]]; then
+    restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
+ 		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain}.conf"
+  fi
+
+  docker --context $context exec $user bash -c "$restart_in_container_command" > /dev/null 2>&1
+  
+  sed_command="sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' \"$vhost_in_docker_file\""
+  docker --context "$context" exec "$user" bash -c "$sed_command" > /dev/null 2>&1
+
+}
+
+
+get_user() {
+  whoowns_output=$(opencli domains-whoowns "$domain")
+  user=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
+  if [ -n "$user" ]; then
+    log "User $user owns domain $domain"
+  else
+      echo "Failed to determine the owner of the domain '$domain'." >&2
+      exit 1
+  fi
+  
+}
+
+main_func() {
+
+  validate_docroot
+  get_user_context
+  get_user
+
+  
+  mysql -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
+  mysql -e "$insert_query"
+  result=$(mysql -se "$query")
+  local verify_query="SELECT COUNT(*) FROM domains WHERE docroot = '$new_docroot' AND domain_url = '$domain';"
+  local result=$(mysql -N -e "$verify_query")
+  
+  if [ "$result" -eq 1 ]; then
+  
+    make_folder
+    get_webserver_for_user
+    vhost_file_edit
+    
+    echo "Docroot updated to: $new_docroot for domain: $domain"  
+  else
+      log "Updating docroot for domain $domain failed! Contact administrator to check if the mysql database is running."
+      echo "Failed to change docroot for domain $domain"
+  fi
+  
+}
+
+
+if [[ -n "$domain" && -z "$action" ]]; then
+    # print docroto for domain!
+elif [[ -n "$domain" && "$action" == "update" ]]; then
+    if [[ -z "$new_docroot" ]]; then
+        echo "Error: Missing new_docroot for update action."
+        echo "Usage: opencli domains-docroot  [--debug] <domain> [update <docroot>]"
+        exit 1
+    fi
+
+   main_func # this does all other functions!
+else
+    echo "Invalid arguments"
+    exit 1
+fi
+
