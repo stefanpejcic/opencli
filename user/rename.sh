@@ -127,9 +127,8 @@ check_username_is_valid() {
 
 check_if_container_name_taken(){
 
-
     # Check if Docker container with the same username exists
-    if docker context inspect "$new_username" >/dev/null 2>&1; then
+    if docker $context inspect "$new_username" >/dev/null 2>&1; then
         echo "Error: Docker context with the same username '$new_username' already exists. Aborting."
         exit 1
     fi
@@ -157,6 +156,7 @@ check_if_exists_in_db() {
         exit 1
     fi
 
+    : '
     context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$new_username'"
     context_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
     
@@ -165,6 +165,8 @@ check_if_exists_in_db() {
         echo "Error: Context '$new_username' already exists."
         exit 1
     fi
+
+    '
     
 }
 
@@ -374,7 +376,7 @@ edit_firewall_ports_comments() {
 
 # MAIN
 check_username_is_valid                                                    # validate username first
-check_if_container_name_taken                                              # check in docker namespaces
+#check_if_container_name_taken                                              # check in docker namespaces
 check_if_exists_in_db                                                      # check in mysql db
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
