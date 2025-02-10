@@ -191,8 +191,19 @@ main_func() {
 }
 
 
+get_current_docroot(){
+  local get_docroot="SELECT docroot FROM domains WHERE domain_url = '$domain';"
+  result=$(mysql -N -B -e "$get_docroot")
+if [[ -z "$result" ]]; then
+  echo "Docroot not found for domain: $domain - does the domain exist? run: opencli domains-whoowns $domain"
+else
+  echo "$result"
+fi
+}
+
+
 if [[ -n "$domain" && -z "$action" ]]; then
-    # print docroto for domain!
+    get_current_docroot
 elif [[ -n "$domain" && "$action" == "update" ]]; then
     if [[ -z "$new_docroot" ]]; then
         echo "Error: Missing new_docroot for update action."
