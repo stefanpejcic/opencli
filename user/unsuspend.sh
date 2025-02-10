@@ -132,7 +132,7 @@ start_docker_container() {
 
 # Function to rename user in db
 rename_user() {
-    unsuspended_username=$(echo "$suspended_username" | sed 's/^SUSPENDED_[0-9]\{14\}_//')
+    unsuspended_username=$(echo "$username" | sed 's/^SUSPENDED_[0-9]\{14\}_//')
 
     mysql_query="UPDATE users SET username='$unsuspended_username' WHERE username='$username';"
     
