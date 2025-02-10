@@ -96,7 +96,7 @@ validate_conf() {
 }
 
 
-suspend_user_websites() {
+unsuspend_user_websites() {
     user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username LIKE 'SUSPENDED\_%$username';" -N)
     if [ -z "$user_id" ]; then
         echo "ERROR: user $username not found in the database"
@@ -121,7 +121,7 @@ suspend_user_websites() {
 
 start_docker_container() {
     if [ "$DEBUG" = true ]; then
-        echo "Stopping docker container"
+        echo "Starting docker container"
         docker $context_flag start "$username"
     else
         docker $context_flag start "$username" > /dev/null 2>&1
@@ -132,9 +132,7 @@ start_docker_container() {
 
 # Function to rename user in db
 rename_user() {
-    unsuspended_username=$(echo "$username" | sed 's/^SUSPENDED_[0-9]\{14\}_//')
-
-    mysql_query="UPDATE users SET username='$unsuspended_username' WHERE username='$username';"
+    mysql_query="UPDATE users SET username='$username' WHERE username LIKE 'SUSPENDED\_%_$username';"
     
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
@@ -146,6 +144,6 @@ rename_user() {
 }
 
 get_docker_context_for_user     # node ip and slave/master name
-suspend_user_websites           # redirect domains to suspended_user.html page
+unsuspend_user_websites           # redirect domains to suspended_user.html page
 start_docker_container          # stop docker containerrename
 rename_user                     # rename username in database
