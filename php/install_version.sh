@@ -283,13 +283,6 @@ fi
 
 
 
-
-
-
-
-echo "## Setting service for PHP $php_version"
-docker --context $context exec $container_name find /etc/php/ -type f -name "www.conf" -exec sed -i 's/user = .*/user = '"$container_name"'/' {} \;
-wait $!
 echo "## Starting installed PHP versions.."
 docker --context $context exec $container_name bash -c "service php${php_version}-fpm restart"
 
