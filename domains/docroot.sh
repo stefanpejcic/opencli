@@ -40,9 +40,15 @@ for arg in "$@"; do
     fi
 done
 
+show_help() {
+    echo "Usage: opencli domains-docroot <domain> [update <docroot>] [--debug]"
+    exit 1
+}
+
+
 # Ensure at least one non-debug argument is provided
 if [[ ${#args[@]} -lt 1 ]]; then
-    echo "Usage: opencli domains-docroot <domain> [update <docroot>] [--debug]"
+    show_help
     exit 1
 fi
 
@@ -105,10 +111,10 @@ validate_docroot() {
 
 
 make_folder() {  
-  	log "Creating document root directory $docroot"
-  	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
-  	docker --context $context exec $container_name bash -c "chown 0:33 $docroot"
-  	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
+  	log "Creating document root directory $new_docroot"
+  	docker --context $context exec $user bash -c "mkdir -p $new_docroot"
+  	docker --context $context exec $user bash -c "chown 0:33 $new_docroot"
+  	docker --context $context exec $user bash -c "chmod -R g+w $new_docroot" #maybe back
  
 }
 
@@ -166,8 +172,9 @@ get_user() {
 main_func() {
 
   validate_docroot
-  get_user_context
   get_user
+  get_user_context
+  
 
   
   mysql -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
@@ -207,13 +214,12 @@ if [[ -n "$domain" && -z "$action" ]]; then
 elif [[ -n "$domain" && "$action" == "update" ]]; then
     if [[ -z "$new_docroot" ]]; then
         echo "Error: Missing new_docroot for update action."
-        echo "Usage: opencli domains-docroot  [--debug] <domain> [update <docroot>]"
+        show_help
         exit 1
     fi
-
    main_func # this does all other functions!
 else
-    echo "Invalid arguments"
+    show_help
     exit 1
 fi
 
