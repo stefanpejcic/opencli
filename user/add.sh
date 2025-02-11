@@ -73,6 +73,12 @@ log() {
 
 
 set_docker_context_for_container() {
+
+
+: '
+TODO: use the server to create user, when provided
+'
+
     log "Checking if clustering is enabled and which node to use for the new container"
     default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
     
