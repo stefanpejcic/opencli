@@ -557,12 +557,31 @@ check_and_add_to_enabled() {
 
 
 
+get_slave_dns_option() {
+	# Path to the named.conf.options file
+	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
+	
+# Extract the values of allow-transfer and allow-update until the first semicolon
+ALLOW_TRANSFER=$(grep -oP 'allow-transfer\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
+ALLOW_UPDATE=$(grep -oP 'also-notify\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
+
+
+	# Check if both allow-transfer and allow-update are set to the same value
+	if [[ "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" && -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" ]]; then
+	    SLAVE_IP=$ALLOW_TRANSFER
+     	    MASTER_IP=$current_ip
+     	    notify_slave
+	fi
+}
+
+
 
 
 update_named_conf() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
     log "Adding the newly created zone file to the DNS server"
+   
     local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
     # Check if the domain already exists in named.conf.local
@@ -639,6 +658,24 @@ create_zone_file() {
 
 
 
+notify_slave(){
+
+    echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
+
+ssh root@$SLAVE_IP <<EOF
+    if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
+        echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
+        touch /etc/bind/zones/$domain_name.zone
+        echo "Zone $domain_name added to slave server and file touched."
+    else
+        echo "Zone $domain_name already exists on the slave server."
+    fi
+EOF
+
+
+}
+
+
 
 # add mountpoint and reload mailserver
 # todo: need better solution!
@@ -692,6 +729,7 @@ add_domain() {
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
         create_zone_file                             # create zone
+	get_slave_dns_option                         # create zone on slave before include on master
 	update_named_conf                            # include zone 
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
