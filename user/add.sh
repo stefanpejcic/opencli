@@ -692,8 +692,7 @@ change_default_email_and_allow_email_network () {
     # set default sender email address
     log "Setting ${username}@${hostname} as the default email address to be used for outgoing emails in /etc/msmtprc"
     
-    docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
-    docker $context_flag network connect openmail_network "$username"  >/dev/null 2>&1
+    docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  > /dev/null 2>&1 &
 }
 
 
@@ -1008,9 +1007,9 @@ set_ssh_user_password_inside_container() {
     venv_path="/usr/local/admin/venv"
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
-      echo "root:$password" | docker $context_flag exec $username chpasswd"
+      echo "root:$password" | docker $context_flag exec $username chpasswd" > /dev/null 2>&1 &
       docker $context_flag exec $username usermod -aG www-data root # todo: this fails!!!!!!!!!!!!!
-      docker $context_flag exec $username chmod -R g+w /var/www/html/"
+      docker $context_flag exec $username chmod -R g+w /var/www/html/" > /dev/null 2>&1 &
       if [ "$DEBUG" = true ]; then
         echo "SSH password set to: $password"
       fi
@@ -1070,7 +1069,7 @@ copy_skeleton_files() {
 start_panel_service() {
 	# from 0.2.5 panel service is not started until acc is created
 	log "Checking if OpenPanel service is already running, or starting it.."
-	cd /root && docker compose up -d openpanel > /dev/null 2>&1
+	cd /root && docker compose up -d openpanel > /dev/null 2>&1 &
 }
 
 
@@ -1147,7 +1146,7 @@ check_running_containers                     # make sure container name is avail
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
-get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
+### todo: edit to use context, or edit py to read label! get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
 docker_compose
@@ -1159,7 +1158,7 @@ set_ssh_user_password_inside_container       # create/rename ssh user and set pa
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
 ####phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
-create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
+####create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # save user to mysql db
 collect_stats                                # must be after insert in db
