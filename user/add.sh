@@ -453,17 +453,6 @@ create_user_and_set_quota() {
       		    setquota -u $username 0 0 0 0 /
                 fi
     fi
-    
-    # Create and set permissions for user directory
-    if [ -n "$node_ip_address" ]; then
-        log "Creating directories for the user on server $node_ip_address"
-    # TODO: Use a custom user or configure SSH instead of using root
-        ssh "root@$node_ip_address" "chmod 755 /var/www/html/ && chmod g+s /var/www/html/"
-    else
-        log "Creating directories for the user"
-        chmod 755 /var/www/html/
-        chmod g+s /var/www/html/
-    fi
 
 
     
