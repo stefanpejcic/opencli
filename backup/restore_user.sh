@@ -171,9 +171,9 @@ create_user_and_set_quota() {
 
 file_permissions() {
 	echo "Setting user ownership and permisisons.."
-	chmod 700 /home/$context/.docker/run   >/dev/null 2>&1
-	chmod 755 -R /home/$context/   >/dev/null 2>&1
-	chown -R $context:$context /home/$context/   >/dev/null 2>&1
+	chmod 700 /home/$context/.docker/run #  >/dev/null 2>&1
+	chmod 755 -R /home/$context/  # >/dev/null 2>&1
+	chown -R $context:$context /home/$context/  # >/dev/null 2>&1
 }
 
 compose_up() {
