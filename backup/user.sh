@@ -158,8 +158,8 @@ copy_files_temporary_to_user_home() {
 
   # docker compose
   echo "Collectiong Docker Compose data.."
-  cp /etc/openpanel/docker/compose/$context/.env $compose_user_dir
-  cp /etc/openpanel/docker/compose/$context/docker-compose.yml $compose_user_dir
+  cp /etc/openpanel/docker/compose/$context/.env $compose_user_dir/.env
+  cp /etc/openpanel/docker/compose/$context/docker-compose.yml $compose_user_dir/docker-compose.yml
 
   # core panel data
   echo "Collectiong core OpenPanel files.."
