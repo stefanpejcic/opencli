@@ -200,6 +200,7 @@ check_username_is_valid() {
         # Check if the username meets all criteria
         if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
            [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
+           [[ "$check_username" =~ ^[0-9]+$ ]] || \
            (( ${#check_username} < 3 || ${#check_username} > 20 )); then
             return 0
         fi
