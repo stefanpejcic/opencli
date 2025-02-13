@@ -232,7 +232,7 @@ copy_domain_zones() {
 
 op_core_files() {
   echo "Copying core openpanel files for user.."
-  cp -r $openpanel_core $server_openpanel_core
+  cp -r $openpanel_core/ $server_openpanel_core
 
 }
 
