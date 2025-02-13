@@ -207,7 +207,7 @@ dirs_to_user_for_mv() {
     echo "Creating directories.."
 
   apparmor_dir="/home/"$context"/apparmor/"
-  compose_user_dir="/home/"$context"/op_compose/"$context""
+  compose_user_dir="/home/"$context"/op_compose/"
   openpanel_core="/home/"$context"/op_core/"
   openpanel_database="/home/"$context"/op_db/"
   caddy_vhosts="/home/"$context"/caddy/"
@@ -286,7 +286,8 @@ start_panel_service() {
 
 compose_file() {
   echo "Copying docker compose files for user.."
-  cp -r $compose_user_dir $server_compose_user_dir
+  cp -r $compose_user_dir/docker-compose.yml $server_compose_user_dir/docker-compose.yml
+  cp -r $compose_user_dir/.env $server_compose_user_dir/.env
 
 }
 get_user_info() {
