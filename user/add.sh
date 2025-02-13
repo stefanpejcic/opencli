@@ -849,7 +849,8 @@ run_docker() {
     fi
 
 
-
+# TODO FOR PHP
+# docker --context gmqv6rqs image inspect --format='{{json .Config.Labels}}' openpanel/nginx | jq -r '.php'
 
 mkdir -p /etc/openpanel/docker/compose/$username/
 cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
@@ -1043,25 +1044,9 @@ phpfpm_config() {
 copy_skeleton_files() {
     log "Creating configuration files for the newly created user"
     
-    # Use grep and awk to extract the value of default_php_version
-    default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
-
-    # Check if default_php_version is empty (in case the panel.config file doesn't exist)
-    if [ -z "$default_php_version" ]; then
-      if [ "$DEBUG" = true ]; then
-        echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
-      fi
-      default_php_version="php8.2"
-    fi
-
 	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
         opencli php-available_versions $username  > /dev/null 2>&1 &
-    
-    # Create files and folders needed for the user account
-    log "- web server:          $web_server"
-    log "- default php version: $default_php_version"
-    log "- mysql client:        $mysql_version"
 
 # TODO:
 # opencli php-get_available_php_versions  run on remote server!
