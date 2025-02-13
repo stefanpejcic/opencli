@@ -80,7 +80,7 @@ if [ "$2" == "--update" ]; then
     # Check if the file exists
     if [ -f "$config_file" ]; then
         # Update the web_server value in the configuration file
-        sed -i "s/web_server:.*/web_server: $current_web_server/" "$config_file"
+        sed -i "s/^web_server=.*/web_server=$current_web_server/" "$config_file"
         echo "Web Server for user $username updated to: $current_web_server"
     else
         echo "Configuration file not found for user $username"
@@ -89,7 +89,7 @@ else
     # Check if the file exists
     if [ -f "$config_file" ]; then
         # Use grep and awk to extract the value of web_server
-        web_server=$(grep "web_server:" "$config_file" | awk '{print $2}')
+        web_server=$(grep "^web_server=" "$config_file" | awk -F '=' '{print $2}' | tr -d '[:space:]')
 
         # Check if web_server is not empty
         if [ -n "$web_server" ]; then
