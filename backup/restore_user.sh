@@ -301,8 +301,8 @@ compose_file
 create_context
 copy_domain_zones
 compose_up
-#restart_caddy_and_dns
-#reload_user_quotas
-#start_panel_service
+restart_caddy_and_dns
+reload_user_quotas
+start_panel_service
 validate_user
 exit 0
