@@ -456,45 +456,7 @@ create_user_and_set_quota() {
                 fi
     fi
     
-    
-         ensure_sshfs_is_installed() {
-                if ! command -v sshfs &> /dev/null; then
-                log "SSHFS command is not available on the master server, installing.."
-                    if command -v apt-get &> /dev/null; then
-                        sudo apt-get update > /dev/null 2>&1
-                        sudo apt-get install -y -qq sshfs > /dev/null 2>&1
-                    elif command -v yum &> /dev/null; then
-                        sudo yum install -y -q sshfs > /dev/null 2>&1
-                    elif command -v dnf &> /dev/null; then
-                        sudo dnf install -y -q sshfs > /dev/null 2>&1
-                    else
-                        echo "[✘] EROOR: No compatible package manager found. Please install sshfs manually and try again."
-                        exit 1
-                    fi
-            
-                    if ! command -v sshfs &> /dev/null; then
-                        echo "[✘] ERROR: sshfs installation failed. Please install sshfs manually and try again."
-                        exit 1
-                    fi
-                fi
-       }
 
-
-
-
-
-
-    
-    # Mount storage file if needed
-    if [ "$disk_limit" -ne 0 ]; then
-        if [ -n "$node_ip_address" ]; then
-            log "Mounting the /home/$username partition for the user on server $node_ip_address"
-            # TODO: Use a custom user or configure SSH instead of using root
-            ensure_sshfs_is_installed
-            sshfs root@$node_ip_address:/home/$username/ /home/$username/
-            echo "root@$node_ip_address:/home/$username/ /home/$username/ fuse.sshfs defaults,_netdev,allow_other 0 0" >> /etc/fstab   # mount on master for openpanel container
-        fi
-    fi
 }
 
 
