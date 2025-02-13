@@ -494,8 +494,8 @@ create_user_and_set_quota() {
 
 
 get_webserver_from_plan_name() {
-    log "Checking webserver for specified plan"
-    # Determine the web server based on the Docker image name
+    log "Checking webserver for specified docker image"
+
     if [[ "$docker_image" == *"nginx"* ]]; then
       path="nginx"
       web_server="nginx"
@@ -510,30 +510,39 @@ get_webserver_from_plan_name() {
       web_server="nginx"
     fi
 
-    log "Checking mysql version for specified plan"
-    
-    # 0.2.7
-    docker_image_labels_json=$(docker image inspect --format='{{json .Config.Labels}}' "$docker_image")
+
+: '    
+# TODO AFTER CREATING!
+    docker_image_labels_json=$(docker --context $context image inspect --format='{{json .Config.Labels}}' "$docker_image")
+    if echo "$docker_image_labels_json" | grep -q 'nginx'; then
+      web_server="nginx"
+      path="nginx"
+    elif echo "$docker_image_labels_json" | grep -q 'litespeed'; then
+      path="litespeed"
+      web_server="litespeed"
+    elif echo "$docker_image_labels_json" | grep -q 'apache'; then
+      path="apache2"
+      web_server="apache"
+   else
+	   echo "ERROR: no labels detected for this docker image. Custom images must have labels:"
+	   echo "'webserver', 'php', 'db'"
+   exit 1
+    fi
+'
+
+    log "Checking mysql version for specified docker image"
+    docker_image_labels_json=$(docker --context $context image inspect --format='{{json .Config.Labels}}' "$docker_image")
     if echo "$docker_image_labels_json" | grep -q 'mariadb'; then
       mysql_version="mariadb"
     else
       mysql_version="mysql" # fallback
     fi
 
-    # 0.3.3
-    if echo "$docker_image_labels_json" | grep -q 'nginx'; then
-      web_server="nginx"
-      path="nginx"
-    elif echo "$docker_image_labels_json" | grep -q 'apache'; then
-      web_server="apache"
-      path="apache"
-    fi
+    log "Checking PHP version for specified docker image"
 
-
-    
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "Based on the docker image $docker_image the following data will be used:"
+        echo "Based on the docker image $docker_image  labels the following data will be used:"
         echo "- webserver:      $web_server"
         echo "- mysql version:  $mysql_version"
     fi
@@ -868,6 +877,11 @@ port_6="$port_6"
 
 # Path
 path=$path
+
+web_server=$web_server
+default_php_version=$default_php_version
+mysql_version=$mysql_version
+
 EOF
 
 log ".env file created successfully"
@@ -1042,9 +1056,6 @@ copy_skeleton_files() {
 
 	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
-        echo "web_server: $web_server" > /etc/openpanel/openpanel/core/users/$username/server_config.yml
-        echo "default_php_version: $default_php_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml
-        echo "mysql_version: $mysql_version" >> /etc/openpanel/openpanel/core/users/$username/server_config.yml  
         opencli php-available_versions $username  > /dev/null 2>&1 &
     
     # Create files and folders needed for the user account
@@ -1141,10 +1152,10 @@ check_running_containers                     # make sure container name is avail
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
-get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_user_and_set_quota
 docker_rootless
 docker_compose
+get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_context
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
