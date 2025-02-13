@@ -51,10 +51,6 @@ DEBUG=false             # Default value for DEBUG
 SEND_EMAIL=false        # dont send email by default
 
 
-# lowercase and replace spaces with _
-docker_network_name="${plan_name// /_}"  # Replace spaces with underscores
-docker_network_name="${docker_network_name,,}"  # Convert to lowercase
-
 
 if [ "$5" = "--debug" ] || [ "$6" = "--debug" ]; then
     DEBUG=true
@@ -397,7 +393,6 @@ print_debug_info_before_starting_creation() {
         echo "- storage:           $disk_limit GB"
         echo "- inodes:            $inodes"
         echo "- port speed:        $bandwidth"
-        echo "- docker network:    $docker_network_name"
     fi
 }
 
