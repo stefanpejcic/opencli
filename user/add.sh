@@ -177,6 +177,8 @@ validate_password_in_lists() {
 
 
 check_username_is_valid() {
+
+
     is_username_forbidden() {
         local check_username="$1"
         log "Checking if username $username is in the forbidden usernames list"
@@ -194,26 +196,47 @@ check_username_is_valid() {
 
 
 
-    is_username_valid() {
-        local check_username="$1"
-        log "Checking if username $username is valid"
-        # Check if the username meets all criteria
-        if [[ "$check_username" =~ [[:space:]] ]] || [[ "$check_username" =~ [-_] ]] || \
-           [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]] || \
-           [[ "$check_username" =~ ^[0-9]+$ ]] || \
-           (( ${#check_username} < 3 || ${#check_username} > 20 )); then
-            return 0
-        fi
-    
-        return 1
-    }
-
+	is_username_valid() {
+	    local check_username="$1"
+	    log "Checking if username $check_username is valid"
+	    
+	    if [[ "$check_username" =~ [[:space:]] ]]; then
+	        echo "[✘] Error: The username cannot contain spaces."
+	        return 0
+	    fi
+	    
+	    if [[ "$check_username" =~ [-_] ]]; then
+	        echo "[✘] Error: The username cannot contain hyphens or underscores."
+	        return 0
+	    fi
+	    
+	    if [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]]; then
+	        echo "[✘] Error: The username can only contain letters and numbers."
+	        return 0
+	    fi
+	    
+	    if [[ "$check_username" =~ ^[0-9]+$ ]]; then
+	        echo "[✘] Error: The username cannot consist entirely of numbers."
+	        return 0
+	    fi
+	    
+	    if (( ${#check_username} < 3 )); then
+	        echo "[✘] Error: The username must be at least 3 characters long."
+	        return 0
+	    fi
+	    
+	    if (( ${#check_username} > 20 )); then
+	        echo "[✘] Error: The username cannot be longer than 20 characters."
+	        return 0
+	    fi
+	    
+	    return 1
+	}
 
     
     # Validate username
     if is_username_valid "$username"; then
-        echo "[✘] Error: The username '$username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
-        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
+    	echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
         exit 1
     elif is_username_forbidden "$username"; then
         echo "[✘] Error: The username '$username' is not allowed."
