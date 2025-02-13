@@ -68,6 +68,14 @@ log() {
 
 
 
+
+hostname=$(hostname)
+
+
+
+
+
+
 set_docker_context_for_container() {
 
 
@@ -218,7 +226,7 @@ check_username_is_valid() {
 . "$DB_CONFIG_FILE"
 
 check_running_containers() {
-    log "Checking if there is already a docker container with the exact same name"
+    log "Checking if there is already a user docker container with the exact same name"
     # Check if Docker container with the exact username exists
     container_id=$(docker $context_flag ps -a --filter "name=^${username}$" --format "{{.ID}}")
     
@@ -280,7 +288,7 @@ username_exists_count=$(check_username_exists)
 
 # Check if the username exists
 if [ "$username_exists_count" -gt 0 ]; then
-    echo "Error: Username '$username' already exists in the database."
+    echo "Error: Username '$username' is already taken."
     exit 1
 fi
 
@@ -382,8 +390,8 @@ get_plan_info_and_check_requirements() {
 # DEBUG
 print_debug_info_before_starting_creation() {
     if [ "$DEBUG" = true ]; then
-        echo "Started creating new user account"
-        echo "Docker context to be used for the new container: $server_name" 
+        #echo "Started creating new user account"
+        #echo "Docker context to be used for the new container: $server_name" 
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
         echo "- plan name:         $plan_name"
@@ -422,9 +430,7 @@ create_user_and_set_quota() {
 			fi
                 fi
 
-    log "Configuring disk and inodes limits for the user"
-
-
+   # log "Configuring disk and inodes limits for the user"
 
     if [ "$disk_limit" -ne 0 ]; then
     	storage_in_blocks=$((disk_limit * 1024000))
@@ -572,17 +578,16 @@ docker_rootless() {
 
 log "Configuring Docker in Rootless mode"
 
-mkdir -p /home/$username/docker-data /home/$username/.config/docker
-touch /home/$username/.config/docker/daemon.json
+mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
+touch /home/$username/.config/docker/daemon.json > /dev/null 2>&1
 
 echo "{
   \"data-root\": \"/home/$username/docker-data\"
 }" > /home/$username/.config/docker/daemon.json
 
 
-mkdir -p /home/$username/bin
+mkdir -p /home/$username/bin > /dev/null 2>&1
 chmod 755 -R /home/$username/ >/dev/null 2>&1
-
 
 cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
 # ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
@@ -610,7 +615,7 @@ include <tunables/global>
 }
 EOF
 
-mv ~/${filename} /etc/apparmor.d/${filename}
+mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
 
 SUDOERS_FILE="/etc/sudoers"
 
@@ -624,7 +629,7 @@ else
 fi
 
 # Verify the sudoers file using visudo
-visudo -c 
+visudo -c > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
     :
     #echo "sudoers file syntax is valid. The changes have been applied."
@@ -683,9 +688,6 @@ systemctl --user daemon-reload > /dev/null 2>&1
 systemctl --user enable docker > /dev/null 2>&1
 systemctl --user start docker > /dev/null 2>&1
 "
-
-
-# PATH=/home/pretragua/bin:/sbin:/usr/sbin:/usr/bin:\$PATH /home/pretragua/bin/dockerd-rootless.sh
 
 }
 
@@ -855,7 +857,7 @@ run_docker() {
 mkdir -p /etc/openpanel/docker/compose/$username/
 cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
 
-cd /etc/openpanel/docker/compose/$username/ && docker compose up -d > /dev/null 2>&1
+#######cd /etc/openpanel/docker/compose/$username/ && docker compose up -d > /dev/null 2>&1
 
 
 cat <<EOF > /etc/openpanel/docker/compose/$username/.env
@@ -886,25 +888,16 @@ mysql_version=$mysql_version
 EOF
 
 log ".env file created successfully"
-log ""
-cat /etc/openpanel/docker/compose/$username/.env
-
-
-
-
-
+#cat /etc/openpanel/docker/compose/$username/.env
 
 local docker_cmd="cd /etc/openpanel/docker/compose/$username/ && docker compose up -d"
 
 if [ "$DEBUG" = true ]; then
     #echo "$AVAILABLE_PORTS"
-    log ""
     log "Creating container with the docker compose command:"
     echo "$docker_cmd"
 fi
-        machinectl shell $username@ /bin/bash -c "$docker_cmd"
-
-
+        machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 
 compose_running=$(docker --context $username compose ls)
 
@@ -1018,8 +1011,9 @@ set_ssh_user_password_inside_container() {
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
       echo "root:$password" | docker $context_flag exec $username chpasswd"
-      docker $context_flag exec $username usermod -aG www-data root # todo: this fails!!!!!!!!!!!!!
-      docker $context_flag exec $username chmod -R g+w /var/www/html/"
+      docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
+      docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
+      docker $context_flag exec $username chmod -R g+w /var/www/html/" > /dev/null 2>&1
       if [ "$DEBUG" = true ]; then
         echo "SSH password set to: $password"
       fi
@@ -1079,11 +1073,7 @@ save_user_to_db() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
     if [ $? -eq 0 ]; then
-        if [ "$server_name" = 'default' ]; then
-            echo "Successfully added user $username with password: $password"
-        else
-            echo "Successfully added user $username with password: $password and container on server: $server_name"
-        fi
+        echo "[✔] Successfully added user $username with password: $password"
     else
         echo "Error: Data insertion failed."
         exit 1
@@ -1132,8 +1122,8 @@ collect_stats() {
 flock -n 200 || { echo "Error: Another instance of the script is already running. Exiting."; exit 1; }
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
-set_docker_context_for_container             # get context and use slave server if set
-check_running_containers                     # make sure container name is available
+###############set_docker_context_for_container             # get context and use slave server if set
+###############check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
