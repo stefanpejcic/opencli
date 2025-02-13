@@ -134,6 +134,12 @@ create_user_and_set_quota() {
 }
 
 
+file_permissions() {
+	echo "Setting user ownership and permisisons.."
+	chmod 700 /home/$context/.docker/run   >/dev/null 2>&1
+	chmod 755 -R /home/$context/   >/dev/null 2>&1
+	chown -R $context:$context /home/$context/   >/dev/null 2>&1
+}
 
 compose_up() {
       echo "Starting the container.."
@@ -294,6 +300,7 @@ get_just_context
 mkdirs
 dirs_to_user_for_mv
 untar_now
+file_permissions
 create_user_and_set_quota
 op_core_files
 apparmor_start
