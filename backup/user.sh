@@ -61,21 +61,22 @@ export_user_data_from_database() {
       fi
     }
 
-    # Export User Data
-    mysql -e "SELECT * FROM panel.users WHERE id = $user_id" > $openpanel_database/users.sql
-    check_success "User data"
-    
-    # Export User's Plan Data
-    mysql -e "SELECT p.* FROM panel.users u JOIN panel.plans p ON u.plan_id = p.id WHERE u.id = 1" > $openpanel_database/plans.sql
-    check_success "Plan data"
-    
-    # Export Domains Data for User
-    mysql -e "SELECT * FROM panel.domains WHERE user_id = $user_id" > $openpanel_database/domains.sql
-    check_success "Domains data"
-    
-    # Export Sites Data for User
-    mysql -e "SELECT s.* FROM panel.sites s JOIN panel.domains d ON s.domain_id = d.domain_id WHERE d.user_id = $user_id" > $openpanel_database/sites.sql
-    check_success "Sites data"
+# Export User Data with INSERT INTO
+mysql -e "SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, services, user_domains, twofa_enabled, otp_secret, plan_id) VALUES (', id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(services), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', plan_id, ');') FROM panel.users WHERE id = $user_id" > $openpanel_database/users.sql
+check_success "User data"
+
+
+# Export User's Plan Data with INSERT INTO
+mysql -e "SELECT CONCAT('INSERT INTO panel.plans (id, name, description) VALUES (', p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ');') FROM panel.plans p JOIN panel.users u ON u.plan_id = p.id WHERE u.id = 1" > $openpanel_database/plans.sql
+check_success "Plan data"
+
+# Export Domains Data for User with INSERT INTO
+mysql -e "SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url) VALUES (', domain_id, ',', user_id, ',', QUOTE(domain_url), ');') FROM panel.domains WHERE user_id = $user_id" > $openpanel_database/domains.sql
+check_success "Domains data"
+
+# Export Sites Data for User with INSERT INTO
+mysql -e "SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name) VALUES (', s.id, ',', s.domain_id, ',', QUOTE(s.site_name), ');') FROM panel.sites s JOIN panel.domains d ON s.domain_id = d.domain_id WHERE d.user_id = $user_id" > $openpanel_database/sites.sql
+check_success "Sites data"
 
     # no need for sessions!
 
@@ -139,7 +140,7 @@ mkdirs() {
 
 
 tar_everything() {
-  echo "Creating archive fo all user files.."
+  echo "Creating archive for all user files.."
   # home files
   tar czpf "${backups_dir}/backup_${username}_$(date +%Y%m%d_%H%M%S).tar.gz" -C /home/"$context" --exclude='*/.sock' .
 }
