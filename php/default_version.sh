@@ -36,7 +36,7 @@ if [ $# -lt 1 ]; then
 fi
 
 username="$1"
-config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
+config_file="/etc/openpanel/docker/compose$username/.env"
 
 
 get_user_info() {
@@ -69,7 +69,7 @@ update_php_version() {
     fi
 
     if docker --context "$context" exec "$username" bash -c "update-alternatives --set php /usr/bin/php$new_php_version"; then
-        sed -i "s/\(default_php_version:\s*\)\(php\?\)\?[0-9.]\+/\\1$new_php_version/" "$config_file"
+        sed -i "s/\(default_php_version=\)\(php\?[0-9.]\+\)/\1$new_php_version/" "$config_file"
         echo "Default PHP version for user '$username' updated to: $new_php_version"
     else
         echo "Failed to update the PHP version in docker container and configuration file not updated."
@@ -107,7 +107,7 @@ if [ "$2" == "--update" ]; then
     update_php_version "$new_php_version" "$config_file"
 else
     # Use awk to extract the PHP version from the YAML file
-    php_version=$(awk '/default_php_version/ {print $2}' "$config_file")
+    php_version=$(awk -F '=' '/default_php_version/ {print $2}' "$config_file" | tr -d '[:space:]')
     if [[ "$php_version" == php* ]]; then # legacy for <0.3.4
         php_version="${php_version#php}"
     fi
