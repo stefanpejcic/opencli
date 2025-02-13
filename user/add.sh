@@ -99,13 +99,13 @@ TODO: use the server to create user, when provided
             if [[ "$endpoint" == ssh://* ]]; then
                 node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
             else
-                echo "ERROR: valid IPv4 address for context $server_name not found!"
+                echo "[✘] ERROR: valid IPv4 address for context $server_name not found!"
                 echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
                 echo "       Make sure that the docker context named $server_nam has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
                 exit 1
             fi
         else
-            echo "ERROR: docker context with name $server_name does not exist!"
+            echo "[✘] ERROR: docker context with name $server_name does not exist!"
             echo "       User container is located on node $server_name but there is no docker context with that name."
             echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
             exit 1
@@ -155,14 +155,14 @@ validate_password_in_lists() {
         
             # Check if input contains any common dictionary word
             if grep -qi "^$input_lower$" "$DICTIONARY"; then
-                echo "ERROR: password contains a common dictionary word from https://weakpass.com/wordlist"
+                echo "[✘] ERROR: password contains a common dictionary word from https://weakpass.com/wordlist"
                 echo "       Please use stronger password or disable weakpass check with: 'opencli config update weakpass no'."
                 rm dictionary.txt
                 exit 1
             fi
             rm dictionary.txt
        else
-	       echo "WARNING: Error downloading dictionary from https://weakpass.com/wordlist"
+	       echo "[!] WARNING: Error downloading dictionary from https://weakpass.com/wordlist"
        fi
     elif [ "$weakpass" = "yes" ]; then
       :
@@ -211,11 +211,11 @@ check_username_is_valid() {
     
     # Validate username
     if is_username_valid "$username"; then
-        echo "Error: The username '$username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
+        echo "[✘] Error: The username '$username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
         echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
         exit 1
     elif is_username_forbidden "$username"; then
-        echo "Error: The username '$username' is not allowed."
+        echo "[✘] Error: The username '$username' is not allowed."
         echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#reserved-usernames"
         exit 1
     fi
@@ -231,7 +231,7 @@ check_running_containers() {
     container_id=$(docker $context_flag ps -a --filter "name=^${username}$" --format "{{.ID}}")
     
     if [ -n "$container_id" ]; then
-        echo "ERROR: Docker container with the same name '$username' already exists on this server. Aborting."
+        echo "[✘] ERROR: Docker container with the same name '$username' already exists on this server. Aborting."
         exit 1
     fi
 }
@@ -254,13 +254,14 @@ get_existing_users_count() {
     
         # Check if successful
         if [ $? -ne 0 ]; then
-            echo "ERROR: Unable to get total user count from the database. Is mysql running?"
+            echo "[✘] ERROR: Unable to get total user count from the database. Is mysql running?"
             exit 1
         fi
     
         # Check if the number of users is >= 3
         if [ "$user_count" -gt 2 ]; then
-            echo "ERROR: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use. If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
+            echo "[✘] ERROR: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use."
+	    echo "If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
             exit 1
         fi
     fi
@@ -274,7 +275,7 @@ check_username_exists() {
 
     # Check if successful
     if [ $? -ne 0 ]; then
-        echo "Error: Unable to check username existence in the database. Is mysql running?"
+        echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
         exit 1
     fi
 
@@ -288,7 +289,7 @@ username_exists_count=$(check_username_exists)
 
 # Check if the username exists
 if [ "$username_exists_count" -gt 0 ]; then
-    echo "Error: Username '$username' is already taken."
+    echo "[✘] Error: Username '$username' is already taken."
     exit 1
 fi
 
@@ -312,13 +313,13 @@ get_plan_info_and_check_requirements() {
     
     # Check if the query was successful
     if [ $? -ne 0 ]; then
-        echo "ERROR: Unable to fetch plan information from the database."
+        echo "[✘] ERROR: Unable to fetch plan information from the database."
         exit 1
     fi
     
     # Check if any results were returned
     if [ -z "$cpu_ram_info" ]; then
-        echo "ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
+        echo "[✘] ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
         exit 1
     fi
     
@@ -360,7 +361,7 @@ get_plan_info_and_check_requirements() {
     
     # Compare the specified CPU cores with the maximum available cores
     if [ "$cpu" -gt "$max_available_cores" ]; then
-        echo "ERROR: Requested CPU cores ($cpu) exceed the maximum available cores on this server ($max_available_cores). Cannot create user."
+        echo "[✘] ERROR: Requested CPU cores ($cpu) exceed the maximum available cores on this server ($max_available_cores). Cannot create user."
         exit 1
     fi
     
@@ -378,7 +379,7 @@ get_plan_info_and_check_requirements() {
     
     # Compare the specified RAM with the maximum available RAM
     if [ "$numram" -gt "$max_available_ram_gb" ]; then
-        echo "ERROR: Requested RAM ($ram GB) exceeds the maximum available RAM on this server ($max_available_ram_gb GB). Cannot create user."
+        echo "[✘] ERROR: Requested RAM ($ram GB) exceeds the maximum available RAM on this server ($max_available_ram_gb GB). Cannot create user."
         exit 1
     fi
 }
@@ -467,12 +468,12 @@ create_user_and_set_quota() {
                     elif command -v dnf &> /dev/null; then
                         sudo dnf install -y -q sshfs > /dev/null 2>&1
                     else
-                        echo "EROOR: No compatible package manager found. Please install sshfs manually and try again."
+                        echo "[✘] EROOR: No compatible package manager found. Please install sshfs manually and try again."
                         exit 1
                     fi
             
                     if ! command -v sshfs &> /dev/null; then
-                        echo "ERROR: sshfs installation failed. Please install sshfs manually and try again."
+                        echo "[✘] ERROR: sshfs installation failed. Please install sshfs manually and try again."
                         exit 1
                     fi
                 fi
@@ -530,7 +531,7 @@ get_webserver_from_plan_name() {
       path="apache2"
       web_server="apache"
    else
-	   echo "ERROR: no labels detected for this docker image. Custom images must have labels:"
+	   echo "[✘] ERROR: no labels detected for this docker image. Custom images must have labels:"
 	   echo "'webserver', 'php', 'db'"
    exit 1
     fi
@@ -741,13 +742,13 @@ run_docker() {
                 elif command -v dnf &> /dev/null; then
                     sudo dnf install -y lsof > /dev/null 2>&1
                 else
-                    echo "Error: No compatible package manager found. Please install lsof manually and try again."
+                    echo "[✘] Error: No compatible package manager found. Please install lsof manually and try again."
                     exit 1
                 fi
         
                 # Check if installation was successful
                 if ! command -v lsof &> /dev/null; then
-                    echo "Error: lsof installation failed. Please install lsof manually and try again."
+                    echo "[✘] Error: lsof installation failed. Please install lsof manually and try again."
                     exit 1
                 fi
             fi'
@@ -764,13 +765,13 @@ run_docker() {
                 elif command -v dnf &> /dev/null; then
                     sudo dnf install -y lsof > /dev/null 2>&1
                 else
-                    echo "Error: No compatible package manager found. Please install lsof manually and try again."
+                    echo "[✘] Error: No compatible package manager found. Please install lsof manually and try again."
                     exit 1
                 fi
         
                 # Check if installation was successful
                 if ! command -v lsof &> /dev/null; then
-                    echo "Error: lsof installation failed. Please install lsof manually and try again."
+                    echo "[✘] Error: lsof installation failed. Please install lsof manually and try again."
                     exit 1
                 fi
             fi
@@ -1075,7 +1076,7 @@ save_user_to_db() {
     if [ $? -eq 0 ]; then
         echo "[✔] Successfully added user $username with password: $password"
     else
-        echo "Error: Data insertion failed."
+        echo "[✘] Error: Data insertion failed."
         exit 1
     fi
 
@@ -1119,7 +1120,7 @@ collect_stats() {
 # MAIN
 
 (
-flock -n 200 || { echo "Error: Another instance of the script is already running. Exiting."; exit 1; }
+flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 ###############set_docker_context_for_container             # get context and use slave server if set
