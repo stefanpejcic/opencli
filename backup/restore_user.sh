@@ -327,8 +327,8 @@ get_just_context
 mkdirs
 dirs_to_user_for_mv
 untar_now
-file_permissions
 create_user_and_set_quota
+file_permissions
 op_core_files
 apparmor_start
 compose_file
