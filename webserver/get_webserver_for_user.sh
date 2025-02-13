@@ -64,7 +64,7 @@ fi
 username="$1"
 
 # Construct the path to the configuration file
-config_file="/etc/openpanel/openpanel/core/users/$username/server_config.yml"
+config_file="/etc/openpanel/docker/compose/$username/.env"
 
 # Check if the --update flag is provided
 if [ "$2" == "--update" ]; then
