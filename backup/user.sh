@@ -169,6 +169,9 @@ copy_files_temporary_to_user_home() {
   # caddy and bind9
   echo "Collectiong DNS zones and Caddy files.."
   copy_domain_zones
+  
+  echo "Collectiong Docker context information.."
+  echo "$context" > /home/$context/context
 
 }
 
