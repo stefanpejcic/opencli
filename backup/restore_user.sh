@@ -28,7 +28,7 @@ mkdirs()  {
   echo "Settings paths for user '$username' and docker context '$context'"
   
   server_apparmor_dir="/etc/apparmor.d/"
-  server_compose_user_dir="/etc/openpanel/docker/compose/$context"
+  server_compose_user_dir="/etc/openpanel/docker/compose/"
   server_openpanel_core="/etc/openpanel/openpanel/core/users/$context"
   server_caddy_vhosts="/etc/openpanel/caddy/domains/"
   server_dns_zones="/etc/bind/zones//"  
