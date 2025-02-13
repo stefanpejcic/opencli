@@ -266,9 +266,9 @@ op_core_files() {
 get_just_context() {
   echo "Extracting docker context information from the backup.."
   mkdir -p /tmp/$username/
-  tar xzpf $archive_path -C /tmp/$username './op_db/users.sql'
-  context=$(awk 'NR==2 {print $(NF-1)}' /tmp/$username/op_db/users.sql)
-  rm /tmp/$username/op_db/users.sql
+  tar xzpf $archive_path -C /tmp/$username './context'
+  context=$(cat /tmp/$username/context)
+  rm /tmp/$username/
 }
 
 
