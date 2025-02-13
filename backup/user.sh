@@ -163,7 +163,7 @@ copy_files_temporary_to_user_home() {
 
   # core panel data
   echo "Collectiong core OpenPanel files.."
-  cp -r /etc/openpanel/openpanel/core/users/$context  $openpanel_core
+  cp -r /etc/openpanel/openpanel/core/users/$context/  $openpanel_core
 
   # caddy and bind9
   echo "Collectiong DNS zones and Caddy files.."
@@ -172,9 +172,15 @@ copy_files_temporary_to_user_home() {
 }
 
 
+clean_tmp_files() {
+    echo "Cleaning up temporary files.."
+    rm -rf $apparmor_dir $compose_user_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1 
+
+}
+
 mkdirs
 copy_files_temporary_to_user_home
 tar_everything
-
+clean_tmp_files
 
 
