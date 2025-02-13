@@ -85,16 +85,50 @@ create_context() {
 	docker context create $context \
 	  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock" \
    	  --description "$context"
+     
 }
+
+
+
+
+
+
+
+
+
+
+
+advanced() {
+
+  sudo apt install dbus-x11 -y -qq > /dev/null 2>&1
+  machinectl shell $context@ /bin/bash -c "
+  dbus-launch --sh-syntax --exit-with-session > /dev/null 2>&1
+  export XDG_RUNTIME_DIR=/run/user/$(id -u)
+  export $(dbus-launch)
+  echo $XDG_RUNTIME_DIR
+  echo $DBUS_SESSION_BUS_ADDRESS
+  docker context rm rootless -f
+  docker context create rootless --docker \"host=unix:///run/user/\$(id -u)/docker.sock\"
+  docker context use rootless 
+  "
+}
+
+
+
+
 
 
 apparmor_start() {
   echo "Configuring AppArmor.."
   cp -r $apparmor_dir /etc/apparmor.d/
   sudo systemctl restart apparmor.service   >/dev/null 2>&1
-  loginctl enable-linger $username   >/dev/null 2>&1
+  loginctl enable-linger $context   >/dev/null 2>&1
+
+
+  advanced
+
   
-  machinectl shell $username@ /bin/bash -c "
+  machinectl shell $context@ /bin/bash -c "
   systemctl --user daemon-reload > /dev/null 2>&1
   systemctl --user enable docker > /dev/null 2>&1
   systemctl --user start docker > /dev/null 2>&1
@@ -108,12 +142,13 @@ apparmor_start() {
 
 
 
+
 create_user_and_set_quota() {
   echo "Creating user $username"
-		    useradd -m -d /home/$username $username
-      		    user_id=$(id -u $username)	
+		    useradd -m -d /home/$context $context
+      		    user_id=$(id -u $context)	
         			if [ $? -ne 0 ]; then
-        			    echo "Failed creating linux user $username"
+        			    echo "Failed creating linux user $context"
         			    exit 1
         			fi
            
@@ -151,7 +186,7 @@ compose_up() {
       log "Creating container with the docker compose command:"
       echo "$docker_cmd"
   fi
-    machinectl shell $username@ /bin/bash -c "$docker_cmd"
+    machinectl shell $context@ /bin/bash -c "$docker_cmd"
 
 
   
