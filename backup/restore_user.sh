@@ -335,6 +335,7 @@ compose_file
 create_context
 copy_domain_zones
 compose_up
+import_user_data_in_database
 restart_caddy_and_dns
 reload_user_quotas
 start_panel_service
