@@ -685,7 +685,7 @@ change_default_email_and_allow_email_network () {
     log "Setting ${username}@${hostname} as the default email address to be used for outgoing emails in /etc/msmtprc"
     
     docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
-    docker $context_flag network connect openmail_network "$username"  >/dev/null 2>&1
+
 }
 
 
