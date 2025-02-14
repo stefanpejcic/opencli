@@ -99,7 +99,7 @@ fi
   if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
 
         # USERNAME OWNER
-        docker --context $context exec $container_name bash -c "chown -R $verbose 0:33 $directory"  > /dev/null 2>&1
+        docker --context $context exec $container_name bash -c "chown -R $verbose www-data:www-data $directory"  > /dev/null 2>&1
         #chown -R $verbose $user_ud:33 $directory
         owner_result=$?
         
@@ -110,12 +110,12 @@ fi
 
         # FILES
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
-        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 775"  > /dev/null 2>&1
+        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 755"  > /dev/null 2>&1
         files_result=$?
         
         # FOLDERS
         #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 775"
-        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 775"  > /dev/null 2>&1
+        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 644"  > /dev/null 2>&1
         folders_result=$?
         
         # CHECK ALL 4
