@@ -686,7 +686,7 @@ create_mail_mountpoint(){
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
 	# do for enterprise!
- 	DOMAIN_DIR="/home/$user/mail/$domain_name/"
+ 	DOMAIN_DIR="/home/$context/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
 	    log "Creating directory $DOMAIN_DIR for emails"
@@ -734,7 +734,7 @@ add_domain() {
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
- 	add_domain_to_clamav_list                    # added in 0.3.4    
+ 	######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
         #echo "Domain $domain_name has been added for user $user."
     else
