@@ -236,12 +236,12 @@ install_mailserver(){
       mkdir -p /usr/local/mail/
       cd /usr/local/mail/ && git clone $GITHUB_REPO
       mkdir -p /etc/openpanel/email/snappymail
-      cd /usr/local/mail/openmail && docker compose up -d mailserver
+      cd /usr/local/mail/openmail && docker compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
-      cd /usr/local/mail/openmail && docker compose up -d mailserver >/dev/null 2>&1
+      cd /usr/local/mail/openmail && docker compose up -d mailserver roundcube >/dev/null 2>&1
   fi
 
   enable_emails_if_not_yet
@@ -335,7 +335,7 @@ process_all_domains_and_start
 
 # START
 process_all_domains_and_start(){
-  CONFIG_DIR="/etc/nginx/sites-available"
+  CONFIG_DIR="/etc/openpanel/caddy/domains"
   COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
   new_volumes="    volumes:\n      - ./docker-data/dms/mail-state/:/var/mail-state/\n      - ./var/log/mail/:/var/log/mail/\n      - ./docker-data/dms/config/:/tmp/docker-mailserver/\n      - /etc/localtime:/etc/localtime:ro\n"
 
@@ -357,19 +357,23 @@ echo "Processing domains in directory: $CONFIG_DIR"
 for file in "$CONFIG_DIR"/*.conf; do
     echo "Processing file: $file"
     if [ ! -L "$file" ]; then
-        #echo "Reading file contents for: $file"
-        while IFS= read -r line || [ -n "$line" ]; do
-            if [[ $line =~ include[[:space:]]/etc/openpanel/openpanel/core/users/([^/]+)/domains/.*-block_ips\.conf ]]; then
-                USERNAME="${BASH_REMATCH[1]}"
-                DOMAIN=$(basename "$file" .conf)
-                DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
-                new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
-                echo "Mount point  added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
-            fi
-        done < "$file"
+        # Extract the username and domain from the file name
+        BASENAME=$(basename "$file" .conf)
+	whoowns_output=$(opencli domains-whoowns "$BASENAME")
+	owner=$(echo "$whoowns_output" | awk -F "Owner of '$BASENAME': " '{print $2}')
+	if [ -n "$owner" ]; then
+	        echo "Domain $BASENAME skipped. No user."
+   	else
+	        USERNAME=$owner
+	        DOMAIN=$BASENAME
+	 
+	        DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
+	        new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
+	        echo "Mount point added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
+    	fi
 
-        #echo "Finished processing: $file"   # Mark the end of file processing
     fi
+    
 done
 
 if [ $? -ne 0 ]; then
