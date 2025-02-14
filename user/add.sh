@@ -1012,11 +1012,12 @@ set_ssh_user_password_inside_container() {
 
 
 phpfpm_config() {
-    log "Changing the username used for php-fpm services inside the docker container..."
-    #su $username -c "docker $context_flag exec $username find /etc/php/ -type f -name 'www.conf' -exec sed -i 's/user = .*/user = root/' {} \;" > /dev/null 2>&1
+    log "Creating www-data user inside the container.."
+    
+    docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
 
     log "Setting container services..."
-    su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
+    #su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
 }
 
 
@@ -1137,7 +1138,7 @@ reload_user_quotas                           # refresh their quotas
 open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
-####phpfpm_config                                # edit phpfpm username in container
+phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
