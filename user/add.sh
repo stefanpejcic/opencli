@@ -850,6 +850,7 @@ cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/
 cat <<EOF > /etc/openpanel/docker/compose/$username/.env
 # User-specific settings
 username=$username
+context=$username
 docker_image=$docker_image:latest
 hostname=$hostname
 
