@@ -1029,10 +1029,21 @@ copy_skeleton_files() {
 	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
         opencli php-available_versions $username  > /dev/null 2>&1 &
+}
 
-# TODO:
-# opencli php-get_available_php_versions  run on remote server!
-#
+
+
+get_php_version() {
+    # Use grep and awk to extract the value of default_php_version
+    default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
+
+    # Check if default_php_version is empty (in case the panel.config file doesn't exist)
+    if [ -z "$default_php_version" ]; then
+      if [ "$DEBUG" = true ]; then
+        echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
+      fi
+      default_php_version="php8.2"
+    fi
 
 }
 
@@ -1120,6 +1131,7 @@ docker_rootless
 docker_compose
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_context
+get_php_version   # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
 open_ports_on_firewall                       # open ports on csf or ufw
