@@ -75,27 +75,8 @@ source /usr/local/admin/scripts/db.sh
 
 get_docker_context_for_user(){
     # GET CONTEXT NAME FOR DOCKER COMMANDS
-    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
-    if [ -z "$server_name" ]; then
-        server_name=$provided_username # compatibility with older panel versions before clustering
-        context_flag="--context $provided_username"
-        node_ip_address=""
-    elif [ "$server_name" == "default" ]; then
-        context_flag="--context $provided_username"
-        node_ip_address=""
-    else
-        context_flag="--context $server_name"
-        # GET IPV4 FOR SSH COMMANDS
-        context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")
-    
-        if [ -n "$context_info" ]; then
-           #############uderdelrte hre!!!!!
-           : #delete_context
-        else
-            :
-        fi
-        
-    fi
+    context=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
+    context_flag="--context $context"
     
 }
 
@@ -103,8 +84,7 @@ get_docker_context_for_user(){
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
     cd /etc/openpanel/docker/compose/$provided_username && docker compose down $provided_username   2>/dev/null
-    #docker $context_flag stop "$provided_username"  2>/dev/null
-    #docker $context_flag rm "$provided_username"  2>/dev/null
+    # home data is deleted anyways! #docker --context $context volume rm $(docker --context $context volume ls -q) 2>/dev/null
 }
 
 
@@ -245,7 +225,7 @@ delete_all_user_files() {
 
 
 delete_context() {
-    docker context rm $username  > /dev/null 2>&1
+    docker context rm $context  > /dev/null 2>&1
 }
 
 
