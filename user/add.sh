@@ -35,11 +35,8 @@ DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
 SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-
-
-
-if [ "$#" -lt 4 ] || [ "$#" -gt 6 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug]"
+if [ "$#" -lt 4 ] || [ "$#" -gt 7 ]; then
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--server=<IP_ADDRESS>]"
     exit 1
 fi
 
@@ -48,24 +45,30 @@ password="$2"
 email="$3"
 plan_name="$4"
 DEBUG=false             # Default value for DEBUG
-SEND_EMAIL=false        # dont send email by default
+SEND_EMAIL=false        # Don't send email by default
+server=""               # Default value for context
 
-
-
-if [ "$5" = "--debug" ] || [ "$6" = "--debug" ]; then
-    DEBUG=true
-fi
-
-if [ "$5" = "--send-email" ] || [ "$6" = "--send-email" ]; then
-    SEND_EMAIL=true
-fi
+# Parse flags for --debug, --send-email, and --context
+for arg in "$@"; do
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        --send-email)
+            SEND_EMAIL=true
+            ;;
+        --server=*)
+            slave="${arg#*=}"
+            # todo: tests ssh
+            ;;
+    esac
+done
 
 log() {
     if $DEBUG; then
         echo "$1"
     fi
 }
-
 
 
 
