@@ -143,7 +143,6 @@ fi
 mkdirs() {
 
   apparmor_dir="/home/"$context"/apparmor/"
-  compose_user_dir="/home/"$context"/op_compose/"
   openpanel_core="/home/"$context"/op_core/"
   openpanel_database="/home/"$context"/op_db/"
   caddy_vhosts="/home/"$context"/caddy/"
@@ -153,7 +152,7 @@ mkdirs() {
   # backup dir!
   backups_dir="/backups"
   
-  mkdir -p $apparmor_dir $compose_user_dir $openpanel_core $openpanel_database $backups_dir $caddy_vhosts $dns_zones $caddy_suspended_vhosts
+  mkdir -p $apparmor_dir $openpanel_core $openpanel_database $backups_dir $caddy_vhosts $dns_zones $caddy_suspended_vhosts
 
 }
 
@@ -176,11 +175,6 @@ copy_files_temporary_to_user_home() {
   # https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWx1MjY4YXB0YTRla3dlazMxYmhkM3k2MWV0eDVsNDUxcHQ1aW9jNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/uNE1fngZuYhIQ/giphy.gif
   #cp /etc/apparmor.d/$(echo /home/pejcic/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g) $apparmor_dir
 
-  # docker compose
-  echo "Collectiong Docker Compose data.."
-  cp /etc/openpanel/docker/compose/$context/.env $compose_user_dir/.env
-  cp /etc/openpanel/docker/compose/$context/docker-compose.yml $compose_user_dir/docker-compose.yml
-
   # core panel data
   echo "Collectiong core OpenPanel files.."
   cp -r /etc/openpanel/openpanel/core/users/$context/  $openpanel_core
@@ -197,7 +191,7 @@ copy_files_temporary_to_user_home() {
 
 clean_tmp_files() {
     echo "Cleaning up temporary files.."
-    rm -rf $apparmor_dir $compose_user_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1 
+    rm -rf $apparmor_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1 
 
 }
 
