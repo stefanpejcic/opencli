@@ -570,6 +570,19 @@ create_remote_user() {
 
 }
 
+set_user_quota(){
+
+    if [ "$disk_limit" -ne 0 ]; then
+    	storage_in_blocks=$((disk_limit * 1024000))
+        log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
+      	setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
+    else
+    	log "Setting unlimited storage and inodes for the user"
+      	setquota -u $username 0 0 0 0 /
+    fi
+
+}
+
 # CREATE THE USER
 create_user_and_set_quota() {
  	create_local_user
