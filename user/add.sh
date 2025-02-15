@@ -1375,7 +1375,7 @@ create_context() {
     if [ -n "$node_ip_address" ]; then
 
 	docker context create $username \
-	  --docker "host=ssh://root@$node_ip_address" \
+	  --docker "host=ssh://$username@$node_ip_address" \
 	  --description "$username"
    else
    	docker context create $username \
