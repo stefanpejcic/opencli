@@ -762,29 +762,18 @@ log "Configuring Docker in Rootless mode"
 		ssh root@$node_ip_address "
 		# Switch to the user shell and execute the commands
 		machinectl shell $username@ /bin/bash -c '
-		
-		    # Navigate to the user's bin directory
 		    cd /home/$username/bin
-		    
-		    # Install Docker rootless setup tool
 		    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
-		   
-		    # Setup environment for rootless Docker
 		    source ~/.bashrc
 		
-		    # Make the script executable and run the rootless Docker setup
 		    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
 		    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
 		
-		    # Update .bashrc with Docker environment variables
 		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
 		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
 		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
 		
-		    # Source the updated .bashrc and start Docker rootless
 		    source ~/.bashrc
-		    
-		    # Create a systemd user service for Docker
 		    mkdir -p ~/.config/systemd/user/
 		    cat > ~/.config/systemd/user/docker.service <<EOF
 		[Unit]
