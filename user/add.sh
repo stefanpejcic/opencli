@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--server=<IP_ADDRESS>]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 17.12.2024
+# Last Modified: 15.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -79,51 +79,40 @@ hostname=$(hostname)
 
 
 
-set_docker_context_for_container() {
-
-
-: '
-TODO: use the server to create user, when provided
-'
-
-    log "Checking if clustering is enabled and which node to use for the new container"
-    default_context=$(grep "^default_context=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
-    
-    if [ -z "$default_context" ] || [ "$default_context" == "default" ]; then
-        server_name='default'                                                                                   # use as fallback
-        context_flag=""                                                                                         # empty
-    else
-        server_name="$default_context"                                                                          # use the context name from the file
-        context_flag="--context $server_name"                                                                   # add to all docker exec commands
-        context_info=$(docker context ls --format '{{.Name}} {{.DockerEndpoint}}' | grep "$server_name")  # get ipv4 and use it for all ssh commands
-    
-        if [ -n "$context_info" ]; then
-            endpoint=$(echo "$context_info" | awk '{print $2}')
-            if [[ "$endpoint" == ssh://* ]]; then
-                node_ip_address=$(echo "$endpoint" | cut -d'@' -f2 | cut -d':' -f1)
-            else
-                echo "[✘] ERROR: valid IPv4 address for context $server_name not found!"
-                echo "       User container is located on node $server_name and there is a docker context with the same name but it has no valid IPv4 in the endpoint."
-                echo "       Make sure that the docker context named $server_nam has valid IPv4 address in format: 'SERVER ssh://USERNAME@IPV4' and that you can establish ssh connection using those credentials."
-                exit 1
-            fi
-        else
-            echo "[✘] ERROR: docker context with name $server_name does not exist!"
-            echo "       User container is located on node $server_name but there is no docker context with that name."
-            echo "       Make sure that the docker context exists and is available via 'docker context ls' command."
-            exit 1
-        fi
-
-
-
-        
-    fi       
-
-    if [ -n "$node_ip_address" ]; then
-        hostname=$(ssh "root@$node_ip_address" "hostname")
-    else
-        hostname=$(hostname)
-    fi
+get_slave_if_set() {
+     
+     
+	if [ -n "$server" ]; then
+	    # Check if the format of the server is a valid IPv4 address
+	    if [[ "$server" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+	        # Check if each octet is in the range 0-255
+	        IFS='.' read -r -a octets <<< "$server"
+	        if [[ ${octets[0]} -ge 0 && ${octets[0]} -le 255 &&
+	              ${octets[1]} -ge 0 && ${octets[1]} -le 255 &&
+	              ${octets[2]} -ge 0 && ${octets[2]} -le 255 &&
+	              ${octets[3]} -ge 0 && ${octets[3]} -le 255 ]]; then
+	           	
+			context_flag="--context $server"     
+			hostname=$(ssh "root@$server" "hostname")
+			if [ -z "$hostname" ]; then
+			  echo "ERROR: Unable to reach the node $server - Exiting."
+     			  echo '       Make sure you can connect to the node from terminal with: "ssh root@$server -vvv"'
+			  exit 1
+			fi
+	     		log "Container will be created on node: $server ($hostname)"
+   
+	        else
+	            echo "ERROR: $server is not a valid IPv4 address (octets out of range)."
+	        fi
+	    else
+	        echo "ERROR: $server is not a valid IPv4 address (invalid format)."
+	 	exit 1
+	    fi
+     	else
+      		# local values
+                context_flag="" 
+		hostname=$(hostname)
+	fi
     
 }
 
@@ -1125,7 +1114,7 @@ collect_stats() {
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
-###############set_docker_context_for_container             # get context and use slave server if set
+get_slave_if_set                             # get context and use slave server if set
 ###############check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
