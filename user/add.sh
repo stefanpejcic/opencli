@@ -587,7 +587,7 @@ create_remote_user() {
   	
    	if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
-                    ssh "root@$node_ip_address" "useradd -m -d /home/$username $id_flag $username"
+                    ssh "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
 		    user_id=$(ssh "root@$node_ip_address" "id -u $username")
 			if [ $? -ne 0 ]; then
 			    echo "Failed creating linux user $username on node: $node_ip_address"
@@ -790,25 +790,28 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 		# Set the appropriate permissions for the user home directory
 		chmod 755 -R /home/$username/ >/dev/null 2>&1
 		chown -R $username:$username /home/$username/ >/dev/null 2>&1
-		"
+  		"
 
 		
+ssh root@$node_ip_address "
+    su - $username -c 'bash -l -c \"
+        cd /home/$username/bin
+        wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
+        chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
+        /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
+
+        echo \\\"export XDG_RUNTIME_DIR=/home/$username/.docker/run\\\" >> ~/.bashrc
+        echo \\\"export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus\\\" >> ~/.bashrc
+        echo \\\"export PATH=/home/$username/bin:\\\$PATH\\\" >> ~/.bashrc
+        echo \\\"export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock\\\" >> ~/.bashrc
+    \"'
+"
+
+
+
 		ssh root@$node_ip_address "
 		    # Switch to the user shell and execute the commands
 		    machinectl shell $username@ /bin/bash -c '
-		        cd /home/$username/bin
-		        wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
-		        source ~/.bashrc
-		
-		        chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
-		        /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
-		
-		        echo \"export XDG_RUNTIME_DIR=/home/$username/.docker/run\" >> ~/.bashrc
-		        echo \"export PATH=/home/$username/bin:\$PATH\" >> ~/.bashrc
-		        echo \"export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock\" >> ~/.bashrc
-
-				
-		    source ~/.bashrc
 		    mkdir -p ~/.config/systemd/user/
 		    cat > ~/.config/systemd/user/docker.service <<EOF
 		[Unit]
@@ -826,13 +829,31 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 		[Install]
 		WantedBy=default.target
 		EOF
-		
-		    # Reload systemd user services, enable and start Docker service
-		    systemctl --user daemon-reload > /dev/null 2>&1
-		    systemctl --user enable docker > /dev/null 2>&1
-		    systemctl --user start docker > /dev/null 2>&1
 		'
 		"
+
+
+
+# Separate SSH command to create the systemd service file
+ssh root@$node_ip_address "
+    machinectl shell $username@ /bin/bash -c '
+
+        echo \"XDG_RUNTIME_DIR=\$XDG_RUNTIME_DIR\"
+        echo \"DBUS_SESSION_BUS_ADDRESS=\$DBUS_SESSION_BUS_ADDRESS\"
+        echo \"PATH=\$PATH\"
+        echo \"DOCKER_HOST=\$DOCKER_HOST\"
+	
+	systemctl --user daemon-reload > /dev/null 2>&1
+        systemctl --user enable docker > /dev/null 2>&1
+        systemctl --user start docker > /dev/null 2>&1
+
+	systemctl --user status > /dev/null 2>&1
+    '
+"
+
+
+
+# we should check with: systemctl --user status
 
 
 	else
@@ -1100,7 +1121,6 @@ run_docker() {
 # TODO FOR PHP
 # docker --context gmqv6rqs image inspect --format='{{json .Config.Labels}}' openpanel/nginx | jq -r '.php'
 
-mkdir -p /etc/openpanel/docker/compose/$username/
 cp /etc/openpanel/docker/compose/user-compose.yml /home/$username/docker-compose.yml
 
 cat <<EOF > /home/$username/.env
