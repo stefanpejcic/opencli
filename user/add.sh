@@ -405,9 +405,6 @@ sshfs_mounts() {
 
 
 
-
-
-
 # mount openpanel dir on slave
 
 # SSH into the slave server and check if /etc/openpanel exists
@@ -426,27 +423,36 @@ ssh root@$node_ip_address << EOF
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
       exit 1
     fi
-
     mkdir -p /etc/openpanel
     git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
-    
+EOF
+
 
 	# https://docs.docker.com/engine/security/rootless/#limiting-resources
 
+	ssh root@$node_ip_address << EOF
+ 
+  if [ ! -d "/etc/openpanel/openpanel" ]; then
+
+    echo "Adding permissions for users to limit CPU% - more info: https://docs.docker.com/engine/security/rootless/#limiting-resources"
+  
 	mkdir -p /etc/systemd/system/user@.service.d
-	
+  
 cat > /etc/systemd/system/user@.service.d/delegate.conf << EOF
 [Service]
 Delegate=cpu cpuset io memory pids
 EOF
-	
-	systemctl daemon-reload
-   
-    
-  else
-    echo "Node is already configured to be used as OpenPanel slave server. Proceeding.."
-  fi
+
+systemctl daemon-reload
+EOF  
+
+	ssh root@$node_ip_address << EOF
+  if [ ! -d "/etc/openpanel/openpanel" ]; then
+    echo "Configuring OpenPanel Slave on the server.."
+    mkdir -p /etc/openpanel
+    git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
 EOF
+
 
 
 # TODO:
@@ -470,6 +476,9 @@ EOF
 	    fi
     fi
 	sshfs root@$node_ip_address:/home/$username /home/$username
+
+
+fi
  
 }
 
@@ -719,6 +728,9 @@ docker_rootless() {
 log "Configuring Docker in Rootless mode"
 
    	if [ -n "$node_ip_address" ]; then
+
+  log "Configuring Docker Rootless for the user.."
+
 		ssh root@$node_ip_address "
 		mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
 		touch /home/$username/.config/docker/daemon.json > /dev/null 2>&1
@@ -731,38 +743,45 @@ log "Configuring Docker in Rootless mode"
 		chmod 755 -R /home/$username/ > /dev/null 2>&1
 		"
 
+log "Setting AppArmor profile.."
+ssh root@$node_ip_address <<EOF
 
-ssh root@$node_ip_address "
-# Create AppArmor profile
-cat <<EOT | sudo tee \"/etc/apparmor.d/home.\$username.bin.rootlesskit\" > /dev/null 2>&1
+# Create the AppArmor profile directly
+cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<EOT
 abi <abi/4.0>,
 include <tunables/global>
 
-  /home/\$username/bin/rootlesskit flags=(unconfined) {
+  /home/$username/bin/rootlesskit flags=(unconfined) {
     userns,
-    include if exists <local/home.\$username.bin.rootlesskit>
+    include if exists <local/home.$username.bin.rootlesskit>
   }
 EOT
 
 # Generate the filename for the profile
-filename=\$(echo \$HOME/bin/rootlesskit | sed -e 's@^/@@' -e 's@/@.@g')
+filename=\$(echo "/home/$username/bin/rootlesskit" | sed -e 's@^/@@' -e 's@/@.@g')
 
-# Create the rootlesskit profile for the user
-cat <<EOF > ~/\${filename} 2>/dev/null
+# Create the rootlesskit profile for the user directly
+cat > "/home/$username/\${filename}" <<EOF2
 abi <abi/4.0>,
 include <tunables/global>
 
-  \"\$HOME/bin/rootlesskit\" flags=(unconfined) {
+  "/home/$username/bin/rootlesskit" flags=(unconfined) {
     userns,
     include if exists <local/\${filename}>
   }
-EOF
+EOF2
 
 # Move the generated file to the AppArmor directory
-mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
-"
+mv "/home/$username/\${filename}" "/etc/apparmor.d/\${filename}"
+EOF
 
 
+
+
+
+
+
+log "Setting user pemissions.."
 
 		ssh root@$node_ip_address "
 		# Backup the sudoers file before modifying
@@ -789,6 +808,9 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 		fi
 		"
 
+log "Restarting services.."
+
+
 		ssh root@$node_ip_address "
 		# Restart apparmor service
 		sudo systemctl restart apparmor.service >/dev/null 2>&1
@@ -805,7 +827,10 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 		chown -R $username:$username /home/$username/ >/dev/null 2>&1
   		"
 
-		
+
+
+  log "Downloading https://get.docker.com/rootless"
+
 ssh root@$node_ip_address "
     su - $username -c 'bash -l -c \"
         cd /home/$username/bin
@@ -821,6 +846,7 @@ ssh root@$node_ip_address "
 "
 
 
+  log "Configuring Docker service.."
 
 		ssh root@$node_ip_address "
 		    # Switch to the user shell and execute the commands
@@ -847,6 +873,8 @@ ssh root@$node_ip_address "
 
 
 
+  log "Starting user services.."
+
 # Separate SSH command to create the systemd service file
 ssh root@$node_ip_address "
     machinectl shell $username@ /bin/bash -c '
@@ -864,7 +892,7 @@ ssh root@$node_ip_address "
     '
 "
 
-
+#fork/exec /proc/self/exe: operation not permitted
 
 # we should check with: systemctl --user status
 
