@@ -319,6 +319,121 @@ fi
 #
 #
 
+
+sshfs_mounts() {
+    if [ -n "$node_ip_address" ]; then
+
+	get_server_ipv4_or_ipv6() {
+		# IP SERVERS
+		SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+	 	log "Checking IPv4 address for the account"
+		if [ -f "$SCRIPT_PATH" ]; then
+		    source "$SCRIPT_PATH"
+		else
+		    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
+		fi
+	 
+		        log "Trying to fetch IP address..."
+	
+		get_ip() {
+		    local ip_version=$1
+		    local server1=$2
+		    local server2=$3
+		    local server3=$4
+		
+		    if [ "$ip_version" == "-4" ]; then
+			    curl --silent --max-time 2 $ip_version $server1 || \
+			    wget --timeout=2 -qO- $server2 || \
+			    curl --silent --max-time 2 $ip_version $server3
+		    else
+			    curl --silent --max-time 2 $ip_version $server1 || \
+			    curl --silent --max-time 2 $ip_version $server3
+		    fi
+	
+		}
+	
+		# use public IPv4
+		current_ip=$(get_ip "-4" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
+	
+		# fallback from the server
+		if [ -z "$current_ip" ]; then
+		    log "Fetching IPv4 from local hostname..."
+		    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+		fi
+	 
+	 	IPV4="yes"
+	  
+		# public IPv6
+		if [ -z "$current_ip" ]; then
+	 	    IPV4="no"
+		    log "No IPv4 found. Checking IPv6 address..."
+		    current_ip=$(get_ip "-6" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
+		    # Fallback to hostname IPv6 if no IPv6 from servers
+		    if [ -z "$current_ip" ]; then
+		        log "Fetching IPv6 from local hostname..."
+		        current_ip=$(ip addr | grep 'inet6 ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+		    fi
+		fi
+		
+		# no :(
+		if [ -z "$current_ip" ]; then
+		    echo "Error: Unable to determine IP address of the master server (IPv4 or IPv6). Is server offline?"
+		    exit 1
+		fi
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# SSH into the slave server and check if /etc/openpanel exists
+ssh root@$node_ip_address << EOF
+  # Check if /etc/openpanel directory exists
+  if [ ! -d "/etc/openpanel" ]; then
+    echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
+
+    # Check for the package manager and install sshfs accordingly
+    if command -v apt-get &> /dev/null; then
+      apt-get update &> /dev/null && apt-get install -y sshfs &> /dev/null
+    elif command -v dnf &> /dev/null; then
+      dnf install -y sshfs &> /dev/null
+    elif command -v yum &> /dev/null; then
+      yum install -y sshfs &> /dev/null
+    else
+      echo "[✘] ERROR: Unable to setup the slave server. Contact support."
+      exit 1
+    fi
+
+    mkdir -p /etc/openpanel
+
+    sshfs root@$current_ip:/etc/openpanel /etc/openpanel &> /dev/null
+
+  else
+    echo "Node is already configured to be used as OpenPanel slave server. Proceeding.."
+  fi
+EOF
+    
+	sshfs root@$node_ip_address:/home/$username /home/$username
+
+ 
+    fi
+}
+
 #Get CPU, DISK, INODES and RAM limits for the plan
 get_plan_info_and_check_requirements() {
     log "Getting information from the database for plan $plan_name"
@@ -1260,6 +1375,7 @@ get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
 create_user_and_set_quota
+sshfs_mounts
 docker_rootless
 docker_compose
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
