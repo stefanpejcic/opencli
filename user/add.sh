@@ -470,8 +470,7 @@ EOF
 	    fi
     fi
 	sshfs root@$node_ip_address:/home/$username /home/$username
-
-    fi
+ 
 }
 
 #Get CPU, DISK, INODES and RAM limits for the plan
@@ -734,6 +733,7 @@ log "Configuring Docker in Rootless mode"
 
 
 ssh root@$node_ip_address "
+# Create AppArmor profile
 cat <<EOT | sudo tee \"/etc/apparmor.d/home.\$username.bin.rootlesskit\" > /dev/null 2>&1
 abi <abi/4.0>,
 include <tunables/global>
@@ -744,15 +744,16 @@ include <tunables/global>
   }
 EOT
 
-filename=\$(echo \$HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+# Generate the filename for the profile
+filename=\$(echo \$HOME/bin/rootlesskit | sed -e 's@^/@@' -e 's@/@.@g')
 
+# Create the rootlesskit profile for the user
 cat <<EOF > ~/\${filename} 2>/dev/null
 abi <abi/4.0>,
 include <tunables/global>
 
   \"\$HOME/bin/rootlesskit\" flags=(unconfined) {
     userns,
-
     include if exists <local/\${filename}>
   }
 EOF
@@ -760,6 +761,7 @@ EOF
 # Move the generated file to the AppArmor directory
 mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 "
+
 
 
 		ssh root@$node_ip_address "
