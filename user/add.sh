@@ -58,7 +58,7 @@ for arg in "$@"; do
             SEND_EMAIL=true
             ;;
         --server=*)
-            slave="${arg#*=}"
+            server="${arg#*=}"
             # todo: tests ssh
             ;;
     esac
