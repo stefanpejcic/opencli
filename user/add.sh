@@ -99,8 +99,9 @@ get_slave_if_set() {
      			  echo '       Make sure you can connect to the node from terminal with: "ssh root@$server -vvv"'
 			  exit 1
 			fi
-	     		log "Container will be created on node: $server ($hostname)"
    
+   			node_ip_address=$server
+	     		log "Container will be created on node: $node_ip_address ($hostname)"
 	        else
 	            echo "ERROR: $server is not a valid IPv4 address (octets out of range)."
 	        fi
@@ -351,20 +352,13 @@ get_plan_info_and_check_requirements() {
     
     # Get the available free space on the disk
     if [ -n "$node_ip_address" ]; then
-        # TODO: Use a custom user or configure SSH instead of using root
         current_free_space=$(ssh "root@$node_ip_address" "df -BG / | awk 'NR==2 {print \$4}' | sed 's/G//'")
     else
         current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
     fi
-
-    
-    
-    # Compare the available free space with the disk limit of the plan
     if [ "$current_free_space" -lt "$disk_limit" ]; then
         echo "WARNING: Insufficient disk space on the server. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
-       #### exit 1
     fi
-
 
     
     # Get the maximum available CPU cores on the server
@@ -377,7 +371,7 @@ get_plan_info_and_check_requirements() {
     
     # Compare the specified CPU cores with the maximum available cores
     if [ "$cpu" -gt "$max_available_cores" ]; then
-        echo "[✘] ERROR: Requested CPU cores ($cpu) exceed the maximum available cores on this server ($max_available_cores). Cannot create user."
+        echo "[✘] ERROR: CPU cores ($cpu) limit on the plan exceed the maximum available cores on the server ($max_available_cores). Cannot create user."
         exit 1
     fi
     
@@ -395,7 +389,7 @@ get_plan_info_and_check_requirements() {
     
     # Compare the specified RAM with the maximum available RAM
     if [ "$numram" -gt "$max_available_ram_gb" ]; then
-        echo "[✘] ERROR: Requested RAM ($ram GB) exceeds the maximum available RAM on this server ($max_available_ram_gb GB). Cannot create user."
+        echo "[✘] ERROR: RAM ($ram GB) limit on the plan exceeds the maximum available RAM on the server ($max_available_ram_gb GB). Cannot create user."
         exit 1
     fi
 }
