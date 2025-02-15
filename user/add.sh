@@ -785,21 +785,22 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 		chown -R $username:$username /home/$username/ >/dev/null 2>&1
 		"
 
-
+		
 		ssh root@$node_ip_address "
-		# Switch to the user shell and execute the commands
-		machinectl shell $username@ /bin/bash -c '
-		    cd /home/$username/bin
-		    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
-		    source ~/.bashrc
+		    # Switch to the user shell and execute the commands
+		    machinectl shell $username@ /bin/bash -c '
+		        cd /home/$username/bin
+		        wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
+		        source ~/.bashrc
 		
-		    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
-		    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
+		        chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
+		        /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
 		
-		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
-		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
-		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
-		
+		        echo \"export XDG_RUNTIME_DIR=/home/$username/.docker/run\" >> ~/.bashrc
+		        echo \"export PATH=/home/$username/bin:\$PATH\" >> ~/.bashrc
+		        echo \"export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock\" >> ~/.bashrc
+
+				
 		    source ~/.bashrc
 		    mkdir -p ~/.config/systemd/user/
 		    cat > ~/.config/systemd/user/docker.service <<EOF
