@@ -81,7 +81,7 @@ hostname=$(hostname)
 
 
 cleanup() {
-  echo "[✘] Script failed. Cleaning up..."
+  #echo "[✘] Script failed. Cleaning up..."
   rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
   # todo: remove user, files, container..
   exit 1
@@ -607,7 +607,6 @@ print_debug_info_before_starting_creation() {
 	        echo "- Hostname:             $hostname" 	 
 	        echo "- SSH user:             root" 	
 	        echo "- SSH key path:         $key" 		 
-	 	echo ""
 	fi
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
@@ -772,6 +771,7 @@ echo "{
 		
 mkdir -p /home/$username/bin > /dev/null 2>&1
 chmod 755 -R /home/$username/ >/dev/null 2>&1
+sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
 
 
    	if [ -n "$node_ip_address" ]; then
@@ -871,9 +871,9 @@ ssh $key_flag root@$node_ip_address "
         chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
         /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
 
-        echo \\\"export XDG_RUNTIME_DIR=/home/$username/.docker/run\\\" >> ~/.bashrc
+	echo \\\"export XDG_RUNTIME_DIR=/home/$username/.docker/run\\\" >> ~/.bashrc
         echo \\\"export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus\\\" >> ~/.bashrc
-        echo \\\"export PATH=/home/$username/bin:\\\$PATH\\\" >> ~/.bashrc
+        
     \"'
 "
 
@@ -1223,7 +1223,7 @@ if [ "$DEBUG" = true ]; then
 fi
 
 if [ -n "$node_ip_address" ]; then
-	ssh $username "$docker_cmd"
+	ssh $username "$docker_cmd" > /dev/null 2>&1
 else
 	machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 fi
