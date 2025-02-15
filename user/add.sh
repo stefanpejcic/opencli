@@ -539,11 +539,6 @@ print_debug_info_before_starting_creation() {
 }
 
 
-
-# TODO:
-# check if remote server
-# and execute there!
-
 create_local_user() {
 	log "Creating user $username"
 	useradd -m -d /home/$username $username
