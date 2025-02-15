@@ -409,12 +409,12 @@ ssh root@$node_ip_address << EOF
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
     # Check for the package manager and install sshfs accordingly
-    if command -v apt-get &> /dev/null; then
-      apt-get update &> /dev/null && apt-get install -y sshfs &> /dev/null
-    elif command -v dnf &> /dev/null; then
-      dnf install -y sshfs &> /dev/null
-    elif command -v yum &> /dev/null; then
-      yum install -y sshfs &> /dev/null
+    if command -v apt-get ; then
+      apt-get update && apt-get install -y systemd-container sshfs
+    elif command -v dnf ; then
+      dnf install -y systemd-container sshfs
+    elif command -v yum ; then
+      yum install -y systemd-container sshfs
     else
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
       exit 1
@@ -653,14 +653,12 @@ get_webserver_from_plan_name() {
 
 docker_compose() {
 
-	compose_url="https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64"
-
    	if [ -n "$node_ip_address" ]; then
 	    	log "Configuring Docker Compose for user $username on node $node_ip_address"
 		ssh root@$node_ip_address "su - $username -c '
 		DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
 		mkdir -p /home/$username/.docker/cli-plugins
-		curl -sSL \$compose_url -o /home/$username/.docker/cli-plugins/docker-compose
+		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
 		chmod +x /home/$username/.docker/cli-plugins/docker-compose
 		docker compose version
 		'"
@@ -669,7 +667,7 @@ docker_compose() {
 		machinectl shell $username@ /bin/bash -c "
 		DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
 		mkdir -p /home/$username/.docker/cli-plugins
-		curl -sSL $compose_url -o /home/$username/.docker/cli-plugins/docker-compose
+		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
 		chmod +x /home/$username/.docker/cli-plugins/docker-compose
 		docker compose version
 		"
