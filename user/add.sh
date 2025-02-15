@@ -838,7 +838,7 @@ ssh root@$node_ip_address "
         echo \\\"export XDG_RUNTIME_DIR=/home/$username/.docker/run\\\" >> ~/.bashrc
         echo \\\"export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus\\\" >> ~/.bashrc
         echo \\\"export PATH=/home/$username/bin:\\\$PATH\\\" >> ~/.bashrc
-	echo \\\"export DOCKER_HOST=unix:///run/user/\$(id -u)/bus\\\" >> ~/.bashrc
+	echo \\\"export DOCKER_HOST=unix:///run/user/\$(id -u)/docker.sock\\\" >> ~/.bashrc
     \"'
 "
 
