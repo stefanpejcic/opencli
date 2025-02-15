@@ -51,7 +51,7 @@ done
 source /usr/local/admin/scripts/db.sh
 
 # COMPOSE 
-docker_compose_file="/etc/openpanel/docker/compose/$container_name/docker-compose.yml"
+docker_compose_file="/home/$container_name/docker-compose.yml"
 if [[ ! -f "$docker_compose_file" ]]; then
     echo "Fatal Error: $docker_compose_file does not exist - changing user limits will not be permanent." >&2
     exit 1
