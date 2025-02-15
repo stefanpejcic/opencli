@@ -726,7 +726,7 @@ mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
 "
 
 
-		ssh root@$node_ip_address"
+		ssh root@$node_ip_address "
 		# Backup the sudoers file before modifying
 		cp /etc/sudoers /etc/sudoers.bak
 		
