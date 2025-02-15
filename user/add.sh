@@ -401,37 +401,54 @@ sshfs_mounts() {
 
 
 
+# mount openpanel dir on slave
 
 # SSH into the slave server and check if /etc/openpanel exists
 ssh root@$node_ip_address << EOF
-  # Check if /etc/openpanel directory exists
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
     # Check for the package manager and install sshfs accordingly
     if command -v apt-get ; then
-      apt-get update && apt-get install -y systemd-container sshfs
+      apt-get update && apt-get install -y systemd-container
     elif command -v dnf ; then
-      dnf install -y systemd-container sshfs
+      dnf install -y systemd-container
     elif command -v yum ; then
-      yum install -y systemd-container sshfs
+      yum install -y systemd-container
     else
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
       exit 1
     fi
 
     mkdir -p /etc/openpanel
-
-    sshfs root@$current_ip:/etc/openpanel /etc/openpanel &> /dev/null
-
+    #git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
+    
+    scp -r /etc/openpanel root@$node_ip_address:/etc/openpanel
+    
   else
     echo "Node is already configured to be used as OpenPanel slave server. Proceeding.."
   fi
 EOF
-    
+
+
+    # mount home dir on master
+    if command -v sshfs; then
+    	:
+    else
+	    # Check for the package manager and install sshfs accordingly
+	    if command -v apt-get ; then
+	      apt-get update && apt-get install -y sshfs
+	    elif command -v dnf ; then
+	      dnf install -y sshfs
+	    elif command -v yum ; then
+	      yum install -y sshfs
+	    else
+	      echo "[✘] ERROR: Unable to setup the slave server. Contact support."
+	      exit 1
+	    fi
+    fi
 	sshfs root@$node_ip_address:/home/$username /home/$username
 
- 
     fi
 }
 
