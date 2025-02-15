@@ -212,8 +212,6 @@ get_server_ipv4_or_ipv6() {
 	    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
 	fi
  
-	        log "Trying to fetch IP address..."
-
 	get_ip() {
 	    local ip_version=$1
 	    local server1=$2
@@ -495,9 +493,9 @@ create_domain_file() {
  # VARNISH
  	# added in 0.2.6
 	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish" > /dev/null 2>&1; then
-	    log "Detected Varnish for user, setting Nginx to proxy requests to Varnish in user container."
+	    log "Detected Varnish for user, setting Caddy to proxy requests to Varnish in user container."
 	else
-	    log "Setting Nginx to proxy requests to $ws user container."
+	    log "Setting Caddy to proxy requests to $ws user container."
 	fi
 
 
@@ -640,10 +638,10 @@ create_zone_file() {
 
 	if [ "$IPV4" == "yes" ]; then
  		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
-    		log "Creating DNS zone file with AAAA records: $ZONE_FILE_DIR$domain_name.zone"
+    		log "Creating DNS zone file with A records: $ZONE_FILE_DIR$domain_name.zone"
 	else
   		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template_ipv6.txt'
-        	log "Creating DNS zone file with A records: $ZONE_FILE_DIR$domain_name.zone"
+        	log "Creating DNS zone file with AAAA records: $ZONE_FILE_DIR$domain_name.zone"
 	fi
 
    zone_template=$(<"$ZONE_TEMPLATE_PATH")
