@@ -683,33 +683,33 @@ log "Configuring Docker in Rootless mode"
 		"
 
 
-		ssh root@$node_ip_address "
-		cat <<EOT | sudo tee \"/etc/apparmor.d/home.$username.bin.rootlesskit\" > /dev/null 2>&1
-		abi <abi/4.0>,
-		include <tunables/global>
-		
-		  /home/$username/bin/rootlesskit flags=(unconfined) {
-		    userns,
-		    include if exists <local/home.$username.bin.rootlesskit>
-		  }
-		EOT
-		
-		filename=\$(echo \$HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+ssh root@$node_ip_address "
+cat <<EOT | sudo tee \"/etc/apparmor.d/home.\$username.bin.rootlesskit\" > /dev/null 2>&1
+abi <abi/4.0>,
+include <tunables/global>
 
-		cat <<EOF > ~/\${filename} 2>/dev/null
-		abi <abi/4.0>,
-		include <tunables/global>
-		
-		  \"\$HOME/bin/rootlesskit\" flags=(unconfined) {
-		    userns,
-		
-		    include if exists <local/\${filename}>
-		  }
-		EOF
-		
-		# Move the generated file to the AppArmor directory
-		mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
-		"
+  /home/\$username/bin/rootlesskit flags=(unconfined) {
+    userns,
+    include if exists <local/home.\$username.bin.rootlesskit>
+  }
+EOT
+
+filename=\$(echo \$HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+
+cat <<EOF > ~/\${filename} 2>/dev/null
+abi <abi/4.0>,
+include <tunables/global>
+
+  \"\$HOME/bin/rootlesskit\" flags=(unconfined) {
+    userns,
+
+    include if exists <local/\${filename}>
+  }
+EOF
+
+# Move the generated file to the AppArmor directory
+mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
+"
 
 
 		ssh root@$node_ip_address"
@@ -809,32 +809,32 @@ log "Configuring Docker in Rootless mode"
 		chmod 755 -R /home/$username/ >/dev/null 2>&1
 
 		
-		
-		cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
-		# ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
-		abi <abi/4.0>,
-		include <tunables/global>
-		
-		/home/$username/bin/rootlesskit flags=(unconfined) {
-		  userns,
-		
-		  # Site-specific additions and overrides. See local/README for details.
-		  include if exists <local/home.$username.bin.rootlesskit>
-		}
-		EOT
-		
-		filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
-		
-		cat <<EOF > ~/${filename} 2>/dev/null
-		abi <abi/4.0>,
-		include <tunables/global>
-		
-		"$HOME/bin/rootlesskit" flags=(unconfined) {
-		  userns,
-		
-		  include if exists <local/${filename}>
-		}
-		EOF
+cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
+# ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
+abi <abi/4.0>,
+include <tunables/global>
+
+/home/$username/bin/rootlesskit flags=(unconfined) {
+userns,
+
+# Site-specific additions and overrides. See local/README for details.
+include if exists <local/home.$username.bin.rootlesskit>
+}
+EOT
+
+filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+
+cat <<EOF > ~/${filename} 2>/dev/null
+abi <abi/4.0>,
+include <tunables/global>
+
+"$HOME/bin/rootlesskit" flags=(unconfined) {
+userns,
+
+include if exists <local/${filename}>
+}
+EOF
+
   
   		mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
 
