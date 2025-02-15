@@ -48,6 +48,7 @@ fi
 
 debug_mode=false
 docroot=""
+REMOTE_SERVER=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -198,6 +199,10 @@ fi
 
 
 get_server_ipv4_or_ipv6() {
+
+
+
+
 	# IP SERVERS
 	SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
  	log "Checking IPv4 address for the account"
@@ -225,6 +230,7 @@ get_server_ipv4_or_ipv6() {
 	    fi
 
 	}
+
 
 	# use public IPv4
 	current_ip=$(get_ip "-4" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
@@ -254,6 +260,27 @@ get_server_ipv4_or_ipv6() {
 	    echo "Error: Unable to determine IP address (IPv4 or IPv6)."
 	    exit 1
 	fi
+
+
+
+	json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
+	
+	if [ -e "$json_file" ]; then
+	    dedicated_ip=$(jq -r '.ip' "$json_file")
+	    log "User has reserved IP: $dedicated_ip."
+	
+	    # Check if dedicated_ip is present in the output of `hostname -I`
+	    if hostname -I | grep -q "$dedicated_ip"; then
+	        REMOTE_SERVER="no"
+	 	current_ip=$dedicated_ip
+	        log "User has a dedicated IP address $dedicated_ip"
+	    else
+	        REMOTE_SERVER="yes"
+	        log "IP address is asigned to node server."
+	    fi
+	fi
+
+
 }
 
 
@@ -491,11 +518,18 @@ touch $domains_file
 
 
 sed_values_in_domain_conf() {
+if [ "$REMOTE_SERVER" == "yes" ]; then
+	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
+                                           -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
+                                           -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
+ 
+else
 	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
                                            -e "s|<SSL_PORT>|$ssl_port|g" \
                                            -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
- 
-    echo "$domain_conf" > "$domains_file"
+fi
+        echo "$domain_conf" > "$domains_file"
+
 }
 
 
