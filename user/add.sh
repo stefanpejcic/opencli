@@ -495,8 +495,7 @@ get_plan_info_and_check_requirements() {
 
     # Get the maximum available RAM on the server in GB
     if [ -n "$node_ip_address" ]; then
-        # TODO: Use a custom user or configure SSH instead of using root
-        max_available_ram_gb=$(ssh "root@$node_ip_address" "free -g | awk '/^Mem:/{print $2}'")
+	max_available_ram_gb=$(ssh "root@$node_ip_address" "free -g | awk '/Mem:/{print \$2}'")
     else
         max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
     fi    
