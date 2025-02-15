@@ -410,20 +410,20 @@ ssh root@$node_ip_address << EOF
 
     # Check for the package manager and install sshfs accordingly
     if command -v apt-get ; then
-      apt-get update && apt-get install -y systemd-container
+      apt-get update && apt-get install -y systemd-container uidmap
     elif command -v dnf ; then
-      dnf install -y systemd-container
+      dnf install -y systemd-container uidmap
     elif command -v yum ; then
-      yum install -y systemd-container
+      yum install -y systemd-container uidmap
     else
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
       exit 1
     fi
 
     mkdir -p /etc/openpanel
-    #git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
+    git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
     
-    scp -r /etc/openpanel root@$node_ip_address:/etc/openpanel
+   
     
   else
     echo "Node is already configured to be used as OpenPanel slave server. Proceeding.."
@@ -431,13 +431,17 @@ ssh root@$node_ip_address << EOF
 EOF
 
 
+# TODO:
+#  scp -r /etc/openpanel root@$node_ip_address:/etc/openpanel
+# sync conf from master to slave!
+
     # mount home dir on master
     if command -v sshfs; then
     	:
     else
 	    # Check for the package manager and install sshfs accordingly
 	    if command -v apt-get ; then
-	      apt-get update && apt-get install -y sshfs
+	      apt-get install -y sshfs
 	    elif command -v dnf ; then
 	      dnf install -y sshfs
 	    elif command -v yum ; then
