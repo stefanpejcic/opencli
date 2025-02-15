@@ -76,7 +76,14 @@ hostname=$(hostname)
 
 
 
+cleanup() {
+  echo "[✘] Script failed. Cleaning up..."
+  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
+  # todo: remove user, files, container..
+  exit 1
+}
 
+trap cleanup EXIT
 
 
 get_slave_if_set() {
@@ -1094,9 +1101,9 @@ run_docker() {
 # docker --context gmqv6rqs image inspect --format='{{json .Config.Labels}}' openpanel/nginx | jq -r '.php'
 
 mkdir -p /etc/openpanel/docker/compose/$username/
-cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
+cp /etc/openpanel/docker/compose/user-compose.yml /home/$username/docker-compose.yml
 
-cat <<EOF > /etc/openpanel/docker/compose/$username/.env
+cat <<EOF > /home/$username/.env
 # User-specific settings
 username=$username
 context=$username
@@ -1126,7 +1133,7 @@ EOF
 
 log ".env file created successfully"
 
-local docker_cmd="cd /etc/openpanel/docker/compose/$username/ && docker compose up -d"
+local docker_cmd="cd /home/$username && docker compose up -d"
 
 if [ "$DEBUG" = true ]; then
     #echo "$AVAILABLE_PORTS"
@@ -1146,7 +1153,7 @@ fi
 
 compose_running=$(docker --context $username compose ls)
 
-if echo "$compose_running" | grep -q "/etc/openpanel/docker/compose/$username/docker-compose.yml"; then
+if echo "$compose_running" | grep -q "/home/$username/docker-compose.yml"; then
     :
 else
     echo "docker-compose.yml for $username is not found or the container did not start!"
