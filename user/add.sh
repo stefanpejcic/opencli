@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--server=<IP_ADDRESS>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -35,8 +35,8 @@ DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
 SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 7 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--server=<IP_ADDRESS>]"
+if [ "$#" -lt 4 ] || [ "$#" -gt 8 ]; then
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
     exit 1
 fi
 
@@ -47,6 +47,7 @@ plan_name="$4"
 DEBUG=false             # Default value for DEBUG
 SEND_EMAIL=false        # Don't send email by default
 server=""               # Default value for context
+key_flag=""
 
 # Parse flags for --debug, --send-email, and --context
 for arg in "$@"; do
@@ -59,7 +60,10 @@ for arg in "$@"; do
             ;;
         --server=*)
             server="${arg#*=}"
-            # todo: tests ssh
+	    ;;
+	--key=*)
+             key="${arg#*=}"
+	     key_flag="-i $key"
             ;;
     esac
 done
@@ -103,7 +107,7 @@ get_slave_if_set() {
 			hostname=$(ssh "root@$server" "hostname")
 			if [ -z "$hostname" ]; then
 			  echo "ERROR: Unable to reach the node $server - Exiting."
-     			  echo '       Make sure you can connect to the node from terminal with: "ssh root@$server -vvv"'
+     			  echo '       Make sure you can connect to the node from terminal with: "ssh $key_flag root@$server -vvv"'
 			  exit 1
 			fi
    
@@ -331,84 +335,23 @@ fi
 sshfs_mounts() {
     if [ -n "$node_ip_address" ]; then
 
-	get_server_ipv4_or_ipv6() {
-		# IP SERVERS
-		SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
-	 	log "Checking IPv4 address for the account"
-		if [ -f "$SCRIPT_PATH" ]; then
-		    source "$SCRIPT_PATH"
-		else
-		    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
-		fi
-	 
-		        log "Trying to fetch IP address..."
-	
-		get_ip() {
-		    local ip_version=$1
-		    local server1=$2
-		    local server2=$3
-		    local server3=$4
-		
-		    if [ "$ip_version" == "-4" ]; then
-			    curl --silent --max-time 2 $ip_version $server1 || \
-			    wget --timeout=2 -qO- $server2 || \
-			    curl --silent --max-time 2 $ip_version $server3
-		    else
-			    curl --silent --max-time 2 $ip_version $server1 || \
-			    curl --silent --max-time 2 $ip_version $server3
-		    fi
-	
-		}
-	
-		# use public IPv4
-		current_ip=$(get_ip "-4" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
-	
-		# fallback from the server
-		if [ -z "$current_ip" ]; then
-		    log "Fetching IPv4 from local hostname..."
-		    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
-		fi
-	 
-	 	IPV4="yes"
-	  
-		# public IPv6
-		if [ -z "$current_ip" ]; then
-	 	    IPV4="no"
-		    log "No IPv4 found. Checking IPv6 address..."
-		    current_ip=$(get_ip "-6" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
-		    # Fallback to hostname IPv6 if no IPv6 from servers
-		    if [ -z "$current_ip" ]; then
-		        log "Fetching IPv6 from local hostname..."
-		        current_ip=$(ip addr | grep 'inet6 ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
-		    fi
-		fi
-		
-		# no :(
-		if [ -z "$current_ip" ]; then
-		    echo "Error: Unable to determine IP address of the master server (IPv4 or IPv6). Is server offline?"
-		    exit 1
-		fi
-	}
 
 
 
+ssh $key_flag root@$node_ip_address << EOF
+  if [ ! -d "/etc/openpanel/openpanel" ]; then
+	echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+	echo "AuthorizedKeysFile     .ssh/authorized_keys" >> /etc/ssh/sshd_config
+	service ssh restart
+fi
+EOF
 
-
-
-
-
-
-
-
-
-
-
-
+	sleep 5
 
 # mount openpanel dir on slave
 
 # SSH into the slave server and check if /etc/openpanel exists
-ssh root@$node_ip_address << EOF
+ssh $key_flag root@$node_ip_address << EOF
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
@@ -428,9 +371,26 @@ ssh root@$node_ip_address << EOF
 EOF
 
 
-	# https://docs.docker.com/engine/security/rootless/#limiting-resources
+# https://docs.docker.com/engine/security/rootless/#limiting-resources
+ssh $key_flag root@$node_ip_address << 'EOF'
+ 
+  if [ ! -d "/etc/openpanel/openpanel" ]; then
+    echo "Adding permissions for users to limit CPU% - more info: https://docs.docker.com/engine/security/rootless/#limiting-resources"
+  
+    mkdir -p /etc/systemd/system/user@.service.d
+  
+    cat > /etc/systemd/system/user@.service.d/delegate.conf << 'INNER_EOF'
+[Service]
+Delegate=cpu cpuset io memory pids
+INNER_EOF
 
-	ssh root@$node_ip_address << EOF
+    systemctl daemon-reload
+  fi
+
+EOF
+
+
+	ssh $key_flag root@$node_ip_address << EOF
  
   if [ ! -d "/etc/openpanel/openpanel" ]; then
 
@@ -446,7 +406,7 @@ EOF
 systemctl daemon-reload
 EOF  
 
-	ssh root@$node_ip_address << EOF
+	ssh $key_flag root@$node_ip_address << EOF
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Configuring OpenPanel Slave on the server.."
     mkdir -p /etc/openpanel
@@ -559,6 +519,84 @@ get_plan_info_and_check_requirements() {
 
 
 
+setup_ssh_key(){
+     if [ -n "$node_ip_address" ]; then
+	log "Setting ssh key.."
+	public_key=$(ssh-keygen -y -f "$key")
+ 	mkdir -p /home/$username/.ssh/ > /dev/null 2>&1
+	touch  /home/$username/.ssh/authorized_keys > /dev/null 2>&1
+	chown $username -R /home/$username/.ssh > /dev/null 2>&1
+
+	if ! grep -q "$public_key" /home/$username/.ssh/authorized_keys; then
+
+	    echo "$public_key" >> /home/$username/.ssh/authorized_keys
+
+ 			chmod 600 /home/$username/.ssh/authorized_keys  > /dev/null 2>&1
+			mkdir ~/.ssh  > /dev/null 2>&1
+   			chmod 600 ~/.ssh/config  > /dev/null 2>&1
+   
+			cp $key ~/.ssh/$node_ip_address && chmod 600 ~/.ssh/$node_ip_address
+   
+echo "Host $username
+    HostName $node_ip_address
+    User $username
+    IdentityFile ~/.ssh/$node_ip_address
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null    
+" >> ~/.ssh/config
+
+	fi
+
+
+	                ssh "$username" "exit" &> /dev/null
+	                if [ $? -eq 0 ]; then
+	                    log "SSH connection successfully established"
+		     	else
+			    echo "ERROR: Failed to establish SSH connection to the newly created user."
+	      		    exit 1
+	     		fi
+ 
+      fi
+}
+
+
+
+validate_ssh_login(){
+   if [ -n "$node_ip_address" ]; then
+   	log "Validating SSH connection to the server $node_ip_address"
+    	if [ "$DEBUG" = true ]; then
+	        if [ -f "$key" ]; then	
+	            if [ "$(stat -c %a "$key")" -eq 600 ]; then	                
+	                ssh -i "$key" "$node_ip_address" "exit" &> /dev/null
+	                if [ $? -eq 0 ]; then
+	                    log "SSH connection successfully established"
+	                else
+	                    echo 'ERROR: SSH connection failed to $node_ip_address'
+		     	    exit 1
+	                fi
+	            else
+	                log "SSH key permissions are incorrect. Correcting permissions to 600."
+	                chmod 600 "$key"
+	            fi
+	        else
+	            echo 'ERROR: Provided ssh key path: "$key" does not exist.'
+	     	# TODO: GENERATE OTHERWISE!
+		#ssh-keygen -t rsa -b 4096 -f ~/.ssh/${username}context
+		# ssh-copy-id $username@$hostname+IPPPPP      
+	     	    exit 1
+	        fi
+ 
+
+	fi
+    fi
+}
+
+
+
+
+
+
+
 
 # DEBUG
 print_debug_info_before_starting_creation() {
@@ -568,11 +606,9 @@ print_debug_info_before_starting_creation() {
 	        echo "- IP address:           $node_ip_address" 
 	        echo "- Hostname:             $hostname" 	 
 	        echo "- SSH user:             root" 	
-                echo "- Docker context:       $context" 	
+	        echo "- SSH key path:         $key" 		 
 	 	echo ""
 	fi
-	#echo "Started creating new user account"
-        #echo "Docker context to be used for the new container: $server_name" 
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
         echo "- plan name:         $plan_name"
@@ -702,7 +738,7 @@ docker_compose() {
 
    	if [ -n "$node_ip_address" ]; then
 	    	log "Configuring Docker Compose for user $username on node $node_ip_address"
-		ssh root@$node_ip_address "su - $username -c '
+		ssh $key_flag root@$node_ip_address "su - $username -c '
 		DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
 		mkdir -p /home/$username/.docker/cli-plugins
 		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
@@ -741,7 +777,7 @@ chmod 755 -R /home/$username/ >/dev/null 2>&1
    	if [ -n "$node_ip_address" ]; then
 
 log "Setting AppArmor profile.."
-ssh root@$node_ip_address <<EOF
+ssh $key_flag root@$node_ip_address <<EOF
 
 # Create the AppArmor profile directly
 cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<EOT
@@ -780,7 +816,7 @@ EOF
 
 log "Setting user pemissions.."
 
-		ssh root@$node_ip_address "
+		ssh $key_flag root@$node_ip_address "
 		# Backup the sudoers file before modifying
 		cp /etc/sudoers /etc/sudoers.bak
 		
@@ -808,7 +844,7 @@ log "Setting user pemissions.."
 log "Restarting services.."
 
 
-		ssh root@$node_ip_address "
+		ssh $key_flag root@$node_ip_address "
 		# Restart apparmor service
 		sudo systemctl restart apparmor.service >/dev/null 2>&1
 		
@@ -828,7 +864,7 @@ log "Restarting services.."
 
   log "Downloading https://get.docker.com/rootless"
 
-ssh root@$node_ip_address "
+ssh $key_flag root@$node_ip_address "
     su - $username -c 'bash -l -c \"
         cd /home/$username/bin
         wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
@@ -846,7 +882,7 @@ ssh root@$node_ip_address "
         
   log "Configuring Docker service.."
 
-ssh root@$node_ip_address "
+ssh $key_flag root@$node_ip_address "
     # Switch to the user shell and execute the commands
     machinectl shell $username@ /bin/bash -c '
     mkdir -p ~/.config/systemd/user/
@@ -874,8 +910,7 @@ EOF
 
   log "Starting user services.."
 
-# Separate SSH command to create the systemd service file
-ssh root@$node_ip_address "
+ssh $key_flag root@$node_ip_address "
     machinectl shell $username@ /bin/bash -c '
 
         echo \"XDG_RUNTIME_DIR=\$XDG_RUNTIME_DIR\"
@@ -1193,7 +1228,7 @@ fi
 
 
 if [ -n "$node_ip_address" ]; then
-	ssh root@node_ip_address "
+	ssh $key_flag root@node_ip_address "
 	    su - $username -c \"$docker_cmd\"
 	" > /dev/null 2>&1
 else
@@ -1375,7 +1410,7 @@ create_context() {
     if [ -n "$node_ip_address" ]; then
 
 	docker context create $username \
-	  --docker "host=ssh://$username@$node_ip_address" \
+	  --docker "host=ssh://$username" \
 	  --description "$username"
    else
    	docker context create $username \
@@ -1448,10 +1483,12 @@ get_slave_if_set                             # get context and use slave server 
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 print_debug_info_before_starting_creation    # print debug info
-create_user_and_set_quota
-sshfs_mounts
-docker_rootless
-docker_compose
+validate_ssh_login                           # test ssh logins for cluster member
+create_user_and_set_quota                    # create user
+sshfs_mounts                                 # mount /home/user
+setup_ssh_key                                # set key for the user
+docker_rootless                              # install 
+docker_compose                               # magic happens here
 get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_context
 get_php_version   # must be before run_docker !
