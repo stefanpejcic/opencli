@@ -405,7 +405,7 @@ sshfs_mounts() {
 # SSH into the slave server and check if /etc/openpanel exists
 ssh root@$node_ip_address << EOF
   # Check if /etc/openpanel directory exists
-  if [ ! -d "/etc/openpanel" ]; then
+  if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
     # Check for the package manager and install sshfs accordingly
