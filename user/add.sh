@@ -542,7 +542,10 @@ echo "Host $username
     User $username
     IdentityFile ~/.ssh/$node_ip_address
     StrictHostKeyChecking no
-    UserKnownHostsFile /dev/null    
+    UserKnownHostsFile /dev/null  
+    ControlPath ~/.ssh/cm_socket/%r@%h:%p
+    ControlMaster auto
+    ControlPersist 30s    
 " >> ~/.ssh/config
 
 	fi
