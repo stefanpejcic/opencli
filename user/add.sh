@@ -416,11 +416,11 @@ ssh root@$node_ip_address << EOF
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
     # Check for the package manager and install sshfs accordingly
-    if command -v apt-get ; then
+    if command -v apt-get &> /dev/null; then
       apt-get update && apt-get install -y systemd-container uidmap
-    elif command -v dnf ; then
+    elif command -v dnf &> /dev/null; then
       dnf install -y systemd-container uidmap
-    elif command -v yum ; then
+    elif command -v yum &> /dev/null; then
       yum install -y systemd-container uidmap
     else
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
@@ -430,6 +430,17 @@ ssh root@$node_ip_address << EOF
     mkdir -p /etc/openpanel
     git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
     
+
+	# https://docs.docker.com/engine/security/rootless/#limiting-resources
+
+	mkdir -p /etc/systemd/system/user@.service.d
+	
+cat > /etc/systemd/system/user@.service.d/delegate.conf << EOF
+[Service]
+Delegate=cpu cpuset io memory pids
+EOF
+	
+	systemctl daemon-reload
    
     
   else
@@ -443,15 +454,15 @@ EOF
 # sync conf from master to slave!
 
     # mount home dir on master
-    if command -v sshfs; then
+    if command -v sshfs &> /dev/null; then
     	:
     else
 	    # Check for the package manager and install sshfs accordingly
-	    if command -v apt-get ; then
+	    if command -v apt-get &> /dev/null; then
 	      apt-get install -y sshfs
-	    elif command -v dnf ; then
+	    elif command -v dnf &> /dev/null; then
 	      dnf install -y sshfs
-	    elif command -v yum ; then
+	    elif command -v yum &> /dev/null; then
 	      yum install -y sshfs
 	    else
 	      echo "[✘] ERROR: Unable to setup the slave server. Contact support."
