@@ -536,6 +536,8 @@ setup_ssh_key(){
    			chmod 600 ~/.ssh/config  > /dev/null 2>&1
    
 			cp $key ~/.ssh/$node_ip_address && chmod 600 ~/.ssh/$node_ip_address
+
+mkdir -p ~/.ssh/cm_socket  > /dev/null 2>&1
    
 echo "Host $username
     HostName $node_ip_address
