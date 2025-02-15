@@ -113,6 +113,7 @@ get_slave_if_set() {
    
    			node_ip_address=$server
       			context=$username # so we show it on debug!
+  
 	     		log "Container will be created on node: $node_ip_address ($hostname)"
 	        else
 	            echo "ERROR: $server is not a valid IPv4 address (octets out of range)."
@@ -1374,6 +1375,13 @@ copy_skeleton_files() {
     
 	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #todo remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
+
+	if [ -n "$node_ip_address" ]; then
+		# adding dedicated ip to be used in caddy and dns files
+		local json_file="/etc/openpanel/openpanel/core/users/$username/ip.json"
+		echo "{ \"ip\": \"$node_ip_address\" }" > "$json_file"
+	fi
+ 
         opencli php-available_versions $username  > /dev/null 2>&1 &
 }
 
