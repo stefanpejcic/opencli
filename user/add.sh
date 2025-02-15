@@ -401,7 +401,15 @@ get_plan_info_and_check_requirements() {
 # DEBUG
 print_debug_info_before_starting_creation() {
     if [ "$DEBUG" = true ]; then
-        #echo "Started creating new user account"
+	if [ -n "$node_ip_address" ]; then
+	        echo "Node server:"
+	        echo "- IP address:           $node_ip_address" 
+	        echo "- Hostname:             $hostname" 	 
+	        echo "- SSH user:             root" 	
+                echo "- Docker context:       $context" 	
+	 	echo ""
+	fi
+	#echo "Started creating new user account"
         #echo "Docker context to be used for the new container: $server_name" 
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
@@ -421,52 +429,42 @@ print_debug_info_before_starting_creation() {
 # check if remote server
 # and execute there!
 
-# create storage file
-create_user_and_set_quota() {
-                if [ -n "$node_ip_address" ]; then
+create_local_user() {
+	log "Creating user $username"
+	useradd -m -d /home/$username $username
+ 	user_id=$(id -u $username)	
+	if [ $? -ne 0 ]; then
+		echo "Failed creating linux user $username on master server."
+  		exit 1
+	fi
+}
+
+create_remote_user() {
+	local provided_id=$1
+        if [ -n "$provided_id" ]; then
+		id_flag="-u $provided_id"
+ 	else
+		id_flag=""
+ 	fi
+  	
+   	if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
-                    ssh "root@$node_ip_address" "useradd -m -d /home/$username $username"
+                    ssh "root@$node_ip_address" "useradd -m -d /home/$username $id_flag $username"
 		    user_id=$(ssh "root@$node_ip_address" "id -u $username")
 			if [ $? -ne 0 ]; then
-			    echo "Failed creating linux user $username on server $node_ip_address"
+			    echo "Failed creating linux user $username on node: $node_ip_address"
 			    exit 1
 			fi
-                else
-                   log "Creating user $username"
-		    useradd -m -d /home/$username $username
-      		    user_id=$(id -u $username)	
-			if [ $? -ne 0 ]; then
-			    echo "Failed creating linux user $username"
-			    exit 1
-			fi
-                fi
+	fi
+ 
 
-   # log "Configuring disk and inodes limits for the user"
+}
 
-    if [ "$disk_limit" -ne 0 ]; then
-    	storage_in_blocks=$((disk_limit * 1024000))
-                if [ -n "$node_ip_address" ]; then
-                    log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user on server $node_ip_address"
-                    # TODO: Use a custom user or configure SSH instead of using root
-                    ssh "root@$node_ip_address" "setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /"
-
-                else
-                    log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
-      		    setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
-                fi
-    else
-
-                if [ -n "$node_ip_address" ]; then
-                    log "Setting unlimited storage and inodes for the user on server $node_ip_address"
-                    # TODO: Use a custom user or configure SSH instead of using root
-                    ssh "root@$node_ip_address" "setquota -u $username 0 0 0 0 /"
-                else
-                    log "Setting unlimited storage and inodes for the user"
-      		    setquota -u $username 0 0 0 0 /
-                fi
-    fi
-    
-
+# CREATE THE USER
+create_user_and_set_quota() {
+ 	create_local_user
+       	create_remote_user $user_id
+	set_user_quota
 }
 
 
@@ -532,17 +530,27 @@ get_webserver_from_plan_name() {
 
 docker_compose() {
 
-log "Configuring Docker Compose"
-compose_url="https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64"
-machinectl shell $username@ /bin/bash -c "
-DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
-mkdir -p /home/$username/.docker/cli-plugins
-curl -sSL $compose_url -o /home/$username/.docker/cli-plugins/docker-compose
-chmod +x /home/$username/.docker/cli-plugins/docker-compose
+	compose_url="https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64"
 
-docker compose version
-"
-
+   	if [ -n "$node_ip_address" ]; then
+	    	log "Configuring Docker Compose for user $username on node $node_ip_address"
+		ssh root@$node_ip_address "su - $username -c '
+		DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
+		mkdir -p /home/$username/.docker/cli-plugins
+		curl -sSL \$compose_url -o /home/$username/.docker/cli-plugins/docker-compose
+		chmod +x /home/$username/.docker/cli-plugins/docker-compose
+		docker compose version
+		'"
+	else
+	    	log "Configuring Docker Compose for user $username"
+		machinectl shell $username@ /bin/bash -c "
+		DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
+		mkdir -p /home/$username/.docker/cli-plugins
+		curl -sSL $compose_url -o /home/$username/.docker/cli-plugins/docker-compose
+		chmod +x /home/$username/.docker/cli-plugins/docker-compose
+		docker compose version
+		"
+	fi
 }
 
 
@@ -551,117 +559,256 @@ docker_rootless() {
 
 log "Configuring Docker in Rootless mode"
 
-mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
-touch /home/$username/.config/docker/daemon.json > /dev/null 2>&1
-
-echo "{
-  \"data-root\": \"/home/$username/docker-data\"
-}" > /home/$username/.config/docker/daemon.json
-
-
-mkdir -p /home/$username/bin > /dev/null 2>&1
-chmod 755 -R /home/$username/ >/dev/null 2>&1
-
-cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
-# ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
-abi <abi/4.0>,
-include <tunables/global>
-
-/home/$username/bin/rootlesskit flags=(unconfined) {
-  userns,
-
-  # Site-specific additions and overrides. See local/README for details.
-  include if exists <local/home.$username.bin.rootlesskit>
-}
-EOT
-
-filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
-
-cat <<EOF > ~/${filename} 2>/dev/null
-abi <abi/4.0>,
-include <tunables/global>
-
-"$HOME/bin/rootlesskit" flags=(unconfined) {
-  userns,
-
-  include if exists <local/${filename}>
-}
-EOF
-
-mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
-
-SUDOERS_FILE="/etc/sudoers"
-
-echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
-if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
-    :
-    #DEBUG: echo "Successfully added $username to sudoers file with passwordless sudo permissions."
-else
-    echo "Failed to update the sudoers file. Please check the syntax."
-    #exit 1
-fi
-
-# Verify the sudoers file using visudo
-visudo -c > /dev/null 2>&1
-if [[ $? -eq 0 ]]; then
-    :
-    #echo "sudoers file syntax is valid. The changes have been applied."
-else
-    echo "The sudoers file contains syntax errors. Restoring the backup."
-    mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
-    #exit 1
-fi
+   	if [ -n "$node_ip_address" ]; then
+		ssh root@$node_ip_address "
+		mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
+		touch /home/$username/.config/docker/daemon.json > /dev/null 2>&1
+		
+		echo \"{
+		  \\\"data-root\\\": \"/home/$username/docker-data\"
+		}\" > /home/$username/.config/docker/daemon.json
+		
+		mkdir -p /home/$username/bin > /dev/null 2>&1
+		chmod 755 -R /home/$username/ > /dev/null 2>&1
+		"
 
 
-sudo systemctl restart apparmor.service   >/dev/null 2>&1
-loginctl enable-linger $username   >/dev/null 2>&1
-mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
-chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
-chmod 755 -R /home/$username/   >/dev/null 2>&1
-chown -R $username:$username /home/$username/   >/dev/null 2>&1
- 
-machinectl shell $username@ /bin/bash -c "
+		ssh root@$node_ip_address "
+		cat <<EOT | sudo tee \"/etc/apparmor.d/home.$username.bin.rootlesskit\" > /dev/null 2>&1
+		abi <abi/4.0>,
+		include <tunables/global>
+		
+		  /home/$username/bin/rootlesskit flags=(unconfined) {
+		    userns,
+		    include if exists <local/home.$username.bin.rootlesskit>
+		  }
+		EOT
+		
+		filename=\$(echo \$HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
 
-    cd /home/$username/bin
-    # Install Docker rootless
-    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
-   
-    # Setup environment for rootless Docker
-    source ~/.bashrc
+		cat <<EOF > ~/\${filename} 2>/dev/null
+		abi <abi/4.0>,
+		include <tunables/global>
+		
+		  \"\$HOME/bin/rootlesskit\" flags=(unconfined) {
+		    userns,
+		
+		    include if exists <local/\${filename}>
+		  }
+		EOF
+		
+		# Move the generated file to the AppArmor directory
+		mv ~/\${filename} /etc/apparmor.d/\${filename} > /dev/null 2>&1
+		"
 
-    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
-    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
 
-    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
-    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
-    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
+		ssh root@$node_ip_address"
+		# Backup the sudoers file before modifying
+		cp /etc/sudoers /etc/sudoers.bak
+		
+		# Append the user to sudoers with NOPASSWD
+		echo \"$username ALL=(ALL) NOPASSWD:ALL\" >> /etc/sudoers
+		
+		# Check if the line was successfully added
+		if grep -q \"$username ALL=(ALL) NOPASSWD:ALL\" /etc/sudoers; then
+		    :
+		else
+		    echo \"Failed to update the sudoers file. Please check the syntax.\"
+		    #exit 1
+		fi
+		
+		# Verify the sudoers file using visudo
+		visudo -c > /dev/null 2>&1
+		if [[ \$? -eq 0 ]]; then
+		    :
+		else
+		    echo \"The sudoers file contains syntax errors. Restoring the backup.\"
+		    mv /etc/sudoers.bak /etc/sudoers
+		fi
+		"
 
-    # Source the updated bashrc and start Docker rootless
-    source ~/.bashrc
-    
-	mkdir -p ~/.config/systemd/user/
-	cat > ~/.config/systemd/user/docker.service <<EOF
-[Unit]
-Description=Docker Application Container Engine (Rootless)
-After=network.target
-	
-[Service]
-Environment=PATH=/home/$username/bin:$PATH
-Environment=DOCKER_HOST=unix://%t/docker.sock
-ExecStart=/home/$username/bin/dockerd-rootless.sh
-Restart=on-failure
-StartLimitBurst=3
-StartLimitInterval=60s
-	
-[Install]
-WantedBy=default.target
-EOF
+		ssh root@$node_ip_address "
+		# Restart apparmor service
+		sudo systemctl restart apparmor.service >/dev/null 2>&1
+		
+		# Enable lingering for the user to keep their session alive across reboots
+		loginctl enable-linger $username >/dev/null 2>&1
+		
+		# Create necessary directories and set permissions
+		mkdir -p /home/$username/.docker/run >/dev/null 2>&1
+		chmod 700 /home/$username/.docker/run >/dev/null 2>&1
+		
+		# Set the appropriate permissions for the user home directory
+		chmod 755 -R /home/$username/ >/dev/null 2>&1
+		chown -R $username:$username /home/$username/ >/dev/null 2>&1
+		"
 
-systemctl --user daemon-reload > /dev/null 2>&1
-systemctl --user enable docker > /dev/null 2>&1
-systemctl --user start docker > /dev/null 2>&1
-"
 
+		ssh root@$node_ip_address "
+		# Switch to the user shell and execute the commands
+		machinectl shell $username@ /bin/bash -c '
+		
+		    # Navigate to the user's bin directory
+		    cd /home/$username/bin
+		    
+		    # Install Docker rootless setup tool
+		    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
+		   
+		    # Setup environment for rootless Docker
+		    source ~/.bashrc
+		
+		    # Make the script executable and run the rootless Docker setup
+		    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
+		    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
+		
+		    # Update .bashrc with Docker environment variables
+		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
+		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
+		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
+		
+		    # Source the updated .bashrc and start Docker rootless
+		    source ~/.bashrc
+		    
+		    # Create a systemd user service for Docker
+		    mkdir -p ~/.config/systemd/user/
+		    cat > ~/.config/systemd/user/docker.service <<EOF
+		[Unit]
+		Description=Docker Application Container Engine (Rootless)
+		After=network.target
+		    
+		[Service]
+		Environment=PATH=/home/$username/bin:$PATH
+		Environment=DOCKER_HOST=unix://%t/docker.sock
+		ExecStart=/home/$username/bin/dockerd-rootless.sh
+		Restart=on-failure
+		StartLimitBurst=3
+		StartLimitInterval=60s
+		    
+		[Install]
+		WantedBy=default.target
+		EOF
+		
+		    # Reload systemd user services, enable and start Docker service
+		    systemctl --user daemon-reload > /dev/null 2>&1
+		    systemctl --user enable docker > /dev/null 2>&1
+		    systemctl --user start docker > /dev/null 2>&1
+		'
+		"
+
+
+	else
+
+		mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
+		touch /home/$username/.config/docker/daemon.json > /dev/null 2>&1
+		
+		echo "{
+		  \"data-root\": \"/home/$username/docker-data\"
+		}" > /home/$username/.config/docker/daemon.json
+		
+		
+		mkdir -p /home/$username/bin > /dev/null 2>&1
+		chmod 755 -R /home/$username/ >/dev/null 2>&1
+
+		
+		
+		cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
+		# ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
+		abi <abi/4.0>,
+		include <tunables/global>
+		
+		/home/$username/bin/rootlesskit flags=(unconfined) {
+		  userns,
+		
+		  # Site-specific additions and overrides. See local/README for details.
+		  include if exists <local/home.$username.bin.rootlesskit>
+		}
+		EOT
+		
+		filename=$(echo $HOME/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g)
+		
+		cat <<EOF > ~/${filename} 2>/dev/null
+		abi <abi/4.0>,
+		include <tunables/global>
+		
+		"$HOME/bin/rootlesskit" flags=(unconfined) {
+		  userns,
+		
+		  include if exists <local/${filename}>
+		}
+		EOF
+  
+  		mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
+
+
+		SUDOERS_FILE="/etc/sudoers"
+		
+		echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
+		if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
+		    :
+		else
+		    echo "Failed to update the sudoers file. Please check the syntax."
+		    #exit 1
+		fi
+		
+		# Verify the sudoers file using visudo
+		visudo -c > /dev/null 2>&1
+		if [[ $? -eq 0 ]]; then
+		    :
+		else
+		    echo "The sudoers file contains syntax errors. Restoring the backup."
+		    mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
+		fi
+
+
+		sudo systemctl restart apparmor.service   >/dev/null 2>&1
+		loginctl enable-linger $username   >/dev/null 2>&1
+		mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
+		chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
+		chmod 755 -R /home/$username/   >/dev/null 2>&1
+		chown -R $username:$username /home/$username/   >/dev/null 2>&1
+
+		machinectl shell $username@ /bin/bash -c "
+		
+		    cd /home/$username/bin
+		    # Install Docker rootless
+		    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
+		   
+		    # Setup environment for rootless Docker
+		    source ~/.bashrc
+		
+		    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
+		    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
+		
+		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
+		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
+		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
+		
+		    # Source the updated bashrc and start Docker rootless
+		    source ~/.bashrc
+		    
+			mkdir -p ~/.config/systemd/user/
+			cat > ~/.config/systemd/user/docker.service <<EOF
+		[Unit]
+		Description=Docker Application Container Engine (Rootless)
+		After=network.target
+			
+		[Service]
+		Environment=PATH=/home/$username/bin:$PATH
+		Environment=DOCKER_HOST=unix://%t/docker.sock
+		ExecStart=/home/$username/bin/dockerd-rootless.sh
+		Restart=on-failure
+		StartLimitBurst=3
+		StartLimitInterval=60s
+			
+		[Install]
+		WantedBy=default.target
+		EOF
+		
+		systemctl --user daemon-reload > /dev/null 2>&1
+		systemctl --user enable docker > /dev/null 2>&1
+		systemctl --user start docker > /dev/null 2>&1
+		"
+	fi
 }
 
 
@@ -673,19 +820,6 @@ change_default_email_and_allow_email_network () {
     docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
 
 }
-
-
-temp_fix_for_nginx_default_site_missing() {
-    if [ -n "$node_ip_address" ]; then
-        # TODO: Use a custom user or configure SSH instead of using root
-        ssh "root@$node_ip_address" "mkdir -p /home/$username/etc/$path/sites-available && echo >> /home/$username/etc/$path/sites-available/default"
-    else
-         mkdir -p /home/$username/etc/$path/sites-available
-         echo >> /home/$username/etc/$path/sites-available/default
-    fi
-}
-
-
 
 
 
@@ -830,9 +964,6 @@ run_docker() {
 mkdir -p /etc/openpanel/docker/compose/$username/
 cp /etc/openpanel/docker/compose/user-compose.yml /etc/openpanel/docker/compose/$username/docker-compose.yml
 
-#######cd /etc/openpanel/docker/compose/$username/ && docker compose up -d > /dev/null 2>&1
-
-
 cat <<EOF > /etc/openpanel/docker/compose/$username/.env
 # User-specific settings
 username=$username
@@ -862,7 +993,6 @@ mysql_version=$mysql_version
 EOF
 
 log ".env file created successfully"
-#cat /etc/openpanel/docker/compose/$username/.env
 
 local docker_cmd="cd /etc/openpanel/docker/compose/$username/ && docker compose up -d"
 
@@ -871,7 +1001,16 @@ if [ "$DEBUG" = true ]; then
     log "Creating container with the docker compose command:"
     echo "$docker_cmd"
 fi
-        machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
+
+
+
+if [ -n "$node_ip_address" ]; then
+	ssh root@node_ip_address "
+	    su - $username -c \"$docker_cmd\"
+	" > /dev/null 2>&1
+else
+	machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
+fi
 
 compose_running=$(docker --context $username compose ls)
 
@@ -879,7 +1018,8 @@ if echo "$compose_running" | grep -q "/etc/openpanel/docker/compose/$username/do
     :
 else
     echo "docker-compose.yml for $username is not found or the container did not start!"
-	#docker rm -f "$username" > /dev/null 2>&1
+	# TODO!!!!!
+ 	#docker rm -f "$username" > /dev/null 2>&1
 	#docker context rm "$username" > /dev/null 2>&1
         #killall -u $username > /dev/null 2>&1
         #deluser --remove-home $username > /dev/null 2>&1
@@ -999,10 +1139,8 @@ set_ssh_user_password_inside_container() {
 
 phpfpm_config() {
     log "Creating www-data user inside the container.."
-    
     docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
-
-    log "Setting container services..."
+    #log "Setting container services..."
     #su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
 }
 
@@ -1013,7 +1151,7 @@ phpfpm_config() {
 copy_skeleton_files() {
     log "Creating configuration files for the newly created user"
     
-	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #remove from 1.0.0!
+	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #todo remove from 1.0.0!
         cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
         opencli php-available_versions $username  > /dev/null 2>&1 &
 }
@@ -1045,9 +1183,16 @@ start_panel_service() {
 
 
 create_context() {
-	docker context create $username \
-	  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock" \
-   	  --description "$username"
+	if [ -n "$node_ip_address" ]; then
+	 # todo: if root not working, edit!
+		docker context create $username \
+		    --docker "host=ssh://root@$node_ip_address" \
+		    --description "$username"
+	else
+		 docker context create $username \
+			  --docker "host=unix:///hostfs/run/user/$user_id/docker.sock" \
+		   	  --description "$username"
+	fi
 }
 
 save_user_to_db() {
@@ -1084,6 +1229,7 @@ send_email_to_new_user() {
             if [[ $email =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
                 . "$SEND_EMAIL_FILE"
                 email_notification "New OpenPanel account information" "OpenPanel URL: $login_url | username: $username  | password: $password"
+		# todo: check nodeip, send it in email!
             else
                 echo "$email is not a valid email address. Login infomration can not be sent to the user."
             fi       
