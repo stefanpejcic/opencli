@@ -874,7 +874,6 @@ ssh $key_flag root@$node_ip_address "
         echo \\\"export XDG_RUNTIME_DIR=/home/$username/.docker/run\\\" >> ~/.bashrc
         echo \\\"export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus\\\" >> ~/.bashrc
         echo \\\"export PATH=/home/$username/bin:\\\$PATH\\\" >> ~/.bashrc
-	echo \\\"export DOCKER_HOST=unix:///run/user/\$(id -u)/docker.sock\\\" >> ~/.bashrc
     \"'
 "
 
@@ -882,9 +881,7 @@ ssh $key_flag root@$node_ip_address "
         
   log "Configuring Docker service.."
 
-ssh $key_flag root@$node_ip_address "
-    # Switch to the user shell and execute the commands
-    machinectl shell $username@ /bin/bash -c '
+ssh $username "
     mkdir -p ~/.config/systemd/user/
     cat > ~/.config/systemd/user/docker.service <<EOF
 [Unit]
@@ -894,7 +891,8 @@ After=network.target
 [Service]
 Environment=PATH=/home/$username/bin:$PATH
 Environment=DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock
-ExecStart=/home/$username/bin/dockerd-rootless.sh
+ExecStart=/home/$username/bin/dockerd-rootless.sh -H unix:///home/$username/.docker/run/docker.sock
+
 Restart=on-failure
 StartLimitBurst=3
 StartLimitInterval=60s
@@ -902,7 +900,6 @@ StartLimitInterval=60s
 [Install]
 WantedBy=default.target
 EOF
-    '
 "
 
 
@@ -1216,8 +1213,8 @@ mysql_version=$mysql_version
 EOF
 
 log ".env file created successfully"
+local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d"
 
-local docker_cmd="cd /home/$username && docker compose up -d"
 
 if [ "$DEBUG" = true ]; then
     #echo "$AVAILABLE_PORTS"
@@ -1225,12 +1222,8 @@ if [ "$DEBUG" = true ]; then
     echo "$docker_cmd"
 fi
 
-
-
 if [ -n "$node_ip_address" ]; then
-	ssh $key_flag root@node_ip_address "
-	    su - $username -c \"$docker_cmd\"
-	" > /dev/null 2>&1
+	ssh $username "$docker_cmd"
 else
 	machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 fi
