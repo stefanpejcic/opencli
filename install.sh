@@ -5,9 +5,9 @@
 # Usage: opencli install
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 28.04.2024
+# Last Modified: 16.02.2025
 # Company: openpanel.co
-# Copyright (c) openpanel.co
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,25 +28,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Make all bash scripts in this directory executable for root only
-chown root:root /usr/local/opencli/*
-
 # Only opencli binary is added to path and is used to call all other scripts
-cp /usr/local/opencli/opencli /usr/local/bin/opencli
-chmod +x /usr/local/bin/opencli
+ln -s /usr/local/opencli/opencli /usr/local/bin/opencli
 
 # https://openpanel.co/docs/changelog/0.1.9/#cloudflare-only
 wget -O /usr/local/opencli/cloudflare https://raw.githubusercontent.com/stefanpejcic/ipset-cloudflare/main/run.sh
-
-chmod +x -R /usr/local/opencli/
-
-
-
-
-
-
-
-
 
 
 # Generate a list of commands for the opencli
