@@ -7,7 +7,7 @@ OPENCLI_VERSION="202.411.006"
 # Usage: opencli <COMMAND-NAME> <ATTRIBUTES>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 06.11.2024
+# Last Modified: 16.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -103,7 +103,7 @@ fi
 binary_command="${binary_name//-//}"
 
 # Build the full path to the binary
-binary_path="$script_dir/$binary_command"
+binary_path="$script_dir/$binary_command.sh" # add .sh to each command, opencli <1.0 had no .sh
 
 
 if [ "$binary_name" = "blacklist" ]; then
@@ -127,7 +127,7 @@ if [ -x "$binary_path" ]; then
   shift
 
   # Log the command to the log file
-  echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"
+  { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"; } 2>/dev/null
 
   # Execute the binary with additional arguments if provided
   if [ "$#" -gt 0 ]; then
