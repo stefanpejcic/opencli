@@ -42,7 +42,7 @@ get_config() {
     elif grep -q "^$param_name=" "$config_file"; then
         echo "Parameter $param_name has no value."
     else
-        echo "Parameter $param_name does not exist. Docs: https://openpanel.co/docs/admin/scripts/backup#config"
+        echo "Parameter $param_name does not exist."
     fi
 }
 
@@ -57,7 +57,7 @@ update_config() {
         sed -i "s/^$param_name=.*/$param_name=$new_value/" "$config_file"
         echo "Updated $param_name to $new_value"        
     else
-        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.co/docs/admin/scripts/backup#config"
+        echo "Parameter $param_name not found in the configuration file."
     fi
 }
 

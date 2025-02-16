@@ -138,7 +138,7 @@ check_if_container_name_taken(){
 check_if_exists_in_db() {
     
     # DB
-    source /usr/local/admin/scripts/db.sh
+    source /usr/local/opencli/db.sh
     
     # Check if the username already exists in the users table
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$new_username'"

@@ -3,7 +3,7 @@
 # Script Name: ftp/password.sh
 # Description: Change password for FTP sub-user of openpanel user.
 # Usage: opencli ftp-password <username> <new_password> <openpanel_username> [--debug]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#password
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
 # Last Modified: 22.05.2024

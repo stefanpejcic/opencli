@@ -3,7 +3,7 @@
 # Script Name: email/webmail.sh
 # Description: Display webmail domain or choose webmail software
 # Usage: opencli email-webmail [roundcube|snappymail|sogo] [--debug]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/emails#webmail
+# Docs: https://docs.openpanel.com
 # Author: 27.08.2024
 # Created: 18.08.2024
 # Last Modified: 14.10.2024

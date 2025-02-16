@@ -3,7 +3,7 @@
 # Script Name: user/list.sh
 # Description: Display all users: id, username, email, plan, registered date.
 # Usage: opencli user-list [--json]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#list-users
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 16.10.2023
 # Last Modified: 04.04.2024
@@ -58,7 +58,7 @@ done
 
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/scripts/db.sh
 
 
 

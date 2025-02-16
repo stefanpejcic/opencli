@@ -16,7 +16,7 @@
 # ram= Ram space limit in GB.
 # docker_image=can be either apache/nginx
 # bandwidth=port speed, expressed in mbit/s
-# Exsample: ./usr/local/admin/scripts/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
+# Exsample: ./usr/local/opencli/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
 # Last Modified: 11.10.2024
@@ -44,7 +44,7 @@
 #!/bin/bash
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Function to insert values into the database
 insert_plan() {

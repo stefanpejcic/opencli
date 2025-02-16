@@ -29,7 +29,7 @@
 ################################################################################
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Function to fetch the owner username of a domain
 get_domain_owner() {

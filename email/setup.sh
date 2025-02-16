@@ -3,7 +3,7 @@
 # Script Name: email/setup.sh
 # Description: Setup email addresses, forwarders, filters..
 # Usage: opencli email-setup <COMMAND> <ATTRIBUTES>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/emails#setup
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
 # Last Modified: 18.08.2024

@@ -8,7 +8,7 @@ usage() {
 
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 process_user() {
   local username="$1"

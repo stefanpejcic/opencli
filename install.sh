@@ -29,16 +29,16 @@
 ################################################################################
 
 # Make all bash scripts in this directory executable for root only
-chown root:root /usr/local/admin/scripts/*
+chown root:root /usr/local/opencli/*
 
 # Only opencli binary is added to path and is used to call all other scripts
-cp /usr/local/admin/scripts/opencli /usr/local/bin/opencli
+cp /usr/local/opencli/opencli /usr/local/bin/opencli
 chmod +x /usr/local/bin/opencli
 
 # https://openpanel.co/docs/changelog/0.1.9/#cloudflare-only
-wget -O /usr/local/admin/scripts/cloudflare https://raw.githubusercontent.com/stefanpejcic/ipset-cloudflare/main/run.sh
+wget -O /usr/local/opencli/cloudflare https://raw.githubusercontent.com/stefanpejcic/ipset-cloudflare/main/run.sh
 
-chmod +x -R /usr/local/admin/scripts/
+chmod +x -R /usr/local/opencli/
 
 
 
@@ -55,7 +55,7 @@ chmod +x -R /usr/local/admin/scripts/
 
 # Set autocomplete for all available opencli commands
 echo "# opencli aliases
-ALIASES_FILE=\"/usr/local/admin/scripts/aliases.txt\"
+ALIASES_FILE=\"/usr/local/opencli/aliases.txt\"
 generate_autocomplete() {
     awk '{print \$NF}' \"\$ALIASES_FILE\"
 }

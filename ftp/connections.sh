@@ -3,7 +3,7 @@
 # Script Name: ftp/add.sh
 # Description: Display all active FTP connection or for particular OpenPanel user.
 # Usage: opencli ftp-add <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#connections
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 11.09.2024
 # Last Modified: 14.10.2024

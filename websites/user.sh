@@ -29,7 +29,7 @@
 ################################################################################
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Function to fetch sites information for a given username
 get_sites_info_for_user() {

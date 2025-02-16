@@ -36,14 +36,11 @@
 
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Check if the correct number of parameters is provided
 if [ "$#" -lt 2 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <plan_id> <username1> <username2>..."
+    echo "Usage: opencli plan-apply <plan_id> <username1> <username2>..."
     exit 1
 fi
 

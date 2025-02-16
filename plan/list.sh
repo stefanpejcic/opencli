@@ -3,7 +3,7 @@
 # Script Name: plans.sh
 # Description: Display all plans: id, name, description, limits..
 # Usage: opencli plan-list [--json]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/plans#list-plans
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
 # Last Modified: 30.11.2023
@@ -31,7 +31,7 @@
 
 # Usage function
 print_usage() {
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
+    script_name=$(realpath --relative-to=/usr/local/opencli/ "$0")
     script_name="${script_name//\//-}"  # Replace / with -
     script_name="${script_name%.sh}"     # Remove the .sh extension
     echo "Usage: opencli $script_name [--json]"
@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 ensure_jq_installed() {
     # Check if jq is installed

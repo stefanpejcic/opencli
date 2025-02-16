@@ -37,7 +37,7 @@ get_domain_id() {
 }
 
 get_context_for_user() {
-     source /usr/local/admin/scripts/db.sh
+     source /usr/local/opencli/db.sh
         username_query="SELECT server FROM users WHERE username = '$current_username'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then

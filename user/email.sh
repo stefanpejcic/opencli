@@ -3,7 +3,7 @@
 # Script Name: user/change_email.sh
 # Description: Change email for user
 # Usage: opencli user-email <USERNAME> <NEW_EMAIL>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/
+# Docs: https://docs.openpanel.com
 # Author: Radovan Jecmenica
 # Created: 06.12.2023
 # Last Modified: 06.12.2023
@@ -29,7 +29,7 @@
 # THE SOFTWARE.
 ################################################################################
 # Source the database connection script
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Function to change email in the database
 change_email_in_db() {

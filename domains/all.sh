@@ -30,7 +30,7 @@
 
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 get_all_domains() {
     

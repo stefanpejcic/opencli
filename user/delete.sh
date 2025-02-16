@@ -70,7 +70,7 @@ confirm_action() {
 }
 
 
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 
 get_docker_context_for_user(){

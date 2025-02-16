@@ -3,7 +3,7 @@
 # Script Name: ftp/add.sh
 # Description: Create FTP sub-user for openpanel user.
 # Usage: opencli ftp-add <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/ftp#add
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
 # Last Modified: 22.05.2024
@@ -30,10 +30,7 @@
 ################################################################################
 
 if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    script_name=$(realpath --relative-to=/usr/local/admin/scripts/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name <new_username> <new_password> '<directory>' <openpanel_username> [--debug]"
+    echo "Usage: opencli ftp-add <new_username> <new_password> '<directory>' <openpanel_username> [--debug]"
     exit 1
 fi
 

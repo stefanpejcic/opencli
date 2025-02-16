@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
+DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 archive_path="$1"
 DEBUG=false             # Default value for DEBUG
 

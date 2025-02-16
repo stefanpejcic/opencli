@@ -3,7 +3,7 @@
 # Script Name: email/manage.sh
 # Description: Manage mailserver configuration and overview.
 # Usage: opencli email-manage <COMMAND> <ATTRIBUTES>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/emails#manage
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 31.08.2024
 # Last Modified: 31.08.2024

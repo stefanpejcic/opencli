@@ -3,7 +3,7 @@
 # Script Name: user/password.sh
 # Description: Reset password for a user.
 # Usage: opencli user-password <USERNAME> <NEW_PASSWORD | RANDOM> [--ssh]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#change-password
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
 # Last Modified: 17.01.2025
@@ -72,7 +72,7 @@ for arg in "$@"; do
 done
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Check if new password should be randomly generated
 if [ "$new_password" == "random" ]; then

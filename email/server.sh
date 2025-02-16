@@ -3,7 +3,7 @@
 # Script Name: email/server.sh
 # Description: Manage mailserver
 # Usage: opencli email-server <install|start|restart|stop|uninstall> [--debug]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/emails#server
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
 # Last Modified: 07.09.2024

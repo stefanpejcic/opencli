@@ -91,7 +91,7 @@ get_config() {
     elif grep -q "^$param_name=" "$config_file"; then
         echo "Parameter $param_name has no value."
     else
-        echo "Parameter $param_name does not exist. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#get"
+        echo "Parameter $param_name does not exist."
     fi
 }
 
@@ -113,7 +113,7 @@ update_config() {
         fi
         
     else
-        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.co/docs/admin/scripts/openpanel_config#update"
+        echo "Parameter $param_name not found in the configuration file."
     fi
 }
 

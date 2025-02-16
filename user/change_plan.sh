@@ -48,7 +48,7 @@ do
 done
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # COMPOSE 
 docker_compose_file="/home/$container_name/docker-compose.yml"

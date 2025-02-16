@@ -55,7 +55,7 @@ for arg in "$@"; do
 done
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 
 

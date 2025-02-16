@@ -64,7 +64,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 # Define the directory containing the binaries
-script_dir="/usr/local/admin/scripts"
+script_dir="/usr/local/opencli"
 
 # Get the binary name from the first argument
 binary_name="$1"
@@ -80,9 +80,9 @@ fi
 if [ "$binary_name" = "error" ]; then
   shift
   if [ "$#" -gt 0 ]; then
-    python3 /usr/local/admin/scripts/error.py "$@"
+    python3 /usr/local/opencli/error.py "$@"
   else
-    python3 /usr/local/admin/scripts/error.py
+    python3 /usr/local/opencli/error.py
   fi
  exit 0
 fi

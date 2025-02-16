@@ -3,7 +3,7 @@
 # Script Name: plan/delete
 # Description: Delete hosting plan
 # Usage: opencli plan-delete <PLAN_NAME>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
+# Docs: https://docs.openpanel.com
 # Author: Radovan Jecmenica
 # Created: 01.12.2023
 # Last Modified: 01.12.2023
@@ -68,7 +68,7 @@ done
 
 
 # Source database configuration
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Check if there are users on the plan
 users_count=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT COUNT(*) FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" | tail -n +2)

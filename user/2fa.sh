@@ -41,7 +41,7 @@ fi
 
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 # Get the username and optional action (disable)
 username=$1

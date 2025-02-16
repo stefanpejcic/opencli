@@ -3,7 +3,7 @@
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
 # Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#add-user
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 15.02.2025
@@ -31,8 +31,8 @@
 
 # Constants
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
-DB_CONFIG_FILE="/usr/local/admin/scripts/db.sh"
-SEND_EMAIL_FILE="/usr/local/admin/scripts/send_mail"
+DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
 if [ "$#" -lt 4 ] || [ "$#" -gt 8 ]; then

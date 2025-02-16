@@ -50,7 +50,7 @@ current_server_main_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --ti
 
 get_context_for_user() {
      USERNAME="$1"
-     source /usr/local/admin/scripts/db.sh
+     source /usr/local/opencli/db.sh
         username_query="SELECT server FROM users WHERE username = '$USERNAME'"
         context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then

@@ -497,7 +497,7 @@ log_user() {
 }
 
 # DB
-source /usr/local/admin/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 
 backup_mysql_databases() {
@@ -1545,7 +1545,7 @@ run_backup_for_user_data() {
                 continue
             fi
     
-            excluded_file="/usr/local/admin/scripts/helpers/excluded_from_backups.txt"
+            excluded_file="/usr/local/opencli/helpers/excluded_from_backups.txt"
 
             if [ -f "$excluded_file" ]; then
                 if grep -Fxq "$container_name" "$excluded_file"; then

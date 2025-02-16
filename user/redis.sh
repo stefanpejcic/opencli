@@ -3,7 +3,7 @@
 # Script Name: user/redis.sh
 # Description: Check and enable/disable REDIS for user.
 # Usage: opencli user-redis [check|enable|disable] <USERNAME>
-# Docs: https://docs.openpanel.co/docs/admin/scripts/users#redis
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 23.01.2024
