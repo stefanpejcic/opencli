@@ -31,9 +31,6 @@
 SCRIPTS_DIR="/usr/local/opencli"
 ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
 
-# delete .git files
-rm -rf $SCRIPTS_DIR/.git $SCRIPTS_DIR/watcher/.git 
-
 # delete exisitng aliases first
 > "$ALIAS_FILE"
 
