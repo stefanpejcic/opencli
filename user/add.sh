@@ -1059,8 +1059,6 @@ run_docker() {
     find_available_ports() {
       local found_ports=()
                   
-        
-            # Check if jq is installed
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" 'if ! command -v lsof &> /dev/null; then
