@@ -1418,7 +1418,7 @@ create_context() {
 	  --description "$username"
    else
    	docker context create $username \
-			  --docker "host=unix:///hostfs/home/$username/docker.sock" \
+			  --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" \
 		   	  --description "$username"
    fi
 }
