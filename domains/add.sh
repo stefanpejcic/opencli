@@ -466,7 +466,7 @@ create_domain_file() {
 	get_port_mapping() {
 	    local username="$1"
             local inside_port="$2"
-	    local env_file="/etc/openpanel/docker/compose/${username}/.env"
+	    local env_file="/home/${username}/.env"
 	    regex="port_\d+=\"\K[0-9]+(?=:$inside_port\")"
 	
 	    # Check if the file exists
