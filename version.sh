@@ -29,18 +29,28 @@
 # THE SOFTWARE.
 ################################################################################
 
+# CHECK IMAGE AS A FALLBACK
+check_images() {
+    LOCAL_TAG=$(docker images --format "{{.Tag}}" "openpanel/openpanel" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)            
+    if [ -n "$LOCAL_TAG" ]; then
+        echo $LOCAL_TAG
+    else
+        echo '{"error": "OpenPanel docker image not detected."}' >&2
+        exit 1
+    fi
+}
+
+# CHECK ENV FILE FIRST
 version_check() {
-    if [ -f "/root/docker-compose.yml" ]; then
-        image_version=$(grep -A 1 "openpanel:" /root/docker-compose.yml | grep "image:" | awk -F':' '{print $3}' | xargs)
-        
+    if [ -f "/root/.env" ]; then
+        image_version=$(grep "^VERSION=" /root/.env | awk -F'=' '{print $2}' | xargs)
         if [ -n "$image_version" ]; then
             echo $image_version
         else
-            echo '{"error": "OpenPanel service or image version not found"}' >&2
-            exit 1
+            check_images
         fi
     else
-        echo '{"error": "Docker Compose file not found"}' >&2
+        echo '{"error": "Docker compose or .env files are missing."}' >&2
         exit 1
     fi
 }
