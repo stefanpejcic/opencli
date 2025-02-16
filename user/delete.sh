@@ -83,7 +83,7 @@ get_docker_context_for_user(){
 
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
-    cd /etc/openpanel/docker/compose/$provided_username && docker compose down $provided_username   2>/dev/null
+    cd /home/$provided_username && docker compose down $provided_username   2>/dev/null
     # home data is deleted anyways! #docker --context $context volume rm $(docker --context $context volume ls -q) 2>/dev/null
 }
 
@@ -220,7 +220,6 @@ delete_all_user_files() {
             deluser --remove-home $username  > /dev/null 2>&1
             rm -rf /etc/openpanel/openpanel/core/stats/$username
             rm -rf /etc/openpanel/openpanel/core/users/$username
-            rm -rf /etc/openpanel/docker/compose/$username
 }
 
 
