@@ -31,6 +31,8 @@
 # Only opencli binary is added to path and is used to call all other scripts
 ln -s /usr/local/opencli/opencli /usr/local/bin/opencli
 
+chmod +x -R /usr/local/opencli/
+
 # https://openpanel.co/docs/changelog/0.1.9/#cloudflare-only
 wget -O /usr/local/opencli/cloudflare https://raw.githubusercontent.com/stefanpejcic/ipset-cloudflare/main/run.sh
 
