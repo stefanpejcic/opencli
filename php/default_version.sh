@@ -36,7 +36,7 @@ if [ $# -lt 1 ]; then
 fi
 
 username="$1"
-config_file="/etc/openpanel/docker/compose$username/.env"
+config_file="/home/$username/.env"
 
 
 get_user_info() {
