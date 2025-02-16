@@ -28,13 +28,12 @@ mkdirs()  {
   echo "Settings paths for user '$username' and docker context '$context'"
   
   server_apparmor_dir="/etc/apparmor.d/"
-  server_compose_user_dir="/etc/openpanel/docker/compose/$context"
   server_openpanel_core="/etc/openpanel/openpanel/core/users/$context"
   server_caddy_vhosts="/etc/openpanel/caddy/domains/"
   server_dns_zones="/etc/bind/zones//"  
   server_caddy_suspended_vhosts="/etc/openpanel/caddy/suspended_domains/"
 
-  mkdir -p $apparmor_dir $server_compose_user_dir $server_openpanel_core $server_caddy_vhosts $server_dns_zones $server_caddy_suspended_vhosts 
+  mkdir -p $apparmor_dir $server_openpanel_core $server_caddy_vhosts $server_dns_zones $server_caddy_suspended_vhosts 
 
 }
 
@@ -179,11 +178,11 @@ file_permissions() {
 compose_up() {
       echo "Starting the container.."
 
-    machinectl shell $context@ /bin/bash -c "cd /etc/openpanel/docker/compose/$context/ && docker compose up -d"
+    machinectl shell $context@ /bin/bash -c "cd /home/$context/ && docker compose up -d"
   
   compose_running=$(docker --context $context compose ls)
   
-  if echo "$compose_running" | grep -q "/etc/openpanel/docker/compose/$context/docker-compose.yml"; then
+  if echo "$compose_running" | grep -q "/home/$context/docker-compose.yml"; then
       :
   else
       echo "docker-compose.yml for context $context of user: $username is not found or the container did not start!"
@@ -207,7 +206,6 @@ dirs_to_user_for_mv() {
     echo "Creating directories.."
 
   apparmor_dir="/home/"$context"/apparmor/"
-  compose_user_dir="/home/"$context"/op_compose/"
   openpanel_core="/home/"$context"/op_core/"
   openpanel_database="/home/"$context"/op_db/"
   caddy_vhosts="/home/"$context"/caddy/"
@@ -217,7 +215,7 @@ dirs_to_user_for_mv() {
   # backup dir!
   backups_dir="/backups"
   
-  mkdir -p $apparmor_dir $compose_user_dir $openpanel_core $openpanel_database $backups_dir $caddy_vhosts $dns_zones $caddy_suspended_vhosts
+  mkdir -p $apparmor_dir $openpanel_core $openpanel_database $backups_dir $caddy_vhosts $dns_zones $caddy_suspended_vhosts
 
 }
 
@@ -284,12 +282,7 @@ start_panel_service() {
 }
 
 
-compose_file() {
-  echo "Copying docker compose files for user.."
-  cp -r $compose_user_dir/docker-compose.yml $server_compose_user_dir/docker-compose.yml
-  cp -r $compose_user_dir/.env $server_compose_user_dir/.env
 
-}
 get_user_info() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${username}';"
@@ -331,7 +324,6 @@ create_user_and_set_quota
 file_permissions
 op_core_files
 apparmor_start
-compose_file
 create_context
 copy_domain_zones
 compose_up
