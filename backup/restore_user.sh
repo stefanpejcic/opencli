@@ -23,6 +23,34 @@ log() {
 
 
 
+check_if_domains_exist() {
+
+  while IFS= read -r line; do
+    domain_name=$(echo $line | awk -F"','" '{print $3}' | tr -d "'")
+    if [ ! -z "$domain_name" ]; then
+      output=$(opencli domain-whoowns "$domain_name" --context)
+
+      if [[ "$output" == *"Domain '$domain_name' not found in the database."* ]]; then
+        continue
+      fi
+
+      if [[ "$output" == *"$context"* ]]; then
+      	continue
+      else
+        # If context doesn't match, print an error message and exit
+        echo "Error, domains: $domain_name is already present on the server. Owner: $output"
+        exit 1
+      fi
+    fi
+  done <<< "$domains"
+
+
+
+
+}
+
+
+
 mkdirs()  {
 
   echo "Settings paths for user '$username' and docker context '$context'"
@@ -202,7 +230,7 @@ compose_up() {
 
 untar_now() {
     echo "Extracting data from the archive.."
-  tar xzpf $backups_dir/backup_${username}_*.tar.gz -C /home/$context
+    tar xzpf $backups_dir/backup_${username}_*.tar.gz -C /home/$context
 }
 
 
@@ -266,12 +294,14 @@ op_core_files() {
 }
 
 
-get_just_context() {
+get_just_context_and_domains() {
   echo "Extracting docker context information from the backup.."
   rm -rf /tmp/$username/
   mkdir -p /tmp/$username/
   tar xzpf $archive_path -C /tmp/$username './context'
+  tar xzpf $archive_path -C /tmp/$username './context' './op_db/domains.sql'
   context=$(cat /tmp/$username/context)
+  domains_file=$(cat /tmp/$username/op_db/domains.sql)
   rm /tmp/$username/
 }
 
@@ -325,7 +355,8 @@ collect_stats() {
 }
 
 
-get_just_context
+get_just_context_and_domains
+check_if_domains_exist
 mkdirs
 dirs_to_user_for_mv
 untar_now
