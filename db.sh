@@ -4,7 +4,13 @@
 ############################### DB LOGIN ################################ 
 #########################################################################
 
-config_files=("/etc/my.cnf" "/etc/openpanel/mysql/db.cnf" "/usr/local/admin/db.cnf") # for compatibility with openpanel <0.2.0
+: '
+both are available on /etc/my.cnf
+- for container: /usr/local/admin/container_my.cnf is mounted to /etc/my.cnf
+- for host server: /usr/local/admin/host_my.cnf is symlinked to /etc/my.cnf
+'
+
+config_files=("/etc/my.cnf")
 
 check_config_file() {
     for config_file in "${config_files[@]}"; do
@@ -16,7 +22,7 @@ check_config_file() {
 }
 
 if ! check_config_file; then
-    echo "No mysql config files found in the specified locations."
+    echo "Mysql config file: $config_files is not available!"
     exit 1
 fi
 
