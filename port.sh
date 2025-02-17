@@ -65,7 +65,8 @@ update_env() {
 do_reload() {
   if [[ "$3" != '--no-restart' ]]; then
     cd $COMPOSE_DIR
-    nohup docker compose restart caddy openpanel > /dev/null 2>&1 &
+    nohup docker compose restart caddy > /dev/null 2>&1 &
+    nohup docker compose down openpanel && docker compose up -d openpanel > /dev/null 2>&1 &
    fi
 }
 
