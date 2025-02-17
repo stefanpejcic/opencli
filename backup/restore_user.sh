@@ -263,6 +263,7 @@ op_core_files() {
 
 get_just_context() {
   echo "Extracting docker context information from the backup.."
+  rm -rf /tmp/$username/
   mkdir -p /tmp/$username/
   tar xzpf $archive_path -C /tmp/$username './context'
   context=$(cat /tmp/$username/context)
@@ -314,6 +315,9 @@ validate_user() {
   fi
 }
 
+collect_stats() {
+	opencli docker-collect_stats $username  > /dev/null 2>&1
+}
 
 
 get_just_context
@@ -332,4 +336,5 @@ restart_caddy_and_dns
 reload_user_quotas
 start_panel_service
 validate_user
+collect_stats
 exit 0
