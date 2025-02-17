@@ -62,7 +62,7 @@ export_user_data_from_database() {
     }
 
 # Export User Data with INSERT INTO
-mysql --defaults-extra-file=$config_file -e "
+mysql --defaults-extra-file=$config_file -N -e "
     SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, services, user_domains, twofa_enabled, otp_secret, plan_id) VALUES (',
         id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(services), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', plan_id, ');')
     FROM panel.users WHERE id = $user_id
@@ -70,7 +70,7 @@ mysql --defaults-extra-file=$config_file -e "
 check_success "User data export"
 
 # Export User's Plan Data with INSERT INTO
-mysql --defaults-extra-file=$config_file -e "
+mysql --defaults-extra-file=$config_file -N -e "
     SELECT CONCAT('INSERT INTO panel.plans (id, name, description) VALUES (',
         p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ');')
     FROM panel.plans p
@@ -80,7 +80,7 @@ mysql --defaults-extra-file=$config_file -e "
 check_success "Plan data export"
 
 # Export Domains Data for User with INSERT INTO
-mysql --defaults-extra-file=$config_file -e "
+mysql --defaults-extra-file=$config_file -N -e "
     SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url) VALUES (',
         domain_id, ',', user_id, ',', QUOTE(domain_url), ');')
     FROM panel.domains WHERE user_id = $user_id
@@ -88,7 +88,7 @@ mysql --defaults-extra-file=$config_file -e "
 check_success "Domains data export"
 
 # Export Sites Data for User with INSERT INTO
-mysql --defaults-extra-file=$config_file -e "
+mysql --defaults-extra-file=$config_file -N -e "
     SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name) VALUES (',
         s.id, ',', s.domain_id, ',', QUOTE(s.site_name), ');')
     FROM panel.sites s
