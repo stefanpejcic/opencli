@@ -66,7 +66,6 @@ write_notification() {
 
 # Define the route to check for updates
 update_check() {
-    # Read the local version from /usr/local/panel/version
     local_version=$(opencli version)
 
     remote_version=$(curl -s "https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/website/docusaurus.config.js" | grep -oP '(?<=label: ")[0-9]+\.[0-9]+\.[0-9]+')
