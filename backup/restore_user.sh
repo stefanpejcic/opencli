@@ -168,6 +168,11 @@ create_user_and_set_quota() {
 }
 
 
+
+change_mysql_perms() {
+  docker --context $context exec $username bash -c "chown -R mysql:mysql /var/lib/mysql /var/lib/mysql-files /var/lib/mysql-keyring"
+}
+
 file_permissions() {
 	echo "Setting user ownership and permisisons.."
 	chmod 700 /home/$context/.docker/run #  >/dev/null 2>&1
@@ -331,6 +336,7 @@ apparmor_start
 create_context
 copy_domain_zones
 compose_up
+change_mysql_perms
 import_user_data_in_database
 restart_caddy_and_dns
 reload_user_quotas
