@@ -26,7 +26,7 @@ log() {
 check_if_domains_exist() {
 
   while IFS= read -r line; do
-    domain_name=$(echo $line | awk -F"','" '{print $3}' | tr -d "'")
+    domain_name=$(echo $line | awk -F"','" '{print $3}' | tr -d "'") # OVE 8.2
     if [ ! -z "$domain_name" ]; then
       output=$(opencli domain-whoowns "$domain_name" --context)
 
