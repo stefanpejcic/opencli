@@ -42,7 +42,7 @@ check_if_domains_exist() {
         exit 1
       fi
     fi
-  done <<< "$domains"
+  done <<< "$domains_file"
 
 
 
