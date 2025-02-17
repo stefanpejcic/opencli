@@ -72,31 +72,34 @@ check_success "User data export"
 
 # Export User's Plan Data with INSERT INTO
 mysql --defaults-extra-file=$config_file -N -e "
-    SELECT CONCAT('INSERT INTO panel.plans (id, name, description) VALUES (',
-        p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ');')
+    SELECT CONCAT('INSERT INTO panel.plans (id, name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES (',
+        p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ',', p.domains_limit, ',', p.websites_limit, ',', p.email_limit, ',', p.ftp_limit, ',', QUOTE(p.disk_limit), ',', p.inodes_limit, ',', p.db_limit, ',', QUOTE(p.cpu), ',', QUOTE(p.ram), ',', QUOTE(p.docker_image), ',', p.bandwidth, ');')
     FROM panel.plans p
     JOIN panel.users u ON u.plan_id = p.id
     WHERE u.id = $user_id
 " > $openpanel_database/plans.sql
 check_success "Plan data export"
 
+
 # Export Domains Data for User with INSERT INTO
 mysql --defaults-extra-file=$config_file -N -e "
-    SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url) VALUES (',
-        domain_id, ',', user_id, ',', QUOTE(domain_url), ');')
+    SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url, docroot, php_version) VALUES (',
+        domain_id, ',', user_id, ',', QUOTE(domain_url), ',', QUOTE(docroot), ',', QUOTE(php_version), ');')
     FROM panel.domains WHERE user_id = $user_id
 " > $openpanel_database/domains.sql
 check_success "Domains data export"
 
+
 # Export Sites Data for User with INSERT INTO
 mysql --defaults-extra-file=$config_file -N -e "
-    SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name) VALUES (',
-        s.id, ',', s.domain_id, ',', QUOTE(s.site_name), ');')
+    SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name, admin_email, version, created_date, type, ports, path) VALUES (',
+        s.id, ',', s.domain_id, ',', QUOTE(s.site_name), ',', QUOTE(s.admin_email), ',', QUOTE(s.version), ',', QUOTE(s.created_date), ',', QUOTE(s.type), ',', s.ports, ',', QUOTE(s.path), ');')
     FROM panel.sites s
     JOIN panel.domains d ON s.domain_id = d.domain_id
     WHERE d.user_id = $user_id
 " > $openpanel_database/sites.sql
 check_success "Sites data export"
+
 
     # no need for sessions!
 
