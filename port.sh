@@ -35,7 +35,7 @@ REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
 
 
 get_current_port() {
-  current_port=$(grep -oP '(?<=^PORT=").*(?=")' $ENV_FILE | head -n 1)
+  current_port="$(grep -oP '(?<=^PORT=").*(?=")' $ENV_FILE | head -n 1)"
   echo "$current_port"
 }
 
@@ -58,7 +58,7 @@ success_msg() {
 
 # for docker compose
 update_env() {
-  sed -i "s/^PORT=\".*\"/PORT=\"$new_port\"/" $ENV_FILE
+  sed -i "s/^PORT=\"[^\"]*\"/PORT=\"$new_port\"/" "$ENV_FILE"
 }
 
 # for redirects!
