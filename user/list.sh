@@ -58,7 +58,7 @@ done
 
 
 # DB
-source /usr/local/opencli/scripts/db.sh
+source /usr/local/opencli/db.sh
 
 
 
