@@ -78,10 +78,6 @@ update_path() {
         echo "Path /${new_path} is already set for accessing the user panel."
         exit 0
       fi
-      
-
-    
-      
 
 }
 
