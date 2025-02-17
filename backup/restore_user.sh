@@ -298,7 +298,6 @@ get_just_context_and_domains() {
   echo "Extracting docker context information from the backup.."
   rm -rf /tmp/$username/
   mkdir -p /tmp/$username/
-  tar xzpf $archive_path -C /tmp/$username './context'
   tar xzpf $archive_path -C /tmp/$username './context' './op_db/domains.sql'
   context=$(cat /tmp/$username/context)
   domains_file=$(cat /tmp/$username/op_db/domains.sql)
