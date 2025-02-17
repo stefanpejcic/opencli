@@ -35,7 +35,7 @@ REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
 
 
 get_current_port() {
-  current_port=$(grep -oP '(?<=^PORT=)\d+' $ENV_FILE | head -n 1)
+  current_port=$(grep -oP '(?<=^PORT=").*(?=")' $ENV_FILE | head -n 1)
   echo "$current_port"
 }
 
@@ -43,11 +43,11 @@ get_current_port() {
 
 usage() {
 
-echo "Usage:"
-echo ""
-echo "opencli domain                        - displays current url  "
-echo "opencli domain set example.net        - set domain name for access"
-echo "opencli domain ip                     - set IP for access"
+  echo "Usage:"
+  echo ""
+  echo "opencli port                        - displays current port  "
+  echo "opencli port set 2090               - set 2090 as port for user panel"
+  echo "opencli port default                - set 2083 as port for user panel"
 }
 
 
@@ -58,7 +58,7 @@ success_msg() {
 
 # for docker compose
 update_env() {
-  sed -i "s/^PORT=.*/PORT=$new_port/" $ENV_FILE
+  sed -i "s/^PORT=\".*\"/PORT=\"$new_port\"/" $ENV_FILE
 }
 
 # for redirects!
