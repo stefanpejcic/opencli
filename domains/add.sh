@@ -532,27 +532,27 @@ fi
 
 
 
-DOCKER_COMPOSE_FILE="/root/docker-compose.yml"
-if [ -f "$DOCKER_COMPOSE_FILE" ]; then
-    CADDY_IMAGE=$(grep -oP '(?<=image:\s).*' "$DOCKER_COMPOSE_FILE" | grep 'caddy')
+ENV_FILE="/root/.env"
+if [ -f "$ENV_FILE" ]; then
+    # Extract the value of CADDY_IMAGE from the .env file
+    CADDY_IMAGE=$(grep -oP '^CADDY_IMAGE=\K.*' "$ENV_FILE" | sed 's/^"\(.*\)"$/\1/')
 
-    if [[ "$CADDY_IMAGE" == *"openpanel/caddy-coraza"* ]]; then
-	conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
-     	log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
+    if [[ "$CADDY_IMAGE" == "openpanel/caddy-coraza" ]]; then
+        conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
+        log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
         sed_values_in_domain_conf
-    elif [[ "$CADDY_IMAGE" == *"caddy:latest"* || "$CADDY_IMAGE" == *"caddy"* ]]; then
-	conf_template="/etc/openpanel/caddy/templates/domain.conf"
-     	log "Creating Caddy configuration for the domain, without ModSecurity"
-      	sed_values_in_domain_conf
+    elif [[ "$CADDY_IMAGE" == "caddy:latest" || "$CADDY_IMAGE" == "caddy" ]]; then
+        conf_template="/etc/openpanel/caddy/templates/domain.conf"
+        log "Creating Caddy configuration for the domain, without ModSecurity"
+        sed_values_in_domain_conf
     else
         echo "ERROR: unable to detect any services. Contact support."
-	exit 1
+        exit 1
     fi
 else
-        echo "ERROR: unable to detect any services. Contact support."
-	exit 1
+    echo "ERROR: unable to detect .env file. Contact support."
+    exit 1
 fi
-
 
 
 
