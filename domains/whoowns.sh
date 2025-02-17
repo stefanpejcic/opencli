@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/whoowns.sh
 # Description: Check which username owns a certain domain name.
-# Usage: opencli domains-whoowns <DOMAIN-NAME>
+# Usage: opencli domains-whoowns <DOMAIN-NAME> [--context]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 15.11.2023
@@ -50,26 +50,42 @@ get_domain_owner() {
     if [ -z "$user_id" ]; then
         echo "Domain '$domain' not found in the database."
     else
-        # Query to fetch the username using the retrieved user_id
-        username_query="SELECT username FROM users WHERE id = '$user_id'"
-        username=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_query" -sN)
-        
-        if [ -z "$username" ]; then
-            echo "User does not exist with that ID '$user_id'."
+        if [ "$context" = "--context" ]; then
+            query="SELECT username, server FROM users WHERE id = '$user_id'"
+            user_info=$(mysql -se "$query")
+            # Extract user_id and context from the result
+            username=$(echo "$user_info" | awk '{print $1}')
+            context=$(echo "$user_info" | awk '{print $2}')
+            
+            if [ -z "$context" ]; then
+                echo "Error, no context '$user_id'."
+            else
+                echo "$username $context"
+            fi
+                    
         else
-            echo "Owner of '$domain': $username"
+            query="SELECT username FROM users WHERE id = '$user_id'"
+            username=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
+            
+            if [ -z "$username" ]; then
+                echo "User does not exist with that ID '$user_id'."
+            else
+                echo "Owner of '$domain': $username"
+            fi
+           
         fi
     fi
 }
 
 # Check for the domain argument
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <domain_name>"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    echo "Usage: opencli domains-whoowns <domain_name> [--context]"
     exit 1
 fi
 
 # Get the domain name from the command line argument
 domain_name="$1"
+context="$2"
 
 # Call the function to fetch the owner of the domain
-get_domain_owner "$domain_name"
+get_domain_owner "$domain_name" "$context"
