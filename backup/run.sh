@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: run.sh
 # Description: Run backup job
-# Usage: opencli backup-run ID --all [--debug]
+# Usage: opencli backup-run ID [--debug|--force-run]
 # Author: Stefan Pejcic
 # Created: 26.01.2024
-# Last Modified: 12.11.2024
+# Last Modified: 18.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -104,115 +104,15 @@ DEBUG=false
 local_temp_dir="/tmp/openpanel_backup_temp_dir/"
 fi
 
-
 TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-# Initialize all flags to false by default
-FILES=false
-ENTRYPOINT=false
-WEBSERVER_CONF=false
-MYSQL_CONF=false
-MYSQL_DATA=false
-PHP_VERSIONS=false
-CRONTAB=false
-USER_DATA=false
-CORE_USERS=false
-DOMAINS=false
-STATS_USERS=false
-APACHE_SSL_CONF=false
-DOMAIN_ACCESS_REPORTS=false
-TIMEZONE=false
-SSH_PASS=false
-DOCKER=false
-# settings
 LOG_FILE="/var/log/openpanel/admin/notifications.log"
 
 # Set a trap for CTRL+C to properly exit
 trap "echo CTRL+C Pressed!; read -p 'Press Enter to exit...'; exit 1;" SIGINT SIGTERM
 
-
-# Parse optional flags to skip specific actions
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        --files)
-            FILES=true
-            ;;
-        --entrypoint)
-            ENTRYPOINT=true
-            ;;
-        --apache-conf)
-            WEBSERVER_CONF=true
-            ;;
-        --nginx-conf)
-            WEBSERVER_CONF=true
-            ;;
-        --mysql-data)
-            MYSQL_DATA=true
-            ;;
-        --mysql-conf)
-            MYSQL_CONF=true
-            ;;
-        --php-versions)
-            PHP_VERSIONS=true
-            ;;
-        --crontab)
-            CRONTAB=true
-            ;;
-        --user-data)
-            USER_DATA=true
-            ;;
-        --core-users)
-            CORE_USERS=true
-            ;;
-        --stats-users)
-            STATS_USERS=true
-            ;;
-        --apache-ssl-conf)
-            APACHE_SSL_CONF=true
-            ;;
-        --domain-access-reports)
-            DOMAIN_ACCESS_REPORTS=true
-            ;;
-        --ssh)
-            SSH_PASS=true
-            ;;
-        --timezone)
-            TIMEZONE=true
-            ;;
-        --docker)
-            DOCKER=true
-            ;;
-        --domains)
-            DOMAINS=true
-            ;;
-        --all)
-            # Set all flags to true if all flag is present
-            FILES=true
-            ENTRYPOINT=true
-            WEBSERVER_CONF=true
-            MYSQL_CONF=true
-            MYSQL_DATA=true
-            PHP_VERSIONS=true
-            CRONTAB=true
-            USER_DATA=true
-            CORE_USERS=true
-            STATS_USERS=true
-            APACHE_SSL_CONF=true
-            DOMAIN_ACCESS_REPORTS=true
-            TIMEZONE=true
-            SSH_PASS=true
-            DOMAINS=true
-            ;;
-    esac
-done
-
-
-
 # Check if the correct number of command line arguments is provided
-if [ "$#" -lt 2 ]; then
-    echo "Usage: opencli backup-run <JOB_ID> --all [--force-run]"
+if [ "$#" -lt 1 ]; then
+    echo "Usage: opencli backup-run <JOB_ID> [--force-run]"
     exit 1
 fi
 
@@ -221,10 +121,14 @@ FORCE_RUN=false
 
 # Check if the --force-run flag is provided
 for arg in "$@"; do
-    if [ "$arg" == "--force-run" ]; then
-        FORCE_RUN=true
-        break
-    fi
+    case $arg in
+        --debug)
+            DEBUG=true
+            ;;
+        --force-run)
+            FORCE_RUN=true
+            ;;            
+    esac
 done
 
 JSON_FILE="/etc/openpanel/openadmin/config/backups/jobs/$NUMBER.json"
@@ -516,15 +420,179 @@ check_command_success() {
 
 
 # Function to backup files
-backup_files() {
-    local source_dir="/home/$container_name"
-    #local destination_dir="$BACKUP_DIR/files"
+run_the_actual_generation_for_user() {
+
+    copy_domain_zones() {
+        local caddy_dir="/etc/openpanel/caddy/domains/"
+        local caddy_suspended_dir="/etc/openpanel/caddy/suspended_domains/"
+        local zones_dir="/etc/bind/zones/"
+        local domain_names=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" -N)
     
-    #mkdir -p "$destination_dir"
+        
+        for domain_name in $domain_names; do
+          cp ${caddy_dir}${domain_name}.conf ${caddy_vhosts}${domain_name}.conf > /dev/null 2>&1 
+          cp ${caddy_suspended_dir}${domain_name}.conf ${caddy_suspended_vhosts}${domain_name}.conf > /dev/null 2>&1 
+          cp ${zones_dir}${domain_name}.zone ${dns_zones}${domain_name}.zone > /dev/null 2>&1 
+        done        
+    
+    }
+    
+    
+    
+    export_user_data_from_database() {
+    
+        echo "Exporting user data from OpenPanel database.."
+        user_id=$(mysql -e "SELECT id FROM users WHERE username='$username';" -N)
+    
+        if [ -z "$user_id" ]; then
+            echo "ERROR: export_user_data_to_sql: User '$username' not found in the database."
+            exit 1
+        fi
+    
+        
+    
+    
+        check_success() {
+          if [ $? -eq 0 ]; then
+            echo "- Exporting $1 from database successful"
+          else
+            echo "ERROR: Exporting $1 from database failed"
+          fi
+        }
+    
+    # Export User Data with INSERT INTO
+    mysql --defaults-extra-file=$config_file -N -e "
+        SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, services, user_domains, twofa_enabled, otp_secret, plan, registered_date, server, plan_id) VALUES (',
+            id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(services), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', QUOTE(plan), ',', IFNULL(QUOTE(registered_date), 'NULL'), ',', QUOTE(server), ',', plan_id, ');')
+        FROM panel.users WHERE id = $user_id
+    " > $openpanel_database/users.sql
+    check_success "User data export"
+    
+    
+    # Export User's Plan Data with INSERT INTO
+    mysql --defaults-extra-file=$config_file -N -e "
+        SELECT CONCAT('INSERT INTO panel.plans (id, name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES (',
+            p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ',', p.domains_limit, ',', p.websites_limit, ',', p.email_limit, ',', p.ftp_limit, ',', QUOTE(p.disk_limit), ',', p.inodes_limit, ',', p.db_limit, ',', QUOTE(p.cpu), ',', QUOTE(p.ram), ',', QUOTE(p.docker_image), ',', p.bandwidth, ');')
+        FROM panel.plans p
+        JOIN panel.users u ON u.plan_id = p.id
+        WHERE u.id = $user_id
+    " > $openpanel_database/plans.sql
+    check_success "Plan data export"
+    
+    
+    # Export Domains Data for User with INSERT INTO
+    mysql --defaults-extra-file=$config_file -N -e "
+        SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url, docroot, php_version) VALUES (',
+            domain_id, ',', user_id, ',', QUOTE(domain_url), ',', QUOTE(docroot), ',', QUOTE(php_version), ');')
+        FROM panel.domains WHERE user_id = $user_id
+    " > $openpanel_database/domains.sql
+    check_success "Domains data export"
+    
+    
+    # Export Sites Data for User with INSERT INTO
+    mysql --defaults-extra-file=$config_file -N -e "
+        SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name, admin_email, version, created_date, type, ports, path) VALUES (',
+            s.id, ',', s.domain_id, ',', QUOTE(s.site_name), ',', QUOTE(s.admin_email), ',', QUOTE(s.version), ',', QUOTE(s.created_date), ',', QUOTE(s.type), ',', s.ports, ',', QUOTE(s.path), ');')
+        FROM panel.sites s
+        JOIN panel.domains d ON s.domain_id = d.domain_id
+        WHERE d.user_id = $user_id
+    " > $openpanel_database/sites.sql
+    check_success "Sites data export"
+    
+    
+        # no need for sessions!
+    
+        echo ""
+        echo "User '$username' data exported to $openpanel_database successfully."
+    }
+    
+    
+    # get user ID from the database
+    get_user_info() {
+        local user="$1"
+        local query="SELECT id, server FROM users WHERE username = '${user}';"
+        
+        # Retrieve both id and context
+        user_info=$(mysql -se "$query")
+        
+        # Extract user_id and context from the result
+        user_id=$(echo "$user_info" | awk '{print $1}')
+        context=$(echo "$user_info" | awk '{print $2}')
+        
+        echo "$user_id,$context"
+    }
+    
+    
+    
+    mkdirs() {
+    
+      apparmor_dir="/home/"$context"/apparmor/"
+      openpanel_core="/home/"$context"/op_core/"
+      openpanel_database="/home/"$context"/op_db/"
+      caddy_vhosts="/home/"$context"/caddy/"
+      dns_zones="/home/"$context"/dns/"  
+      caddy_suspended_vhosts="/home/"$context"/caddy_suspended/"
+      
+      mkdir -p $apparmor_dir $openpanel_core $openpanel_database $caddy_vhosts $dns_zones $caddy_suspended_vhosts
+    
+    }
+    
+    
+    tar_everything() {
+      echo "Creating archive for all user files.."
+      # home files
+      archive_name="backup_${username}_$(date +%Y%m%d_%H%M%S).tar.gz"
+      tar czpf "$archive_name" -C /home/"$context" --exclude='*/.sock' .
+    }
+    
+    
+    copy_files_temporary_to_user_home() {
+    
+      # database
+      export_user_data_from_database
+      
+      # apparmor profile
+      echo "Collectiong AppArmor profile.."
+      cp /etc/apparmor.d/home.$context.bin.rootlesskit $apparmor_dir
+      # https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWx1MjY4YXB0YTRla3dlazMxYmhkM3k2MWV0eDVsNDUxcHQ1aW9jNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/uNE1fngZuYhIQ/giphy.gif
+      #cp /etc/apparmor.d/$(echo /home/pejcic/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g) $apparmor_dir
+    
+      # core panel data
+      echo "Collectiong core OpenPanel files.."
+      cp -r /etc/openpanel/openpanel/core/users/$context/  $openpanel_core
+    
+      # caddy and bind9
+      echo "Collectiong DNS zones and Caddy files.."
+      copy_domain_zones
+      
+      echo "Collectiong Docker context information.."
+      echo "$context" > /home/$context/context
+    
+    }
+    
+    
+    clean_tmp_files() {
+        echo "Cleaning up temporary files.."
+        rm -rf $apparmor_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1 
+    
+    }
+    
+    
+    result=$(get_user_info "$username")
+    user_id=$(echo "$result" | cut -d',' -f1)
+    context=$(echo "$result" | cut -d',' -f2)
+    mkdirs
+    copy_files_temporary_to_user_home
+    tar_everything
+    clean_tmp_files
+
+
+
+    local source_dir="/home/$username"
 
     echo "Processing $source_dir"
 
-    copy_files "$source_dir" "files"
+    copy_files "$archive_name" "/"
 }
 
 
@@ -532,17 +600,17 @@ backup_files() {
 # Main Backup Function
 perform_backup() {
     type="full"
-    log_user "$container_name" "Backup started."
+    username="$1"
+    log_user "$username" "Backup started."
 
-    BACKUP_DIR="/backup/$container_name/$TIMESTAMP"
+    BACKUP_DIR="/backup/$username/$TIMESTAMP"
 
     mkdir -p "$BACKUP_DIR"
 
-    # REUSE!!!!!!!!!!!!!!!!!!!!
-    backup_files
+    run_the_actual_generation_for_user
 
     sed -i -e "s/type=/type=$type/" "$user_index_file"
-    log_user "$container_name" "Backup completed successfully."
+    log_user "$username" "Backup completed successfully."
 
 }
 
@@ -1006,16 +1074,6 @@ if [[ ${types[0]} == "accounts" ]]; then
     echo "STARTING USER ACCOUNTS SNAPSHOTS BACKUP"
     echo ""
 
-    run_backup_for_user_data
-
-elif [[ ${types[0]} == "partial" ]]; then
-    echo ""
-    echo "------------------------------------------------------------------------"
-    echo ""
-    echo "STARTING USER ACCOUNTS PARTIAL BACKUP"
-    echo ""
-    echo ""
-    
     run_backup_for_user_data
     
 elif [[ ${types[0]} == "configuration" ]]; then
