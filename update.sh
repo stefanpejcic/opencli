@@ -30,45 +30,123 @@
 ################################################################################
 
 
-LOG_FILE="/var/log/openpanel/admin/notifications.log"
-
-write_notification() {
-  local title="$1"
-  local message="$2"
-  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
-  echo "$current_message" >> "$LOG_FILE"
+usage() {
+  echo "Usage: opencli update [OPTION]"
+  echo ""
+  echo "Options:"
+  echo "  --check             Check if update is available"
+  echo "  --force             Force update even when autopatch/autoupdate is disabled"
+  echo "  (no argument)       Run update if autopatch/autoupdate is enabled"
+  echo "  -h, --help          Show this help message"
+  exit 1
 }
 
 
-ensure_jq_installed() {
-    # Check if jq is installed
-    if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
 
-        # Check if installation was successful
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
+LOG_FILE="/var/log/openpanel/admin/notifications.log"
+
+
+# Define the route to check for updates
+update_check() {
+
+    get_last_message_content() {
+      tail -n 1 "$LOG_FILE" 2>/dev/null
+    }
+    
+    is_unread_message_present() {
+      local unread_message_content="$1"
+      grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
+    }
+    
+    write_notification_for_update_check() {
+      local title="$1"
+      local message="$2"
+      local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+      local last_message_content=$(get_last_message_content)
+    
+      # Check if the current message content is the same as the last one and has "UNREAD" status
+      if [ "$message" != "$last_message_content" ] && ! is_unread_message_present "$title"; then
+        echo "$current_message" >> "$LOG_FILE"
+      fi
+    }
+
+
+
+
+    local_version=$(opencli version)
+
+    remote_version=$(curl -s "https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/website/docusaurus.config.js" | grep -oP '(?<=label: ")[0-9]+\.[0-9]+\.[0-9]+')
+    tags=$(curl -s "https://hub.docker.com/v2/repositories/openpanel/openpanel/tags" | jq -r '.results[].name')
+    
+    remote_version=$(echo "$tags" | grep -v '^latest$' | sort -V | tail -n 1)
+
+    # If github unreachable
+    if [ -z "$remote_version" ]; then
+        echo '{"error": "Error fetching remote version"}' >&2
+        write_notification_for_update_check "Update check failed" "Failed connecting to GitHub"
+        exit 1
+    fi
+
+    # Compare the local and remote versions
+    if [ "$local_version" == "$remote_version" ]; then
+        echo '{"status": "Up to date", "installed_version": "'"$local_version"'"}'
+    elif [ "$local_version" \> "$remote_version" ]; then
+        #write_notification_for_update_check "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
+        echo '{"status": "Local version is greater", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
+    else
+        # Check if skip_versions file exists and if remote version matches
+        if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
+            if grep -q "$remote_version" "/etc/openpanel/upgrade/skip_versions"; then
+                echo '{"status": "Skipped version", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
+                exit 0
+            fi
         fi
+        write_notification_for_update_check "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
+        echo '{"status": "Update available", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
     fi
 }
 
 
-
-
 # Function to check if an update is needed
 check_update() {
+    
+    write_notification() {
+      local title="$1"
+      local message="$2"
+      local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+      echo "$current_message" >> "$LOG_FILE"
+    }
+
+    ensure_jq_installed() {
+        # Check if jq is installed
+        if ! command -v jq &> /dev/null; then
+            # Detect the package manager and install jq
+            if command -v apt-get &> /dev/null; then
+                sudo apt-get update > /dev/null 2>&1
+                sudo apt-get install -y -qq jq > /dev/null 2>&1
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y -q jq > /dev/null 2>&1
+            elif command -v dnf &> /dev/null; then
+                sudo dnf install -y -q jq > /dev/null 2>&1
+            else
+                echo "Error: No compatible package manager found. Please install jq manually and try again."
+                exit 1
+            fi
+    
+            # Check if installation was successful
+            if ! command -v jq &> /dev/null; then
+                echo "Error: jq installation failed. Please install jq manually and try again."
+                exit 1
+            fi
+        fi
+    }
+
+
+
+
+
+    ensure_jq_installed
+    
     local force_update=false
 
     # Check if the '--force' flag is provided
@@ -91,54 +169,38 @@ check_update() {
 
     # Only proceed if autopatch or autoupdate is set to "on"
     if [ "$autopatch" = "on" ] || [ "$autoupdate" = "on" ] || [ "$force_update" = true ]; then
-        # Run the update_check.sh script to get the update status
-        local update_status=$(opencli update_check)
 
         # Extract the local and remote version from the update status
-        local local_version=$(echo "$update_status" | jq -r '.installed_version')
-        local remote_version=$(echo "$update_status" | jq -r '.latest_version')
+        local local_version=$(opencli version)
+        local remote_version=$(opencli update --check | jq -r '.latest_version')
 
         # Check if autoupdate is "no" and not forcing the update
         if [ "$autoupdate" = "off" ] && [ "$local_version" \< "$remote_version" ] && [ "$force_update" = false ]; then
             echo "Update is available, autopatch will be installed."
-
-            # Incrementally update from local_version to remote_version
-            while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
-                local_version=$(get_next_version "$local_version")
-
                 # Check if skip_versions file exists and if remote version matches
                 if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
-                    if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
-                        echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
+                    if grep -q "$remote_version" "/etc/openpanel/upgrade/skip_versions"; then
+                        echo "Version $remote_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
                     else
-                        run_update_immediately "$local_version"
+                        run_update_immediately "$remote_version"
                     fi
                 else
-                    run_update_immediately "$local_version"
+                    run_update_immediately "$remote_version"
                 fi
-            done
-            
         else
             # If autoupdate is "on" or force_update is true, check if local_version is less than remote_version
             if [ "$local_version" \< "$remote_version" ] || [ "$force_update" = true ]; then
                 echo "Update is available and will be automatically installed."
-
-                # Incrementally update from local_version to remote_version
-                while [ "$(compare_versions "$local_version" "$remote_version")" = -1 ]; do
-                    local_version=$(get_next_version "$local_version")
-
                     # Check if skip_versions file exists and if remote version matches
                     if [ -f "/etc/openpanel/upgrade/skip_versions" ]; then
-                        if grep -q "$local_version" "/etc/openpanel/upgrade/skip_versions"; then
-                            echo "Version $local_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
+                        if grep -q "$remote_version" "/etc/openpanel/upgrade/skip_versions"; then
+                            echo "Version $remote_version is skipped due to /etc/openpanel/upgrade/skip_versions file."
                         else
-                            run_update_immediately "$local_version"
+                            run_update_immediately "$remote_version"
                         fi
                     else
-                        run_update_immediately "$local_version"
+                        run_update_immediately "$remote_version"
                     fi
-                done
-                
             else
                 echo "No update available."
             fi
@@ -170,33 +232,6 @@ compare_versions() {
     echo 0  # version1 == version2
 }
 
-# Function to get the next semantic version
-get_next_version() {
-    local version=$1
-    local IFS='.'
-
-    # Split the version into an array
-    read -r -a array <<< "$version"
-
-    # Loop over the array from the last element backward
-    for ((i=${#array[@]}-1; i>=0; i--)); do
-        array[$i]=$((array[$i] + 1)) # Increment the current segment
-        if [ ${array[$i]} -lt 10 ]; then
-            break # No carry needed, exit loop
-        else
-            array[$i]=0 # Set current segment to 0 and continue to the previous segment
-        fi
-    done
-
-    # Join the array back into a version string
-    local next_version="${array[*]}"
-    next_version=${next_version// /.}
-
-    echo "$next_version"
-}
-
-
-
 
 run_update_immediately(){
     version="$1"
@@ -208,21 +243,93 @@ run_update_immediately(){
         timestamp=$(date +"%Y%m%d_%H%M%S")
         log_file="${log_dir}/${version}_${timestamp}.log"
     fi
+
+
+    run_custom_postupdate_script() {
+    
+        if [ -f "/root/openpanel_run_after_update" ]; then
+            echo " "
+            echo "Running post update script: '/root/openpanel_run_after_update'"
+            echo "https://dev.openpanel.com/customize.html#After-update"
+            bash /root/openpanel_run_after_update
+        fi
+    }
+
+
     
     write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
     
     echo "Updating to version $version"
-    #timeout 300 bash -c "wget -q -O - 'https://update.openpanel.com/versions/$version/UPDATE.sh' | bash" &>> "$log_file"
-    # from 0.3.7
-    timeout 300 bash -c "wget -q -O - 'https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh' | bash" &>> "$log_file"
-    if [ $? -eq 124 ]; then
-        echo "Error: Update to version $version timed out after 5 minutes."
-        write_notification "Update Timed Out" "The update to version $version timed out after 5 minutes."
-    fi
 
+    echo "Updating OpenPanel.."
+    docker image pull openpanel/openpanel:${version}
+    
+    echo "Setting version in /root/.env"
+    sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
+
+
+    echo "Updating configuration files.."
+    cd /etc/openpanel && git pull
+
+    echo "Updating OpenCLI.."
+    cd /usr/local/opencli && git pull
+ 
+    echo "Updating OpenAdmin.."
+    cd /usr/local/admin && git pull
+
+    echo "Restarting OpenPanel service to use the newest image.."
+    cd /root && docker compose openpanel down && docker compsoe up -d openpanel
+    
+    echo "Restarting OpenAdmin service.."
+    service admin restart
+    
+    echo "Adding OpenCLI commands to path.."
+    opencli commands
+
+
+    echo "Checking for custom scripts.."
+    url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
+    wget --spider -q "$url"
+    if [ $? -ne 0 ]; then
+        :
+    else
+        timeout 300 bash -c "wget -q -O - '$url' | bash" &>> "$log_file"
+        if [ $? -eq 124 ]; then
+            echo "Error: Checking for advanced scripts for version $version timed out after 5 minutes."
+            #write_notification "Update Timed Out" "The update to version $version timed out after 5 minutes."
+        fi
+    fi
+    
+    echo "Checking for POST-upgrade scripts.."
+    run_custom_postupdate_script
+    
+    echo "DONE!"
+   
 }
 
+case "$1" in
+  --check)
+    # only check for updates!
+    update_check
+    ;;
+  "")
+    # try update
+    check_update
+    ;;
+  --force)
+    # force update
+    check_update "$@"
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown argument: $1"
+    usage
+    ;;
+esac
 
-ensure_jq_installed
 
-check_update "$@"
+
+
+
