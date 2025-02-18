@@ -75,7 +75,7 @@ do_reload() {
        docker compose restart openpanel > /dev/null 2>&1
 
 	# start caddy if not running!
-       docker compose down caddy && docker compose up -d caddy > /dev/null 2>&1
+       docker compose down caddy > /dev/null 2>&1 && docker compose up -d caddy  > /dev/null 2>&1
    fi
 }
 
@@ -101,10 +101,10 @@ update_domain() {
  	create_mv_file() {
  		mkdir -p ${DOMAINS_DIR}
  		if [[ $new_hostname == 'example.net' ]]; then
-   			rm ${DOMAINS_DIR}$current_domain.conf
+   			rm ${DOMAINS_DIR}$current_domain.conf 
 		else
 		    if [ -f "${DOMAINS_DIR}$current_domain.conf" ]; then
-		        mv ${DOMAINS_DIR}$current_domain.conf ${DOMAINS_DIR}$new_hostname.conf
+		        mv ${DOMAINS_DIR}$current_domain.conf ${DOMAINS_DIR}$new_hostname.conf  > /dev/null 2>&1
 		    fi
 		    touch ${DOMAINS_DIR}$new_hostname.conf
 		fi
