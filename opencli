@@ -45,8 +45,7 @@ about() {
 
 history() {
   if [ ! -f "$LOG_FILE" ]; then
-    #echo "Log file $LOG_FILE not found."
-    :
+    echo "Warning: log file $LOG_FILE not found."
   else
     echo "Recently used commands:"
     tail -n 100 "$LOG_FILE" | grep -o 'opencli [^ ]*' | sort | uniq | tail -n 5 | sed 's/^/  /'
@@ -75,6 +74,13 @@ if [ "$#" -lt 1 ]; then
   about
   exit 1
 fi
+
+log_command() {
+  { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"; } 2>/dev/null
+}
+
+
+
 
 # scripts dir
 script_dir="/usr/local/opencli"
@@ -132,7 +138,7 @@ if [ -f "$binary_path" ]; then
   shift
 
   # log to file
-  { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"; } 2>/dev/null
+  log_command
 
   # pass arguments to the script
   if [ "$#" -gt 0 ]; then
