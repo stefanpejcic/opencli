@@ -1,13 +1,13 @@
 #!/bin/bash
 
-OPENCLI_VERSION="202.502.016"
+OPENCLI_VERSION="202.502.018"
 ################################################################################
 # Script Name: /usr/local/bin/opencli
 # Description: Makes all OpenCLI commands available on the terminal.
 # Usage: opencli <COMMAND-NAME> <ATTRIBUTES>
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 16.02.2025
+# Last Modified: 18.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -32,16 +32,18 @@ OPENCLI_VERSION="202.502.016"
 
 LOG_FILE="/var/log/openpanel/admin/opencli.log" 
 
-# Check if the correct number of arguments is provided
-if [ "$#" -lt 1 ]; then
+
+about() {
+  echo "About:"
+  echo "  Documentation:                    https://dev.openpanel.com/cli/"
+  echo "  Version:                          $OPENCLI_VERSION"
+  echo "  Author:                           Stefan Pejcic <stefan@pejcic.rs>"
+  echo "  License:                          MIT"
   echo ""
-  echo "Usage: opencli <COMMAND> [additional_arguments]"
-  echo ""
-  echo "Suggested commands:"
-  echo "  opencli faq                       Display frequently asked questions and answers."
-  echo "  opencli commands                  List all available OpenCLI commands and their usage."
-  echo ""
-  # Check if the log file exists, ans show most used commands
+}
+
+
+history() {
   if [ ! -f "$LOG_FILE" ]; then
     #echo "Log file $LOG_FILE not found."
     :
@@ -53,20 +55,31 @@ if [ "$#" -lt 1 ]; then
     awk -F ' \\| ' '!($2 ~ /^[0-9]+$/) {print "  " $2}' "$LOG_FILE" | sort | uniq | head -n 5
     echo ""
   fi
+}
 
-  echo "About:"
-  echo "  Documentation:                    https://dev.openpanel.co/cli/"
-  echo "  Version:                          $OPENCLI_VERSION"
-  echo "  Author:                           Stefan Pejcic <stefan@pejcic.rs>"
-  echo "  License:                          MIT"
+usage() {
   echo ""
+  echo "Usage: opencli <COMMAND> [additional_arguments]"
+  echo ""
+  echo "Suggested commands:"
+  echo "  opencli faq                       Display frequently asked questions and answers."
+  echo "  opencli commands                  List all available OpenCLI commands and their usage."
+  echo ""
+}
+
+
+# Check if the correct number of arguments is provided
+if [ "$#" -lt 1 ]; then
+  usage
+  history
+  about
   exit 1
 fi
 
-# Define the directory containing the binaries
+# scripts dir
 script_dir="/usr/local/opencli"
 
-# Get the binary name from the first argument
+# path/filename
 binary_name="$1"
 
 # '-v' is alias for '--version'
@@ -75,8 +88,7 @@ if [ "$binary_name" = "-v" ]; then
 fi
 
 
-
-
+# opencli error ID
 if [ "$binary_name" = "error" ]; then
   shift
   if [ "$#" -gt 0 ]; then
@@ -88,7 +100,7 @@ if [ "$binary_name" = "error" ]; then
 fi
 
 
-# https://openpanel.co/docs/changelog/0.2.1/#translations
+# LOCALES
 if [ "$binary_name" = "locale" ]; then
   shift
   if [ "$#" -gt 0 ]; then
@@ -99,10 +111,10 @@ if [ "$binary_name" = "locale" ]; then
  exit 0
 fi
 
-# Replace '-' with '/' in the binary name
+# Replace '-' with '/' in the name
 binary_command="${binary_name//-//}"
 
-# Build the full path to the binary
+# Build the full path to the file
 binary_path="$script_dir/$binary_command.sh" # add .sh to each command, opencli <1.0 had no .sh
 
 
@@ -112,30 +124,26 @@ fi
 
 if [ "$binary_name" = "sentinel" ]; then
   binary_path="/usr/local/admin/service/notifications.sh"
-  if [ ! -x "$binary_path" ]; then
-    chmod +x "$binary_path"
-    if [ "$?" -ne 0 ]; then
-      echo "Error: Failed to set executable permission on '$binary_name'."
-      exit 1
-    fi
-  fi
 fi
 
 # Check if the binary exists and is executable
-if [ -x "$binary_path" ]; then
+if [ -f "$binary_path" ]; then
   # Shift to remove the binary name from the arguments
   shift
 
-  # Log the command to the log file
+  # log to file
   { echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $binary_name" >> "$LOG_FILE"; } 2>/dev/null
 
-  # Execute the binary with additional arguments if provided
+  # pass arguments to the script
   if [ "$#" -gt 0 ]; then
-    "$binary_path" "$@"
+    bash "$binary_path" "$@"
   else
-    "$binary_path"
+    bash "$binary_path"
   fi
 else
-  echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist or not executable."
+  echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist."
+  usage
+  history
+  about
   exit 1
 fi
