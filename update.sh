@@ -1,14 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: update.sh
-# Description: Checks if updates are enabled and then if an update is available.
-# Usage: opencli update
-#        opencli update --force
+# Description: Check if update is available, install updates.
+# Usage: opencli update [--check | --force]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 30.08.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 18.02.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
