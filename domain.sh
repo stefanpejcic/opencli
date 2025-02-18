@@ -74,7 +74,17 @@ do_reload() {
    fi
 }
 
+get_current_domain() {
+    current_domain=$(grep -oP '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' /etc/openpanel/caddy/Caddyfile | head -n 1)
+    echo "$current_domain"
+}
 
+get_current_domain_or_ip() {
+   current_domain=$(get_current_domain)
+    if [[ $current_domain == 'example.net' ]]; then
+        current_domain=$(get_server_ipv4)
+    fi
+}
 
 update_domain() {
 
@@ -127,17 +137,7 @@ update_domain() {
 }
 
 
-get_current_domain() {
-    current_domain=$(grep -oP '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' /etc/openpanel/caddy/Caddyfile | head -n 1)
-    echo "$current_domain"
-}
 
-get_current_domain_or_ip() {
-   current_domain=$(get_current_domain)
-    if [[ $current_domain == 'example.net' ]]; then
-        current_domain=$(get_server_ipv4)
-    fi
-}
 
 
 usage() {
