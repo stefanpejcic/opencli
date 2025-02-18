@@ -71,7 +71,11 @@ get_server_ipv4(){
 do_reload() {
    if [[ "$3" != '--no-restart' ]]; then
        cd /root
-       docker compose restart caddy openpanel > /dev/null 2>&1
+       # restart only user panel!
+       docker compose restart openpanel > /dev/null 2>&1
+
+	# start caddy if not running!
+       docker compose down caddy && docker compose up -d caddy > /dev/null 2>&1
    fi
 }
 
