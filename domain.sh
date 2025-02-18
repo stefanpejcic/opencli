@@ -79,7 +79,7 @@ do_reload() {
 update_domain() {
 
       update_caddyfile() {
-            sed -i "s/\$current_domain/\$new_hostname/g: $CADDY_FILE
+            sed -i "s/\$current_domain/\$new_hostname/g" $CADDY_FILE
 
       }
 
@@ -149,9 +149,9 @@ echo "opencli domain set example.net        - set domain name for access"
 echo "opencli domain ip                     - set IP for access"
 }
 
+
 if [ -z "$1" ]; then
     get_current_domain_or_ip
-
 elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
         new_hostname=$2
@@ -167,5 +167,5 @@ else
     usage
 fi
 
-
+exit 0
            
