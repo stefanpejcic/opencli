@@ -271,6 +271,7 @@ run_update_immediately(){
     cd /etc/openpanel && git pull
 
     echo "Updating OpenCLI.."
+    rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
     cd /usr/local/opencli && git pull
  
     echo "Updating OpenAdmin.."
