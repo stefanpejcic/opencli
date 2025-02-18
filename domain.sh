@@ -134,12 +134,26 @@ get_current_domain() {
 }
 
 
+
+check_domain() {
+    current_domain=$(get_current_domain)
+    check_domain=$1
+
+    if [ "$current_domain" == "$check_domain" ]; then
+        exit 0
+    else
+        exit 1
+    fi
+}
+
+
 usage() {
 
 echo "Usage:"
 echo ""
 echo "opencli domain                        - displays current url  "
 echo "opencli domain set example.net        - set domain name for access"
+echo "opencli domain --check somedomain.com - check if Is set as current domain (returns 0/1)"
 echo "opencli domain ip                     - set IP for access"
 }
 
@@ -154,6 +168,14 @@ elif [[ "$1" == 'set' && -n "$2" ]]; then
         echo "Invalid domain format. Please provide a valid domain."
         usage
     fi    
+elif [[ "$1" == 'check' && -n "$2" ]]; then
+    if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
+        check_domain=$2
+        check_domain $check_domain
+    else
+        echo "Invalid domain format. Please provide a valid domain."
+        usage
+    fi        
 elif [[ "$1" == 'ip' ]]; then
         new_hostname="example.net"
         update_domain $new_hostname
