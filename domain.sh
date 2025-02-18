@@ -79,7 +79,8 @@ do_reload() {
 update_domain() {
 
       update_caddyfile() {
-            sed -i "/on_demand_https/!s/\([a-zA-Z0-9.-]\+\)\( {\)/$new_hostname\2/g" $CADDY_FILE
+            sed -i "s/\$current_domain/\$new_hostname/g: $CADDY_FILE
+
       }
 
 	create_mv_file() {
