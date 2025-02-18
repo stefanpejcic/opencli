@@ -173,6 +173,10 @@ check_update() {
         local local_version=$(opencli version)
         local remote_version=$(opencli update --check | jq -r '.latest_version')
 
+        if [ "$remote_version" == "null" ]; then
+          echo "No update available."
+          exit 1
+        fi
         # Check if autoupdate is "no" and not forcing the update
         if [ "$autoupdate" = "off" ] && [ "$local_version" \< "$remote_version" ] && [ "$force_update" = false ]; then
             echo "Update is available, autopatch will be installed."
