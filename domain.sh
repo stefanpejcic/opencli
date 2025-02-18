@@ -101,8 +101,8 @@ update_domain() {
             else
                 new_hostname="https://$new_hostname"
             fi
-              
-            sed -i "s|https\?://[^ ]*|$new_hostname|g" /etc/openpanel/caddy/redirects.conf
+	    
+		sed -i "s|https\?://\([^:/]*\)\(:[0-9]*\)\?|https://\1\2|g" /etc/openpanel/caddy/redirects.conf
 	}
 
 
