@@ -146,7 +146,7 @@ echo "opencli domain ip                     - set IP for access"
 if [ -z "$1" ]; then
     get_current_domain
 
-elif [[ "$1" == 'domain' && -n "$2" ]]; then
+elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
         new_hostname=$2
         update_domain $new_hostname
