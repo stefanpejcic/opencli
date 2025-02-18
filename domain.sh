@@ -82,7 +82,16 @@ update_domain() {
             sed -i "/on_demand_https/!s/\([a-zA-Z0-9.-]\+\)\( {\)/$new_hostname\2/g" $CADDY_FILE
       }
 
-
+	create_mv_file() {
+ 		if [[ $new_hostname == 'example.net' ]]; then
+   			rm /etc/openpanel/caddy/domains/$current_domain.conf
+		else
+		    if [ -f "/etc/openpanel/caddy/domains/$current_domain.conf" ]; then
+		        mv /etc/openpanel/caddy/domains/$current_domain.conf /etc/openpanel/caddy/domains/$new_hostname.conf
+		    fi
+		    touch /etc/openpanel/caddy/domains/$new_hostname.conf
+		fi
+	}
       
       update_redirects() {
             
@@ -93,21 +102,23 @@ update_domain() {
             fi
               
             sed -i "s|https\?://[^ ]*|$new_hostname|g" /etc/openpanel/caddy/redirects.conf
-      }
+	}
 
 
-success_msg() {
+	success_msg() {
             if [[ $new_hostname == 'example.net' ]]; then
                 new_hostname="$server_ip"
             fi
             
             echo "$new_hostname is now set for accessing the OpenPanel and OpenAdmin interfaces."             
-}
+	}
 
 
-
+      current_domain=$(get_current_domain)
       server_ip=$(get_server_ipv4)
+     
       update_caddyfile
+      create_mv_file
       update_redirects
       do_reload
       success_msg
@@ -115,26 +126,15 @@ success_msg() {
 }
 
 
-
 get_current_domain() {
-    # Extract current domain from Caddyfile
     current_domain=$(grep -oP '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' /etc/openpanel/caddy/Caddyfile | head -n 1)
-    if [[ $current_domain == 'example.net' ]]; then
-        current_domain=$(get_server_ipv4)
-    fi
     echo "$current_domain"
 }
 
-
-
-check_domain() {
-    current_domain=$(get_current_domain)
-    check_domain=$1
-
-    if [ "$current_domain" == "$check_domain" ]; then
-        exit 0
-    else
-        exit 1
+get_current_domain_or_ip() {
+   current_domain=$(get_current_domain)
+    if [[ $current_domain == 'example.net' ]]; then
+        current_domain=$(get_server_ipv4)
     fi
 }
 
@@ -145,12 +145,11 @@ echo "Usage:"
 echo ""
 echo "opencli domain                        - displays current url  "
 echo "opencli domain set example.net        - set domain name for access"
-echo "opencli domain --check somedomain.com - check if Is set as current domain (returns 0/1)"
 echo "opencli domain ip                     - set IP for access"
 }
 
 if [ -z "$1" ]; then
-    get_current_domain
+    get_current_domain_or_ip
 
 elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
@@ -159,15 +158,7 @@ elif [[ "$1" == 'set' && -n "$2" ]]; then
     else
         echo "Invalid domain format. Please provide a valid domain."
         usage
-    fi    
-elif [[ "$1" == 'check' && -n "$2" ]]; then
-    if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
-        check_domain=$2
-        check_domain $check_domain
-    else
-        echo "Invalid domain format. Please provide a valid domain."
-        usage
-    fi        
+    fi       
 elif [[ "$1" == 'ip' ]]; then
         new_hostname="example.net"
         update_domain $new_hostname
