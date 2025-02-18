@@ -29,6 +29,7 @@
 ################################################################################
 
 CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
+DOMAINS_DIR="/etc/openpanel/caddy/domains/"
 
 get_server_ipv4(){
 	# list of ip servers for checks
@@ -94,15 +95,15 @@ update_domain() {
 
       }
 
-	create_mv_file() {
- 		mkdir -p /etc/openpanel/caddy/domains/
+ 	create_mv_file() {
+ 		mkdir -p ${DOMAINS_DIR}
  		if [[ $new_hostname == 'example.net' ]]; then
-   			rm /etc/openpanel/caddy/domains/$current_domain.conf
+   			rm ${DOMAINS_DIR}$current_domain.conf
 		else
-		    if [ -f "/etc/openpanel/caddy/domains/$current_domain.conf" ]; then
-		        mv /etc/openpanel/caddy/domains/$current_domain.conf /etc/openpanel/caddy/domains/$new_hostname.conf
+		    if [ -f "${DOMAINS_DIR}$current_domain.conf" ]; then
+		        mv ${DOMAINS_DIR}$current_domain.conf ${DOMAINS_DIR}$new_hostname.conf
 		    fi
-		    touch /etc/openpanel/caddy/domains/$new_hostname.conf
+		    touch ${DOMAINS_DIR}$new_hostname.conf
 		fi
 	}
       
