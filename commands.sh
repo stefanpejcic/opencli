@@ -38,27 +38,19 @@ GREEN='\033[0;32m'
 RESET='\033[0m'
 
 # Loop through all scripts from https://github.com/stefanpejcic/openpanel-docker-cli/
-find "$SCRIPTS_DIR" -type f -executable \
-  ! -name "opencli.sh" \
-  ! -name "install" \
-  ! -name "install.sh" \
-  ! -name "watcher" \
-  ! -name "watcher.sh" \
-  ! -name "opencli" \
-  ! -name "mysql" \
-  ! -name "mysql.sh" \
-  ! -name "db" \
+find "$SCRIPTS_DIR" -type f \
+  ! -path "$SCRIPTS_DIR/.git/*" \
+  ! -name "error.py" \
   ! -name "db.sh" \
-  ! -name "README.md" \
   ! -name "aliases.txt" \
-  ! -name "*motd*" \
-  ! -name "*NEW*" \
+  ! -name "send_mail.sh" \
+  ! -name "README.md" \
+  ! -name "*README.md" \
   ! -name "*TODO*" | while read -r script; do
-    if [ -x "$script" ]; then
-        script_name=$(basename "$script" | sed 's/\.sh$//') # strip extension
+        script_name=$(basename "$script" | sed 's/\(\.sh\|\.py\)$//') # rm extensions
         dir_name=$(dirname "$script" | sed 's:.*/::') # folder name without the full path
 
-        if [ "$dir_name" = "scripts" ]; then
+        if [ "$dir_name" = "opencli" ]; then
             dir_name=""
         else
             dir_name="${dir_name}-"
@@ -81,7 +73,6 @@ find "$SCRIPTS_DIR" -type f -executable \
 	echo "------------------------"
  
 	echo "$full_alias" >> "$ALIAS_FILE" # add to file
-    fi
 done
 
 # Sort the aliases in the file by names
