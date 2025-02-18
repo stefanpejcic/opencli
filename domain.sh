@@ -91,8 +91,7 @@ get_current_domain_or_ip() {
 update_domain() {
 
       update_caddyfile() {
-            sed -i "s/\$current_domain/\$new_hostname/g" $CADDY_FILE
-
+	    sed -i "s/$current_domain/$new_hostname/g" $CADDY_FILE
       }
 
  	create_mv_file() {
