@@ -79,15 +79,7 @@ do_reload() {
 update_domain() {
 
       update_caddyfile() {
-
             sed -i "/on_demand_https/!s/\([a-zA-Z0-9.-]\+\)\( {\)/$new_hostname\2/g" $CADDY_FILE
-            
-            if [[ $new_hostname == 'example.net' ]]; then
-                sed -i 's|ask [^ ]*http[s]*://[^ ]*|ask http://localhost:2087/allow|g' $CADDY_FILE
-            fi
-            
-            sed -i "/ask /s|http[s]*://[^ ]*|https://$new_hostname:2087/allow|g" $CADDY_FILE
-
       }
 
 
