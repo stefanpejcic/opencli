@@ -277,11 +277,15 @@ run_update_immediately(){
     cd /usr/local/admin && git pull
 
     echo "Restarting OpenPanel service to use the newest image.."
-    cd /root && docker compose openpanel down && docker compsoe up -d openpanel
+    cd /root && docker compose down openpanel && docker compose up -d openpanel
     
     echo "Restarting OpenAdmin service.."
     service admin restart
-    
+
+: ' 
+    echo "Restarting Caddy service.."
+    docker restart caddy
+'
     echo "Adding OpenCLI commands to path.."
     opencli commands
 
