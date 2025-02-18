@@ -84,6 +84,7 @@ get_current_domain_or_ip() {
     if [[ $current_domain == 'example.net' ]]; then
         current_domain=$(get_server_ipv4)
     fi
+    echo $current_domain
 }
 
 update_domain() {
@@ -94,6 +95,7 @@ update_domain() {
       }
 
 	create_mv_file() {
+ 		mkdir -p /etc/openpanel/caddy/domains/
  		if [[ $new_hostname == 'example.net' ]]; then
    			rm /etc/openpanel/caddy/domains/$current_domain.conf
 		else
