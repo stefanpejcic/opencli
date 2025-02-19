@@ -59,7 +59,7 @@ WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain pro
 # ENTERPRISE
 ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
+PROXY_FILE="/etc/openpanel/caddy/redirects.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 # Check if 'enterprise edition'
@@ -119,7 +119,7 @@ get_domain_for_webmail() {
     fi
     
     # Use grep and awk to extract the domain from the /webmail block
-    domain=$(grep -A 1 "location /webmail" "$PROXY_FILE" | grep "return" | awk '{print $3}' | sed -e 's|https://||' -e 's|http://||' -e 's|/.*||')
+    domain=$(grep "^redir @webmail" "$PROXY_FILE" | awk '{print $3}' | sed -e 's|https://||' -e 's|http://||' -e 's|:.*||')
     
     if [[ -n "$domain" ]]; then
         echo "$domain"
