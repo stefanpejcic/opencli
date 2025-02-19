@@ -111,43 +111,6 @@ disk_limit="${disk_limit} GB"
    }
 
 
-## Function to create a Docker network with bandwidth limiting
-create_docker_network() {
-  local name="$1"
-  local bandwidth="$2"
-
-  for ((i = 18; i < 255; i++)); do
-    subnet="172.$i.0.0/16"
-    gateway="172.$i.0.1"
-
-    # Check if the subnet is already in use
-    used_subnets=$(docker network ls --format "{{.Name}}" | while read -r network_name; do
-      docker network inspect --format "{{range .IPAM.Config}}{{.Subnet}}{{end}}" "$network_name"
-    done)
-
-    if [[ $used_subnets =~ $subnet ]]; then
-      continue  # Skip if the subnet is already in use
-    fi
-    # Create the Docker network
-    docker network create --driver bridge --subnet "$subnet" --gateway "$gateway" "$name"
-
-    # Extract the network interface name for the gateway IP
-    gateway_interface=$(ip route | grep "$gateway" | awk '{print $3}')
-
-   ensure_tc_is_installed
-
-    # Limit the gateway bandwidth
-    sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
-
-    found_subnet=1  # Set the flag to indicate success
-    break
-  done
-  if [ $found_subnet -eq 0 ]; then
-    echo "No available subnet found. Exiting."
-    exit 1  # Exit with an error code
-  fi
-}
-
 # Function to check available CPU cores
 check_cpu_cores() {
   local available_cores=$(nproc)
@@ -169,8 +132,8 @@ check_available_ram() {
 }
 
 # Check for command-line arguments
-if [ "$#" -lt 14 ]; then
-    echo "Usage: opencli plan-create name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+if [ "$#" -lt 13 ]; then
+    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
     exit 1
 fi
 
@@ -189,12 +152,6 @@ cpu="${10}"
 ram="${11}"
 docker_image="${12}"
 bandwidth="${13}"
-
-# added in 0.1.9 because WHMCS needs plan_name instead of plan_id
-name="${name,,}"
-name="${name// /_}"
-
-
 
 # Check available CPU cores before creating the plan
 check_cpu_cores "$cpu"
@@ -228,8 +185,6 @@ if [ -n "$existing_plan" ]; then
   exit 1
 fi
 
-# Call the create_docker_network function to create the Docker network
-create_docker_network "$name" "$bandwidth"
 
 # Call the insert_plan function with the provided values
 insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
