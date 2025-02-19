@@ -131,11 +131,13 @@ restart_cron_after_edit() {
 }
 
 
+touch /etc/cron.d/openpanel_backups
 
 # Remove all previous backup schedules
 sed -i '/\/usr\/local\/bin\/opencli backup-run/d' /etc/cron.d/openpanel_backups
 
 ensure_jq_installed
+
 
 # Process one job if run_id is provided, otherwise process and schedule all jobs
 if [ "$run_id" ]; then
