@@ -111,15 +111,24 @@ check_if_reseller() {
 	    if [ -f "$reseller_limits_file" ]; then
 	  	log "Checking reseller limits.."
     
-		    local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
-		    current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
-		        if [ $? -eq 0 ]; then
-			         jq ".current_accounts = $current_accounts" $reseller_limits_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $reseller_limits_file
-			else
-		            log "Error fetching current account count for reseller $reseller from MySQL."
-		            echo "ERROR: Unable to retrive number of users from the datbaase. Is MySQL running?"
-		            exit 1
-		        fi
+		local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
+		current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
+		
+		#echo "DEBUG: current_accounts='$current_accounts'"
+
+		if [ $? -eq 0 ]; then
+		    if [[ -z "$current_accounts" ]]; then
+		        current_accounts=0
+		    fi
+		
+		    jq --argjson current_accounts "$current_accounts" '.current_accounts = $current_accounts' "$reseller_limits_file" > "/tmp/${reseller}_config.json" \
+		        && mv "/tmp/${reseller}_config.json" "$reseller_limits_file"
+		else
+		    log "Error fetching current account count for reseller $reseller from MySQL."
+		    echo "ERROR: Unable to retrieve the number of users from the database. Is MySQL running?"
+		    exit 1
+		fi
+
 	  
 	        max_accounts=$(jq -r '.max_accounts // "unlimited"' $reseller_limits_file)
                 local allowed_plans=$(jq -r '.allowed_plans | join(",")' $reseller_limits_file)
