@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--reseller=<RESELLER_USERNAME>] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -35,8 +35,8 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 8 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
+if [ "$#" -lt 4 ] || [ "$#" -gt 9 ]; then
+    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
     exit 1
 fi
 
@@ -58,6 +58,9 @@ for arg in "$@"; do
         --send-email)
             SEND_EMAIL=true
             ;;
+        --reseller=*)
+            reseller="${arg#*=}"
+	    ;;
         --server=*)
             server="${arg#*=}"
 	    ;;
@@ -88,6 +91,61 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+
+
+check_if_reseller() {
+
+	local db_file_path="/etc/openpanel/openadmin/users.db"
+	if [ -n "$reseller" ]; then
+	    log "Checking if reseller user exists and can create new users.."
+	
+    	    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$reseller' AND role='reseller';")
+		
+	    if [ "$user_exists" -lt 1 ]; then
+	        echo -e "ERROR: User '$reseller' is not a reseller or not allowed to create new users. Contact support."
+	    fi
+
+	    local reseller_limits_file="/etc/openpanel/admin/resellers/$reseller.json"
+     
+	    if [ -f "$reseller_limits_file" ]; then
+	  	log "Checking reseller limits.."
+    
+		    local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
+		    local current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
+		        if [ $? -eq 0 ]; then
+			         jq ".current_accounts = $current_accounts" $reseller_limits_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $reseller_limits_file
+			else
+		            log "Error fetching current account count for reseller $reseller from MySQL."
+		            echo "ERROR: Unable to retrive number of users from the datbaase. Is MySQL running?"
+		            exit 1
+		        fi
+	  
+	        local max_accounts=$(jq -r '.max_accounts' $reseller_limits_file)
+                local allowed_plans=$(jq -r '.allowed_plans | join(",")' $reseller_limits_file)
+
+	           # Compare current account count with the max limit
+	        if [ "$current_accounts" -ge "$max_accounts" ]; then
+	            echo "ERROR: Reseller has reached the maximum account limit. Cannot create more users."
+	            exit 1
+	        fi
+	 
+	        # Check if the current plan ID is in the allowed plans
+	        if echo "$allowed_plans" | grep -wq "$plan_id"; then
+	            :
+	            #log "Current plan ID '$plan_id' is allowed for this reseller."
+	        else
+	            echo "ERROR: Current plan ID '$plan_id' is not assigned for this reseller. Please select another plan."
+	            exit 1
+	        fi
+	   
+	    else
+	 	  log "WARNING: Reseller $reseller has no limits configured and can create unlimited number of users."
+	    		# TODO: notify admin - log in adminn log!
+	    fi
+    fi
+}
+
 
 
 get_slave_if_set() {
@@ -1454,9 +1512,12 @@ create_context() {
 save_user_to_db() {
     log "Saving new user to database"
     
-        # Insert data into MySQL database
-    mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$username');"
-    
+     # Insert data into MySQL database
+	if [ -n "$reseller" ]; then
+   	    mysql_query="INSERT INTO users (username, password, owner, email, plan_id, server) VALUES ('$username', '$hashed_password', '$reseller', '$email', '$plan_id', '$username');"
+	else
+	    mysql_query="INSERT INTO users (username, password, email, plan_id, server) VALUES ('$username', '$hashed_password', '$email', '$plan_id', '$username');"
+	fi    
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
     
     if [ $? -eq 0 ]; then
@@ -1508,6 +1569,7 @@ collect_stats() {
 
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
+check_if_reseller                            # if reseller, check limits
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 get_slave_if_set                             # get context and use slave server if set
