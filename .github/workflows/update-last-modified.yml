@@ -1,0 +1,31 @@
+name: Update Last Modified Date
+
+on:
+  push:
+    paths:
+      - '**.sh'  # only for .sh files!
+
+jobs:
+  update-last-modified:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Current Date
+        id: date
+        run: echo "DATE=$(date +'%d.%m.%Y')" >> $GITHUB_ENV
+
+      - name: Update Last Modified Date in .sh Files
+        run: |
+          for file in $(git diff --name-only HEAD~1 HEAD -- '*.sh'); do
+            sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
+          done
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update 'Last Modified' date in modified scripts" || exit 0
+          git push
