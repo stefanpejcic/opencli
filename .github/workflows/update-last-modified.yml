@@ -27,16 +27,33 @@ jobs:
           echo "$FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Update Last Modified Date in .sh Files
+      - name: Update Last Modified Date and OpenCLI Version
         run: |
           if [ -z "$FILES" ]; then
             echo "No .sh files modified, skipping update."
             exit 0
           fi
+          
+          # Get the formatted date: 3 digits of year, 4th digit of year + month, and 0 + day
+          YEAR=$(date +'%Y')           # Full year (e.g., 2025)
+          YEAR_SHORT=${YEAR:0:3}       # First 3 digits of year (e.g., 202)
+          YEAR_4TH=${YEAR:3:1}         # 4th digit of the year (e.g., 5)
+          MONTH=$(date +'%m')          # Month with leading zero (e.g., 02)
+          DAY=$(date +'%d')            # Day with leading zero (e.g., 03)
+          
+          # Format version as: 202.502.003
+          VERSION="${YEAR_SHORT}.${YEAR_4TH}${MONTH}.0${DAY}"
+          
           while IFS= read -r file; do
             echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
           done <<< "$FILES"
+
+          # Update OPENCLI_VERSION in the opencli file
+          if [ -f opencli ]; then
+            echo "Updating OpenCLI Version to $VERSION"
+            sed -i "s/^OPENCLI_VERSION=\"[0-9.]\+\"/OPENCLI_VERSION=\"${VERSION}\"/" opencli
+          fi
 
       - name: Commit and Push Changes
         env:
