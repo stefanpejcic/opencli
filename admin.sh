@@ -195,7 +195,7 @@ detect_service_status() {
 add_new_user() {
     local username="$1"
     local password="$2"
-    local reseller="$3"
+    local flag="$3"
     local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
@@ -205,11 +205,22 @@ add_new_user() {
     # Define the SQL commands
     
     create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
-    if [ "$reseller" == "--reseller" ]; then
-        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'reseller');"
+    if [ "$flag" == "--reseller" ]; then
+        role="reseller"
+    elif [ "$flag" == "--super" ]; then
+        admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin';"
+        admin_count=$(sqlite3 "$db_file_path" "$admin_check_sql")
+        if [ "$admin_count" -eq 0 ]; then
+            role="admin"
+        else
+            echo "An Super Admin user already exists. Cannot create another super admin."
+            exit 1
+        fi
     else
-        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'user');"
+        role="user"
     fi
+
+    insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', '$role');"
 
     # Execute the SQL commands
     output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
@@ -218,10 +229,12 @@ add_new_user() {
             echo "User not created: $output"
             # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
         else
-            if [ "$reseller" == "--reseller" ]; then
-                echo "Reseller '$username' created."
+            if [ "$flag" == "--reseller" ]; then
+                echo "Reseller user '$username' created."
+            elif [ "$flag" == "--super" ]; then
+                echo "Super Administrator '$username' created."
             else
-                echo "User '$username' created."
+                echo "Admin User '$username' created."
             fi
         fi
     fi
