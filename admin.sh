@@ -230,6 +230,10 @@ add_new_user() {
             # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
         else
             if [ "$flag" == "--reseller" ]; then
+	    	local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
+	    	local resellers_dir="/etc/openpanel/openadmin/resellers"
+	    	mkdir -p $resellers_dir
+      		cp $resellers_template $resellers_dir/$username.json
                 echo "Reseller user '$username' created."
             elif [ "$flag" == "--super" ]; then
                 echo "Super Administrator '$username' created."
@@ -260,7 +264,7 @@ update_username() {
             sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
             echo "User '$old_username' renamed to '$new_username'."
             
-            local reseller_limits_dir="/etc/openpanel/admin/resellers"
+            local reseller_limits_dir="/etc/openpanel/openadmin/resellers"
 			mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
    
         fi
@@ -363,7 +367,7 @@ delete_existing_users() {
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
         
-            local reseller_limits_file="/etc/openpanel/admin/resellers/$username.json"
+            local reseller_limits_file="/etc/openpanel/openadmin/resellers/$username.json"
 			rm $reseller_limits_file  > /dev/null 2>&1
         
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
