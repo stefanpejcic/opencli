@@ -28,7 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-
 SCRIPTS_DIR="/usr/local/opencli"
 ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
 
