@@ -1348,8 +1348,10 @@ set_ssh_user_password_inside_container() {
 
 	if [ "$web_server" == "litespeed" ]; then
               log "Adding 'root' user to the 'nobody' group for OpenLiteSpeed.."
-	      docker $context_flag exec $username usermod -aG nobody root > /dev/null 2>&1
+	      docker $context_flag exec $username usermod -aG nogroup root > /dev/null 2>&1
 	      docker $context_flag exec $username usermod -aG root nobody > /dev/null 2>&1
+       		#todo: move to image!
+	      docker $context_flag exec $username chown nobody:nogroup -R /usr/local/lsws/Example/
 	elif [ "$web_server" == "nginx" ]; then
               log "Adding 'root' user to the 'www-data' group for Nginx.."
 	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
