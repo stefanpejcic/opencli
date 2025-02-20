@@ -385,21 +385,22 @@ vhost_files_create() {
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		if [[ $VARNISH == true ]]; then
-   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_apache_domain.conf"
+   			vhost_docker_template="/etc/openpanel/docker/templates/docker_varnish_apache_domain.conf"
    		else
-			vhost_docker_template="/etc/openpanel/nginx/vhosts/1.0/docker_apache_domain.conf"
+			vhost_docker_template="/etc/openpanel/docker/templates/docker_apache_domain.conf"
   		fi      
 	elif [[ $ws == *nginx* ]]; then
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
  		
  		if [[ $VARNISH == true ]]; then
-   			vhost_docker_template="/etc/openpanel/nginx/vhosts/docker_varnish_nginx_domain.conf"
+   			vhost_docker_template="/etc/openpanel/docker/templates/docker_varnish_nginx_domain.conf"
    		else
-			vhost_docker_template="/etc/openpanel/nginx/vhosts/1.0/docker_nginx_domain.conf"
-  		fi
+			vhost_docker_template="/etc/openpanel/docker/templates/docker_nginx_domain.conf"
+		fi
 	elif [[ $ws == *litespeed* ]]; then
- restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
+ 		restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
+		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
 
 docker --context $context exec $container_name bash -c "echo '
@@ -424,7 +425,7 @@ virtualHost $domain_name{
 
   	# gateway is always 172.17.0.0/16
 	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
-
+	# should be skipped for litespeed!
 
  	docker --context $user exec $container_name touch $vhost_in_docker_file > /dev/null 2>&1 # to be removed!
 
