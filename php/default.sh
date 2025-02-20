@@ -1,9 +1,9 @@
 #!/bin/bash
 ################################################################################
-# Script Name: php/default_php_version.sh
+# Script Name: php/default.sh
 # Description: View or change the default PHP version used for new domains added by user.
-# Usage: opencli php-default_version <username>
-#        opencli php-default_version <username> --update <new_php_version>
+# Usage: opencli php-default <username>
+#        opencli php-default <username> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 20.02.2025
@@ -31,7 +31,7 @@
 
 # Check if username argument is provided
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <username> [--update <new_php_version>]"
+    echo "Usage: opencli php-default <username> [--update <new_php_version>]"
     exit 1
 fi
 
