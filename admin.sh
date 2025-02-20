@@ -256,8 +256,13 @@ update_username() {
         if [ "$new_user_exists" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
+       
             sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
             echo "User '$old_username' renamed to '$new_username'."
+            
+            local reseller_limits_dir="/etc/openpanel/admin/resellers"
+			mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
+   
         fi
     else
         echo -e "${RED}Error${RESET}: User '$old_username' not found."
@@ -306,6 +311,18 @@ suspend_user() {
         else
             sqlite3 $db_file_path "UPDATE user SET is_active='0' WHERE username='$username';"
             echo "User '$username' suspended successfully."
+
+            echo ""
+            echo "Suspending accounts owned by the reseller $username"
+            query_for_usernames="SELECT username FROM users WHERE owner='$username';"
+            usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
+            if [ $? -eq 0 ]; then
+                for user in $usernames; do
+                    echo "User: $user"
+                    opencli user-suspend "$user"
+                done
+            fi         
+           
         fi
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
@@ -320,6 +337,17 @@ unsuspend_user() {
     if [ "$user_exists" -gt 0 ]; then
             sqlite3 $db_file_path "UPDATE user SET is_active='1' WHERE username='$username';"
             echo "User '$username' unsuspended successfully."
+
+            echo ""
+            echo "Unsuspending accounts owned by the reseller $username"
+            query_for_usernames="SELECT username FROM users WHERE owner='$username';"
+            usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
+            if [ $? -eq 0 ]; then
+                for user in $usernames; do
+                    echo "User: $user"
+                    opencli user-unsuspend "$user"
+                done
+            fi         
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
     fi
@@ -334,6 +362,10 @@ delete_existing_users() {
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
+        
+            local reseller_limits_file="/etc/openpanel/admin/resellers/$username.json"
+			rm $reseller_limits_file  > /dev/null 2>&1
+        
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
             echo "User '$username' deleted successfully."
         fi
