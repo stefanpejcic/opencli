@@ -19,14 +19,24 @@ jobs:
       - name: Find Modified Shell Scripts
         id: find_files
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD -- '*.sh' || git ls-files '*.sh')
-          echo "FILES=$FILES" >> $GITHUB_ENV
+          FILES=$(git diff --name-only HEAD~1 HEAD -- '*.sh' 2>/dev/null || true)
+          if [ -z "$FILES" ]; then
+            FILES=$(git ls-files '*.sh')
+          fi
+          echo "FILES<<EOF" >> $GITHUB_ENV
+          echo "$FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Update Last Modified Date in .sh Files
         run: |
-          for file in $FILES; do
+          if [ -z "$FILES" ]; then
+            echo "No .sh files modified, skipping update."
+            exit 0
+          fi
+          while IFS= read -r file; do
+            echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
-          done
+          done <<< "$FILES"
 
       - name: Commit and Push Changes
         run: |
