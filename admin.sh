@@ -554,11 +554,7 @@ case "$1" in
         fi
         validate_password_and_username "$new_username" "Username"
         validate_password_and_username "$new_password" "Password"
-        if [ "$reseller" == "--reseller" ]; then
-            add_new_user "$new_username" "$new_password" "--reseller" 
-        else
-            add_new_user "$new_username" "$new_password"
-        fi
+        add_new_user "$new_username" "$new_password" "$reseller"
         ;;
     "notifications")
         # COntrol notification preferences
