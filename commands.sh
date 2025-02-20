@@ -40,6 +40,7 @@ RESET='\033[0m'
 # Loop through all scripts from https://github.com/stefanpejcic/openpanel-docker-cli/
 find "$SCRIPTS_DIR" -type f \
   ! -path "$SCRIPTS_DIR/.git/*" \
+  ! -path "$SCRIPTS_DIR/.github/*" \
   ! -name "error.py" \
   ! -name "db.sh" \
   ! -name "aliases.txt" \
