@@ -112,7 +112,7 @@ check_if_reseller() {
 	  	log "Checking reseller limits.."
     
 		    local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
-		    local current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
+		    current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
 		        if [ $? -eq 0 ]; then
 			         jq ".current_accounts = $current_accounts" $reseller_limits_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $reseller_limits_file
 			else
@@ -121,11 +121,11 @@ check_if_reseller() {
 		            exit 1
 		        fi
 	  
-	        local max_accounts=$(jq -r '.max_accounts' $reseller_limits_file)
+	        max_accounts=$(jq -r '.max_accounts // "unlimited"' $reseller_limits_file)
                 local allowed_plans=$(jq -r '.allowed_plans | join(",")' $reseller_limits_file)
 
 	           # Compare current account count with the max limit
-	        if [ "$current_accounts" -ge "$max_accounts" ]; then
+	        if [ "$max_accounts" != "unlimited" ] && [ "$current_accounts" -ge "$max_accounts" ]; then
 	            echo "ERROR: Reseller has reached the maximum account limit. Cannot create more users."
 	            exit 1
 	        fi
@@ -332,9 +332,17 @@ get_existing_users_count() {
     
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
-        :
-        log "Enterprise edition detected: unlimited number of users can be created"
+        if [ -n "$reseller" ]; then
+		:
+        else
+        	log "Enterprise edition detected: unlimited number of users can be created"
+	 fi
     else
+    	if [ -n "$reseller" ]; then
+            echo "[✘] ERROR: Resellers feature requires the Enterprise edition."
+	    echo "If you require reseller accounts, please consider purchasing the Enterprise version that allows unlimited number of users and resellers."
+            exit 1
+     	fi
        log "Checking if the limit of 3 users on Community edition is reached"
         # Check the number of users from the database
         user_count_query="SELECT COUNT(*) FROM users"
@@ -665,12 +673,23 @@ validate_ssh_login(){
 # DEBUG
 print_debug_info_before_starting_creation() {
     if [ "$DEBUG" = true ]; then
+   	 echo "--------------------------------------------------------------"
+	if [ -n "$reseller" ]; then
+	        echo "Reseller user information:"
+	        echo "- Reseller:             $reseller" 
+	        echo "- Existing accounts:    $current_accounts/$max_accounts" 	 
+	        echo "--------------------------------------------------------------"
+
+	fi
+	
 	if [ -n "$node_ip_address" ]; then
-	        echo "Node server:"
+	        echo "Data for connectiong to the Node server:"
 	        echo "- IP address:           $node_ip_address" 
 	        echo "- Hostname:             $hostname" 	 
 	        echo "- SSH user:             root" 	
-	        echo "- SSH key path:         $key" 		 
+	        echo "- SSH key path:         $key" 		
+	        echo "--------------------------------------------------------------"
+
 	fi
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
@@ -681,6 +700,7 @@ print_debug_info_before_starting_creation() {
         echo "- storage:           $disk_limit GB"
         echo "- inodes:            $inodes"
         echo "- port speed:        $bandwidth"
+	echo "--------------------------------------------------------------"
     fi
 }
 
@@ -1569,13 +1589,13 @@ collect_stats() {
 
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
-check_if_reseller                            # if reseller, check limits
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 get_slave_if_set                             # get context and use slave server if set
 ###############check_running_containers                     # make sure container name is available
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
+check_if_reseller                            # if reseller, check limits
 print_debug_info_before_starting_creation    # print debug info
 validate_ssh_login                           # test ssh logins for cluster member
 create_user_and_set_quota                    # create user
