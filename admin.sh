@@ -206,9 +206,9 @@ add_new_user() {
     
     create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
     if [ "$reseller" == "--reseller" ]; then
-        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'user');"
-    else
         insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'reseller');"
+    else
+        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'user');"
     fi
 
     # Execute the SQL commands
