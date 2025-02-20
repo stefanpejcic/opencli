@@ -39,10 +39,10 @@ opencli install
 opencli license
 opencli opencli
 opencli php-available_versions
-opencli php-default_version
+opencli php-default
 opencli php-domain
 opencli php-ini
-opencli php-install_version
+opencli php-install
 opencli php-installed_versions
 opencli php-ioncube
 opencli plan-apply
