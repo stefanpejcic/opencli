@@ -204,13 +204,12 @@ add_new_user() {
     else
     # Define the SQL commands
     
+    create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
     if [ "$reseller" == "--reseller" ]; then
-        create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'reseller', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'user');"
     else
-        create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+        insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', 'reseller');"
     fi
-    
-    insert_user_sql="INSERT INTO user (username, password_hash) VALUES ('$username', '$password_hash');"
 
     # Execute the SQL commands
     output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
