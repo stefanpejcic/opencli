@@ -738,6 +738,12 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
 
 
 
+litespeed_extra() {
+	docker --context $context exec $container_name bash -c "chown $nobody:33 $docroot"
+}
+
+
+
 
 # Add domain to the database
 add_domain() {
@@ -767,6 +773,8 @@ add_domain() {
  	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
+ 	litespeed_extra
+    
  	######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
         #echo "Domain $domain_name has been added for user $user."
