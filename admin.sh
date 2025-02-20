@@ -195,6 +195,7 @@ detect_service_status() {
 add_new_user() {
     local username="$1"
     local password="$2"
+    local reseller="$2"
     local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
@@ -202,7 +203,13 @@ add_new_user() {
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
     # Define the SQL commands
-    create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+    
+    if [ -z "$reseller" ]; then
+        create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+    else
+        create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'reseller', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+    fi
+    
     insert_user_sql="INSERT INTO user (username, password_hash) VALUES ('$username', '$password_hash');"
 
     # Execute the SQL commands
@@ -521,6 +528,7 @@ case "$1" in
         # Add a new user
         new_username="$2"
         new_password="$3"
+        reseller="$4"
         # Check if $2 and $3 are provided
         if [ -z "$new_username" ] || [ -z "$new_password" ]; then
             #echo "Error: Missing parameters for new admin command."
@@ -530,7 +538,11 @@ case "$1" in
         fi
         validate_password_and_username "$new_username" "Username"
         validate_password_and_username "$new_password" "Password"
-        add_new_user "$new_username" "$new_password"
+        if [ "$reseller" == "--reseller" ]; then
+            add_new_user "$new_username" "$new_password" "--reseller" 
+        else
+            add_new_user "$new_username" "$new_password" "--reseller" 
+        fi
         ;;
     "notifications")
         # COntrol notification preferences
