@@ -3,7 +3,7 @@ name: Update Last Modified Date
 on:
   push:
     paths:
-      - '**.sh'  # only for .sh files!
+      - '**.sh'  # Runs only when .sh files are modified
 
 jobs:
   update-last-modified:
@@ -16,9 +16,15 @@ jobs:
         id: date
         run: echo "DATE=$(date +'%d.%m.%Y')" >> $GITHUB_ENV
 
+      - name: Find Modified Shell Scripts
+        id: find_files
+        run: |
+          FILES=$(git diff --name-only HEAD~1 HEAD -- '*.sh' || git ls-files '*.sh')
+          echo "FILES=$FILES" >> $GITHUB_ENV
+
       - name: Update Last Modified Date in .sh Files
         run: |
-          for file in $(git diff --name-only HEAD~1 HEAD -- '*.sh'); do
+          for file in $FILES; do
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
           done
 
