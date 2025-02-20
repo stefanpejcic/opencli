@@ -106,7 +106,7 @@ check_if_reseller() {
 	        echo -e "ERROR: User '$reseller' is not a reseller or not allowed to create new users. Contact support."
 	    fi
 
-	    local reseller_limits_file="/etc/openpanel/admin/resellers/$reseller.json"
+	    local reseller_limits_file="/etc/openpanel/openadmin/resellers/$reseller.json"
      
 	    if [ -f "$reseller_limits_file" ]; then
 	  	log "Checking reseller limits.."
