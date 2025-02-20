@@ -229,7 +229,7 @@ delete_context() {
 
 refresh_resellers_data() {
 
-	    local reseller_files="/etc/openpanel/admin/resellers"
+	    local reseller_files="/etc/openpanel/openadmin/resellers"
 
         if [ -d "$reseller_files" ]; then
             for json_file in "$reseller_files"/*.json; do
