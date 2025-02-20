@@ -195,7 +195,7 @@ detect_service_status() {
 add_new_user() {
     local username="$1"
     local password="$2"
-    local reseller="$2"
+    local reseller="$3"
     local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
@@ -204,7 +204,7 @@ add_new_user() {
     else
     # Define the SQL commands
     
-    if [ -z "$reseller" ]; then
+    if [ "$reseller" == "--reseller" ]; then
         create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
     else
         create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'reseller', is_active BOOLEAN DEFAULT 1 NOT NULL);"
@@ -541,7 +541,7 @@ case "$1" in
         if [ "$reseller" == "--reseller" ]; then
             add_new_user "$new_username" "$new_password" "--reseller" 
         else
-            add_new_user "$new_username" "$new_password" "--reseller" 
+            add_new_user "$new_username" "$new_password"
         fi
         ;;
     "notifications")
