@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: php/install_php_version.sh
 # Description: Install a specific PHP version (and extensions) for a user.
-# Usage: opencli php-install_version <username> <php_version>
+# Usage: opencli php-install <username> <php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 20.02.2025
@@ -31,7 +31,7 @@
 
 # Check if the correct number of arguments are provided
 if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <username> <php_version>"
+  echo "Usage: opencli php-install <username> <php_version>"
   exit 1
 fi
 
