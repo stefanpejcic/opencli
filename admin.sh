@@ -219,7 +219,11 @@ add_new_user() {
             echo "User not created: $output"
             # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
         else
-            echo "User '$username' created."
+            if [ "$reseller" == "--reseller" ]; then
+                echo "Reseller '$username' created."
+            else
+                echo "User '$username' created."
+            fi
         fi
     fi
 }
