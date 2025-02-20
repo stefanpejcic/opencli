@@ -1345,9 +1345,23 @@ set_ssh_user_password_inside_container() {
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
       echo "root:$password" | docker $context_flag exec $username chpasswd"
-      docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
-      docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
+
+	if [ "$web_server" == "litespeed" ]; then
+              log "Adding 'root' user to the 'nobody' group for OpenLiteSpeed.."
+	      docker $context_flag exec $username usermod -aG nobody root > /dev/null 2>&1
+	      docker $context_flag exec $username usermod -aG root nobody > /dev/null 2>&1
+	elif [ "$web_server" == "nginx" ]; then
+              log "Adding 'root' user to the 'www-data' group for Nginx.."
+	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
+	       docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
+	elif [ "$web_server" == "apache" ]; then
+              log "Adding 'root' user to the 'www-data' group for Apache.."
+	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
+	       docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
+ 	fi
+
       docker $context_flag exec $username chmod -R g+w /var/www/html/" > /dev/null 2>&1
+      
       if [ "$DEBUG" = true ]; then
         echo "SSH password set to: $password"
       fi
@@ -1359,7 +1373,19 @@ set_ssh_user_password_inside_container() {
 
 phpfpm_config() {
     log "Creating www-data user inside the container.."
-    docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
+
+	if [ "$web_server" == "litespeed" ]; then
+		log "Creating user 'nobody' for OpenLiteSpeed inside the container.."
+		docker $context_flag exec $username usermod -u $user_id nobody > /dev/null 2>&1
+	elif [ "$web_server" == "nginx" ]; then
+		log "Creating user 'www-data' for Nginx inside the container.."
+		docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
+  	elif [ "$web_server" == "apache" ]; then
+		log "Creating user 'www-data' for Apache inside the container.."
+		docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
+ 	fi
+
+    
     #log "Setting container services..."
     #su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
 }
