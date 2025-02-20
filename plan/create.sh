@@ -41,7 +41,37 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-#!/bin/bash
+
+# Function to display script usage
+usage() {
+    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+    echo
+    echo "Arguments:"
+    echo "  name          - Name of the plan (string, no spaces)."
+    echo "  description   - Plan description (string, use quotes for multiple words)."
+    echo "  email_limit   - Max number of email accounts (integer, 0 for unlimited)."
+    echo "  ftp_limit     - Max number of FTP accounts (integer, 0 for unlimited)."
+    echo "  domains_limit - Max number of domains (integer, 0 for unlimited)."
+    echo "  websites_limit- Max number of websites (integer, 0 for unlimited)."
+    echo "  disk_limit    - Disk space limit in GB (integer)."
+    echo "  inodes_limit  - Max number of inodes (integer, min 250000)."
+    echo "  db_limit      - Max number of databases (integer, 0 for unlimited)."
+    echo "  cpu           - CPU core limit (integer)."
+    echo "  ram           - RAM limit in GB (integer)."
+    echo "  docker_image  - Web server type ('apache' or 'nginx')."
+    echo "  bandwidth     - Port speed in Mbit/s (integer)."
+    echo
+    echo "Example:"
+    echo "  opencli plan-create 'basic' 'Basic Hosting Plan' 10 5 10 5 50 500000 10 2 4 nginx 1000"
+    echo
+    exit 1
+}
+
+# Check for minimum required arguments
+if [ "$#" -lt 13 ]; then
+    usage
+fi
+
 
 # DB
 source /usr/local/opencli/db.sh
