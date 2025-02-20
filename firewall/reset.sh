@@ -5,7 +5,7 @@
 #              Use: opencli firewall-reset
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 12.06.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 

@@ -5,7 +5,7 @@
 # Usage: opencli backup-schedule
 # Author: Stefan Pejcic
 # Created: 02.02.2024
-# Last Modified: 25.11.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 

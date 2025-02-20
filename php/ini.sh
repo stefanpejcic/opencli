@@ -5,7 +5,7 @@
 # Usage: opencli php-ini <username> <action> <setting> [value]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 01.09.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 

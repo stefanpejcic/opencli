@@ -5,7 +5,7 @@
 # Usage: opencli websites-scan $username
 # Author: Stefan Pejcic
 # Created: 23.10.2024
-# Last Modified: 23.10.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 

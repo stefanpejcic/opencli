@@ -5,7 +5,7 @@
 # Use: opencli backup-restore <backup_directory>
 # Author: Stefan Pejcic
 # Created: 08.10.2023
-# Last Modified: 29.01.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 

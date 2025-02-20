@@ -5,7 +5,7 @@
 # Use: opencli docker-usage_stats_cleanup
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 11.06.2024
+# Last Modified: 20.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
