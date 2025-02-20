@@ -27,7 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
- 
 
 SCRIPTS_DIR="/usr/local/opencli"
 ALIAS_FILE="$SCRIPTS_DIR/aliases.txt"
