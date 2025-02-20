@@ -227,7 +227,25 @@ delete_context() {
     docker context rm $context  > /dev/null 2>&1
 }
 
+refresh_resellers_data() {
 
+	    local reseller_files="/etc/openpanel/admin/resellers"
+
+        if [ -d "$reseller_files" ]; then
+            for json_file in "$reseller_files"/*.json; do
+                if [ -f "$json_file" ]; then
+                    reseller=$(basename "$json_file" .json)  # Extract reseller name from filename
+        
+                    # Query the database for the number of users owned by the reseller
+                    query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
+                    current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query_for_owner" -se)
+                    if [ $? -eq 0 ]; then
+                        jq ".current_accounts = $current_accounts" $json_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $json_file
+                    fi
+                fi
+            done
+        fi
+}
 
 # MAIN
 
@@ -256,6 +274,7 @@ delete_user() {
     delete_user_from_database                # delete user from database
     delete_all_user_files                    # permanently delete data
     delete_context  
+    refresh_resellers_data                   # count users for all resellers
     reload_user_quotas
     echo "User $username deleted."           # if we made it
 }
