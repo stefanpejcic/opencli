@@ -459,14 +459,26 @@ run_the_actual_generation_for_user() {
             echo "ERROR: Exporting $1 from database failed"
           fi
         }
-    
     # Export User Data with INSERT INTO
-    mysql --defaults-extra-file=$config_file -N -e "
-        SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, owner, user_domains, twofa_enabled, otp_secret, plan, registered_date, server, plan_id) VALUES (',
-            id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(owner), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', QUOTE(plan), ',', IFNULL(QUOTE(registered_date), 'NULL'), ',', QUOTE(server), ',', plan_id, ');')
-        FROM panel.users WHERE id = $user_id
-    " > $openpanel_database/users.sql
-    check_success "User data export"
+mysql --defaults-extra-file=$config_file -N -e "
+    SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, owner, user_domains, twofa_enabled, otp_secret, plan, registered_date, server, plan_id) VALUES (',
+        id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(owner), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', QUOTE(plan), ',', IFNULL(QUOTE(registered_date), 'NULL'), ',', QUOTE(server), ',', plan_id, ')
+        ON DUPLICATE KEY UPDATE 
+            username = VALUES(username),
+            password = VALUES(password),
+            email = VALUES(email),
+            owner = VALUES(owner),
+            user_domains = VALUES(user_domains),
+            twofa_enabled = VALUES(twofa_enabled),
+            otp_secret = VALUES(otp_secret),
+            plan = VALUES(plan),
+            registered_date = VALUES(registered_date),
+            server = VALUES(server),
+            plan_id = VALUES(plan_id);')
+    FROM panel.users WHERE id = $user_id
+" > $openpanel_database/users.sql
+check_success "User data export"
+
     
     
     # Export User's Plan Data with INSERT INTO
