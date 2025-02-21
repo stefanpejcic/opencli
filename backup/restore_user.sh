@@ -26,9 +26,9 @@ log() {
 check_if_domains_exist() {
 
   while IFS= read -r line; do
-    domain_name=$(echo $line | awk -F"','" '{print $3}' | tr -d "'") # OVE 8.2
+    domain_name=$(echo "$line" | awk -F"," '{print $3}' | tr -d "()' ")
     if [ ! -z "$domain_name" ]; then
-      output=$(opencli domain-whoowns "$domain_name" --context)
+      output=$(opencli domains-whoowns "$domain_name" --context)
 
       if [[ "$output" == *"Domain '$domain_name' not found in the database."* ]]; then
         continue
@@ -230,7 +230,7 @@ compose_up() {
 
 untar_now() {
     echo "Extracting data from the archive.."
-    tar xzpf $backups_dir/backup_${username}_*.tar.gz -C /home/$context
+    tar xzpf $backups_dir/${username}/20250221104849/backup_radovan_20250221_104849.tar.gz -C /home/$context
 }
 
 
@@ -246,7 +246,7 @@ dirs_to_user_for_mv() {
   caddy_suspended_vhosts="/home/"$context"/caddy_suspended/"
 
   # backup dir!
-  backups_dir="/backups"
+  backups_dir="/backup"
   
   mkdir -p $apparmor_dir $openpanel_core $openpanel_database $backups_dir $caddy_vhosts $dns_zones $caddy_suspended_vhosts
 
