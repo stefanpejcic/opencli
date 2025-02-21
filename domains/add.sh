@@ -468,7 +468,7 @@ create_domain_file() {
 	    local username="$1"
             local inside_port="$2"
 	    local env_file="/home/${username}/.env"
-	    regex="port_\d+=\"\K[0-9]+(?=:$inside_port\")"
+	    regex="port_\\d+=\"127\\.0\\.0\\.1:\\K[0-9]+(?=:$inside_port\")"
 	
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
