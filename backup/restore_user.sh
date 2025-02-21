@@ -89,8 +89,8 @@ import_user_data_in_database() {
     check_success "User data"
     
     # Import User's Plan Data
-    mysql -e "SOURCE $openpanel_database/plans.sql"
-    check_success "Plan data"
+#    mysql -e "SOURCE $openpanel_database/plans.sql"
+#    check_success "Plan data"
     
     # Import Domains Data for User
     mysql -e "SOURCE $openpanel_database/domains.sql"
