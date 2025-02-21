@@ -1258,8 +1258,8 @@ run_docker() {
 	port_2="$SECOND_NEXT_AVAILABLE:3306"
 	port_3="$THIRD_NEXT_AVAILABLE:7681"
 	port_4="$FOURTH_NEXT_AVAILABLE:8080"
-	port_5="$FIFTH_NEXT_AVAILABLE:80"
-        port_6="$SIXTH_NEXT_AVAILABLE:443"
+	port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:80"
+        port_6="127.0.0.1:$SIXTH_NEXT_AVAILABLE:443"
     else
 	port_1=""
 	port_2=""
