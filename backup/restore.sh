@@ -28,24 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Initialize all flags to false by default
-FILES=false
-ENTRYPOINT=false
-WEBSERVER_CONF=false
-MYSQL_CONF=false
-MYSQL_DATA=false
-PHP_VERSIONS=false
-CRONTAB=false
-USER_DATA=false
-CORE_USERS=false
-STATS_USERS=false
-APACHE_SSL_CONF=false
-DOMAIN_ACCESS_REPORTS=false
-TIMEZONE=false
-SSH_PASS=false
-DOCKER=false
-
-
 NUMBER=$1
 PATH_ON_REMOTE_SERVER=$2
 CONTAINER_NAME=$3
