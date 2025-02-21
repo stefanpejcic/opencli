@@ -499,8 +499,11 @@ check_success "User data export"
         FROM panel.domains WHERE user_id = $user_id
     " > $openpanel_database/domains.sql
     check_success "Domains data export"
-    
-    
+
+
+    # export domains to be checked before import!
+    opencli domains-user USERNAME > $openpanel_database/domains.txt
+        
     # Export Sites Data for User with INSERT INTO
     mysql --defaults-extra-file=$config_file -N -e "
         SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name, admin_email, version, created_date, type, ports, path) VALUES (',
