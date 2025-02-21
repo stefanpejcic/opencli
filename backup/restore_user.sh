@@ -43,16 +43,9 @@ check_if_domains_exist() {
       fi
     fi
   done <<< "$domains_file"
-
-
-
-
 }
-delete_user()  {
 
-	opencli user-delete $username -y
 
-}
 mkdirs()  {
 
   echo "Settings paths for user '$username' and docker context '$context'"
@@ -281,7 +274,7 @@ copy_domain_zones() {
     local zones_dir="/etc/bind/zones/"
 
     echo "Copying Caddy VHosts files.."
-    cp -r ${caddy_vhosts} ${caddy_dir} > /dev/null 2>&1 
+    cp -r ${caddy_vhosts}/* ${caddy_dir} > /dev/null 2>&1 
     cp -r ${caddy_suspended_vhosts} ${caddy_suspended_dir} > /dev/null 2>&1 
 
     echo "Copying DNS zone files for domains.."
@@ -300,9 +293,9 @@ get_just_context_and_domains() {
   echo "Extracting docker context information from the backup.."
   rm -rf /tmp/$username/
   mkdir -p /tmp/$username/
-  tar xzpf $archive_path -C /tmp/$username './context' './op_db/domains.sql'
+  tar xzpf $archive_path -C /tmp/$username './context' './op_db/domains.txt'
   context=$(cat /tmp/$username/context)
-  domains_file=$(cat /tmp/$username/op_db/domains.sql)
+  domains_file=$(cat /tmp/$username/op_db/domains.txt)
   rm /tmp/$username/
 }
 
@@ -358,7 +351,6 @@ collect_stats() {
 
 get_just_context_and_domains
 check_if_domains_exist
-#delete_user
 mkdirs
 dirs_to_user_for_mv
 untar_now
