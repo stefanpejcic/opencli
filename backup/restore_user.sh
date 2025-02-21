@@ -48,9 +48,11 @@ check_if_domains_exist() {
 
 
 }
+delete_user()  {
 
+	opencli user-delete $username -y
 
-
+}
 mkdirs()  {
 
   echo "Settings paths for user '$username' and docker context '$context'"
@@ -230,7 +232,7 @@ compose_up() {
 
 untar_now() {
     echo "Extracting data from the archive.."
-    tar xzpf $backups_dir/${username}/20250221104849/backup_radovan_20250221_104849.tar.gz -C /home/$context
+tar xzpf "$archive_path" -C /home/$context
 }
 
 
@@ -356,6 +358,7 @@ collect_stats() {
 
 get_just_context_and_domains
 check_if_domains_exist
+#delete_user
 mkdirs
 dirs_to_user_for_mv
 untar_now
