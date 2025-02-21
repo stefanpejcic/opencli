@@ -6,7 +6,7 @@
 #        opencli backup-config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 28.01.2024
-# Last Modified: 20.02.2025
+# Last Modified: 21.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
