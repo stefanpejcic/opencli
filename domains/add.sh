@@ -424,7 +424,7 @@ virtualHost $domain_name{
 	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file > /dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
-	php_version=$(opencli php-default_version $user | grep -oP '\d+\.\d+')
+	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
 	# should be skipped for litespeed!
 
  	docker --context $user exec $container_name touch $vhost_in_docker_file > /dev/null 2>&1 # to be removed!
