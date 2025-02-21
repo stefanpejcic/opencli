@@ -1474,7 +1474,7 @@ phpfpm_config() {
 		docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
  	fi
 
-	docker $context_flag exec chown -R www-data /var/www/html/ > /dev/null 2>&1
+	docker $context_flag exec chown -R www-data:www-data /var/www/html/ > /dev/null 2>&1
     
     #log "Setting container services..."
     #su $username -c "docker $context_flag exec $username bash -c 'for phpv in \$(ls /etc/php/); do if [[ -d \"/etc/php/\$phpv/fpm\" ]]; then service php\${phpv}-fpm restart; fi; done'" > /dev/null 2>&1
