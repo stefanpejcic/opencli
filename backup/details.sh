@@ -5,7 +5,7 @@
 # Usage: opencli backup-details <USERNAME> <BACKUP_JOB_ID> <DATE> [--json]
 # Author: Stefan Pejcic
 # Created: 02.02.2024
-# Last Modified: 21.02.2025
+# Last Modified: 22.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
