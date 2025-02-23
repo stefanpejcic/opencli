@@ -358,48 +358,22 @@ add_domain_to_clamav_list(){
 
 
 start_default_php_fpm_service() {
-        log "Starting service for the default PHP version ${php_version}"
-	docker --context $context exec $container_name bash -c "service php${php_version}-fpm start >/dev/null 2>&1"
-        log "Checking and setting PHP service to automatically start on reboot"
-	docker --context $context exec $container_name bash -c "sed -i 's/PHP${php_version//./}FPM_STATUS=\"off\"/PHP${php_version//./}FPM_STATUS=\"on\"/' /etc/entrypoint.sh >/dev/null 2>&1"
+        log "Starting container for the default PHP version ${php_version}"
+	docker --context $context compose up -d php-fpm-${php_version}-fpm >/dev/null 2>&1 	
 }
 
 
-
-auto_start_webserver_for_user_in_future(){
-        log "Checking and setting $ws service to automatically start on reboot"
-	if [[ $ws == *apache2* ]]; then
- 		######docker --context $context exec $container_name bash -c  
-		su "$user" -c "docker exec $container_name sed -i 's/APACHE_STATUS=\"off\"/APACHE_STATUS=\"on\"/' /etc/entrypoint.sh"
-	elif [[ $ws == *nginx* ]]; then
-		su "$user" -c "docker exec $container_name sed -i 's/NGINX_STATUS=\"off\"/NGINX_STATUS=\"on\"/' /etc/entrypoint.sh"
-	elif [[ $ws == *litespeed* ]]; then
-		su "$user" -c "docker exec $container_name sed -i 's/LITESPEED_STATUS=\"off\"/LITESPEED_STATUS=\"on\"/' /etc/entrypoint.sh"
-	fi
-}
 
 
 vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
- 		if [[ $VARNISH == true ]]; then
-   			vhost_docker_template="/etc/openpanel/docker/templates/docker_varnish_apache_domain.conf"
-   		else
-			vhost_docker_template="/etc/openpanel/docker/templates/docker_apache_domain.conf"
-  		fi      
+vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
-vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
- 		
- 		if [[ $VARNISH == true ]]; then
-   			vhost_docker_template="/etc/openpanel/docker/templates/docker_varnish_nginx_domain.conf"
-   		else
-			vhost_docker_template="/etc/openpanel/docker/templates/docker_nginx_domain.conf"
-		fi
+vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf" 		
+vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
 	elif [[ $ws == *litespeed* ]]; then
- 		restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
 
@@ -418,16 +392,9 @@ virtualHost $domain_name{
 	fi
 
 	log "Creating $vhost_in_docker_file"
-	logs_dir="/var/log/$ws/domlogs"
-	
-	docker --context $user exec $container_name bash -c "mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log" > /dev/null 2>&1
 	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file > /dev/null 2>&1
 
-  	# gateway is always 172.17.0.0/16
 	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
-	# should be skipped for litespeed!
-
- 	docker --context $user exec $container_name touch $vhost_in_docker_file > /dev/null 2>&1 # to be removed!
 
 	docker --context "$user" exec "$container_name" bash -c "
 	  sed -i \
@@ -438,8 +405,7 @@ virtualHost $domain_name{
 	    $vhost_in_docker_file
 	"
 
-
-       docker --context $user exec $container_name bash -c "$restart_in_container_command" > /dev/null 2>&1
+       docker --context $context compose up -d $ws > /dev/null 2>&1
  
 }
 
@@ -762,7 +728,6 @@ add_domain() {
     
     	clear_cache_for_user                         # rm cached file for ui
     	make_folder                                  # create dirs on host server
-     	check_if_varnish_installed_for_user	     # use varnish templates
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
@@ -770,7 +735,6 @@ add_domain() {
         create_zone_file                             # create zone
 	get_slave_dns_option                         # create zone on slave before include on master
 	update_named_conf                            # include zone 
- 	auto_start_webserver_for_user_in_future      # edit entrypoint
        	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
  	litespeed_extra
