@@ -5,7 +5,7 @@
 # Usage: opencli backup-check
 # Author: Stefan Pejcic
 # Created: 31.01.2024
-# Last Modified: 22.02.2025
+# Last Modified: 23.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
