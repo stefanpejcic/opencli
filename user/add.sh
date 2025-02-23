@@ -1285,7 +1285,17 @@ UID="0"
 CONTEXT="$username"
 TOTAL_CPU="$cpu"
 TOTAL_RAM="$ram"
+MYSQL_TYPE="$mysql_version"
 
+# WEBSERVER
+WEB_SERVER="$web_server"
+VARNISH="Off"
+# when varnish is off, use http/s ports for ws
+# when varnish is on, use proxy http/s ports for ws and http/s ports for varnish
+HTTP_PORT=""
+HTTPS_PORT=""
+PROXY_HTTP_PORT=""
+PROXY_HTTPS_PORT=""
 
 # UBUNTU
 OS="openpanel/ubuntu"
@@ -1294,23 +1304,23 @@ OS_CPU="0.5"
 OS_RAM="0.5G"
 SSH_PORT="$port_1"
 TTYD_PORT="$port_3"
-MYSQL_CPU="0.5"
-MYSQL_RAM="0.25G"
 
 
-# NGINX 
-HTTP_PORT="$port_5"
-HTTPS_PORT="$port_6"
+# DEPRECATED - WILL BE REMOVED SOON!
+path="$path"
+
+# NGINX / APACHE
 NGINX_CPU="0.5"
 NGINX_RAM="0.5G"
 
-# DEPRECATED - WILL BE REMOVED SOON!
-default_php_version=8.4
-mysql_version=$mysql_version
-path="$path"
-web_server=$web_server
 
-# MYSQL
+# VARNISH
+VARNISH_SIZE="1G"
+VARNISH_CPU="0.2"
+VARNISH_RAM="0.2G"
+
+
+# MYSQL / MARIADB
 MYSQL_VERSION="latest"
 MYSQL_PORT="$port_2"
 MYSQL_CPU="0.5"
@@ -1323,16 +1333,41 @@ PMA_PORT="$port_4"
 PMA_CPU="0.1"
 PMA_RAM="0.1G"
 
+
 # REDIS
 REDIS_VERSION="7.4.2-alpine"
 REDIS_CPU="0.1"
 REDIS_RAM="0.1G"
 
-
 # MEMCACHED
 MEMCACHED_VERSION="1.6.37-alpine"
 MEMCACHED_CPU="0.1"
 MEMCACHED_RAM="0.1G"
+
+# PHP
+DEFAULT_PHP_VERSION=$default_php_version
+PHP_56_CPU="0.125"
+PHP_56_RAM="0.25G"
+PHP_70_CPU="0.125"
+PHP_70_RAM="0.25G"
+PHP_71_CPU="0.125"
+PHP_71_RAM="0.25G"
+PHP_72_CPU="0.125"
+PHP_72_RAM="0.25G"
+PHP_73_CPU="0.125"
+PHP_73_RAM="0.25G"
+PHP_74_CPU="0.125"
+PHP_74_RAM="0.25G"
+PHP_80_CPU="0.125"
+PHP_80_RAM="0.25G"
+PHP_81_CPU="0.125"
+PHP_81_RAM="0.25G"
+PHP_82_CPU="0.125"
+PHP_82_RAM="0.25G"
+PHP_83_CPU="0.125"
+PHP_83_RAM="0.25G"
+PHP_84_CPU="0.125"
+PHP_84_RAM="0.25G"
 
 EOF
 
