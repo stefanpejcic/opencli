@@ -1276,30 +1276,63 @@ run_docker() {
 cp /etc/openpanel/docker/compose/new.yml /home/$username/docker-compose.yml
 
 cat <<EOF > /home/$username/.env
-# User-specific settings
-username=$username
-context=$username
-docker_image=$docker_image:latest
-hostname=$hostname
+#################################
+#  USER INFORMATION AND LIMITS  #
+#################################
 
-# Resources
-cpu=$cpu
-ram=$ram
+USERNAME="$username"
+UID="0"
+CONTEXT="$username"
+TOTAL_CPU="$cpu"
+TOTAL_RAM="$ram"
 
-# Ports
-port_1="$port_1"
-port_2="$port_2"
-port_3="$port_3"
-port_4="$port_4"
-port_5="$port_5"
-port_6="$port_6"
 
-# Path
-path=$path
+# UBUNTU
+OS="openpanel/ubuntu"
+HOSTNAME="$username"
+OS_CPU="0.5"
+OS_RAM="0.5G"
+SSH_PORT="$port_1"
+TTYD_PORT="$port_3"
+MYSQL_CPU="0.5"
+MYSQL_RAM="0.25G"
 
-web_server=$web_server
-default_php_version=$default_php_version
+
+# NGINX 
+HTTP_PORT="$port_5"
+HTTPS_PORT="$port_6"
+NGINX_CPU="0.5"
+NGINX_RAM="0.5G"
+
+# DEPRECATED - WILL BE REMOVED SOON!
+default_php_version=8.4
 mysql_version=$mysql_version
+path="$path"
+web_server=$web_server
+
+# MYSQL
+MYSQL_VERSION="latest"
+MYSQL_PORT="$port_2"
+MYSQL_CPU="0.5"
+MYSQL_RAM="0.5G"
+MYSQL_ROOT_PASSWORD="rootpassword"
+
+# PHPMYADMIN
+PMA_VERSION=""
+PMA_PORT="$port_4"
+PMA_CPU="0.1"
+PMA_RAM="0.1G"
+
+# REDIS
+REDIS_VERSION="7.4.2-alpine"
+REDIS_CPU="0.1"
+REDIS_RAM="0.1G"
+
+
+# MEMCACHED
+MEMCACHED_VERSION="1.6.37-alpine"
+MEMCACHED_CPU="0.1"
+MEMCACHED_RAM="0.1G"
 
 EOF
 
