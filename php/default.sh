@@ -7,8 +7,8 @@
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 23.02.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -68,13 +68,8 @@ update_php_version() {
         exit 1
     fi
 
-    if docker --context "$context" exec "$username" bash -c "update-alternatives --set php /usr/bin/php$new_php_version"; then
-        sed -i "s/\(default_php_version=\)\(php\?[0-9.]\+\)/\1$new_php_version/" "$config_file"
-        echo "Default PHP version for user '$username' updated to: $new_php_version"
-    else
-        echo "Failed to update the PHP version in docker container and configuration file not updated."
-        exit 1
-    fi
+    sed -i "s/\(DEFAULT_PHP_VERSION=\)\(php\?[0-9.]\+\)/\1$new_php_version/" "$config_file"
+    echo "Default PHP version for user '$username' updated to: $new_php_version"
 
 }
 
@@ -107,7 +102,7 @@ if [ "$2" == "--update" ]; then
     update_php_version "$new_php_version" "$config_file"
 else
     # Use awk to extract the PHP version from the YAML file
-    php_version=$(awk -F '=' '/default_php_version/ {print $2}' "$config_file" | tr -d '[:space:]')
+    php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "$config_file" | tr -d '[:space:]')
     if [[ "$php_version" == php* ]]; then # legacy for <0.3.4
         php_version="${php_version#php}"
     fi
