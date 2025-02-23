@@ -1337,7 +1337,7 @@ MEMCACHED_RAM="0.1G"
 EOF
 
 log ".env file created successfully"
-local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d"
+local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d user_service"
 
 
 if [ "$DEBUG" = true ]; then
@@ -1349,7 +1349,7 @@ fi
 if [ -n "$node_ip_address" ]; then
 	ssh $username "$docker_cmd" > /dev/null 2>&1
 else
-	machinectl shell $username@ /bin/bash -c "$docker_cmd" #> /dev/null 2>&1
+	machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
 fi
 
 compose_running=$(docker --context $username compose ls)
