@@ -359,7 +359,7 @@ add_domain_to_clamav_list(){
 
 start_default_php_fpm_service() {
         log "Starting container for the default PHP version ${php_version}"
-	docker --context $context compose up -d php-fpm-${php_version}-fpm >/dev/null 2>&1 	
+	docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version} >/dev/null 2>&1
 }
 
 
