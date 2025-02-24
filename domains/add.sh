@@ -298,28 +298,38 @@ make_folder() {
 
 
 check_and_create_default_file() {
-# NOT USED ANY MORE!
 #extra step needed for nginx
-log "Checking if default vhosts file exists for Nginx"
-file_exists=$(docker --context $context exec  $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
+log "Checking if default configuration file exists for Nginx"
+file_exists=$(test -e /home/$context/nginx.conf && echo yes || echo no")
 
 if [ "$file_exists" == "no" ]; then
-    		log "Creating default vhost file for Nginx: /etc/nginx/sites-enabled/default"
-
-tempfile=$(mktemp) 
+    		log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
 
 # Create the Nginx configuration file
-echo "server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    deny all;
-    return 444;
-}" > "$tempfile"
+echo "user  nginx;
+worker_processes  auto;
 
-# Copy the file to the container
-docker --context "$context" cp "$tempfile" "$container_name:/etc/nginx/sites-enabled/default" > /dev/null 2>&1
-rm "$tempfile" > /dev/null 2>&1
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    include /etc/nginx/conf.d/*.conf;
+} 
+" > "/home/$context/nginx.conf"
   
 fi
 }
@@ -332,7 +342,7 @@ get_webserver_for_user(){
 	    output=$(opencli webserver-get_webserver_for_user $user)
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
-	 	#check_and_create_default_file # DEPRECATED, will remove in future!
+	 	check_and_create_default_file
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
 	    elif [[ $output == *litespeed* ]]; then
