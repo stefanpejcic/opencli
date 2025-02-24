@@ -434,7 +434,7 @@ create_domain_file() {
 	    local username="$1"
             local inside_port="$2"
 	    local env_file="/home/${username}/.env"
-	    regex="port_\\d+=\"127\\.0\\.0\\.1:\\K[0-9]+(?=:$inside_port\")"
+     		regex="127\\.0\\.0\\.1:[0-9]+:$inside_port"
 	
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
@@ -455,7 +455,6 @@ create_domain_file() {
 
 	non_ssl_port=$(get_port_mapping "$user" "80")
         ssl_port=$(get_port_mapping "$user" "443")
- 	localhost_and_port="127.0.0.1:$port"
 
  # VARNISH
  	# added in 0.2.6
