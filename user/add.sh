@@ -1576,7 +1576,7 @@ get_php_version() {
       if [ "$DEBUG" = true ]; then
         echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
       fi
-      default_php_version="php8.2"
+      default_php_version="8.2"
     fi
 
 }
