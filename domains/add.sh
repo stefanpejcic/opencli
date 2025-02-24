@@ -406,7 +406,7 @@ virtualHost $domain_name{
 	    $vhost_in_docker_file
 	"
 
-       docker --context $context compose up -d $ws > /dev/null 2>&1
+       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
  
 }
 
