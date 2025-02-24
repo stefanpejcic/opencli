@@ -26,16 +26,21 @@ determine_web_server() {
     fi
 
 
-    # Check for Apache inside the container
-    if docker --context $context exec "$username" which apache2 &> /dev/null; then
-        echo "apache"
-    elif docker --context $context exec "$username" which nginx &> /dev/null; then
+    
+    # Check which container is running nginx, apache, or litespeed
+    container_name=$(docker --context "$context" ps --filter "status=running" --format "{{.Names}}")
+    
+    if [[ "$container_name" == *"nginx"* ]]; then
         echo "nginx"
-    elif docker --context $context exec "$username" which openlitespeed &> /dev/null; then
+    elif [[ "$container_name" == *"apache"* ]]; then
+        echo "apache"
+    elif [[ "$container_name" == *"litespeed"* ]]; then
         echo "litespeed"
     else
         echo "unknown"
     fi
+
+
 }
 
 
@@ -80,7 +85,7 @@ if [ "$2" == "--update" ]; then
     # Check if the file exists
     if [ -f "$config_file" ]; then
         # Update the web_server value in the configuration file
-        sed -i "s/^web_server=.*/web_server=$current_web_server/" "$config_file"
+        sed -i "s/^WEB_SERVER=.*/WEB_SERVER=\"$current_web_server\"/" "$config_file"        
         echo "Web Server for user $username updated to: $current_web_server"
     else
         echo "Configuration file not found for user $username"
@@ -89,7 +94,7 @@ else
     # Check if the file exists
     if [ -f "$config_file" ]; then
         # Use grep and awk to extract the value of web_server
-        web_server=$(grep "^web_server=" "$config_file" | awk -F '=' '{print $2}' | tr -d '[:space:]')
+        web_server=$(grep "^WEB_SERVER=" "$config_file" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
 
         # Check if web_server is not empty
         if [ -n "$web_server" ]; then
