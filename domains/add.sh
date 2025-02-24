@@ -298,6 +298,7 @@ make_folder() {
 
 
 check_and_create_default_file() {
+# NOT USED ANY MORE!
 #extra step needed for nginx
 log "Checking if default vhosts file exists for Nginx"
 file_exists=$(docker --context $context exec  $container_name bash -c "test -e /etc/nginx/sites-enabled/default && echo yes || echo no")
@@ -331,7 +332,7 @@ get_webserver_for_user(){
 	    output=$(opencli webserver-get_webserver_for_user $user)
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
-	 	check_and_create_default_file
+	 	#check_and_create_default_file # DEPRECATED, will remove in future!
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
 	    elif [[ $output == *litespeed* ]]; then
