@@ -412,6 +412,8 @@ virtualHost $domain_name{
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
 	"
+ 
+	log "Starting $ws container"
 
        docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
  
