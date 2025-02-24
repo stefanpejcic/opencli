@@ -484,7 +484,10 @@ domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 touch $domains_file
 
 
+
+
 sed_values_in_domain_conf() {
+
 if [ "$REMOTE_SERVER" == "yes" ]; then
 	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
                                            -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
