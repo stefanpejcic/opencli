@@ -297,16 +297,17 @@ make_folder() {
 }
 
 
+
 check_and_create_default_file() {
-#extra step needed for nginx
-log "Checking if default configuration file exists for Nginx"
-file_exists=$(test -e /home/$context/nginx.conf && echo yes || echo no")
+    # extra step needed for nginx
+    log "Checking if default configuration file exists for Nginx"
+    
+    # Check if the file exists
+    if [ ! -e "/home/$context/nginx.conf" ]; then
+        log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
 
-if [ "$file_exists" == "no" ]; then
-    		log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
-
-# Create the Nginx configuration file
-echo "user  nginx;
+        # Create the Nginx configuration file
+        echo "user  nginx;
 worker_processes  auto;
 
 pid        /var/run/nginx.pid;
@@ -314,7 +315,6 @@ pid        /var/run/nginx.pid;
 events {
     worker_connections  1024;
 }
-
 
 http {
     include       /etc/nginx/mime.types;
@@ -328,12 +328,9 @@ http {
     #gzip  on;
 
     include /etc/nginx/conf.d/*.conf;
-} 
-" > "/home/$context/nginx.conf"
-  
-fi
+}" > "/home/$context/nginx.conf"
+    fi
 }
-
 
 
 
