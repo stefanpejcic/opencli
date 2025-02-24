@@ -408,7 +408,7 @@ virtualHost $domain_name{
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
-	    -e 's|<PHP>|php${php_version}|g' \
+	    -e 's|<PHP>|${php_version}|g' \
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
 	"
