@@ -430,34 +430,18 @@ create_domain_file() {
 	mkdir -p $logs_dir && touch $logs_dir/${domain_name}.log
 
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
+ 
+	local env_file="/home/${context}/.env"
+ 	source $env_file
 
-	get_port_mapping() {
-	    local username="$1"
-            local inside_port="$2"
-	    local env_file="/home/${username}/.env"
-	    regex="^${port_var}=\"127\\.0\\.0\\.1:[0-9]+:$inside_port\""
-	
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
 	        echo "Error: .env file not found for user $username"
 	        return 1
 	    fi
 	
-	    # Extract the port mapping for :80
-	    local nonssl_port_mapping
-	    port_mapping=$(grep -oP "$regex" "$env_file")
-	    if [[ -n "$port_mapping" ]]; then
-	        echo "$port_mapping"
-	    else
-	        echo "Error: No port mapping found for :$inside_port"
-	        log "Error: No port mapping found for :$inside_port"
-	 	exit 1
-	        return 1
-	    fi
-	}
-
-	non_ssl_port=$(get_port_mapping "$user" "HTTP_PORT")
- 	ssl_port=$(get_port_mapping "$user" "HTTPS_PORT")
+	    non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
+	    ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
 
 
  # VARNISH
