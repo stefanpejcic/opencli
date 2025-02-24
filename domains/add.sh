@@ -449,6 +449,8 @@ create_domain_file() {
 	        echo "$port_mapping"
 	    else
 	        echo "Error: No port mapping found for :$inside_port"
+	        log "Error: No port mapping found for :$inside_port"
+	 	exit 1
 	        return 1
 	    fi
 	}
