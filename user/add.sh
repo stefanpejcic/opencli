@@ -1270,10 +1270,7 @@ run_docker() {
     fi
 
 
-# TODO FOR PHP
-# docker --context gmqv6rqs image inspect --format='{{json .Config.Labels}}' openpanel/nginx | jq -r '.php'
-
-cp /etc/openpanel/docker/compose/new.yml /home/$username/docker-compose.yml
+cp /etc/openpanel/docker/compose/1.0/docker-compose.yml /home/$username/docker-compose.yml
 
 cat <<EOF > /home/$username/.env
 #################################
