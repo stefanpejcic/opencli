@@ -1289,8 +1289,8 @@ WEB_SERVER="$web_server"
 VARNISH="Off"
 # when varnish is off, use http/s ports for ws
 # when varnish is on, use proxy http/s ports for ws and http/s ports for varnish
-HTTP_PORT=""
-HTTPS_PORT=""
+HTTP_PORT="$port_5"
+HTTPS_PORT="$port_6"
 PROXY_HTTP_PORT=""
 PROXY_HTTPS_PORT=""
 
