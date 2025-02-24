@@ -1272,6 +1272,12 @@ run_docker() {
 
 cp /etc/openpanel/docker/compose/1.0/docker-compose.yml /home/$username/docker-compose.yml
 
+if [ ! -f /home/$username/docker-compose.yml ]; then
+  echo "ERROR: /home/$username/docker-compose.yml file not created. Make sure that the /etc/openpanel/ is updated and contains valid templates."
+  exit 1
+fi
+
+
 cat <<EOF > /home/$username/.env
 #################################
 #  USER INFORMATION AND LIMITS  #
@@ -1369,6 +1375,15 @@ PHP_84_RAM="0.25G"
 EOF
 
 log ".env file created successfully"
+
+
+if [ -f /home/$username/env ]; then
+	log ".env file created successfully"
+else
+	echo "ERROR: /home/$username/.env file not created. Make sure that the /etc/openpanel/ is updated and contains valid templates."
+	exit 1
+fi
+
 local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d user_service"
 
 
