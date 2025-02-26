@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Script Name: limit.sh
+# Script Name: resources.sh
 # Description: View services limits for user.
-# Usage: opencli docker-limit <CONTEXT> [--test=<SERVICE_NAME>] [--json]
+# Usage: opencli user-resources <CONTEXT> [--test=<SERVICE_NAME>] [--json]
 # Author: Stefan Pejcic
-# Created: 24.02.2025
-# Last Modified: 23.02.2025
+# Created: 26.02.2025
+# Last Modified: 26.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
