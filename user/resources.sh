@@ -232,11 +232,67 @@ get_active_services_and_their_usage() {
 
 
 
+check_if_service_exists_or_running() {
+    service_name="$1"
+    action="$2"
+
+    service_exists=$(docker --context $context compose -f /home/$context/docker-compose.yml config --services | grep -w "$service_name")
+
+    if [ -z "$service_exists" ]; then
+        echo "Service '$service_name' does not exist in the Docker Compose file."
+        return 1  # Service doesn't exist
+    fi
+
+    # Action "check" – just verify if the service exists
+    if [ "$action" == "check" ]; then
+        #echo "Service '$service_name' exists in the Docker Compose file."
+        return 0
+    fi
+
+    # Action "status" – check if the service is running
+    if [ "$action" == "status" ]; then
+        running_service=$(docker --context $context ps --filter "name=$service_name" --format '{{.Names}}')
+
+        if [ "$running_service" == "$service_name" ]; then
+            #echo "Service '$service_name' is already running."
+            return 0  # Service is running
+        else
+            #echo "Service '$service_name' is not running."
+            return 2  # Service exists but is not running
+        fi
+    fi
+    
+}
+
+
+start_service_now() {
+    service_name="$1"
+    docker --context $context compose -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
+}
+
+
+display_json_or_message() {
+        if $json_output; then
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}} , \"message\": \"$message\"}"
+            echo "$json_data" | jq .
+        else
+            echo "$message"
+        fi
+}    
+
+
 add_new_service() {
 # Handle new service addition if --activate=<service_name> is provided
     if [[ -n "$new_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
         new_service_name=$(echo "$new_service" | sed 's/[.-]/_/g')  
+
+        check_if_service_exists_or_running "$new_service_name" "check"
+        
+        if [ $? -eq 1 ]; then
+            echo "ERROR: Service $new_service_name does not exist in docker-compose.yml file. Contact the administrator."
+        fi
+        
     
         new_cpu_var="${new_service_name^^}_CPU"
         new_ram_var="${new_service_name^^}_RAM"
@@ -272,23 +328,41 @@ add_new_service() {
                 fi
     
             fi
-    
-            if $json_output; then
-                json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}} , \"message\": \"$message\"}"
-                echo "$json_data" | jq .
-            else
-                echo "$message"
-            fi  
-    
-            if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
-                    exit 1
-            fi
-    
+
+
+        
             if (( $(echo "$projected_cpu > $TOTAL_CPU" | bc -l) )) || (( $(echo "$projected_ram > $TOTAL_RAM" | bc -l) )); then
+                    display_json_or_message
                     exit 1
+            else
+                # START SERVICE
+                start_service_now $new_service_name
+                
+                # CHECK IF RUNNING
+                check_service "$service_name" "status"
+                status=$?
+                if [ $status -eq 0 ]; then
+                    message="${message} \n Service '$service_name' started successfully."
+                elif [ $status -eq 2 ]; then
+                    message="${message} \n Service '$service_name' did not start. Contact Administrator."
+                fi
+
+                # DONT SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
+                if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
+                        display_json_or_message
+                        exit 1
+                fi
+
+                display_json_or_message
             fi
     fi
 }
+
+
+
+
+
+
 
 final_output_for_json() {
     if $json_output; then
