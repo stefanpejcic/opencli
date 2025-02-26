@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: resources.sh
 # Description: View services limits for user.
-# Usage: opencli user-resources <CONTEXT> [--test=<SERVICE_NAME>] [--json]
+# Usage: opencli user-resources <CONTEXT> [--test=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--json]
 # Author: Stefan Pejcic
 # Created: 26.02.2025
 # Last Modified: 26.02.2025
