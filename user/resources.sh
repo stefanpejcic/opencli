@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: resources.sh
 # Description: View services limits for user.
-# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--json]
+# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--deactivate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--json]
 # Author: Stefan Pejcic
 # Created: 26.02.2025
 # Last Modified: 26.02.2025
@@ -47,6 +47,8 @@ update_ram=""
             update_ram="${arg#--update_ram=}"
         elif [[ "$arg" == --activate=* ]]; then
             new_service="${arg#--activate=}"
+        elif [[ "$arg" == --deactivate=* ]]; then
+            stop_service="${arg#--deactivate=}"
         fi
     done
 
@@ -269,6 +271,10 @@ start_service_now() {
     docker --context $context compose -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
 }
 
+stop_service_now() {
+    service_name="$1"
+    docker --context $context compose -f /home/$context/docker-compose.yml down $service_name > /dev/null 2>&1   
+}
 
 display_json_or_message() {
         if $json_output; then
@@ -361,6 +367,34 @@ add_new_service() {
 
 
 
+stop_container() {
+# Handle new service addition if --activate=<service_name> is provided
+    if [[ -n "$stop_service" ]]; then
+        # Replace dots and hyphens with underscores in the new service name
+        stop_service=$(echo "$new_service" | sed 's/[.-]/_/g')  
+
+        check_if_service_exists_or_running "$stop_service" "check"
+        
+        if [ $? -eq 1 ]; then
+            echo "ERROR: Service $stop_service does not exist in docker-compose.yml file. Contact the administrator."
+        fi
+        
+                # START SERVICE
+                stop_service_now $stop_service
+                
+                # CHECK IF RUNNING
+                check_if_service_exists_or_running "$stop_service" "status"
+                status=$?
+                if [ $status -eq 0 ]; then
+                    message="${message} \n Service '$stop_service' did not stop. Contact Administrator."
+                elif [ $status -eq 2 ]; then
+                    message="${message} \n Service '$stop_service' stopped successfully."
+                    opencli docker-collect_stats $USERNAME >/dev/null 2>&1 &
+                fi
+
+                display_json_or_message
+    fi
+}
 
 
 
@@ -377,6 +411,7 @@ update_ram_total                              # set maximum ram (G) for the user
 load_env_file_now                             # load the data from .env file after (if) we did updates
 get_total_cpu_and_ram                         # get total cpu/ram usage allocated to the user
 get_active_services_and_their_usage           # get combined cpu/ram usage for all active services
+stop_container                                # stop container
 add_new_service                               # check if starting new service is within user limits and start it
 final_output_for_json                         # pretty print the data
 
