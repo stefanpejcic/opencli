@@ -28,26 +28,98 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-# Load .env variables, excluding the readonly UID variable
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | grep -v '^UID=' | xargs)
-else
-    echo "Error: .env file not found!"
+# Process the OS service (first argument)
+context=$1
+if [ -z "$context" ]; then
+    echo "Error: docker context name must be provided as the first argument!"
     exit 1
+fi
+
+
+
+
+# Flag for JSON output
+json_output=false
+new_service=""
+update_cpu=""
+update_ram=""
+env_file="/home/${context}/.env"
+
+if [ ! -f "$env_file" ]; then
+    echo "Error: $env_file file not found!"
+    exit 1
+fi
+
+
+# Parse flags and arguments
+for arg in "$@"; do
+    if [[ "$arg" == "--json" ]]; then
+        json_output=true
+    elif [[ "$arg" == --update_cpu=* ]]; then
+        update_cpu="${arg#--update_cpu=}"
+    elif [[ "$arg" == --update_ram=* ]]; then
+        update_ram="${arg#--update_ram=}"
+    elif [[ "$arg" == --test=* ]]; then
+        new_service="${arg#--test=}"
+    fi
+done
+
+
+
+# used for both cpu and ram
+validate_number() {
+    local num="$1"
+    if [[ "$num" =~ ^[0-9]+$ ]] && ((num >= 0 && num <= 512)); then
+        return 0  # Valid
+    else
+        return 1  # Invalid
+    fi
+}
+
+update_cpu_function() {
+    if [[ -n "$update_cpu" ]]; then
+        if validate_number "$update_cpu"; then
+            echo "Updating CPU to $update_cpu"
+            sed -i 's/^TOTAL_CPU=".*"/TOTAL_CPU="'"$update_cpu"'"/' "$env_file"
+        else
+            echo "Error: Invalid CPU value. Must be a number between 0 and 512."
+            exit 1
+        fi
+    fi
+}
+
+update_ram_function() {
+    if [[ -n "$update_ram" ]]; then
+        if validate_number "$update_ram"; then
+            update_ram="${update_ram}G"  # Append G to value
+            echo "Updating RAM to $update_ram"
+            sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
+        else
+            echo "Error: Invalid RAM value. Must be a number between 0 and 512."
+            exit 1
+        fi
+    fi
+}
+
+
+
+# Execute the functions if values are set
+update_cpu_function
+update_ram_function
+
+# Load .env variables now after the update!
+if [ -f $env_file ]; then
+    export $(grep -v '^#' $env_file | xargs)
 fi
 
 # Ensure TOTAL_CPU and TOTAL_RAM are set
 if [ -z "$TOTAL_CPU" ] || [ -z "$TOTAL_RAM" ]; then
-    echo "Error: TOTAL_CPU or TOTAL_RAM not set in .env!"
+    echo "Error: TOTAL_CPU or TOTAL_RAM not set in $env_file!"
     exit 1
 fi
 
 
 TOTAL_RAM=$(echo "$TOTAL_RAM" | sed 's/[gG]//g')
-
-
-
 TOTAL_RAM=$(echo "$TOTAL_RAM" | awk '{print int($1)}')
 TOTAL_CPU=$(echo "$TOTAL_CPU" | awk '{print int($1)}')
 
@@ -64,13 +136,6 @@ if ! [[ "$TOTAL_RAM" =~ ^[0-9]+$ ]]; then
 fi
 
 
-
-# Process the OS service (first argument)
-context=$1
-if [ -z "$context" ]; then
-    echo "Error: docker context name must be provided as the first argument!"
-    exit 1
-fi
 
 TOTAL_USED_CPU=0
 TOTAL_USED_RAM=0
@@ -90,18 +155,6 @@ if [ -z "$RUNNING_SERVICES" ]; then
     echo "No services are currently running in context '$context'."
 fi
 
-# Flag for JSON output
-json_output=false
-new_service=""
-
-# Parse flags and arguments
-for arg in "$@"; do
-    if [[ "$arg" == "--json" ]]; then
-        json_output=true
-    elif [[ "$arg" == --test=* ]]; then
-        new_service="${arg#--test=}"
-    fi
-done
 
 # Prepare the base structure for JSON output
 json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}}"
@@ -177,6 +230,7 @@ else
     message="No currently running services."
     echo "$message"
 fi
+
 
 # Handle new service addition if --test=<service_name> is provided
 if [[ -n "$new_service" ]]; then
