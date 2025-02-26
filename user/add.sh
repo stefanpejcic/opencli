@@ -1371,7 +1371,7 @@ PHP_84_RAM="0.25G"
 
 EOF
 
-if [ -f /home/$username/env ]; then
+if [ -f /home/$username/.env ]; then
 	log ".env file created successfully"
 else
 	echo "ERROR: /home/$username/.env file not created. Make sure that the /etc/openpanel/ is updated and contains valid templates."
