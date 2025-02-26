@@ -232,7 +232,10 @@ get_active_services_and_their_usage() {
             if [[ "$service_name" == "$context" ]]; then
                 service_name="OS"
             fi
-    
+            
+            if [[ "$service_name" == "mariadb" ]]; then
+                service_name="mysql"
+            fi
             cpu_var="${service_name^^}_CPU"  # Convert service name to uppercase for matching .env variable
             ram_var="${service_name^^}_RAM"
     
@@ -254,7 +257,7 @@ get_active_services_and_their_usage() {
             if [[ "$service_name" == "OS" ]]; then
                 service_name=$context
             fi
-    
+   
             # Convert service name to display format (underscores to hyphens and numbers with dots)
             display_service_name=$(echo "$service_name" | sed 's/_/-/g' | sed -E 's/([0-9]+)-([0-9]+)/\1.\2/g')
     
