@@ -1371,9 +1371,6 @@ PHP_84_RAM="0.25G"
 
 EOF
 
-log ".env file created successfully"
-
-
 if [ -f /home/$username/env ]; then
 	log ".env file created successfully"
 else
