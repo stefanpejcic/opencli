@@ -128,6 +128,9 @@ update_cpu_for_service_or_total() {
         if validate_number "$update_cpu"; then
             echo "Updating CPU to $update_cpu"
             if [[ -n "$service_to_update_cpu_ram" ]]; then
+                if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
+                    service_to_update_cpu_ram="mysql"
+                fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_cpu"'"/' "$env_file"
             else
                 sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_cpu"'"/' "$env_file"
@@ -146,6 +149,9 @@ update_ram_for_service_or_total() {
             update_ram="${update_ram}g"  # https://i.pinimg.com/736x/35/52/72/355272d3d4ddd508433781ee038d008c.jpg
             echo "Updating RAM to $update_ram"
             if [[ -n "$service_to_update_cpu_ram" ]]; then
+                if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
+                    service_to_update_cpu_ram="mysql"
+                fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
             else
                 sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
