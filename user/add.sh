@@ -1289,6 +1289,7 @@ if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
    -e "s/HOSTNAME=\"\"/HOSTNAME=\"$hostname\"/g" \
    -e "s/SSH_PORT=\"\"/SSH_PORT=\"$port_1\"/g" \
    -e "s/TTYD_PORT=\"\"/TTYD_PORT=\"$port_3\"/g" \
+   -e "s/PMA_PORT=\"\"/PMA_PORT=\"$port_4\"/g" \
    -e "s/MYSQL_PORT=\"\"/MYSQL_PORT=\"$port_2\"/g" \
    -e "s/DEFAULT_PHP_VERSION=\"[^\"]*\"/DEFAULT_PHP_VERSION=\"$default_php_version\"/g" \
    -e "s/POSTGRES_PASSWORD=\"[^\"]*\"/POSTGRES_PASSWORD=\"$postgres_password\"/g" \
