@@ -338,7 +338,7 @@ add_new_service() {
                 start_service_now $new_service_name
                 
                 # CHECK IF RUNNING
-                check_service "$service_name" "status"
+                check_if_service_exists_or_running "$service_name" "status"
                 status=$?
                 if [ $status -eq 0 ]; then
                     message="${message} \n Service '$service_name' started successfully."
