@@ -343,6 +343,7 @@ add_new_service() {
                 status=$?
                 if [ $status -eq 0 ]; then
                     message="${message} \n Service '$service_name' started successfully."
+                    opencli docker-collect_stats $USERNAME >/dev/null 2>&1 &
                 elif [ $status -eq 2 ]; then
                     message="${message} \n Service '$service_name' did not start. Contact Administrator."
                 fi
