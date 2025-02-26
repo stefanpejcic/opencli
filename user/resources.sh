@@ -37,7 +37,6 @@ update_cpu=""
 update_ram=""
 
 
-parse_args() {
     # Parse flags and arguments
     for arg in "$@"; do
         if [[ "$arg" == "--json" ]]; then
@@ -50,7 +49,7 @@ parse_args() {
             new_service="${arg#--activate=}"
         fi
     done
-}
+
 
 check_context_and_env_exist() {
     if [ -z "$context" ]; then
@@ -373,7 +372,6 @@ final_output_for_json() {
 
 # MAIN
 check_context_and_env_exist                   # first checks
-parse_args                                    # allowed: --json --update_cpu=4 --update_ram=6 --test=mysql
 update_cpu_total                              # set maximum cpu cores for the user
 update_ram_total                              # set maximum ram (G) for the user
 load_env_file_now                             # load the data from .env file after (if) we did updates
