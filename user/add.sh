@@ -1277,99 +1277,27 @@ if [ ! -f /home/$username/docker-compose.yml ]; then
   exit 1
 fi
 
+# TEMPLATE: https://github.com/stefanpejcic/openpanel-configuration/blob/main/docker/compose/1.0/.env
 
-cat <<EOF > /home/$username/.env
-#################################
-#  USER INFORMATION AND LIMITS  #
-#################################
+postgres_password=$(openssl rand -base64 12)
+mysql_root_password=$(openssl rand -base64 12)
 
-USERNAME="$username"
-USER_ID="0"
-CONTEXT="$username"
-TOTAL_CPU="$cpu"
-TOTAL_RAM="$ram"
-MYSQL_TYPE="$mysql_version"
-
-# WEBSERVER
-WEB_SERVER="$web_server"
-HTTP_PORT="$port_5"
-HTTPS_PORT="$port_6"
-PROXY_HTTP_PORT=""
-PROXY_HTTPS_PORT=""
-
-# UBUNTU
-OS="openpanel/ubuntu"
-HOSTNAME="$username"
-OS_CPU="0.5"
-OS_RAM="0.5G"
-SSH_PORT="$port_1"
-TTYD_PORT="$port_3"
-
-
-# DEPRECATED - WILL BE REMOVED SOON!
-path="$path"
-
-# NGINX / APACHE
-NGINX_CPU="0.5"
-NGINX_RAM="0.5G"
-
-
-# VARNISH
-VARNISH_SIZE="1G"
-VARNISH_CPU="0.2"
-VARNISH_RAM="0.2G"
-
-
-# MYSQL / MARIADB
-MYSQL_VERSION="latest"
-MYSQL_PORT="$port_2"
-MYSQL_CPU="0.5"
-MYSQL_RAM="0.5G"
-MYSQL_ROOT_PASSWORD="rootpassword"
-
-# PHPMYADMIN
-PMA_VERSION=""
-PMA_PORT="$port_4"
-PMA_CPU="0.1"
-PMA_RAM="0.1G"
-
-
-# REDIS
-REDIS_VERSION="7.4.2-alpine"
-REDIS_CPU="0.1"
-REDIS_RAM="0.1G"
-
-# MEMCACHED
-MEMCACHED_VERSION="1.6.37-alpine"
-MEMCACHED_CPU="0.1"
-MEMCACHED_RAM="0.1G"
-
-# PHP
-DEFAULT_PHP_VERSION=$default_php_version
-PHP_56_CPU="0.125"
-PHP_56_RAM="0.25G"
-PHP_70_CPU="0.125"
-PHP_70_RAM="0.25G"
-PHP_71_CPU="0.125"
-PHP_71_RAM="0.25G"
-PHP_72_CPU="0.125"
-PHP_72_RAM="0.25G"
-PHP_73_CPU="0.125"
-PHP_73_RAM="0.25G"
-PHP_74_CPU="0.125"
-PHP_74_RAM="0.25G"
-PHP_80_CPU="0.125"
-PHP_80_RAM="0.25G"
-PHP_81_CPU="0.125"
-PHP_81_RAM="0.25G"
-PHP_82_CPU="0.125"
-PHP_82_RAM="0.25G"
-PHP_83_CPU="0.125"
-PHP_83_RAM="0.25G"
-PHP_84_CPU="0.125"
-PHP_84_RAM="0.25G"
-
-EOF
+sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
+    -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
+    -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
+    -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
+    -e "s/MYSQL_TYPE=\"[^\"]*\"/MYSQL_TYPE=\"$mysql_version\"/g" \
+    -e "s/WEB_SERVER=\"[^\"]*\"/WEB_SERVER=\"$web_server\"/g" \
+    -e "s/HTTP_PORT=\"\"/HTTP_PORT=\"$port_5\"/g" \
+    -e "s/HTTPS_PORT=\"\"/HTTPS_PORT=\"$port_6\"/g" \
+    -e "s/HOSTNAME=\"\"/HOSTNAME=\"$hostname\"/g" \
+    -e "s/SSH_PORT=\"\"/SSH_PORT=\"$port_1\"/g" \
+    -e "s/TTYD_PORT=\"\"/TTYD_PORT=\"$port_3\"/g" \
+    -e "s/MYSQL_PORT=\"\"/MYSQL_PORT=\"$port_2\"/g" \
+    -e "s/DEFAULT_PHP_VERSION=\"[^\"]*\"/DEFAULT_PHP_VERSION=\"$default_php_version\"/g" \
+    -e "s/POSTGRES_PASSWORD=\"[^\"]*\"/POSTGRES_PASSWORD=\"$postgres_password\"/g" \
+    -e "s/MYSQL_ROOT_PASSWORD=\"[^\"]*\"/MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"/g" \
+    /etc/openpanel/docker/compose/1.0/.env > /home/$username/.env
 
 if [ -f /home/$username/.env ]; then
 	log ".env file created successfully"
