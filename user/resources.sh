@@ -371,7 +371,7 @@ stop_container() {
 # Handle new service addition if --activate=<service_name> is provided
     if [[ -n "$stop_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
-        stop_service=$(echo "$new_service" | sed 's/[.-]/_/g')  
+        stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')  
 
         check_if_service_exists_or_running "$stop_service" "check"
         
