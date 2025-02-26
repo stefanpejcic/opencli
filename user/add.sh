@@ -817,7 +817,7 @@ get_webserver_from_plan_name() {
 
     #0.1.7
     if [ "$DEBUG" = true ]; then
-        echo "Based on the docker image $docker_image  labels the following data will be used:"
+        echo "Based on the docker image $docker_image labels the following data will be used:"
         echo "- webserver:      $web_server"
         echo "- mysql version:  $mysql_version"
     fi
@@ -868,12 +868,11 @@ sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
 
 
    	if [ -n "$node_ip_address" ]; then
-
 log "Setting AppArmor profile.."
-ssh $key_flag root@$node_ip_address <<EOF
+ssh $key_flag root@$node_ip_address <<'EOF1'
 
 # Create the AppArmor profile directly
-cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<EOT
+cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<'EOT1'
 abi <abi/4.0>,
 include <tunables/global>
 
@@ -881,29 +880,26 @@ include <tunables/global>
     userns,
     include if exists <local/home.$username.bin.rootlesskit>
   }
-EOT
+EOT1
 
 # Generate the filename for the profile
-filename=\$(echo "/home/$username/bin/rootlesskit" | sed -e 's@^/@@' -e 's@/@.@g')
+filename=$(echo "/home/$username/bin/rootlesskit" | sed -e 's@^/@@' -e 's@/@.@g')
 
 # Create the rootlesskit profile for the user directly
-cat > "/home/$username/\${filename}" <<EOF2
+cat > "/home/$username/${filename}" <<'EOT2'
 abi <abi/4.0>,
 include <tunables/global>
 
   "/home/$username/bin/rootlesskit" flags=(unconfined) {
     userns,
-    include if exists <local/\${filename}>
+    include if exists <local/${filename}>
   }
-EOF2
+EOT2
 
 # Move the generated file to the AppArmor directory
-mv "/home/$username/\${filename}" "/etc/apparmor.d/\${filename}"
-EOF
+mv "/home/$username/${filename}" "/etc/apparmor.d/${filename}"
 
-
-
-
+EOF1
 
 
 
