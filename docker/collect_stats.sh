@@ -74,8 +74,34 @@ process_user() {
         exit 1
     fi
 
-    current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' $username)
-    
+current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' | jq -s '{
+  total_block_rx: (map(.BlockIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx | tonumber) | add),
+  total_block_tx: (map(.BlockIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx | tonumber) | add),
+  total_cpu: (map(.CPUPerc | sub("%";"") | tonumber | . * 1) | add | round / 1.0),
+  total_mem_usage: (map(.MemUsage | capture("(?<value>\\d+\\.?\\d*)") | .value | tonumber) | add),
+  total_mem_limit: (map(.MemUsage | capture(".+ / (?<value>\\d+\\.?\\d*)MiB") | .value | tonumber) | add),
+  total_mem_precent: (map(.MemPerc | sub("%";"") | tonumber) | add),
+  total_pids: (map(.PIDs | tonumber) | add),
+  total_net_rx: (map(.NetIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx | tonumber) | add),
+  total_containers: (map(.Container) | unique | length),
+  total_net_tx: (map(.NetIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx | tonumber) | add)
+} | {
+  "BlockIO": "\(.total_block_rx)B / \(.total_block_tx)B",
+  "CPUPerc": "\(.total_cpu) %",
+  "Container": "\(.total_containers)",
+  "ID": "",
+  "MemPerc": "\(.total_mem_precent) %",
+  "MemUsage": "\(.total_mem_usage)MiB / \(.total_mem_limit)MiB",
+  "Name": "",
+  "NetIO": "\(.total_net_rx) / \(.total_net_tx)",
+  "PIDs": .total_pids
+  }' | jq -c)
+
+
+
+
+
+
     echo "$current_datetime $current_usage" >> $output_file
     echo ""
     echo $current_usage
