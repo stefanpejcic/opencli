@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: resources.sh
 # Description: View services limits for user.
-# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--deactivate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--json]
+# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--deactivate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--service=<NAME>] [--json]
 # Author: Stefan Pejcic
 # Created: 26.02.2025
 # Last Modified: 26.02.2025
@@ -35,22 +35,63 @@ json_output=false
 new_service=""
 update_cpu=""
 update_ram=""
+service_to_update_cpu_ram=""
+
+usage() {
+    echo "Usage: opencli user-resources <context> [options]"
+    echo ""
+    echo "Arguments:"
+    echo "  <context>          The docker context for user."
+    echo ""
+    echo "Options:"
+    echo "  --json                   Output the result in JSON format."
+    echo "  --update_cpu=<value>     Update CPU allocation for the service (e.g., --update_cpu=2 --service=apache)."
+    echo "  --update_ram=<value>     Update RAM allocation for the service (e.g., --update_ram=4G --service=apache)."
+    echo "  --activate=<service>     Activate the specified docker service."
+    echo "  --service=<service_name> Specify a service to update its CPU and RAM configuration."
+    echo "  --deactivate=<service>   Deactivate the specified service."
+    echo ""
+    echo "Example usage:"
+    echo "  opencli user-resources stefan --json"
+    echo "  opencli user-resources stefan --activate=apache"
+    echo "  opencli user-resources stefan --deactivate=apache"
+    echo "  opencli user-resources stefan --update_cpu=2"
+    echo "  opencli user-resources stefan --update_ram=4G"
+    echo "  opencli user-resources stefan --service=apache --update_ram=1G"
+    echo "  opencli user-resources stefan --service=apache --update_cpu=0.5"
+    echo "  opencli user-resources stefan --json --service=mysql --update_cpu=2 --update_ram=1.5G"
+    echo ""
+    exit 1
+}
 
 
-    # Parse flags and arguments
-    for arg in "$@"; do
-        if [[ "$arg" == "--json" ]]; then
+# Parse flags and arguments
+for arg in "$@"; do
+    case $arg in
+        --json)
             json_output=true
-        elif [[ "$arg" == --update_cpu=* ]]; then
+            ;;
+        --update_cpu=*)
             update_cpu="${arg#--update_cpu=}"
-        elif [[ "$arg" == --update_ram=* ]]; then
+            ;;
+        --update_ram=*)
             update_ram="${arg#--update_ram=}"
-        elif [[ "$arg" == --activate=* ]]; then
+            ;;
+        --activate=*)
             new_service="${arg#--activate=}"
-        elif [[ "$arg" == --deactivate=* ]]; then
+            ;;
+        --service=*)
+            service_to_update_cpu_ram="${arg#--service=}"
+            ;;
+        --deactivate=*)
             stop_service="${arg#--deactivate=}"
-        fi
-    done
+            ;;
+        *)
+            echo "Error: Invalid argument '$arg'."
+            usage
+            ;;
+    esac
+done
 
 
 check_context_and_env_exist() {
@@ -75,11 +116,15 @@ validate_number() {
     fi
 }
 
-update_cpu_total() {
+update_cpu_for_service_or_total() {
     if [[ -n "$update_cpu" ]]; then
         if validate_number "$update_cpu"; then
             echo "Updating CPU to $update_cpu"
-            sed -i 's/^TOTAL_CPU=".*"/TOTAL_CPU="'"$update_cpu"'"/' "$env_file"
+            if [[ -n "$service_to_update_cpu_ram" ]]; then
+                sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_cpu"'"/' "$env_file"
+            else
+                sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_cpu"'"/' "$env_file"
+            fi
         else
             echo "Error: Invalid CPU value. Must be a number between 0 and 512."
             exit 1
@@ -87,13 +132,17 @@ update_cpu_total() {
     fi
 }
 
-update_ram_total() {
+update_ram_for_service_or_total() {
     if [[ -n "$update_ram" ]]; then
         update_ram="${update_ram//[gG]/}"  # Remove g or G
         if validate_number "$update_ram"; then
             update_ram="${update_ram}g"  # https://i.pinimg.com/736x/35/52/72/355272d3d4ddd508433781ee038d008c.jpg
             echo "Updating RAM to $update_ram"
-            sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
+            if [[ -n "$service_to_update_cpu_ram" ]]; then
+                sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
+            else
+                sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
+            fi
         else
             echo "Error: Invalid RAM value. Must be a number between 0 and 512."
             exit 1
@@ -406,8 +455,8 @@ final_output_for_json() {
 
 # MAIN
 check_context_and_env_exist                   # first checks
-update_cpu_total                              # set maximum cpu cores for the user
-update_ram_total                              # set maximum ram (G) for the user
+update_cpu_for_service_or_total               # set TOTAL_CPU or $SERVICE_CPU
+update_ram_for_service_or_total               # set TOTAL_RAM or $SERVICE_RAM
 load_env_file_now                             # load the data from .env file after (if) we did updates
 get_total_cpu_and_ram                         # get total cpu/ram usage allocated to the user
 get_active_services_and_their_usage           # get combined cpu/ram usage for all active services
