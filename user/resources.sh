@@ -111,12 +111,17 @@ check_context_and_env_exist() {
 # used for both cpu and ram
 validate_number() {
     local num="$1"
-    if [[ "$num" =~ ^[0-9]+$ ]] && ((num >= 0 && num <= 512)); then
-        return 0  # Valid
-    else
-        return 1  # Invalid
+    
+    # matches 123, 45.67, .5, 0.3
+    if [[ "$num" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+        if (( $(echo "$num >= 0 && $num <= 512" | bc -l) )); then
+            return 0
+        fi
     fi
+
+    return 1
 }
+
 
 update_cpu_for_service_or_total() {
     if [[ -n "$update_cpu" ]]; then
