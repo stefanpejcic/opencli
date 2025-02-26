@@ -1280,6 +1280,7 @@ mysql_root_password=$(openssl rand -base64 12)
 
 if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
    -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
+   -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
    -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
    -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
    -e "s/MYSQL_TYPE=\"[^\"]*\"/MYSQL_TYPE=\"$mysql_version\"/g" \
