@@ -139,20 +139,15 @@ vhost_file_edit() {
 
 	if [[ $ws == *apache2* ]]; then
     vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf"
-    restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"  
 	elif [[ $ws == *nginx* ]]; then
-    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf"
-    restart_in_container_command="ln -s $vhost_in_docker_file /etc/$ws/sites-enabled/ && service $ws restart"
- 		
+    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf" 		
 	elif [[ $ws == *litespeed* ]]; then
-    restart_in_container_command="/usr/local/lsws/bin/lswsctrl restart"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain}.conf"
   fi
-
-  docker --context $context exec $user bash -c "$restart_in_container_command" > /dev/null 2>&1
   
   sed_command="sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' \"$vhost_in_docker_file\""
   docker --context "$context" exec "$user" bash -c "$sed_command" > /dev/null 2>&1
+  docker --context $context restart $ws > /dev/null 2>&1
 
 }
 
