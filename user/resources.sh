@@ -234,6 +234,10 @@ get_active_services_and_their_usage() {
         for service in $RUNNING_SERVICES; do
             # Replace any dots or hyphens with underscores in the service name to match .env variables
             service_name=$(echo "$service" | sed 's/[.-]/_/g')
+
+            if [[ "$service_name" == "phpmyadmin" ]]; then
+                service_name="PMA"
+            fi
     
             if [[ "$service_name" == "$context" ]]; then
                 service_name="OS"
@@ -356,6 +360,7 @@ add_new_service() {
     if [[ -n "$new_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
         new_service_name=$(echo "$new_service" | sed 's/[.-]/_/g')
+        
 
         check_if_service_exists_or_running "$new_service" "check"
 
@@ -405,7 +410,7 @@ add_new_service() {
                     exit 1
             else
                 # START SERVICE
-                start_service_now $new_service_name
+                start_service_now $new_service
                 
                 # CHECK IF RUNNING
                 check_if_service_exists_or_running "$service_name" "status"
