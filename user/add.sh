@@ -1245,6 +1245,7 @@ fi
 if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
    -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
    -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
+   -e "s/OS=\"\"/OS=\"$docker_image\"/g" \
    -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
    -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
    -e "s/HTTP_PORT=\"\"/HTTP_PORT=\"$port_5\"/g" \
