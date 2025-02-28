@@ -1278,6 +1278,30 @@ fi
 postgres_password=$(openssl rand -base64 12)
 mysql_root_password=$(openssl rand -base64 12)
 
+
+if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$mysql_version" ] || [ -z "$web_server" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
+   echo "ERROR: One or more required variables are not set."
+   echo ""
+    echo "USERNAME: $username"
+    echo "USER_ID: $user_id"
+    echo "CONTEXT: $username"
+    echo "TOTAL_CPU: $cpu"
+    echo "TOTAL_RAM: $ram"
+    echo "MYSQL_TYPE: $mysql_version"
+    echo "WEB_SERVER: $web_server"
+    echo "HTTP_PORT: $port_5"
+    echo "HTTPS_PORT: $port_6"
+    echo "HOSTNAME: $hostname"
+    echo "SSH_PORT: $port_1"
+    echo "TTYD_PORT: $port_3"
+    echo "PMA_PORT: $port_4"
+    echo "MYSQL_PORT: $port_2"
+    echo "DEFAULT_PHP_VERSION: $default_php_version"
+    echo "POSTGRES_PASSWORD: $postgres_password"
+    echo "MYSQL_ROOT_PASSWORD: $mysql_root_password"
+   exit 1
+fi
+
 if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
    -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
    -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
