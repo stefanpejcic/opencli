@@ -1302,6 +1302,13 @@ else
    exit 1
 fi
 
+
+echo "[client]
+user=root
+password="$mysql_root_password"
+" > /home/$username/my.cnf
+
+
 local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d user_service"
 
 
