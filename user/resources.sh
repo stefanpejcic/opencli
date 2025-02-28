@@ -355,14 +355,13 @@ add_new_service() {
 # Handle new service addition if --activate=<service_name> is provided
     if [[ -n "$new_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
-        new_service_name=$(echo "$new_service" | sed 's/[.-]/_/g')  
+        new_service_name=$(echo "$new_service" | sed 's/[.-]/_/g')
 
-        check_if_service_exists_or_running "$new_service_name" "check"
-        
+        check_if_service_exists_or_running "$new_service" "check"
+
         if [ $? -eq 1 ]; then
             echo "ERROR: Service $new_service_name does not exist in docker-compose.yml file. Contact the administrator."
         fi
-        
     
         new_cpu_var="${new_service_name^^}_CPU"
         new_ram_var="${new_service_name^^}_RAM"
