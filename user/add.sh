@@ -768,64 +768,6 @@ create_user_and_set_quota() {
 
 
 
-get_webserver_from_plan_name() {
-    log "Checking webserver for specified docker image"
-
-    if [[ "$docker_image" == *"nginx"* ]]; then
-      path="nginx"
-      web_server="nginx"
-    elif [[ "$docker_image" == *"litespeed"* ]]; then
-      path="litespeed"
-      web_server="litespeed"
-    elif [[ "$docker_image" == *"apache"* ]]; then
-      path="apache2"
-      web_server="apache"
-    else
-      path="nginx"
-      web_server="nginx"
-    fi
-
-
-: '    
-# TODO AFTER CREATING!
-    docker_image_labels_json=$(docker --context $context image inspect --format='{{json .Config.Labels}}' "$docker_image")
-    if echo "$docker_image_labels_json" | grep -q 'nginx'; then
-      web_server="nginx"
-      path="nginx"
-    elif echo "$docker_image_labels_json" | grep -q 'litespeed'; then
-      path="litespeed"
-      web_server="litespeed"
-    elif echo "$docker_image_labels_json" | grep -q 'apache'; then
-      path="apache2"
-      web_server="apache"
-   else
-	   echo "[✘] ERROR: no labels detected for this docker image. Custom images must have labels:"
-	   echo "'webserver', 'php', 'db'"
-   exit 1
-    fi
-'
-
-    log "Checking mysql version for specified docker image"
-    docker_image_labels_json=$(docker --context $context image inspect --format='{{json .Config.Labels}}' "$docker_image")
-    if echo "$docker_image_labels_json" | grep -q 'mariadb'; then
-      mysql_version="mariadb"
-    else
-      mysql_version="mysql" # fallback
-    fi
-
-    log "Checking PHP version for specified docker image"
-
-    #0.1.7
-    if [ "$DEBUG" = true ]; then
-        echo "Based on the docker image $docker_image labels the following data will be used:"
-        echo "- webserver:      $web_server"
-        echo "- mysql version:  $mysql_version"
-    fi
-    # then create a container
-}
-
-
-
 docker_compose() {
 
    	if [ -n "$node_ip_address" ]; then
@@ -1279,7 +1221,7 @@ postgres_password=$(openssl rand -base64 12)
 mysql_root_password=$(openssl rand -base64 12)
 
 
-if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$mysql_version" ] || [ -z "$web_server" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
+if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
    echo "ERROR: One or more required variables are not set."
    echo ""
     echo "USERNAME: $username"
@@ -1287,8 +1229,6 @@ if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || 
     echo "CONTEXT: $username"
     echo "TOTAL_CPU: $cpu"
     echo "TOTAL_RAM: $ram"
-    echo "MYSQL_TYPE: $mysql_version"
-    echo "WEB_SERVER: $web_server"
     echo "HTTP_PORT: $port_5"
     echo "HTTPS_PORT: $port_6"
     echo "HOSTNAME: $hostname"
@@ -1307,8 +1247,6 @@ if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
    -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
    -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
    -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
-   -e "s/MYSQL_TYPE=\"[^\"]*\"/MYSQL_TYPE=\"$mysql_version\"/g" \
-   -e "s/WEB_SERVER=\"[^\"]*\"/WEB_SERVER=\"$web_server\"/g" \
    -e "s/HTTP_PORT=\"\"/HTTP_PORT=\"$port_5\"/g" \
    -e "s/HTTPS_PORT=\"\"/HTTPS_PORT=\"$port_6\"/g" \
    -e "s/HOSTNAME=\"\"/HOSTNAME=\"$hostname\"/g" \
@@ -1461,22 +1399,16 @@ set_ssh_user_password_inside_container() {
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
       echo "root:$password" | docker $context_flag exec $username chpasswd"
-
-	if [ "$web_server" == "litespeed" ]; then
-              log "Adding 'root' user to the 'nobody' group for OpenLiteSpeed.."
-	      docker $context_flag exec $username usermod -aG nogroup root > /dev/null 2>&1
-	      docker $context_flag exec $username usermod -aG root nobody > /dev/null 2>&1
-       		#todo: move to image!
-	      docker $context_flag exec $username chown nobody:nogroup -R /usr/local/lsws/Example/
-	elif [ "$web_server" == "nginx" ]; then
-              log "Adding 'root' user to the 'www-data' group for Nginx.."
+      
+	      # TODO FOR LS!
+              # log "Adding 'root' user to the 'nobody' group for OpenLiteSpeed.."
+	      # docker $context_flag exec $username usermod -aG nogroup root > /dev/null 2>&1
+	      # docker $context_flag exec $username usermod -aG root nobody > /dev/null 2>&1
+	      # docker $context_flag exec $username chown nobody:nogroup -R /usr/local/lsws/Example/
+       
+              log "Adding 'root' user to the 'www-data' group.."
 	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
 	       docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
-	elif [ "$web_server" == "apache" ]; then
-              log "Adding 'root' user to the 'www-data' group for Apache.."
-	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
-	       docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
- 	fi
 
       docker $context_flag exec $username chmod -R g+w /var/www/html/" > /dev/null 2>&1
       
@@ -1490,19 +1422,13 @@ set_ssh_user_password_inside_container() {
 
 
 phpfpm_config() {
-    log "Creating www-data user inside the container.."
 
-	if [ "$web_server" == "litespeed" ]; then
-		log "Creating user 'nobody' for OpenLiteSpeed inside the container.."
-		docker $context_flag exec $username usermod -u $user_id nobody > /dev/null 2>&1
-	elif [ "$web_server" == "nginx" ]; then
-		log "Creating user 'www-data' for Nginx inside the container.."
-		docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
-  	elif [ "$web_server" == "apache" ]; then
-		log "Creating user 'www-data' for Apache inside the container.."
-		docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
- 	fi
-
+        
+	# log "Creating user 'nobody' for OpenLiteSpeed inside the container.."
+	# docker $context_flag exec $username usermod -u $user_id nobody > /dev/null 2>&1
+		
+	log "Creating user 'www-data' inside the container.."
+	docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
 	docker $context_flag exec chown -R www-data:www-data /var/www/html/ > /dev/null 2>&1
     
     #log "Setting container services..."
@@ -1643,7 +1569,6 @@ sshfs_mounts                                 # mount /home/user
 setup_ssh_key                                # set key for the user
 docker_rootless                              # install 
 docker_compose                               # magic happens here
-get_webserver_from_plan_name                 # apache or nginx, mariad or mysql
 create_context
 get_php_version   # must be before run_docker !
 run_docker                                   # run docker container
