@@ -279,7 +279,7 @@ check_plan_exists() {
 }
 
 if [ "$#" -lt 12 ]; then
-    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth"
+    usage
     exit 1
 fi
 
