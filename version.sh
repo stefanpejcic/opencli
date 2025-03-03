@@ -31,11 +31,11 @@
 
 # CHECK IMAGE AS A FALLBACK
 check_images() {
-    LOCAL_TAG=$(docker images --format "{{.Tag}}" "openpanel/openpanel" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)            
+    LOCAL_TAG=$(docker images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)            
     if [ -n "$LOCAL_TAG" ]; then
         echo $LOCAL_TAG
     else
-        echo '{"error": "OpenPanel docker image not detected."}' >&2
+        echo '{"error": "OpenPanel UI docker image not detected."}' >&2
         exit 1
     fi
 }
