@@ -2,8 +2,8 @@
 ################################################################################
 # Script Name: plan/edit.sh
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
-# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_bandwidth
-# Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 0 0 10 500000 1 1 1 openpanel_nginx 500
+# Usage: opencli plan-edit --debug id=<ID> name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT>
+# Example: opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
 # Last Modified: 03.03.2025
@@ -35,6 +35,33 @@ source /usr/local/opencli/db.sh
 flags=()
 
 DEBUG=false
+
+
+
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  id=<id>              Set the plan ID"
+    echo "  name='<name>'        Set the plan name"
+    echo "  description='<text>' Set the plan description"
+    echo "  emails=<num>         Set the email limit"
+    echo "  ftp=<num>            Set the FTP limit"
+    echo "  domains=<num>        Set the domain limit"
+    echo "  websites=<num>       Set the website limit"
+    echo "  disk=<num>           Set the disk limit (in GB)"
+    echo "  inodes=<num>         Set the inodes limit"
+    echo "  databases=<num>      Set the databases limit"
+    echo "  cpu=<num>            Set the CPU limit"
+    echo "  ram=<num>            Set the RAM limit (in GB)"
+    echo "  bandwidth=<num>      Set the bandwidth limit (in Mbps)"
+    echo "  --debug              Enable debug mode"
+    echo ""
+    echo "Example:"
+    echo "  opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100"
+    exit 1
+}
+
 
 
 # Apply rate limit using tc command for the gateway of existing Docker network
@@ -325,6 +352,7 @@ for arg in "$@"; do
       ;;
     *)
       echo "Unknown argument: $arg"
+      usage
       ;;
   esac
 done
