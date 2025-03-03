@@ -1244,35 +1244,39 @@ if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || 
    exit 1
 fi
 
-if sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
-   -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
-   -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
-   -e "s/OS=\"\"/OS=\"$docker_image\"/g" \
-   -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
-   -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
-   -e "s/HTTP_PORT=\"\"/HTTP_PORT=\"$port_5\"/g" \
-   -e "s/HTTPS_PORT=\"\"/HTTPS_PORT=\"$port_6\"/g" \
-   -e "s/HOSTNAME=\"\"/HOSTNAME=\"$hostname\"/g" \
-   -e "s/SSH_PORT=\"\"/SSH_PORT=\"$port_1\"/g" \
-   -e "s/TTYD_PORT=\"\"/TTYD_PORT=\"$port_3\"/g" \
-   -e "s/PMA_PORT=\"\"/PMA_PORT=\"$port_4\"/g" \
-   -e "s/MYSQL_PORT=\"\"/MYSQL_PORT=\"$port_2\"/g" \
-   -e "s/DEFAULT_PHP_VERSION=\"[^\"]*\"/DEFAULT_PHP_VERSION=\"$default_php_version\"/g" \
-   -e "s/POSTGRES_PASSWORD=\"[^\"]*\"/POSTGRES_PASSWORD=\"$postgres_password\"/g" \
-   -e "s/MYSQL_ROOT_PASSWORD=\"[^\"]*\"/MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"/g" \
-   /etc/openpanel/docker/compose/1.0/.env > /home/$username/.env; then
-   log ".env file created successfully"
-else
+cp /etc/openpanel/docker/compose/1.0/.env /home/$username/.env
+
+sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
+    -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
+    -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
+    -e "s/OS=\"\"/OS=\"$docker_image\"/g" \
+    -e "s/TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"$cpu\"/g" \
+    -e "s/TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"$ram\"/g" \
+    -e "s/HTTP_PORT=\"\"/HTTP_PORT=\"$port_5\"/g" \
+    -e "s/HTTPS_PORT=\"\"/HTTPS_PORT=\"$port_6\"/g" \
+    -e "s/HOSTNAME=\"\"/HOSTNAME=\"$hostname\"/g" \
+    -e "s/SSH_PORT=\"\"/SSH_PORT=\"$port_1\"/g" \
+    -e "s/TTYD_PORT=\"\"/TTYD_PORT=\"$port_3\"/g" \
+    -e "s/PMA_PORT=\"\"/PMA_PORT=\"$port_4\"/g" \
+    -e "s/MYSQL_PORT=\"\"/MYSQL_PORT=\"$port_2\"/g" \
+    -e "s/DEFAULT_PHP_VERSION=\"[^\"]*\"/DEFAULT_PHP_VERSION=\"$default_php_version\"/g" \
+    -e "s/POSTGRES_PASSWORD=\"[^\"]*\"/POSTGRES_PASSWORD=\"$postgres_password\"/g" \
+    -e "s/MYSQL_ROOT_PASSWORD=\"[^\"]*\"/MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"/g" \
+    /home/$username/.env
+
+if [ ! -f "/home/$username/.env" ]; then
    echo "ERROR: Failed to create .env file! Make sure that the /etc/openpanel/ is updated and contains valid templates."
    exit 1
 fi
-
 
 echo "[client]
 user=root
 password="$mysql_root_password"
 " > /home/$username/my.cnf
 
+if [ ! -f "/home/$username/my.cnf" ]; then
+   echo "WARNING: Failed to create my.cnf file! Make sure that the /etc/openpanel/ is updated and contains valid templates."
+fi
 
 local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d user_service"
 
