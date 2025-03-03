@@ -1252,8 +1252,8 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|OS=\"[^\"]*\"|OS=\"$docker_image\"|g" \
     -e "s|TOTAL_CPU=\"[^\"]*\"|TOTAL_CPU=\"$cpu\"|g" \
     -e "s|TOTAL_RAM=\"[^\"]*\"|TOTAL_RAM=\"$ram\"|g" \
-    -e "s|HTTP_PORT=\"[^\"]*\"|HTTP_PORT=\"$port_5\"|g" \
-    -e "s|HTTPS_PORT=\"[^\"]*\"|HTTPS_PORT=\"$port_6\"|g" \
+    -e "s|HTTP_PORT=\"\"|HTTP_PORT=\"$port_5\"|g" \
+    -e "s|HTTPS_PORT=\"\"|HTTPS_PORT=\"$port_6\"|g" \
     -e "s|HOSTNAME=\"[^\"]*\"|HOSTNAME=\"$hostname\"|g" \
     -e "s|SSH_PORT=\"[^\"]*\"|SSH_PORT=\"$port_1\"|g" \
     -e "s|TTYD_PORT=\"[^\"]*\"|TTYD_PORT=\"$port_3\"|g" \
