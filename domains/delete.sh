@@ -40,6 +40,9 @@ fi
 domain_name="$1"
 
 debug_mode=false
+PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+
+
 if [[ "$2" == "--debug" ]]; then
     debug_mode=true
 fi
@@ -224,7 +227,6 @@ delete_zone_file() {
 # add mountpoint and reload mailserver
 # todo: need better solution!
 delete_mail_mountpoint(){
-    PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
     key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
     
     # Check if 'enterprise edition'
@@ -278,6 +280,18 @@ delete_domain_from_mysql(){
     mysql -e "$delete_query"
 }
 
+
+
+dns_stuff() {
+    enabled_features=$(grep '^enabled_features=' "$PANEL_CONFIG_FILE")
+    if [[ $enabled_features_line == *"dns"* ]]; then  
+        delete_zone_file                             # create zone
+        update_named_conf                            # include zone
+    fi
+
+}
+
+
 delete_domain() {
     local user="$1"
     local domain_name="$2"
@@ -295,8 +309,7 @@ delete_domain() {
         get_webserver_for_user                       # nginx or apache
         vhost_files_delete                           # delete file in container
         delete_domain_file                           # create file on host
-        delete_zone_file                             # create zone
-        update_named_conf                            # include zone
+	dns_stuff
         delete_mail_mountpoint                       # delete mountpoint to mailserver
         delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
