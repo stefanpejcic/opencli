@@ -75,7 +75,7 @@ get_current_plan_id() {
 # Function to fetch plan limits for a given plan ID smece format
 get_plan_limits() {
     local plan_id="$1"
-    local query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
+    local query="SELECT cpu, ram, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 }
 
@@ -143,8 +143,6 @@ fi
 Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
 Nram=$(get_plan_limit "$new_plan_id" "ram")
 numNram=$(echo "$Nram" | tr -d 'g')
-Ndocker_image=$(get_plan_limit "$new_plan_id" "docker_image")
-Ndisk_limit=$(get_plan_limit "$new_plan_id" "disk_usage")
 numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
 Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
 Nbandwidth=$(get_plan_limit "$new_plan_id" "bandwidth")
@@ -187,7 +185,6 @@ get_compose_limit() {
 
 
 # OLD LIMITS
-Odocker_image=$(get_plan_limit "$current_plan_id" "docker_image")
 Ocpu=$(get_compose_limit "cpu") # from compose file, fallback to mysql!
 Oram=$(get_compose_limit "ram") # from compose file, fallback to mysql!
 
@@ -259,20 +256,6 @@ update_container_ram() {
 
 
 
-update_container_image() {
-    if [[ "$Ndocker_image" != "$Odocker_image" ]]; then
-        echo "[✘] Error: can't change docker image."
-        ((failure_count++))
-    else
-        if $debug; then
-            echo "[✔] Same docker image $Odocker_image is used on both plans."
-        fi
-        ((success_count++))
-    fi
-}
-
-
-
 update_used_disk_inodes() {
     if $debug; then
         echo "Changing disk limit from: $Odisk_limit to $Ndisk_limit ($storage_in_blocks)"
@@ -336,7 +319,6 @@ tada() {
 
 
 # MAIN
-update_container_image          # todo
 update_container_cpu            # update cpu% on container and change in docker compose file
 update_container_ram            # update ram on container and change in docker compose file
 #update_user_tc                 # todo
