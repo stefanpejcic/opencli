@@ -123,7 +123,7 @@ get_current_plan_id() {
 # Function to fetch plan limits for a given plan ID smece format
 get_plan_limits() {
     local plan_id="$1"
-    local query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
+    local query="SELECT cpu, ram, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
 }
 
@@ -203,15 +203,13 @@ do
 
 
 
-    #Limiti stari i novi cpu, ram, docker_image, storage_file, inodes_limit, bandwidth
+    #Limiti stari i novi cpu, ram, storage_file, inodes_limit, bandwidth
     ##echo "New plan ID:$new_plan_id"
     Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
     Ocpu=$(get_plan_limit "$current_plan_id" "cpu")
     Nram=$(get_plan_limit "$new_plan_id" "ram")
     Oram=$(get_plan_limit "$current_plan_id" "ram")
     
-    Ndocker_image=$(get_plan_limit "$new_plan_id" "docker_image")
-    Odocker_image=$(docker --context $server inspect $container_name | grep '"Image":' | grep -v 'sha' | awk -F '"' '{print $4}')
     Ndisk_limit=$(get_plan_limit "$new_plan_id" "disk_limit")
     Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
     #ne zanima me band
@@ -228,13 +226,6 @@ do
     	quotacheck -avm > /dev/null
     	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
     }
-
-
-        if $debug; then
-            if [[ "$Ndocker_image" != "$Odocker_image" ]]; then
-                echo "Warning: Can't change docker image, container image: $Odocker_image != plan image:$Ndocker_image"
-            fi
-        fi
 
 
     ########################################################################################################################################################################################
