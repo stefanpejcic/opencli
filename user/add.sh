@@ -1246,7 +1246,7 @@ fi
 
 cp /etc/openpanel/docker/compose/1.0/.env /home/$username/.env
 
-sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
+sed -i -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
     -e "s/USER_ID=\"\"/USER_ID=\"$user_id\"/g" \
     -e "s/CONTEXT=\"\"/CONTEXT=\"$username\"/g" \
     -e "s/OS=\"\"/OS=\"$docker_image\"/g" \
@@ -1263,6 +1263,7 @@ sed -e "s/USERNAME=\"\"/USERNAME=\"$username\"/g" \
     -e "s/POSTGRES_PASSWORD=\"[^\"]*\"/POSTGRES_PASSWORD=\"$postgres_password\"/g" \
     -e "s/MYSQL_ROOT_PASSWORD=\"[^\"]*\"/MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"/g" \
     /home/$username/.env
+
 
 if [ ! -f "/home/$username/.env" ]; then
    echo "ERROR: Failed to create .env file! Make sure that the /etc/openpanel/ is updated and contains valid templates."
