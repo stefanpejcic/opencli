@@ -49,6 +49,7 @@ fi
 debug_mode=false
 docroot=""
 REMOTE_SERVER=""
+PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -93,9 +94,8 @@ fi
 
 # added in 0.3.8 so user can not add the server hostname and take over server!
 compare_with_force_domain() {
-	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 	read_config() {
-	    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
+	    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $PANEL_CONFIG_FILE)
 	    echo "$config"
 	}
 	
@@ -595,10 +595,9 @@ update_named_conf() {
 
 
 
-
-
 # Function to create a zone file
 create_zone_file() {
+    
     ZONE_FILE_DIR='/etc/bind/zones/'
     CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
@@ -615,7 +614,7 @@ create_zone_file() {
    # get nameservers
 	get_config_value() {
 	    local key="$1"
-	    grep -E "^\s*${key}=" "$CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
+	    grep -E "^\s*${key}=" "$PANEL_CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
 	}
 
     ns1=$(get_config_value 'ns1')
@@ -648,10 +647,9 @@ create_zone_file() {
         log "DNS service is running, adding the zone"
 	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-	log "DNS service is not started, starting now"
-        cd /root && docker compose up -d bind9  >/dev/null 2>&1
+	log "DNS is eanbled but the DNS service is not yet started, starting now.."
+	cd /root && docker compose up -d bind9  >/dev/null 2>&1
     fi
-    
 }
 
 
@@ -678,7 +676,6 @@ EOF
 # add mountpoint and reload mailserver
 # todo: need better solution!
 create_mail_mountpoint(){
-    PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
     key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
     
     # Check if 'enterprise edition'
@@ -701,6 +698,19 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
     fi
 }
 
+
+
+
+# Function to create a zone file
+dns_stuff() {
+
+    enabled_features=$(grep '^enabled_features=' "$PANEL_CONFIG_FILE")
+    if [[ $enabled_features_line == *"dns"* ]]; then  
+	    create_zone_file                             # create zone
+	    get_slave_dns_option                         # create zone on slave before include on master
+	    update_named_conf                            # include zone 
+    fi
+}
 
 
 litespeed_extra() {
@@ -731,12 +741,10 @@ add_domain() {
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
-        create_zone_file                             # create zone
-	get_slave_dns_option                         # create zone on slave before include on master
-	update_named_conf                            # include zone 
-       	start_default_php_fpm_service                # start phpX.Y-fpm service
+	dns_stuff
+	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
- 	litespeed_extra
+ 	#litespeed_extra # TODO!
     
  	######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
