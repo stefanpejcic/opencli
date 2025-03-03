@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli plan-create plan_name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth
+# Usage: opencli plan-create plan_name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth
 # name= Name of the plan
 # description= Plan description, multiple words allowed inside ""
 # email_limit= How many email accounts will the plan have (0 is unlimited).
@@ -14,7 +14,6 @@
 # db_limit= Database number limit (0 is unlimited).
 # cpu= number of cores limit
 # ram= Ram space limit in GB.
-# docker_image=can be either apache/nginx
 # bandwidth=port speed, expressed in mbit/s
 # Exsample: ./usr/local/opencli/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
 # Author: Radovan Jecmenica
@@ -42,9 +41,14 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+flags=()
+
+DEBUG=false
+
 # Function to display script usage
 usage() {
-    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth"
     echo
     echo "Arguments:"
     echo "  name          - Name of the plan (string, no spaces)."
@@ -58,7 +62,6 @@ usage() {
     echo "  db_limit      - Max number of databases (integer, 0 for unlimited)."
     echo "  cpu           - CPU core limit (integer)."
     echo "  ram           - RAM limit in GB (integer)."
-    echo "  docker_image  - Web server type ('apache' or 'nginx')."
     echo "  bandwidth     - Port speed in Mbit/s (integer)."
     echo
     echo "Example:"
@@ -66,11 +69,6 @@ usage() {
     echo
     exit 1
 }
-
-# Check for minimum required arguments
-if [ "$#" -lt 13 ]; then
-    usage
-fi
 
 
 # DB
@@ -89,8 +87,7 @@ insert_plan() {
   local db_limit="${9}"
   local cpu="${10}"
   local ram="${11}"
-  local docker_image="${12}"
-  local bandwidth="${13}"
+  local bandwidth="${12}"
   
 # Format disk_limit with 'GB' 
 disk_limit="${disk_limit} GB"
@@ -104,7 +101,7 @@ disk_limit="${disk_limit} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES ('$name', '$description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', '$docker_image', $bandwidth);"
+  local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth) VALUES ('$name', '$description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', $bandwidth);"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -161,27 +158,81 @@ check_available_ram() {
   fi
 }
 
+
+
+
+
 # Check for command-line arguments
-if [ "$#" -lt 13 ]; then
-    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
-    exit 1
+if [ "$#" -lt 12 ]; then
+    usage
 fi
 
 
 # Capture command-line arguments
-name="$1"
-description="$2"
-email_limit="$3"
-ftp_limit="$4"
-domains_limit="$5"
-websites_limit="$6"
-disk_limit="$7"
-inodes_limit="$8"
-db_limit="$9"
-cpu="${10}"
-ram="${11}"
-docker_image="${12}"
-bandwidth="${13}"
+name=""
+description=""
+email_limit=""
+ftp_limit=""
+domains_limit=""
+websites_limit=""
+disk_limit=""
+inodes_limit=""
+db_limit=""
+cpu=""
+ram=""
+bandwidth=""
+
+# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100
+for arg in "$@"; do
+  case $arg in
+    --debug)
+        DEBUG=true
+      ;;
+    name=*)
+      name="${arg#*=}"
+      ;;
+    description=*)
+      description="${arg#*=}"
+      ;;
+    emails=*)
+      email_limit="${arg#*=}"
+      ;;
+    ftp=*)
+      ftp_limit="${arg#*=}"
+      ;;
+    domains=*)
+      domains_limit="${arg#*=}"
+      ;;
+    websites=*)
+      websites_limit="${arg#*=}"
+      ;;
+    disk=*)
+      disk_limit="${arg#*=}"
+      ;;
+    inodes=*)
+      inodes_limit="${arg#*=}"
+      ;;
+    databases=*)
+      db_limit="${arg#*=}"
+      ;;
+    cpu=*)
+      cpu="${arg#*=}"
+      ;;
+    ram=*)
+      ram="${arg#*=}"
+      ;;
+    bandwidth=*)
+      bandwidth="${arg#*=}"
+      ;;
+    *)
+      echo "Unknown argument: $arg"
+      usage
+      ;;
+  esac
+done
+
+
+
 
 # Check available CPU cores before creating the plan
 check_cpu_cores "$cpu"
@@ -197,17 +248,6 @@ check_plan_exists() {
   echo "$result"
 }
 
-# Determine the appropriate table name based on the docker_image value
-if [ "$docker_image" == "nginx" ]; then
-  docker_image="openpanel/nginx"
-elif [ "$docker_image" == "litespeed" ]; then
-  docker_image="openpanel/litespeed"
-elif [ "$docker_image" == "apache" ]; then
-  docker_image="openpanel/apache"
-else
-  docker_image="${12}"
-fi
-
 # Check if the plan name already exists in the database
 existing_plan=$(check_plan_exists "$name")
 if [ -n "$existing_plan" ]; then
@@ -217,4 +257,4 @@ fi
 
 
 # Call the insert_plan function with the provided values
-insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
+insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
