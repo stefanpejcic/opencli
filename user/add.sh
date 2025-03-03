@@ -521,8 +521,8 @@ fi
 #Get CPU, DISK, INODES and RAM limits for the plan
 get_plan_info_and_check_requirements() {
     log "Getting information from the database for plan $plan_name"
-    # Fetch DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
-    query="SELECT cpu, ram, docker_image, disk_limit, inodes_limit, bandwidth, id FROM plans WHERE name = '$plan_name'"
+    # Fetch DISK, CPU, RAM, INODES, BANDWIDTH and NAME for the given plan_name from the MySQL table
+    query="SELECT cpu, ram, disk_limit, inodes_limit, bandwidth, id FROM plans WHERE name = '$plan_name'"
     
     # Execute the MySQL query and store the results in variables
     cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
@@ -535,25 +535,24 @@ get_plan_info_and_check_requirements() {
     
     # Check if any results were returned
     if [ -z "$cpu_ram_info" ]; then
-        echo "[✘] ERROR: Plan with name $plan_name not found. Unable to fetch Docker image and CPU/RAM limits information from the database."
+        echo "[✘] ERROR: Plan with name $plan_name not found. Unable to fetch CPU/RAM limits information from the database."
         exit 1
     fi
     
-    # Extract DOCKER_IMAGE, DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
+    # Extract DISK, CPU, RAM, INODES, BANDWIDTH and NAME,values from the query result
     cpu=$(echo "$cpu_ram_info" | awk '{print $1}')
     ram=$(echo "$cpu_ram_info" | awk '{print $2}')
-    docker_image=$(echo "$cpu_ram_info" | awk '{print $3}')
-    disk_limit=$(echo "$cpu_ram_info" | awk '{print $4}' | sed 's/ //;s/B//')
-    # 5. is GB in disk_limit
-    inodes=$(echo "$cpu_ram_info" | awk '{print $6}')
-    bandwidth=$(echo "$cpu_ram_info" | awk '{print $7}')
-    plan_id=$(echo "$cpu_ram_info" | awk '{print $8}')
+    disk_limit=$(echo "$cpu_ram_info" | awk '{print $3}' | sed 's/ //;s/B//')
+    # 4. is GB in disk_limit
+    inodes=$(echo "$cpu_ram_info" | awk '{print $5}')
+    bandwidth=$(echo "$cpu_ram_info" | awk '{print $6}')
+    plan_id=$(echo "$cpu_ram_info" | awk '{print $7}')
     
     # Get the available free space on the disk
     if [ -n "$node_ip_address" ]; then
-        current_free_space=$(ssh "root@$node_ip_address" "df -BG / | awk 'NR==2 {print \$4}' | sed 's/G//'")
+        current_free_space=$(ssh "root@$node_ip_address" "df -BG / | awk 'NR==2 {print \$3}' | sed 's/G//'")
     else
-        current_free_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+        current_free_space=$(df -BG / | awk 'NR==2 {print $3}' | sed 's/G//')
     fi
     if [ "$current_free_space" -lt "$disk_limit" ]; then
         echo "WARNING: Insufficient disk space on the server. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
@@ -703,7 +702,6 @@ print_debug_info_before_starting_creation() {
         echo "Selected plan limits from database:"
         echo "- plan id:           $plan_id" 
         echo "- plan name:         $plan_name"
-        echo "- docker image:      $docker_image"
         echo "- cpu limit:         $cpu"
         echo "- memory limit:      $ram"
         echo "- storage:           $disk_limit GB"
@@ -1250,7 +1248,6 @@ cp /etc/openpanel/docker/compose/1.0/.env /home/$username/.env
 sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|USER_ID=\"[^\"]*\"|USER_ID=\"$user_id\"|g" \
     -e "s|CONTEXT=\"[^\"]*\"|CONTEXT=\"$username\"|g" \
-    -e "s|OS=\"[^\"]*\"|OS=\"$docker_image\"|g" \
     -e "s|TOTAL_CPU=\"[^\"]*\"|TOTAL_CPU=\"$cpu\"|g" \
     -e "s|TOTAL_RAM=\"[^\"]*\"|TOTAL_RAM=\"$ram\"|g" \
     -e "s|HTTP_PORT=\"\"|HTTP_PORT=\"$port_5\"|g" \
