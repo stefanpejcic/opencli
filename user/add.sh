@@ -1220,7 +1220,7 @@ fi
 postgres_password=$(openssl rand -base64 12)
 mysql_root_password=$(openssl rand -base64 12)
 
-
+: '
     log "Using:"
     log ""
     log "USERNAME: $username"
@@ -1238,6 +1238,7 @@ mysql_root_password=$(openssl rand -base64 12)
     log "DEFAULT_PHP_VERSION: $default_php_version"
     log "POSTGRES_PASSWORD: $postgres_password"
     log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
+'
 
 if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
    echo "ERROR: One or more required variables are not set."
