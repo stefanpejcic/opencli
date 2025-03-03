@@ -75,7 +75,7 @@ update_check() {
     local_version=$(opencli version)
 
     #OLD! remote_version=$(curl -s "https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/website/docusaurus.config.js" | grep -oP '(?<=label: ")[0-9]+\.[0-9]+\.[0-9]+')
-    tags=$(curl -s "https://hub.docker.com/v2/repositories/openpanel/openpanel/tags" | jq -r '.results[].name')
+    tags=$(curl -s "https://hub.docker.com/v2/repositories/openpanel/openpanel-ui/tags" | jq -r '.results[].name')
     
     remote_version=$(echo "$tags" | grep -v '^latest$' | sort -V | tail -n 1)
 
