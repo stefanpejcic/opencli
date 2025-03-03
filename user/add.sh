@@ -1255,9 +1255,10 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|HTTP_PORT=\"\"|HTTP_PORT=\"$port_5\"|g" \
     -e "s|HTTPS_PORT=\"\"|HTTPS_PORT=\"$port_6\"|g" \
     -e "s|HOSTNAME=\"[^\"]*\"|HOSTNAME=\"$hostname\"|g" \
-    -e "s|SSH_PORT=\"[^\"]*\"|SSH_PORT=\"$port_1\"|g" \
+    -e "s|SSH_PORT=\"[^\"]*\"|SSH_PORT=\"127.0.0.1:$port_1\"|g" \
     -e "s|TTYD_PORT=\"[^\"]*\"|TTYD_PORT=\"$port_3\"|g" \
-    -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"$port_2\"|g" \
+    -e "s|PMA_PORT=\"[^\"]*\"|PMA_PORT=\"$port_4\"|g" \
+    -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:$port_2\"|g" \
     -e "s|DEFAULT_PHP_VERSION=\"[^\"]*\"|DEFAULT_PHP_VERSION=\"$default_php_version\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
     /home/$username/.env
