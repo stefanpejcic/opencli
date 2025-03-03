@@ -2,25 +2,13 @@
 ################################################################################
 # Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli plan-create plan_name description email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth
-# name= Name of the plan
-# description= Plan description, multiple words allowed inside ""
-# email_limit= How many email accounts will the plan have (0 is unlimited).
-# ftp_limit= How many ftp accounts will the plan have (0 is unlimited).
-# domains_limit= How many domains will the plan have (0 is unlimited).
-# websites_limit= How many websites will the plan have (0 is unlimited).
-# disk_limit=Disk space limit in GB.
-# inodes_limit= inodes limit, it will be automatically set to 500000 if the value is less than 500000.
-# db_limit= Database number limit (0 is unlimited).
-# cpu= number of cores limit
-# ram= Ram space limit in GB.
-# bandwidth=port speed, expressed in mbit/s
-# Exsample: ./usr/local/opencli/plan/create plan "new plan" 10 5 10 500000 5 2 4 nginx 1500
+# Usage: opencli plan-create name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT>
+# Example: opencli plan-create name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 23.02.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 03.03.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
