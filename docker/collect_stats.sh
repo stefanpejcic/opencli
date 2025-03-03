@@ -136,7 +136,7 @@ elif [[ "$1" == "--all" ]]; then
   # Get total user count
   total_users=$(echo "$users" | wc -w)
   if command -v repquota > /dev/null 2>&1; then
-      quotacheck -avm > /dev/null
+      quotacheck -avm > /dev/null 2>&1
       repquota -u / > /etc/openpanel/openpanel/core/users/repquota
   fi
   # Iterate over each user
