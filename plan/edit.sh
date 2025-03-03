@@ -2,13 +2,13 @@
 ################################################################################
 # Script Name: plan/edit.sh
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
-# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_docker_image new_bandwidth
+# Usage: opencli plan-edit plan_id new_plan_name new_description new_email_limit new_ftp_limit new_domains_limit new_websites_limit new_disk_limit new_inodes_limit new_db_limit new_cpu new_ram new_bandwidth
 # Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 0 0 10 500000 1 1 1 openpanel_nginx 500
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 23.02.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Last Modified: 03.03.2025
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -126,8 +126,7 @@ update_plan() {
   db_limit="${10}"
   cpu="${11}"
   int_ram="${12}"
-  docker_image="${13}"
-  bandwidth="${14}"
+  bandwidth="${13}"
 
   # Format disk_limit with 'GB' 
   disk_limit="${int_disk_limit} GB"
@@ -167,7 +166,6 @@ if [ "$DEBUG" = true ]; then
   echo "Inodes limit:     $inodes_limit"
   echo "CPU:              $cpu cores"
   echo "RAM:              $ram"
-  echo "Docker image:     $docker_image"
   echo "Bandwidth:        $bandwidth"
   echo "FTP accounts:     $ftp_limit"
   echo "Email accounts:   $emails_limit"
@@ -183,13 +181,8 @@ fi
 ### contruct opencli plan-apply command if needed!
 
 
-if [ "$docker_image" = "None" ]; then
-  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth WHERE id='$plan_id';"
-else
-  local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', docker_image='$docker_image', bandwidth=$bandwidth WHERE id='$plan_id';"
-fi
- 
-  mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
+local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth WHERE id='$plan_id';"
+mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
 
     # Construct SQL query to select plan name based on ID
@@ -259,7 +252,7 @@ check_plan_exists() {
 }
 
 if [ "$#" -lt 13 ]; then
-    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram docker_image bandwidth"
+    echo "ERROR: Usage: opencli $script_name plan_id new_plan_name description domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth"
     exit 1
 fi
 
@@ -283,10 +276,9 @@ inodes_limit=""
 db_limit=""
 cpu=""
 ram=""
-docker_image=""
 bandwidth=""
 
-# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 docker_image="nginx:latest" bandwidth=100
+# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100
 for arg in "$@"; do
   case $arg in
     --debug)
@@ -328,9 +320,6 @@ for arg in "$@"; do
     ram=*)
       ram="${arg#*=}"
       ;;
-    docker_image=*)
-      docker_image="${arg#*=}"
-      ;;
     bandwidth=*)
       bandwidth="${arg#*=}"
       ;;
@@ -347,18 +336,10 @@ done
 check_cpu_cores "$cpu"
 check_available_ram "$ram"
 
-if [ "$docker_image" == "nginx" ]; then
-  docker_image="openpanel/nginx"
-elif [ "$docker_image" == "litespeed" ]; then
-  docker_image="openpanel/litespeed"
-elif [ "$docker_image" == "apache" ]; then
-  docker_image="openpanel/apache"
-fi
-
 existing_plan=$(check_plan_exists "$plan_id")
 if [ -z "$existing_plan" ]; then
   echo "ERROR: Plan with id '$plan_id' does not exist."
   exit 1
 fi
 
-update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$docker_image" "$bandwidth"
+update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
