@@ -554,7 +554,11 @@ get_plan_info_and_check_requirements() {
     else
         current_free_space=$(df -BG / | awk 'NR==2 {print $3}' | sed 's/G//')
     fi
-    if [ "$current_free_space" -lt "$disk_limit" ]; then
+
+    
+    if [ "$disk_limit" -eq 0 ]; then
+        :
+    elif [ "$current_free_space" -lt "$disk_limit" ]; then
         echo "WARNING: Insufficient disk space on the server. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
     fi
 
@@ -704,8 +708,19 @@ print_debug_info_before_starting_creation() {
         echo "- plan name:         $plan_name"
         echo "- cpu limit:         $cpu"
         echo "- memory limit:      $ram"
-        echo "- storage:           $disk_limit GB"
-        echo "- inodes:            $inodes"
+	
+	if [ "$disk_limit" -eq 0 ]; then
+        	echo "- storage:           unlimited"
+	else
+		echo "- storage:           $disk_limit GB"
+	fi
+ 
+ 	if [ "$inodes" -eq 0 ]; then
+        	echo "- inodes:            unlimited"
+	else
+		echo "- inodes:            $inodes"
+	fi
+ 
         echo "- port speed:        $bandwidth"
 	echo "--------------------------------------------------------------"
     fi
