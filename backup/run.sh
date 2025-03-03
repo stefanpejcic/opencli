@@ -483,8 +483,8 @@ check_success "User data export"
     
     # Export User's Plan Data with INSERT INTO
     mysql --defaults-extra-file=$config_file -N -e "
-        SELECT CONCAT('INSERT INTO panel.plans (id, name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, docker_image, bandwidth) VALUES (',
-            p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ',', p.domains_limit, ',', p.websites_limit, ',', p.email_limit, ',', p.ftp_limit, ',', QUOTE(p.disk_limit), ',', p.inodes_limit, ',', p.db_limit, ',', QUOTE(p.cpu), ',', QUOTE(p.ram), ',', QUOTE(p.docker_image), ',', p.bandwidth, ');')
+        SELECT CONCAT('INSERT INTO panel.plans (id, name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth) VALUES (',
+            p.id, ',', QUOTE(p.name), ',', QUOTE(p.description), ',', p.domains_limit, ',', p.websites_limit, ',', p.email_limit, ',', p.ftp_limit, ',', QUOTE(p.disk_limit), ',', p.inodes_limit, ',', p.db_limit, ',', QUOTE(p.cpu), ',', QUOTE(p.ram), ',', p.bandwidth, ');')
         FROM panel.plans p
         JOIN panel.users u ON u.plan_id = p.id
         WHERE u.id = $user_id
