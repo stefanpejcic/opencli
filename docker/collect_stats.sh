@@ -5,7 +5,7 @@
 # Usage: opencli docker-collect_stats
 # Author: Petar Curic, Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 23.02.2025
+# Last Modified: 03.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -75,34 +75,7 @@ process_user() {
     fi
 
 
-current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' | jq -s '{
-  total_block_rx: (map(.BlockIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx | tonumber) | add | .*100 | round / 100),
-  total_block_tx: (map(.BlockIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx | tonumber) | add | .*100 | round / 100),
-  total_cpu: (map(.CPUPerc | sub("%";"") | tonumber) | add | .*100 | round / 100),
-  total_mem_usage: (map(.MemUsage | capture("(?<value>\\d+\\.?\\d*)") | .value | tonumber) | add | .*100 | round / 100),
-  total_mem_limit: (map(.MemUsage | capture(".+ / (?<value>\\d+\\.?\\d*)MiB") | .value | tonumber) | add | .*100 | round / 100),
-  total_mem_precent: (map(.MemPerc | sub("%";"") | tonumber) | add | .*100 | round / 100),
-  total_pids: (map(.PIDs | tonumber) | add),
-  total_net_rx: (map(.NetIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx | tonumber) | add | .*100 | round / 100),
-  total_containers: (map(.Container) | unique | length),
-  total_net_tx: (map(.NetIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx | tonumber) | add | .*100 | round / 100)
-} | {
-  "BlockIO": "\(.total_block_rx)B / \(.total_block_tx)B",
-  "CPUPerc": "\(.total_cpu) %",
-  "Container": "\(.total_containers)",
-  "ID": "",
-  "MemPerc": "\(.total_mem_precent) %",
-  "MemUsage": "\(.total_mem_usage)MiB / \(.total_mem_limit)MiB",
-  "Name": "",
-  "NetIO": "\(.total_net_rx) / \(.total_net_tx)",
-  "PIDs": .total_pids
-  }' | jq -c)
-
-
-
-
-
-
+current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' | jq -c)
 
     echo "$current_datetime $current_usage" >> $output_file
     echo ""
