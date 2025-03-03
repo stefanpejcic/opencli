@@ -1265,6 +1265,9 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     /home/$username/.env
 
 
+mkdir -p /home/$username/sockets/mysqld
+chmod -777 /home/$username/sockets/mysqld
+
 
 if [ ! -f "/home/$username/.env" ]; then
    echo "ERROR: Failed to create .env file! Make sure that the /etc/openpanel/ is updated and contains valid templates."
