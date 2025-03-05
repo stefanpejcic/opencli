@@ -1230,9 +1230,9 @@ fi
 
 # TEMPLATE: https://github.com/stefanpejcic/openpanel-configuration/blob/main/docker/compose/1.0/.env
 
-postgres_password=$(openssl rand -base64 12)
-mysql_root_password=$(openssl rand -base64 12)
-pg_admin_password=$(openssl rand -base64 12)
+postgres_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
+mysql_root_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
+pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
 
 : '
     log "Using:"
