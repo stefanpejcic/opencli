@@ -1283,7 +1283,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
 
 
 mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
-chown -R $username /home/$username/sockets
+chown -R $username:$username /home/$username/sockets
 chmod 777 /home/$username/sockets/
 
 
