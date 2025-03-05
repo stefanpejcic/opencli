@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--reseller=<RESELLER_USERNAME>] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver=<nginx|apache>] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 23.02.2025
+# Last Modified: 05.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -35,7 +35,7 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 9 ]; then
+if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
     exit 1
 fi
@@ -68,6 +68,12 @@ for arg in "$@"; do
              key="${arg#*=}"
 	     key_flag="-i $key"
             ;;
+        --sql=*)
+            sql_type="${arg#*=}"
+	    ;;	    
+        --webserver=*)
+            webserver="${arg#*=}"
+	    ;;
     esac
 done
 
@@ -859,39 +865,13 @@ EOF1
 
 
 
-log "Setting user pemissions.."
-
-		ssh $key_flag root@$node_ip_address "
-		# Backup the sudoers file before modifying
-		cp /etc/sudoers /etc/sudoers.bak
-		
-		# Append the user to sudoers with NOPASSWD
-		echo \"$username ALL=(ALL) NOPASSWD:ALL\" >> /etc/sudoers
-		
-		# Check if the line was successfully added
-		if grep -q \"$username ALL=(ALL) NOPASSWD:ALL\" /etc/sudoers; then
-		    :
-		else
-		    echo \"Failed to update the sudoers file. Please check the syntax.\"
-		    #exit 1
-		fi
-		
-		# Verify the sudoers file using visudo
-		visudo -c > /dev/null 2>&1
-		if [[ \$? -eq 0 ]]; then
-		    :
-		else
-		    echo \"The sudoers file contains syntax errors. Restoring the backup.\"
-		    mv /etc/sudoers.bak /etc/sudoers
-		fi
-		"
 
 log "Restarting services.."
 
 
 		ssh $key_flag root@$node_ip_address "
 		# Restart apparmor service
-		sudo systemctl restart apparmor.service >/dev/null 2>&1
+		systemctl restart apparmor.service >/dev/null 2>&1
 		
 		# Enable lingering for the user to keep their session alive across reboots
 		loginctl enable-linger $username >/dev/null 2>&1
@@ -976,7 +956,7 @@ ssh $key_flag root@$node_ip_address "
 	else
 
 		
-cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
+cat <<EOT | tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
 # ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
 abi <abi/4.0>,
 include <tunables/global>
@@ -1005,28 +985,7 @@ EOF
   
   		mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
 
-
-		SUDOERS_FILE="/etc/sudoers"
-		
-		echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
-		if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
-		    :
-		else
-		    echo "Failed to update the sudoers file. Please check the syntax."
-		    #exit 1
-		fi
-		
-		# Verify the sudoers file using visudo
-		visudo -c > /dev/null 2>&1
-		if [[ $? -eq 0 ]]; then
-		    :
-		else
-		    echo "The sudoers file contains syntax errors. Restoring the backup."
-		    mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
-		fi
-
-
-		sudo systemctl restart apparmor.service   >/dev/null 2>&1
+		systemctl restart apparmor.service   >/dev/null 2>&1
 		loginctl enable-linger $username   >/dev/null 2>&1
 		mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
 		chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
@@ -1252,7 +1211,7 @@ pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
     log "MYSQL_PORT: $port_2"
     log "DEFAULT_PHP_VERSION: $default_php_version"
     log "POSTGRES_PASSWORD: $postgres_password"
-    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
+    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"    
 '
 
 if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
@@ -1281,6 +1240,21 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
     "/home/$username/.env"
 
+if [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
+    log "Setting $webserver as webserver for the user.."
+    sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
+        "/home/$username/.env"
+else
+    log "Warning: invalid webserver type selected: $webserver. Must be 'nginx' or 'apache'. Using the default instead.."
+fi
+
+if [[ "$sql_type" =~ ^(mysql|mariadb)$ ]]; then
+    log "Setting $sql_type as mysql server type for the user.."
+    sed -i -e "s|MYSQL_TYPE=\"[^\"]*\"|MYSQL_TYPE=\"$sql_type\"|g" \
+        "/home/$username/.env"
+else
+    log "Warning: invalid webserver type selected: $sql_type. Must be 'mysql' or 'mariadb'. Using the default instead.."
+fi
 
 
 mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
