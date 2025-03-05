@@ -704,8 +704,8 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
 # Function to create a zone file
 dns_stuff() {
 
-    enabled_features=$(grep '^enabled_features=' "$PANEL_CONFIG_FILE")
-    if [[ $enabled_features_line == *"dns"* ]]; then  
+    enabled_modules=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
+    if [[ $enabled_modules_line == *"dns"* ]]; then  
 	    create_zone_file                             # create zone
 	    get_slave_dns_option                         # create zone on slave before include on master
 	    update_named_conf                            # include zone 
