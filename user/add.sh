@@ -1283,7 +1283,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
 
 
 mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
-chmod -777 /home/$username/sockets/
+chmod 777 /home/$username/sockets/
 
 
 if [ ! -f "/home/$username/.env" ]; then
