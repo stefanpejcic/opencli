@@ -813,7 +813,8 @@ log "Configuring Docker in Rootless mode"
 mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
 		
 echo "{
-	\"data-root\": \"/home/$username/docker-data\"
+	\"data-root\": \"/home/$username/docker-data\",
+         \"no-new-privileges\": true
 }" > /home/$username/.config/docker/daemon.json
 		
 		
