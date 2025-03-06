@@ -41,7 +41,7 @@ usage() {
 }
 
 
-
+image_name="openpanel/openpanel-ui"
 LOG_FILE="/var/log/openpanel/admin/notifications.log"
 
 
@@ -74,8 +74,10 @@ update_check() {
 
     local_version=$(opencli version)
 
+
+
     #OLD! remote_version=$(curl -s "https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/website/docusaurus.config.js" | grep -oP '(?<=label: ")[0-9]+\.[0-9]+\.[0-9]+')
-    tags=$(curl -s "https://hub.docker.com/v2/repositories/openpanel/openpanel-ui/tags" | jq -r '.results[].name')
+    tags=$(curl -s "https://hub.docker.com/v2/repositories/${image_name}/tags" | jq -r '.results[].name')
     
     remote_version=$(echo "$tags" | grep -v '^latest$' | sort -V | tail -n 1)
 
@@ -265,7 +267,7 @@ run_update_immediately(){
     echo "Updating to version $version"
 
     echo "Updating OpenPanel.."
-    docker image pull openpanel/openpanel:${version}
+    docker image pull ${image_name}:${version}
     
     echo "Setting version in /root/.env"
     sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
