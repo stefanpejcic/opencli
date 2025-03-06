@@ -709,6 +709,8 @@ dns_stuff() {
 	    create_zone_file                             # create zone
 	    get_slave_dns_option                         # create zone on slave before include on master
 	    update_named_conf                            # include zone 
+    else
+        log "DNS module is disabled - skipping creating DNS records"
     fi
 }
 
