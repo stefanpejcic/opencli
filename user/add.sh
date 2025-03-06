@@ -35,47 +35,115 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
+usage() {
+    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
+    echo
+    echo "Required arguments:"
+    echo "  <username>                 The username of the new user."
+    echo "  <password|generate>        The password for the new user, or 'generate' to auto-generate a password."
+    echo "  <email>                    The email address associated with the new user."
+    echo "  <plan_name>                The plan to assign to the new user."
+    echo
+    echo "Optional flags:"
+
+    if [ -n "$key_value" ]; then
+	    # Reseller section
+	    printf "%-25s %-45s\n" "  --reseller=<RESELLER_USER>" "Set the reseller for the user."
+	    echo
+	
+	    # Clustering section
+	    printf "%-25s %-45s\n" "  --server=<IP_ADDRESS>" "Specify the IPv4 of slave server to use for user."
+	    printf "%-25s %-45s\n" "  --key=<KEY_PATH>" "Specify the path to a key file for authentication to slave server."
+	    echo
+    fi
+
+    # Other
+    printf "%-25s %-45s\n" "  --send-email" "Send a welcome email to the user."
+    printf "%-25s %-45s\n" "  --debug" "Enable debug mode for additional output."
+    echo
     exit 1
-fi
+}
 
-username="${1,,}"
-password="$2"
-email="$3"
-plan_name="$4"
-DEBUG=false             # Default value for DEBUG
-SEND_EMAIL=false        # Don't send email by default
-server=""               # Default value for context
-key_flag=""
 
-# Parse flags for --debug, --send-email, and --context
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        --send-email)
-            SEND_EMAIL=true
-            ;;
-        --reseller=*)
-            reseller="${arg#*=}"
-	    ;;
-        --server=*)
-            server="${arg#*=}"
-	    ;;
-	--key=*)
-             key="${arg#*=}"
-	     key_flag="-i $key"
-            ;;
-        --sql=*)
-            sql_type="${arg#*=}"
-	    ;;	    
-        --webserver=*)
-            webserver="${arg#*=}"
-	    ;;
-    esac
-done
+
+check_enterprise() {
+    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+}
+
+
+
+
+
+
+check_if_default_slave_server_is_set() {
+
+	: '
+	[CLUSTERING]
+	default_node="11.22.33.44"
+	default_ssh_key_path="/root/some-key.rsa"
+	'
+
+	get_config_value() {
+	    local file="/etc/openpanel/openadmin/config/admin.ini"
+	    local key=$1
+	    local value=$(grep -E "^$key=" "$file" | awk -F= '{sub(/^ /, "", $2); print $2}')
+	
+	    if [[ -z "$value" ]]; then
+	        echo ""
+	    else
+	        echo "$value"
+	    fi
+	}
+	
+	
+	# Check and get values
+	default_node=$(get_config_value "default_node")
+	
+	if [[ -n "$default_node" ]]; then
+		default_ssh_key_path=$(get_config_value "default_ssh_key_path")
+		 if [[ -n "$default_ssh_key_path" ]]; then
+	              server=$default_node
+		      key=$default_ssh_key_path
+	              echo 'Using default node "$server" and ssh key path'
+		 fi
+	fi
+
+}
+
+
+
+
+
+check_if_default_slave_server_is_set         # we run it before parse_flags so it can be overwritten!
+
+
+	for arg in "$@"; do
+	    case $arg in
+	        --debug)
+	            DEBUG=true
+	            ;;
+	        --send-email)
+	            SEND_EMAIL=true
+	            ;;
+	        --reseller=*)
+	            reseller="${arg#*=}"
+		    ;;
+	        --server=*)
+	            server="${arg#*=}"
+		    ;;
+		--key=*)
+	             key="${arg#*=}"
+		     key_flag="-i $key"
+	            ;;
+	        --sql=*)
+	            sql_type="${arg#*=}"
+		    ;;	    
+	        --webserver=*)
+	            webserver="${arg#*=}"
+		    ;;
+	    esac
+	done
+
 
 log() {
     if $DEBUG; then
@@ -84,19 +152,12 @@ log() {
 }
 
 
-
-hostname=$(hostname)
-
-
-
-cleanup() {
-  #echo "[✘] Script failed. Cleaning up..."
-  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
-  # todo: remove user, files, container..
-  exit 1
+get_hostname_of_master() {
+	hostname=$(hostname)
 }
 
-trap cleanup EXIT
+
+
 
 
 
@@ -328,22 +389,8 @@ check_username_is_valid() {
 # Source the database config file
 . "$DB_CONFIG_FILE"
 
-check_running_containers() {
-    log "Checking if there is already a user docker container with the exact same name"
-    # Check if Docker container with the exact username exists
-    container_id=$(docker $context_flag ps -a --filter "name=^${username}$" --format "{{.ID}}")
-    
-    if [ -n "$container_id" ]; then
-        echo "[✘] ERROR: Docker container with the same name '$username' already exists on this server. Aborting."
-        exit 1
-    fi
-}
-
 
 get_existing_users_count() {
-    
-    # added in 0.2.0
-    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
     
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
@@ -1558,14 +1605,60 @@ collect_stats() {
 	opencli docker-collect_stats $username  > /dev/null 2>&1
 }
 
-# MAIN
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##########################################################
+########################## MAIN ##########################
+##########################################################
+
+#1. check if enterprise license, so we can display more info in usage()
+check_enterprise
+
+#2. Check the number of arguments, we need at least 4
+if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
+    usage
+fi
+
+#3. map and set defaults
+username="${1,,}"
+password="$2"
+email="$3"
+plan_name="$4"
+DEBUG=false             # Default value for DEBUG
+SEND_EMAIL=false        # Don't send email by default
+server=""               # Default value for context
+key_flag=""
+
+
+#4. remove loc file on exit
+cleanup() {
+  #echo "[✘] Script failed. Cleaning up..."
+  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
+  # todo: remove user, files, container..
+  exit 1
+}
+trap cleanup EXIT
+
+#5. lock and load
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
+get_hostname_of_master                       # later can be overwritten if slave
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
-get_slave_if_set                             # get context and use slave server if set
-###############check_running_containers                     # make sure container name is available
+get_slave_if_set                             # check if slave should be used and test connection
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 check_if_reseller                            # if reseller, check limits
@@ -1576,8 +1669,8 @@ sshfs_mounts                                 # mount /home/user
 setup_ssh_key                                # set key for the user
 docker_rootless                              # install 
 docker_compose                               # magic happens here
-create_context
-get_php_version   # must be before run_docker !
+create_context                               # on master
+get_php_version                              # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
 open_ports_on_firewall                       # open ports on csf or ufw
