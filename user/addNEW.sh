@@ -820,6 +820,9 @@ create_local_user() {
 		echo "Failed creating linux user $username on master server."
   		exit 1
 	fi
+ 
+ 	echo "$username:$password" | chpasswd
+
 }
 
 create_remote_user() {
@@ -857,12 +860,11 @@ set_user_quota(){
 }
 
 # CREATE THE USER
-create_user_and_set_quota() {
+create_user_set_quota_and_password() {
  	create_local_user
        	create_remote_user $user_id
 	set_user_quota
 }
-
 
 
 docker_compose() {
@@ -1568,7 +1570,7 @@ get_plan_info_and_check_requirements         # list plan from db and check avail
 check_if_reseller                            # if reseller, check limits
 print_debug_info_before_starting_creation    # print debug info
 validate_ssh_login                           # test ssh logins for cluster member
-create_user_and_set_quota                    # create user
+create_user_set_quota_and_password           # create user
 sshfs_mounts                                 # mount /home/user
 setup_ssh_key                                # set key for the user
 docker_rootless                              # install 
