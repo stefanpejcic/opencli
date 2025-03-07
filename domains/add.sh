@@ -367,7 +367,8 @@ add_domain_to_clamav_list(){
 
 start_default_php_fpm_service() {
         log "Starting container for the default PHP version ${php_version}"
-	docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version} >/dev/null 2>&1
+	#docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version} >/dev/null 2>&1
+ 	nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
 }
 
 
@@ -413,9 +414,10 @@ virtualHost $domain_name{
 	    $vhost_in_docker_file
 	"
  
-	log "Starting $ws container"
+	log "Starting $ws container in background.."
 
-       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
+       #docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
+       nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
  
 }
 
@@ -693,7 +695,8 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
     $volume_to_add
 }" "$COMPOSE_FILE"
 
-	     cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
+	     #cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
+             nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver " </dev/null >nohup.out 2>nohup.err &
 	fi
     fi
 }
