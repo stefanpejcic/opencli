@@ -223,7 +223,7 @@ do
     storage_in_blocks=$((numNdisk * 1024000))
 
     reload_user_quotas() {
-    	quotacheck -avm > /dev/null
+    	quotacheck -avm >/dev/null 2>&1
     	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
     }
 
