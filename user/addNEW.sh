@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug] [--reseller=<RESELLER_USERNAME>] [--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver=<nginx|apache>] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 23.02.2025
+# Last Modified: 05.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -35,41 +35,115 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 9 ]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> <plan_name> [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
+usage() {
+    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
+    echo
+    echo "Required arguments:"
+    echo "  <username>                 The username of the new user."
+    echo "  <password|generate>        The password for the new user, or 'generate' to auto-generate a password."
+    echo "  <email>                    The email address associated with the new user."
+    echo "  <plan_name>                The plan to assign to the new user."
+    echo
+    echo "Optional flags:"
+
+    if [ -n "$key_value" ]; then
+	    # Reseller section
+	    printf "%-25s %-45s\n" "  --reseller=<RESELLER_USER>" "Set the reseller for the user."
+	    echo
+	
+	    # Clustering section
+	    printf "%-25s %-45s\n" "  --server=<IP_ADDRESS>" "Specify the IPv4 of slave server to use for user."
+	    printf "%-25s %-45s\n" "  --key=<KEY_PATH>" "Specify the path to a key file for authentication to slave server."
+	    echo
+    fi
+
+    # Other
+    printf "%-25s %-45s\n" "  --send-email" "Send a welcome email to the user."
+    printf "%-25s %-45s\n" "  --debug" "Enable debug mode for additional output."
+    echo
     exit 1
-fi
+}
 
-username="${1,,}"
-password="$2"
-email="$3"
-plan_name="$4"
-DEBUG=false             # Default value for DEBUG
-SEND_EMAIL=false        # Don't send email by default
-server=""               # Default value for context
-key_flag=""
 
-# Parse flags for --debug, --send-email, and --context
-for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        --send-email)
-            SEND_EMAIL=true
-            ;;
-        --reseller=*)
-            reseller="${arg#*=}"
-	    ;;
-        --server=*)
-            server="${arg#*=}"
-	    ;;
-	--key=*)
-             key="${arg#*=}"
-	     key_flag="-i $key"
-            ;;
-    esac
-done
+
+check_enterprise() {
+    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+}
+
+
+
+
+
+
+check_if_default_slave_server_is_set() {
+
+	: '
+	[CLUSTERING]
+	default_node="11.22.33.44"
+	default_ssh_key_path="/root/some-key.rsa"
+	'
+
+	get_config_value() {
+	    local file="/etc/openpanel/openadmin/config/admin.ini"
+	    local key=$1
+	    local value=$(grep -E "^$key=" "$file" | awk -F= '{sub(/^ /, "", $2); print $2}')
+	
+	    if [[ -z "$value" ]]; then
+	        echo ""
+	    else
+	        echo "$value"
+	    fi
+	}
+	
+	
+	# Check and get values
+	default_node=$(get_config_value "default_node")
+	
+	if [[ -n "$default_node" ]]; then
+		default_ssh_key_path=$(get_config_value "default_ssh_key_path")
+		 if [[ -n "$default_ssh_key_path" ]]; then
+	              server=$default_node
+		      key=$default_ssh_key_path
+	              echo 'Using default node "$server" and ssh key path'
+		 fi
+	fi
+
+}
+
+
+
+
+
+check_if_default_slave_server_is_set         # we run it before parse_flags so it can be overwritten!
+
+
+	for arg in "$@"; do
+	    case $arg in
+	        --debug)
+	            DEBUG=true
+	            ;;
+	        --send-email)
+	            SEND_EMAIL=true
+	            ;;
+	        --reseller=*)
+	            reseller="${arg#*=}"
+		    ;;
+	        --server=*)
+	            server="${arg#*=}"
+		    ;;
+		--key=*)
+	             key="${arg#*=}"
+		     key_flag="-i $key"
+	            ;;
+	        --sql=*)
+	            sql_type="${arg#*=}"
+		    ;;	    
+	        --webserver=*)
+	            webserver="${arg#*=}"
+		    ;;
+	    esac
+	done
+
 
 log() {
     if $DEBUG; then
@@ -78,19 +152,12 @@ log() {
 }
 
 
-
-hostname=$(hostname)
-
-
-
-cleanup() {
-  #echo "[✘] Script failed. Cleaning up..."
-  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
-  # todo: remove user, files, container..
-  exit 1
+get_hostname_of_master() {
+	hostname=$(hostname)
 }
 
-trap cleanup EXIT
+
+
 
 
 
@@ -322,22 +389,8 @@ check_username_is_valid() {
 # Source the database config file
 . "$DB_CONFIG_FILE"
 
-check_running_containers() {
-    log "Checking if there is already a user docker container with the exact same name"
-    # Check if Docker container with the exact username exists
-    container_id=$(docker $context_flag ps -a --filter "name=^${username}$" --format "{{.ID}}")
-    
-    if [ -n "$container_id" ]; then
-        echo "[✘] ERROR: Docker container with the same name '$username' already exists on this server. Aborting."
-        exit 1
-    fi
-}
-
 
 get_existing_users_count() {
-    
-    # added in 0.2.0
-    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
     
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
@@ -813,7 +866,8 @@ log "Configuring Docker in Rootless mode"
 mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
 		
 echo "{
-	\"data-root\": \"/home/$username/docker-data\"
+	\"data-root\": \"/home/$username/docker-data\",
+         \"no-new-privileges\": true
 }" > /home/$username/.config/docker/daemon.json
 		
 		
@@ -858,39 +912,13 @@ EOF1
 
 
 
-log "Setting user pemissions.."
-
-		ssh $key_flag root@$node_ip_address "
-		# Backup the sudoers file before modifying
-		cp /etc/sudoers /etc/sudoers.bak
-		
-		# Append the user to sudoers with NOPASSWD
-		echo \"$username ALL=(ALL) NOPASSWD:ALL\" >> /etc/sudoers
-		
-		# Check if the line was successfully added
-		if grep -q \"$username ALL=(ALL) NOPASSWD:ALL\" /etc/sudoers; then
-		    :
-		else
-		    echo \"Failed to update the sudoers file. Please check the syntax.\"
-		    #exit 1
-		fi
-		
-		# Verify the sudoers file using visudo
-		visudo -c > /dev/null 2>&1
-		if [[ \$? -eq 0 ]]; then
-		    :
-		else
-		    echo \"The sudoers file contains syntax errors. Restoring the backup.\"
-		    mv /etc/sudoers.bak /etc/sudoers
-		fi
-		"
 
 log "Restarting services.."
 
 
 		ssh $key_flag root@$node_ip_address "
 		# Restart apparmor service
-		sudo systemctl restart apparmor.service >/dev/null 2>&1
+		systemctl restart apparmor.service >/dev/null 2>&1
 		
 		# Enable lingering for the user to keep their session alive across reboots
 		loginctl enable-linger $username >/dev/null 2>&1
@@ -975,7 +1003,7 @@ ssh $key_flag root@$node_ip_address "
 	else
 
 		
-cat <<EOT | sudo tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
+cat <<EOT | tee "/etc/apparmor.d/home.$username.bin.rootlesskit" > /dev/null 2>&1
 # ref: https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces
 abi <abi/4.0>,
 include <tunables/global>
@@ -1004,28 +1032,7 @@ EOF
   
   		mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
 
-
-		SUDOERS_FILE="/etc/sudoers"
-		
-		echo "$username ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS_FILE"
-		if grep -q "$username ALL=(ALL) NOPASSWD:ALL" "$SUDOERS_FILE"; then
-		    :
-		else
-		    echo "Failed to update the sudoers file. Please check the syntax."
-		    #exit 1
-		fi
-		
-		# Verify the sudoers file using visudo
-		visudo -c > /dev/null 2>&1
-		if [[ $? -eq 0 ]]; then
-		    :
-		else
-		    echo "The sudoers file contains syntax errors. Restoring the backup."
-		    mv "$SUDOERS_FILE.bak" "$SUDOERS_FILE"
-		fi
-
-
-		sudo systemctl restart apparmor.service   >/dev/null 2>&1
+		systemctl restart apparmor.service   >/dev/null 2>&1
 		loginctl enable-linger $username   >/dev/null 2>&1
 		mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
 		chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
@@ -1209,7 +1216,7 @@ run_docker() {
 	port_2="$SECOND_NEXT_AVAILABLE:3306"
 	port_3="$THIRD_NEXT_AVAILABLE:7681"
 	port_4="$FOURTH_NEXT_AVAILABLE:80"
-	port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:80"
+	port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:8080"
         port_6="127.0.0.1:$SIXTH_NEXT_AVAILABLE:443"
     else
 	port_1=""
@@ -1230,9 +1237,9 @@ fi
 
 # TEMPLATE: https://github.com/stefanpejcic/openpanel-configuration/blob/main/docker/compose/1.0/.env
 
-postgres_password=$(openssl rand -base64 12)
-mysql_root_password=$(openssl rand -base64 12)
-pg_admin_password=$(openssl rand -base64 12)
+postgres_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
+mysql_root_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
+pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
 
 : '
     log "Using:"
@@ -1251,7 +1258,7 @@ pg_admin_password=$(openssl rand -base64 12)
     log "MYSQL_PORT: $port_2"
     log "DEFAULT_PHP_VERSION: $default_php_version"
     log "POSTGRES_PASSWORD: $postgres_password"
-    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
+    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"    
 '
 
 if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
@@ -1280,9 +1287,26 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
     "/home/$username/.env"
 
+if [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
+    log "Setting $webserver as webserver for the user.."
+    sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
+        "/home/$username/.env"
+else
+    log "Warning: invalid webserver type selected: $webserver. Must be 'nginx' or 'apache'. Using the default instead.."
+fi
+
+if [[ "$sql_type" =~ ^(mysql|mariadb)$ ]]; then
+    log "Setting $sql_type as mysql server type for the user.."
+    sed -i -e "s|MYSQL_TYPE=\"[^\"]*\"|MYSQL_TYPE=\"$sql_type\"|g" \
+        "/home/$username/.env"
+else
+    log "Warning: invalid webserver type selected: $sql_type. Must be 'mysql' or 'mariadb'. Using the default instead.."
+fi
 
 
 mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
+echo "[mysqld]" > /home/${username}/custom.cnf
+cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
 chown -R $username:$username /home/$username/sockets
 chmod 777 /home/$username/sockets/
 
@@ -1301,122 +1325,7 @@ if [ ! -f "/home/$username/my.cnf" ]; then
    echo "WARNING: Failed to create my.cnf file! Make sure that the /etc/openpanel/ is updated and contains valid templates."
 fi
 
-: '
-
-# not starting from 1.1.1
-local docker_cmd="cd /home/$username && /home/$username/bin/docker compose up -d user_service"
-
-
-if [ "$DEBUG" = true ]; then
-    #echo "$AVAILABLE_PORTS"
-    log "Creating container with the docker compose command:"
-    echo "$docker_cmd"
-fi
-
-if [ -n "$node_ip_address" ]; then
-	ssh $username "$docker_cmd" > /dev/null 2>&1
-else
-	machinectl shell $username@ /bin/bash -c "$docker_cmd" > /dev/null 2>&1
-fi
-
-compose_running=$(docker --context $username compose ls)
-
-if echo "$compose_running" | grep -q "/home/$username/docker-compose.yml"; then
-    log "Container started"
-else
-    echo "docker-compose.yml for $username is not found or the container did not start!"
-	# TODO!!!!!
- 	#docker rm -f "$username" > /dev/null 2>&1
-	#docker context rm "$username" > /dev/null 2>&1
-        #killall -u $username > /dev/null 2>&1
-        #deluser --remove-home $username > /dev/null 2>&1
-  	exit 1
-fi
-:
-
-
 }
-
-
-
-
-# TODO:
-# OPEN ON REMOTE FIREWALL!!!
-
-# Open ports on firewall
-open_ports_on_firewall() {
-    log "Opening ports on the firewall for the user"
-    # Function to extract the host port from 'docker port' output
-    extract_host_port() {
-        local port_number="$1"
-        local host_port
-	host_port=$(su $username -c "docker $context_flag port \"$username\" | grep \"${port_number}/tcp\" | awk -F: '{print \$2}' | awk '{print \$1}'")
-        echo "$host_port"
-    }
-    
-    # Define the list of container ports to check and open
-    container_ports=("22" "3306" "7681" "8080")
-    
-    # Variable to track whether any ports were opened
-    ports_opened=0
-    
-
-            # Check for CSF
-            if command -v csf >/dev/null 2>&1; then
-                #echo "CSF is installed."
-                FIREWALL="CSF"
-                log "Detected ConfigServer Firewall (CSF) - docker port range is already opened"
-            # Check for UFW
-            elif command -v ufw >/dev/null 2>&1; then
-                #echo "UFW is installed."
-                FIREWALL="UFW"
-            else
-                echo "Danger! Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
-            fi
-    
-    
-    # TODO: edit this for fixed ports!
-    
-    # Loop through the container_ports array and open the ports on firewall
-    for port in "${container_ports[@]}"; do
-        host_port=$(extract_host_port "$port")
-            if [ -n "$host_port" ]; then
-                if [ "$FIREWALL" = "CSF" ]; then
-                    # range is already opened..
-                    ports_opened=0
-                elif [ "$FIREWALL" = "UFW" ]; then
-                    if [ -n "$node_ip_address" ]; then
-                        log "Opening port ${host_port} on UFW for the server $node_ip_address"
-                        ssh "root@$node_ip_address" "ufw allow ${host_port}/tcp  comment ${username}" >/dev/null 2>&1
-                    else
-                        log "Opening port ${host_port} on UFW"
-                        ufw allow ${host_port}/tcp  comment "${username}" >/dev/null 2>&1
-                    fi                   
-                fi
-                ports_opened=1
-            fi
-    done
-    
-    # Restart UFW if ports were opened
-    if [ $ports_opened -eq 1 ]; then
-            if [ "$FIREWALL" = "UFW" ]; then
-                    if [ -n "$node_ip_address" ]; then
-                        log "Reloading UFW service on server $node_ip_address"
-                        ssh "root@$node_ip_address" "ufw reload" >/dev/null 2>&1
-                    else
-                        log "Reloading UFW service"
-                        ufw reload >/dev/null 2>&1
-                    fi  
-            fi        
-    fi
-    
-}
-
-
-
-
-
-
 
 set_ssh_user_password_inside_container() {
     log "Setting ssh password for the root user inside the container"
@@ -1584,14 +1493,60 @@ collect_stats() {
 	opencli docker-collect_stats $username  > /dev/null 2>&1
 }
 
-# MAIN
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##########################################################
+########################## MAIN ##########################
+##########################################################
+
+#1. check if enterprise license, so we can display more info in usage()
+check_enterprise
+
+#2. Check the number of arguments, we need at least 4
+if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
+    usage
+fi
+
+#3. map and set defaults
+username="${1,,}"
+password="$2"
+email="$3"
+plan_name="$4"
+DEBUG=false             # Default value for DEBUG
+SEND_EMAIL=false        # Don't send email by default
+server=""               # Default value for context
+key_flag=""
+
+
+#4. remove loc file on exit
+cleanup() {
+  #echo "[✘] Script failed. Cleaning up..."
+  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
+  # todo: remove user, files, container..
+  exit 1
+}
+trap cleanup EXIT
+
+#5. lock and load
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
+get_hostname_of_master                       # later can be overwritten if slave
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
-get_slave_if_set                             # get context and use slave server if set
-###############check_running_containers                     # make sure container name is available
+get_slave_if_set                             # check if slave should be used and test connection
 get_existing_users_count                     # list users from db
 get_plan_info_and_check_requirements         # list plan from db and check available resources
 check_if_reseller                            # if reseller, check limits
@@ -1602,11 +1557,10 @@ sshfs_mounts                                 # mount /home/user
 setup_ssh_key                                # set key for the user
 docker_rootless                              # install 
 docker_compose                               # magic happens here
-create_context
-get_php_version   # must be before run_docker !
+create_context                               # on master
+get_php_version                              # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
-#open_ports_on_firewall                       # open ports on csf or ufw
 set_ssh_user_password_inside_container       # create/rename ssh user and set password
 change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
 phpfpm_config                                # edit phpfpm username in container
