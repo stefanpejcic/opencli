@@ -302,7 +302,7 @@ get_just_context_and_domains() {
 
 reload_user_quotas() {
   echo "Reloading user quotas.."
-    quotacheck -avm > /dev/null
+    quotacheck -avm >/dev/null 2>&1
     repquota -u / > /etc/openpanel/openpanel/core/users/repquota
 }
 
