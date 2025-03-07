@@ -76,12 +76,22 @@ get_all_available_files(){
       usage
       exit 1
     fi
-    path=$(echo "$available_files" | fzf --prompt="Select a file: ")
+
+    # Check if last used path exists
+    last_path=""
+    if [ -f /tmp/last_dev_path ]; then
+        last_path=$(cat /tmp/last_dev_path)
+    fi
+    
+    path=$(echo "$available_files" | fzf --prompt="Select a file: " --query="$last_path")
+    
     if [ -z "$path" ]; then
         echo "No file selected."
         usage
         exit 1
     fi
+
+    echo "$path" > /tmp/last_dev_path
 }
 
 
