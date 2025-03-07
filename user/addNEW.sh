@@ -35,6 +35,15 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 SEND_EMAIL_FILE="/usr/local/opencli/send_mail"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
+username="${1,,}"
+password="$2"
+email="$3"
+plan_name="$4"
+DEBUG=false             # Default value for DEBUG
+SEND_EMAIL=false        # Don't send email by default
+server=""               # Default value for context
+key_flag=""
+
 usage() {
     echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
     echo
@@ -69,6 +78,33 @@ usage() {
 check_enterprise() {
     key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 }
+
+
+
+
+
+#1. check if enterprise license, so we can display more info in usage()
+check_enterprise
+
+#2. Check the number of arguments, we need at least 4
+if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
+    usage
+fi
+
+
+#4. remove loc file on exit
+cleanup() {
+  #echo "[✘] Script failed. Cleaning up..."
+  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
+  # todo: remove user, files, container..
+  exit 1
+}
+trap cleanup EXIT
+
+
+
+
+
 
 
 
@@ -1511,36 +1547,6 @@ collect_stats() {
 ##########################################################
 ########################## MAIN ##########################
 ##########################################################
-
-#1. check if enterprise license, so we can display more info in usage()
-check_enterprise
-
-#2. Check the number of arguments, we need at least 4
-if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
-    usage
-fi
-
-#3. map and set defaults
-username="${1,,}"
-password="$2"
-email="$3"
-plan_name="$4"
-DEBUG=false             # Default value for DEBUG
-SEND_EMAIL=false        # Don't send email by default
-server=""               # Default value for context
-key_flag=""
-
-
-#4. remove loc file on exit
-cleanup() {
-  #echo "[✘] Script failed. Cleaning up..."
-  rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
-  # todo: remove user, files, container..
-  exit 1
-}
-trap cleanup EXIT
-
-#5. lock and load
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
 get_hostname_of_master                       # later can be overwritten if slave
