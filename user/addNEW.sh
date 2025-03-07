@@ -96,11 +96,22 @@ fi
 cleanup() {
   #echo "[✘] Script failed. Cleaning up..."
   rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
-  # todo: remove user, files, container..
   exit 1
 }
 trap cleanup EXIT
 
+
+hard_cleanup() {
+  # todo: remove user, files, container..
+  killall -u $username -9  > /dev/null 2>&1
+  deluser --remove-home $username  > /dev/null 2>&1
+  rm -rf /etc/openpanel/openpanel/core/stats/$username
+  rm -rf /etc/openpanel/openpanel/core/users/$username
+  docker context rm $context  > /dev/null 2>&1
+  quotacheck -avm >/dev/null 2>&1
+  repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+  exit 1
+}
 
 
 
@@ -869,7 +880,6 @@ create_user_and_set_quota() {
 
 
 
-
 docker_compose() {
 
    	if [ -n "$node_ip_address" ]; then
@@ -883,13 +893,14 @@ docker_compose() {
 		'"
 	else
 	    	log "Configuring Docker Compose for user $username"
-		machinectl shell $username@ /bin/bash -c "
-		DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
-		mkdir -p /home/$username/.docker/cli-plugins
-		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
-		chmod +x /home/$username/.docker/cli-plugins/docker-compose
-		docker compose version
-		"
+      		system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-x86_64"
+      		if [ ! -f "$system_wide_compose_file" ]; then
+			curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o $system_wide_compose_file
+   			chmod +x $system_wide_compose_file
+		fi
+     
+      		mkdir -p /home/$username/.docker/cli-plugins
+	        ln -sf $system_wide_compose_file /home/$username/.docker/cli-plugins/docker-compose
 	fi
 }
 
@@ -1028,7 +1039,7 @@ ssh $key_flag root@$node_ip_address "
         systemctl --user start docker > /dev/null 2>&1
 
 	systemctl --user status > /dev/null 2>&1
-    '
+    ' 2>/dev/null
 "
 
 #fork/exec /proc/self/exe: operation not permitted
@@ -1068,32 +1079,33 @@ EOF
   
   		mv ~/${filename} /etc/apparmor.d/${filename} > /dev/null 2>&1
 
-		systemctl restart apparmor.service   >/dev/null 2>&1
-		loginctl enable-linger $username   >/dev/null 2>&1
-		mkdir -p /home/$username/.docker/run   >/dev/null 2>&1
-		chmod 700 /home/$username/.docker/run   >/dev/null 2>&1
-		chmod 755 -R /home/$username/   >/dev/null 2>&1
-		chown -R $username:$username /home/$username/   >/dev/null 2>&1
+		systemctl restart apparmor.service >/dev/null 2>&1
+		loginctl enable-linger $username >/dev/null 2>&1
+		mkdir -p /home/$username/.docker/run /home/$username/bin/ /home/$username/bin/.config/systemd/user/ >/dev/null 2>&1
+		chmod 700 /home/$username/.docker/run >/dev/null 2>&1
+		chmod 755 -R /home/$username/ >/dev/null 2>&1
+		chown -R $username:$username /home/$username/ >/dev/null 2>&1
+
+      		system_wide_rootless_script="/etc/openpanel/docker/dockerd-rootless-setuptool.sh"
+      		if [ ! -f "$system_wide_rootless_script" ]; then
+			curl -sSL https://get.docker.com/rootless -o $system_wide_rootless_script
+   			chmod +x $system_wide_rootless_script
+		fi
+  
+  		ln -sf $system_wide_rootless_script /home/$username/bin/dockerd-rootless-setuptool.sh
 
 		machinectl shell $username@ /bin/bash -c "
-		
-		    cd /home/$username/bin
-		    # Install Docker rootless
-		    wget -O /home/$username/bin/dockerd-rootless-setuptool.sh https://get.docker.com/rootless > /dev/null 2>&1
-		   
+
 		    # Setup environment for rootless Docker
 		    source ~/.bashrc
-		
-		    chmod +x /home/$username/bin/dockerd-rootless-setuptool.sh
-		    /home/$username/bin/dockerd-rootless-setuptool.sh install > /dev/null 2>&1
+		     
+		    /home/$username/bin/dockerd-rootless-setuptool.sh install >/dev/null 2>&1
 		
 		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
 		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
 		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
 		
-		    # Source the updated bashrc and start Docker rootless
 		    source ~/.bashrc
-		    
 			mkdir -p ~/.config/systemd/user/
 			cat > ~/.config/systemd/user/docker.service <<EOF
 		[Unit]
@@ -1113,9 +1125,8 @@ EOF
 		EOF
 		
 		systemctl --user daemon-reload > /dev/null 2>&1
-		systemctl --user enable docker > /dev/null 2>&1
-		systemctl --user start docker > /dev/null 2>&1
-		"
+		systemctl --user restart docker > /dev/null 2>&1
+		" 2>/dev/null
 	fi
 }
 
@@ -1323,20 +1334,24 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
     "/home/$username/.env"
 
-if [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
-    log "Setting $webserver as webserver for the user.."
-    sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
-        "/home/$username/.env"
-else
-    log "Warning: invalid webserver type selected: $webserver. Must be 'nginx' or 'apache'. Using the default instead.."
+if [[ -n "$webserver" ]]; then
+    if [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
+        log "Setting $webserver as webserver for the user.."
+        sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
+            "/home/$username/.env"
+    else
+        log "Warning: invalid webserver type selected: $webserver. Must be 'nginx' or 'apache'. Using the default instead.."
+    fi
 fi
 
-if [[ "$sql_type" =~ ^(mysql|mariadb)$ ]]; then
-    log "Setting $sql_type as mysql server type for the user.."
-    sed -i -e "s|MYSQL_TYPE=\"[^\"]*\"|MYSQL_TYPE=\"$sql_type\"|g" \
-        "/home/$username/.env"
-else
-    log "Warning: invalid webserver type selected: $sql_type. Must be 'mysql' or 'mariadb'. Using the default instead.."
+if [[ -n "$sql_type" ]]; then
+    if [[ "$sql_type" =~ ^(mysql|mariadb)$ ]]; then
+        log "Setting $sql_type as MySQL server type for the user.."
+        sed -i -e "s|MYSQL_TYPE=\"[^\"]*\"|MYSQL_TYPE=\"$sql_type\"|g" \
+            "/home/$username/.env"
+    else
+        log "Warning: Invalid SQL server type selected: $sql_type. Must be 'mysql' or 'mariadb'. Using the default instead.."
+    fi
 fi
 
 
@@ -1454,8 +1469,8 @@ get_php_version() {
 
 start_panel_service() {
 	# from 0.2.5 panel service is not started until acc is created
-	log "Checking if OpenPanel service is already running, or starting it.."
-	cd /root && docker compose up -d openpanel > /dev/null 2>&1
+	log "Checking if OpenPanel service is already running, or starting it in background.."
+        nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >nohup.out 2>nohup.err &
 }
 
 
@@ -1471,6 +1486,15 @@ create_context() {
 			  --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" \
 		   	  --description "$username"
    fi
+
+
+    # Check if Docker Compose is working
+    if ! docker --context "$username" compose version; then
+        echo "[✘] Error: Docker Compose is not working in this context. User creation failed."
+	hard_cleanup # remove data!
+        exit 1
+    fi
+   
 }
 
 save_user_to_db() {
@@ -1488,6 +1512,7 @@ save_user_to_db() {
         echo "[✔] Successfully added user $username with password: $password"
     else
         echo "[✘] Error: Data insertion failed."
+	hard_cleanup # remove data!
         exit 1
     fi
 
@@ -1519,7 +1544,7 @@ send_email_to_new_user() {
 
 
 reload_user_quotas() {
-    quotacheck -avm > /dev/null
+    quotacheck -avm >/dev/null 2>&1
     repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
 }
 
