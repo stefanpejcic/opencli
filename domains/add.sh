@@ -539,8 +539,8 @@ check_and_add_to_enabled() {
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, validating new domain configuration"
 	else
-	    log "Caddy is not running, starting now"
-            cd /root && docker compose up -d caddy  >/dev/null 2>&1
+	    log "Caddy is not running, starting in background.."
+	    nohup sh -c "cd /root && docker compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
      	fi
 	    	check_and_add_to_enabled
 		if [ $? -eq 0 ]; then
@@ -648,7 +648,7 @@ create_zone_file() {
 	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
 	log "DNS is eanbled but the DNS service is not yet started, starting now.."
-	cd /root && docker compose up -d bind9  >/dev/null 2>&1
+ 	nohup sh -c "cd /root && docker compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 }
 
