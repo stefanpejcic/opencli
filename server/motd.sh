@@ -127,3 +127,5 @@ touch $OUTPUT_FILE
     echo -e  ""
     echo -e  "================================================================"
 } > $OUTPUT_FILE
+
+chmod +x /etc/openpanel/ssh/lazydocker.sh > /dev/null 2>&1
