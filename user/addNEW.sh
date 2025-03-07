@@ -1577,9 +1577,9 @@ create_context                               # on master
 get_php_version                              # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
-set_ssh_user_password_inside_container       # create/rename ssh user and set password
-change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
-phpfpm_config                                # edit phpfpm username in container
+###########set_ssh_user_password_inside_container       # create/rename ssh user and set password
+###########change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
+############phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
