@@ -647,22 +647,7 @@ get_plan_info_and_check_requirements() {
     inodes=$(echo "$cpu_ram_info" | awk '{print $5}')
     bandwidth=$(echo "$cpu_ram_info" | awk '{print $6}')
     plan_id=$(echo "$cpu_ram_info" | awk '{print $7}')
-    
-    # Get the available free space on the disk
-    if [ -n "$node_ip_address" ]; then
-        current_free_space=$(ssh "root@$node_ip_address" "df -BG / | awk 'NR==2 {print \$3}' | sed 's/G//'")
-    else
-        current_free_space=$(df -BG / | awk 'NR==2 {print $3}' | sed 's/G//')
-    fi
-
-    
-    if [ "$disk_limit" -eq 0 ]; then
-        :
-    elif [ "$current_free_space" -lt "$disk_limit" ]; then
-        echo "WARNING: Insufficient disk space on the server. Required: ${disk_limit}GB, Available: ${current_free_space}GB"
-    fi
-
-    
+        
     # Get the maximum available CPU cores on the server
     if [ -n "$node_ip_address" ]; then
         # TODO: Use a custom user or configure SSH instead of using root
