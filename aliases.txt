@@ -4,6 +4,7 @@ opencli backup-restore_user
 opencli backup-user
 opencli commands
 opencli config
+opencli dev
 opencli docker-collect_stats
 opencli docker-limits
 opencli docker-usage_stats_cleanup
