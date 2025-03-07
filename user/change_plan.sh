@@ -271,7 +271,7 @@ update_used_disk_inodes() {
         echo "[✘] Error setting disk and inodes limits for the user:"
         echo "Command used: $command"
     fi 
-    quotacheck -avm > /dev/null                                                              # recheck for all users
+    quotacheck -avm >/dev/null 2>&1                                                          # recheck for all users
     repquota -u / > /etc/openpanel/openpanel/core/users/repquota                             # store to file for openpanel ui
 }
 
