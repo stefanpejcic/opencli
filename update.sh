@@ -305,8 +305,7 @@ run_update_immediately(){
     else
         timeout 300 bash -c "wget -q -O - '$url' | bash" &>> "$log_file"
         if [ $? -eq 124 ]; then
-            echo "Error: Checking for advanced scripts for version $version timed out after 5 minutes."
-            #write_notification "Update Timed Out" "The update to version $version timed out after 5 minutes."
+            echo "Error: Checking for additional scripts for version $version timed out after 5 minutes."
         fi
     fi
     
