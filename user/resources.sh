@@ -301,7 +301,7 @@ get_active_services_and_their_usage() {
     
         # Add services to the JSON structure
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}} , \"message\": \"$message\"}"
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}}"
         else
             echo ""
             echo "Total usage:"
@@ -346,8 +346,8 @@ check_if_service_exists_or_running() {
             #echo "Service '$service_name' is not running."
             return 2  # Service exists but is not running
         fi
-    fi
     
+    fi
 }
 
 
@@ -363,98 +363,91 @@ stop_service_now() {
 
 display_json_or_message() {
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}} , \"message\": \"$message\"}"
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}}}"
             echo "$json_data" | jq .
         else
             echo "$message"
         fi
 }    
 
-
 add_new_service() {
-# Handle new service addition if --activate=<service_name> is provided
+    # Handle new service addition if --activate=<service_name> is provided
     if [[ -n "$new_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
         new_service_name=$(echo "$new_service" | sed 's/[.-]/_/g')
-        
 
         check_if_service_exists_or_running "$new_service" "check"
 
         if [ $? -eq 1 ]; then
             echo "ERROR: Service $new_service_name does not exist in docker-compose.yml file. Contact the administrator."
         fi
-    
+
         new_cpu_var="${new_service_name^^}_CPU"
         new_ram_var="${new_service_name^^}_RAM"
-    
+
         new_cpu_value=${!new_cpu_var:-0}
         new_ram_value=${!new_ram_var:-0}
         new_ram_value=${new_ram_value//G/}
 
+        # Check if the CPU value is a valid float or integer
+        if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            message+="\nError: Service $new_service_name does not have a valid CPU limit defined!"
+        # Check if the CPU value is 0.0 or less (for floats)
+        elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
+            message+="\nError: Service $new_service_name does not have CPU or RAM limits defined!"
+        fi
 
-    
-            # Check if the CPU value is a valid float or integer
-            if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-                message+="\n Error: Service $service_name does not have a valid CPU limit defined!"
-            # Check if the CPU value is 0.0 or less (for floats)
-            elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
-                message+="\n Error: Service $service_name does not have CPU or RAM limits defined!"
+        projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
+        if awk -v cpu="$projected_cpu" -v total="$TOTAL_CPU" 'BEGIN {exit !(cpu > total)}'; then
+            if [ "$TOTAL_CPU" -eq 0 ]; then
+                message+="\nWarning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
+            else
+                message+="\nError: Adding $new_service would exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
             fi
-            
-            projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
-            if awk -v cpu="$projected_cpu" -v total="$TOTAL_CPU" 'BEGIN {exit !(cpu > total)}'; then
-                if [ "$TOTAL_CPU" -eq 0 ]; then
-                    message+="\n "Warning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
-                else
-                    message+="\n Error: Adding $new_service would exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
-                fi
+        fi
+
+        projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $new_ram_value}")
+        if awk -v ram="$projected_ram" -v total="$TOTAL_RAM" 'BEGIN {exit !(ram > total)}'; then
+            if [ "$TOTAL_RAM" -eq 0 ]; then
+                message+="\nWarning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
+            else
+                message+="\nError: Adding $new_service would exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
             fi
-            
-            projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $new_ram_value}")
-            if awk -v ram="$projected_ram" -v total="$TOTAL_RAM" 'BEGIN {exit !(ram > total)}'; then
-                if [ "$TOTAL_RAM" -eq 0 ]; then
-                    message+="\n Warning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
-                else
-                    message+="\n Error: Adding $new_service would exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
-                fi
+        fi
+
+        if awk -v cpu="$projected_cpu" -v total_cpu="$TOTAL_CPU" -v ram="$projected_ram" -v total_ram="$TOTAL_RAM" \
+            'BEGIN {exit !(cpu > total_cpu || ram > total_ram)}'; then
+            display_json_or_message
+            exit 1
+        else
+            # START SERVICE
+            start_service_now "$new_service"
+
+            # CHECK IF RUNNING
+            check_if_service_exists_or_running "$service_name" "status"
+            status=$?
+            if [ $status -eq 0 ]; then
+                message+="\nService $service_name started successfully."
+                opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
+            elif [ $status -eq 2 ]; then
+                message+="\nService $service_name did not start. Contact Administrator."
             fi
 
-
-
-            if awk -v cpu="$projected_cpu" -v total_cpu="$TOTAL_CPU" -v ram="$projected_ram" -v total_ram="$TOTAL_RAM" \
-                'BEGIN {exit !(cpu > total_cpu || ram > total_ram)}'; then
+            # DON'T SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
+            if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
                 display_json_or_message
                 exit 1
-            else
-                # START SERVICE
-                start_service_now $new_service
-                
-                # CHECK IF RUNNING
-                check_if_service_exists_or_running "$service_name" "status"
-                status=$?
-                if [ $status -eq 0 ]; then
-                    message+="\n Service $service_name started successfully."
-                    opencli docker-collect_stats $USERNAME >/dev/null 2>&1 &
-                elif [ $status -eq 2 ]; then
-                    message+="\n Service $service_name did not start. Contact Administrator."
-                fi
-
-                # DONT SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
-                if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
-                        display_json_or_message
-                        exit 1
-                fi
-
-                display_json_or_message
             fi
+
+            display_json_or_message
+        fi
     fi
 }
 
 
 
-
 stop_container() {
-# Handle new service addition if --activate=<service_name> is provided
+    # Handle new service addition if --activate=<service_name> is provided
     if [[ -n "$stop_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
         stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')  
@@ -465,20 +458,20 @@ stop_container() {
             echo "ERROR: Service $stop_service does not exist in docker-compose.yml file. Contact the administrator."
         fi
         
-                # START SERVICE
-                stop_service_now $stop_service
-                
-                # CHECK IF RUNNING
-                check_if_service_exists_or_running "$stop_service" "status"
-                status=$?
-                if [ $status -eq 0 ]; then
-                    message+="\n Service $stop_service did not stop. Contact Administrator."
-                elif [ $status -eq 2 ]; then
-                    message+="\n Service $stop_service stopped successfully."
-                    opencli docker-collect_stats $USERNAME >/dev/null 2>&1 &
-                fi
+        # STOP SERVICE
+        stop_service_now "$stop_service"
+        
+        # CHECK IF RUNNING
+        check_if_service_exists_or_running "$stop_service" "status"
+        status=$?
+        if [ $status -eq 0 ]; then
+            message+="\nService $stop_service did not stop. Contact Administrator."
+        elif [ $status -eq 2 ]; then
+            message+="\nService $stop_service stopped successfully."
+            opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
+        fi
 
-                display_json_or_message
+        display_json_or_message
     fi
 }
 
