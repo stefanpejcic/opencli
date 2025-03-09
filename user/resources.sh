@@ -46,7 +46,7 @@ usage() {
     echo "Options:"
     echo "  --json                   Output the result in JSON format."
     echo "  --update_cpu=<value>     Update CPU allocation for the service (e.g., --update_cpu=2 --service=apache)."
-    echo "  --update_ram=<value>     Update RAM allocation for the service (e.g., --update_ram=4G --service=apache)."
+    echo "  --update_ram=<value>     Update RAM allocation for the service (e.g., --update_ram=4 --service=apache)."
     echo "  --activate=<service>     Activate the specified docker service."
     echo "  --service=<service_name> Specify a service to update its CPU and RAM configuration."
     echo "  --deactivate=<service>   Deactivate the specified service."
@@ -56,10 +56,10 @@ usage() {
     echo "  opencli user-resources stefan --activate=apache"
     echo "  opencli user-resources stefan --deactivate=apache"
     echo "  opencli user-resources stefan --update_cpu=2"
-    echo "  opencli user-resources stefan --update_ram=4G"
-    echo "  opencli user-resources stefan --service=apache --update_ram=1G"
+    echo "  opencli user-resources stefan --update_ram=4"
+    echo "  opencli user-resources stefan --service=apache --update_ram=1.2"
     echo "  opencli user-resources stefan --service=apache --update_cpu=0.5"
-    echo "  opencli user-resources stefan --json --service=mysql --update_cpu=2 --update_ram=1.5G"
+    echo "  opencli user-resources stefan --json --service=mysql --update_cpu=2 --update_ram=1.5"
     echo ""
     exit 1
 }
@@ -131,9 +131,9 @@ update_cpu_for_service_or_total() {
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
-                sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_cpu"'"/' "$env_file"
+                sed -i 's/^'"${service_to_update_cpu_ram^^}"'_CPU=".*"/'"${service_to_update_cpu_ram^^}"'_CPU="'"$update_cpu"'"/' "$env_file"
             else
-                sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_cpu"'"/' "$env_file"
+                sed -i 's/^TOTAL_CPU=".*"/TOTAL_CPU="'"$update_cpu"'"/' "$env_file"
             fi
         else
             echo "Error: Invalid CPU value. Must be a number between 0 and 512."
