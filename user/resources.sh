@@ -150,14 +150,14 @@ update_ram_for_service_or_total() {
         if validate_number "$update_ram"; then
             update_ram="${update_ram}g"  # https://i.pinimg.com/736x/35/52/72/355272d3d4ddd508433781ee038d008c.jpg
             if [[ -n "$service_to_update_cpu_ram" ]]; then
-                message+="\n Updating RAM limit for service $service_to_update_cpu_ram to: $update_ram G"
+                message+="\n Updating RAM limit for service $service_to_update_cpu_ram to: $update_ram"
 
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
             else
-                message+="\n Updating total RAM limit to: $update_ram G"
+                message+="\n Updating total RAM limit to: $update_ram"
                 sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
             fi
         else
@@ -234,7 +234,7 @@ get_active_services_and_their_usage() {
         fi
     fi
 
-    json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}}"
+    json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
 
 
     if [ -n "$RUNNING_SERVICES" ]; then
@@ -301,7 +301,7 @@ get_active_services_and_their_usage() {
     
         # Add services to the JSON structure
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}}"
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
         else
             echo ""
             echo "Total usage:"
@@ -363,7 +363,7 @@ stop_service_now() {
 
 display_json_or_message() {
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}}}"
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}}, \"message\": \"$message\"}"
             echo "$json_data" | jq .
         else
             echo "$message"
