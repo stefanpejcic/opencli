@@ -126,13 +126,14 @@ validate_number() {
 update_cpu_for_service_or_total() {
     if [[ -n "$update_cpu" ]]; then
         if validate_number "$update_cpu"; then
-            echo "Updating CPU to $update_cpu"
             if [[ -n "$service_to_update_cpu_ram" ]]; then
+                message="${message} \n Updating CPU limit for service $service_to_update_cpu_ram to: $update_cpu Core"
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_CPU=".*"/'"${service_to_update_cpu_ram^^}"'_CPU="'"$update_cpu"'"/' "$env_file"
             else
+                message="${message} \n Updating total CPU limit to: $update_cpu Core"
                 sed -i 's/^TOTAL_CPU=".*"/TOTAL_CPU="'"$update_cpu"'"/' "$env_file"
             fi
         else
@@ -147,13 +148,15 @@ update_ram_for_service_or_total() {
         update_ram="${update_ram//[gG]/}"  # Remove g or G
         if validate_number "$update_ram"; then
             update_ram="${update_ram}g"  # https://i.pinimg.com/736x/35/52/72/355272d3d4ddd508433781ee038d008c.jpg
-            echo "Updating RAM to $update_ram"
             if [[ -n "$service_to_update_cpu_ram" ]]; then
+                message="${message} \n Updating RAM limit for service $service_to_update_cpu_ram to: $update_ram G"
+
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
             else
+                message="${message} \n Updating total RAM limit to: $update_ram G"
                 sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
             fi
         else
@@ -211,16 +214,28 @@ get_active_services_and_their_usage() {
     
     RUNNING_SERVICES=$(docker --context $context ps --format "{{.Names}}")
     if [ $? -ne 0 ]; then
-        echo "Failed to retrieve the list of running services. Please ensure Docker is installed and the context '$context' is valid."
+        message="Failed to retrieve the list of running services. Please ensure Docker is installed and the context '$context' is valid."
+        if $json_output; then
+            json_data="{\"context\": \"$context\", \"message\": \"$message\"}"
+            echo "$json_data" | jq .
+        else
+            echo "$message"
+        fi
         exit 1
     fi
-    
+
+    message=""
     if [ -z "$RUNNING_SERVICES" ]; then
-        echo "No services are currently running in context '$context'."
+        message="No services are currently running in context '$context'."
+        if $json_output; then
+            message="${message}"
+        else
+            echo "$message"
+        fi
     fi
 
     json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}}"
-    message=""
+
 
     if [ -n "$RUNNING_SERVICES" ]; then
         services_data=""
