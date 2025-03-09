@@ -278,7 +278,7 @@ run_update_immediately(){
 
     echo "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
-    cd /usr/local/opencli && git pull
+    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull
  
     echo "Updating OpenAdmin.."
     cd /usr/local/admin && git pull
