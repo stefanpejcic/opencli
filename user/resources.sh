@@ -214,7 +214,7 @@ get_active_services_and_their_usage() {
     
     RUNNING_SERVICES=$(docker --context $context ps --format "{{.Names}}")
     if [ $? -ne 0 ]; then
-        message="Failed to retrieve the list of running services. Please ensure Docker is installed and the context '$context' is valid."
+        message="${message} /n Failed to retrieve the list of running services. Please ensure Docker is installed and the context '$context' is valid."
         if $json_output; then
             json_data="{\"context\": \"$context\", \"message\": \"$message\"}"
             echo "$json_data" | jq .
@@ -224,11 +224,11 @@ get_active_services_and_their_usage() {
         exit 1
     fi
 
-    message=""
+    message="${message}"
     if [ -z "$RUNNING_SERVICES" ]; then
-        message="No services are currently running in context '$context'."
+        message="${message} /n No services are currently running in context '$context'."
         if $json_output; then
-            message="${message}"
+            :
         else
             echo "$message"
         fi
@@ -269,7 +269,7 @@ get_active_services_and_their_usage() {
     
             if [ -z "${!cpu_var}" ] || [ -z "${!ram_var}" ]; then
                 # If either the CPU or RAM value is missing in the .env file, show a message
-                message="Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
+                message="${message} /n Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
             fi
     
     
@@ -311,7 +311,7 @@ get_active_services_and_their_usage() {
         fi
     
     else
-        message="No currently running services."
+        message="${message} /n No currently running services."
         echo "$message"
     fi
 }
@@ -395,18 +395,18 @@ add_new_service() {
     
             # Check if the CPU value is a valid float or integer
             if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-                message="Error: Service $service_name does not have a valid CPU limit defined!"
+                message="${message} /n Error: Service $service_name does not have a valid CPU limit defined!"
             # Check if the CPU value is 0.0 or less (for floats)
             elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
-                message="Error: Service $service_name does not have CPU or RAM limits defined!"
+                message="${message} /n Error: Service $service_name does not have CPU or RAM limits defined!"
             fi
             
             projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
             if awk -v cpu="$projected_cpu" -v total="$TOTAL_CPU" 'BEGIN {exit !(cpu > total)}'; then
                 if [ "$TOTAL_CPU" -eq 0 ]; then
-                    message="Warning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
+                    message="${message} /n "Warning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
                 else
-                    message="Error: Adding $new_service will exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
+                    message="${message} /n Error: Adding $new_service would exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
                 fi
             fi
             
@@ -415,7 +415,7 @@ add_new_service() {
                 if [ "$TOTAL_RAM" -eq 0 ]; then
                     message="${message} \n Warning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
                 else
-                    message="${message} \n Error: Adding $new_service will exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
+                    message="${message} \n Error: Adding $new_service would exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
                 fi
             fi
 
