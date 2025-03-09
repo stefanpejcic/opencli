@@ -114,7 +114,7 @@ validate_number() {
     
     # matches 123, 45.67, .5, 0.3
     if [[ "$num" =~ ^[0-9]*\.?[0-9]+$ ]]; then
-        if (( $(echo "$num >= 0 && $num <= 512" | bc -l) )); then
+        if awk -v n="$num" 'BEGIN {exit !(n >= 0 && n <= 512)}'; then
             return 0
         fi
     fi
@@ -275,9 +275,10 @@ get_active_services_and_their_usage() {
     
             # Strip "G" from RAM values
             ram_value=${ram_value//G/}
-    
-            TOTAL_USED_CPU=$(echo "$TOTAL_USED_CPU + $cpu_value" | bc)
-            TOTAL_USED_RAM=$(echo "$TOTAL_USED_RAM + $ram_value" | bc)
+            
+            TOTAL_USED_CPU=$(awk "BEGIN {print $TOTAL_USED_CPU + $cpu_value}")
+            TOTAL_USED_RAM=$(awk "BEGIN {print $TOTAL_USED_RAM + $ram_value}")
+
     
             if [[ "$service_name" == "OS" ]]; then
                 service_name=$context
@@ -389,40 +390,41 @@ add_new_service() {
         new_cpu_value=${!new_cpu_var:-0}
         new_ram_value=${!new_ram_var:-0}
         new_ram_value=${new_ram_value//G/}
+
+
     
-        # Check if the CPU value is a valid float or integer
-        if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            message="Error: Service $service_name does not have a valid CPU limit defined!"
-        # Check if the CPU value is 0.0 or less (for floats)
-        elif (( $(echo "$new_cpu_value > 0" | bc -l) == 0 )) || [ -z "$new_ram_value" ]; then
-            message="Error: Service $service_name does not have CPU or RAM limits defined!"
-        fi
-    
-            projected_cpu=$(echo "$TOTAL_USED_CPU + $new_cpu_value" | bc)
-            if (( $(echo "$projected_cpu > $TOTAL_CPU" | bc -l) )); then
+            # Check if the CPU value is a valid float or integer
+            if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                message="Error: Service $service_name does not have a valid CPU limit defined!"
+            # Check if the CPU value is 0.0 or less (for floats)
+            elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
+                message="Error: Service $service_name does not have CPU or RAM limits defined!"
+            fi
+            
+            projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
+            if awk -v cpu="$projected_cpu" -v total="$TOTAL_CPU" 'BEGIN {exit !(cpu > total)}'; then
                 if [ "$TOTAL_CPU" -eq 0 ]; then
                     message="Warning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
                 else
                     message="Error: Adding $new_service will exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
                 fi
             fi
-    
-    
-            projected_ram=$(echo "$TOTAL_USED_RAM + $new_ram_value" | bc)
-            if (( $(echo "$projected_ram > $TOTAL_RAM" | bc -l) )); then
+            
+            projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $new_ram_value}")
+            if awk -v ram="$projected_ram" -v total="$TOTAL_RAM" 'BEGIN {exit !(ram > total)}'; then
                 if [ "$TOTAL_RAM" -eq 0 ]; then
                     message="${message} \n Warning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
                 else
                     message="${message} \n Error: Adding $new_service will exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
                 fi
-    
             fi
 
 
-        
-            if (( $(echo "$projected_cpu > $TOTAL_CPU" | bc -l) )) || (( $(echo "$projected_ram > $TOTAL_RAM" | bc -l) )); then
-                    display_json_or_message
-                    exit 1
+
+            if awk -v cpu="$projected_cpu" -v total_cpu="$TOTAL_CPU" -v ram="$projected_ram" -v total_ram="$TOTAL_RAM" \
+                'BEGIN {exit !(cpu > total_cpu || ram > total_ram)}'; then
+                display_json_or_message
+                exit 1
             else
                 # START SERVICE
                 start_service_now $new_service
