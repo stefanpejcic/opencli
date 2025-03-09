@@ -128,13 +128,13 @@ update_cpu_for_service_or_total() {
     if [[ -n "$update_cpu" ]]; then
         if validate_number "$update_cpu"; then
             if [[ -n "$service_to_update_cpu_ram" ]]; then
-                message+="\n Updating CPU limit for service $service_to_update_cpu_ram to: $update_cpu Core"
+                message+="<br> Updating CPU limit for service $service_to_update_cpu_ram to: $update_cpu Core"
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_CPU=".*"/'"${service_to_update_cpu_ram^^}"'_CPU="'"$update_cpu"'"/' "$env_file"
             else
-                message+="\n Updating total CPU limit to: $update_cpu Core"
+                message+="<br> Updating total CPU limit to: $update_cpu Core"
                 sed -i 's/^TOTAL_CPU=".*"/TOTAL_CPU="'"$update_cpu"'"/' "$env_file"
             fi
         else
@@ -150,14 +150,14 @@ update_ram_for_service_or_total() {
         if validate_number "$update_ram"; then
             update_ram="${update_ram}g"  # https://i.pinimg.com/736x/35/52/72/355272d3d4ddd508433781ee038d008c.jpg
             if [[ -n "$service_to_update_cpu_ram" ]]; then
-                message+="\n Updating RAM limit for service $service_to_update_cpu_ram to: $update_ram"
+                message+="<br> Updating RAM limit for service $service_to_update_cpu_ram to: $update_ram"
 
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
                 fi
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
             else
-                message+="\n Updating total RAM limit to: $update_ram"
+                message+="<br> Updating total RAM limit to: $update_ram"
                 sed -i 's/^TOTAL_RAM=".*"/TOTAL_RAM="'"$update_ram"'"/' "$env_file"
             fi
         else
@@ -215,7 +215,7 @@ get_active_services_and_their_usage() {
     
     RUNNING_SERVICES=$(docker --context $context ps --format "{{.Names}}")
     if [ $? -ne 0 ]; then
-        message+="\n Failed to retrieve the list of running services. Please ensure Docker is installed and the context $context is valid."
+        message+="<br> Failed to retrieve the list of running services. Please ensure Docker is installed and the context $context is valid."
         if $json_output; then
             json_data="{\"context\": \"$context\", \"message\": \"$message\"}"
             echo "$json_data" | jq .
@@ -226,7 +226,7 @@ get_active_services_and_their_usage() {
     fi
 
     if [ -z "$RUNNING_SERVICES" ]; then
-        message+="\n No services are currently running in context $context"
+        message+="<br> No services are currently running in context $context"
         if $json_output; then
             :
         else
@@ -269,7 +269,7 @@ get_active_services_and_their_usage() {
     
             if [ -z "${!cpu_var}" ] || [ -z "${!ram_var}" ]; then
                 # If either the CPU or RAM value is missing in the .env file, show a message
-                message+="\n Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
+                message+="<br> Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
             fi
     
     
@@ -311,7 +311,7 @@ get_active_services_and_their_usage() {
         fi
     
     else
-        message+="\n No currently running services."
+        message+="<br> No currently running services."
         echo "$message"
     fi
 }
@@ -391,27 +391,27 @@ add_new_service() {
 
         # Check if the CPU value is a valid float or integer
         if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            message+="\nError: Service $new_service_name does not have a valid CPU limit defined!"
+            message+="<br> Error: Service $new_service_name does not have a valid CPU limit defined!"
         # Check if the CPU value is 0.0 or less (for floats)
         elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
-            message+="\nError: Service $new_service_name does not have CPU or RAM limits defined!"
+            message+="<br>Error: Service $new_service_name does not have CPU or RAM limits defined!"
         fi
 
         projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
         if awk -v cpu="$projected_cpu" -v total="$TOTAL_CPU" 'BEGIN {exit !(cpu > total)}'; then
             if [ "$TOTAL_CPU" -eq 0 ]; then
-                message+="\nWarning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
+                message+="<br>Warning: User has unlimited CPU limits: $projected_cpu / $TOTAL_CPU cpus"
             else
-                message+="\nError: Adding $new_service would exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
+                message+="<br> Error: Adding $new_service would exceed CPU limits: $projected_cpu / $TOTAL_CPU cpus"
             fi
         fi
 
         projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $new_ram_value}")
         if awk -v ram="$projected_ram" -v total="$TOTAL_RAM" 'BEGIN {exit !(ram > total)}'; then
             if [ "$TOTAL_RAM" -eq 0 ]; then
-                message+="\nWarning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
+                message+="<br> Warning: User has unlimited RAM limits: $projected_ram G / $TOTAL_RAM G"
             else
-                message+="\nError: Adding $new_service would exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
+                message+="<br> Error: Adding $new_service would exceed RAM limits: $projected_ram G / $TOTAL_RAM G"
             fi
         fi
 
@@ -427,10 +427,10 @@ add_new_service() {
             check_if_service_exists_or_running "$service_name" "status"
             status=$?
             if [ $status -eq 0 ]; then
-                message+="\nService $service_name started successfully."
+                message+="<br>Service $service_name started successfully."
                 opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
             elif [ $status -eq 2 ]; then
-                message+="\nService $service_name did not start. Contact Administrator."
+                message+="<br>Service $service_name did not start. Contact Administrator."
             fi
 
             # DON'T SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
@@ -465,9 +465,9 @@ stop_container() {
         check_if_service_exists_or_running "$stop_service" "status"
         status=$?
         if [ $status -eq 0 ]; then
-            message+="\nService $stop_service did not stop. Contact Administrator."
+            message+="<br>Service $stop_service did not stop. Contact Administrator."
         elif [ $status -eq 2 ]; then
-            message+="\nService $stop_service stopped successfully."
+            message+="<br>Service $stop_service stopped successfully."
             opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
         fi
 
