@@ -540,18 +540,18 @@ check_and_add_to_enabled() {
  	# Check if the 'caddy' container is running
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, validating new domain configuration"
-	else
-	    log "Caddy is not running, starting in background.."
-	    nohup sh -c "cd /root && docker compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
-     	fi
-	    	check_and_add_to_enabled
+
+                check_and_add_to_enabled
 		if [ $? -eq 0 ]; then
 		    log "Domain successfully added and Caddy reloaded."
 		else
 		    log "Failed to add domain configuration, changes reverted."
 		fi
+	else
+	    log "Caddy is not running, starting in background.."
+	    nohup sh -c "cd /root && docker compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
+     	fi
 
-    
 }
 
 
