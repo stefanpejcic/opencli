@@ -226,7 +226,7 @@ check_if_reseller() {
 	  	log "Checking reseller limits.."
     
 		local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
-		current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_owner" -se)
+		current_accounts=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -se "$query_for_owner")
 		
 		#echo "DEBUG: current_accounts='$current_accounts'"
 
