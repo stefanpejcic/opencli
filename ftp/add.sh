@@ -157,8 +157,8 @@ if user_exists "$username"; then
 fi
 
 # check folder path is under the openpanel_username home folder
-if [[ $directory != /home/$openpanel_username* ]]; then
-    echo "ERROR: Invalid folder '$directory' - folder must start with '/home/$openpanel_username/'."
+if [[ $directory != /var/www/html/* ]]; then
+    echo "ERROR: Invalid folder '$directory' - folder must start with '/var/www/html/'."
     exit 1
 fi
 
