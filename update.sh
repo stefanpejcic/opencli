@@ -284,7 +284,7 @@ run_update_immediately(){
     cd /usr/local/admin && git pull
 
     echo "Restarting OpenPanel service to use the newest image.."
-    cd /root && docker compose down openpanel && docker compose up -d openpanel
+    cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel
     
     echo "Restarting OpenAdmin service.."
     service admin restart
