@@ -194,7 +194,7 @@ fi
 		if [ "$(docker ps -q -f name=openpanel)" ]; then
 		    docker restart openpanel  >/dev/null 2>&1
 		else
-		    cd /root && docker compose up -d openpanel  >/dev/null 2>&1
+		    cd /root && docker --context default compose up -d openpanel  >/dev/null 2>&1
 		fi  
 	    fi
 	}
@@ -236,12 +236,12 @@ install_mailserver(){
       mkdir -p /usr/local/mail/
       cd /usr/local/mail/ && git clone $GITHUB_REPO
       mkdir -p /etc/openpanel/email/snappymail
-      cd /usr/local/mail/openmail && docker compose up -d mailserver roundcube
+      cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
-      cd /usr/local/mail/openmail && docker compose up -d mailserver roundcube >/dev/null 2>&1
+      cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1
   fi
 
   enable_emails_if_not_yet
@@ -427,10 +427,10 @@ fi
       echo ""
       echo "----------------- RESTART MAILSERVER ------------------"
       echo ""
-  	cd $DIR && docker compose up -d mailserver
+  	cd $DIR && docker --context default compose  up -d mailserver
       echo ""
   else
-  	cd $DIR && docker compose up -d mailserver >/dev/null 2>&1
+  	cd $DIR && docker --context default compose up -d mailserver >/dev/null 2>&1
   	echo "MailServer started successfully."
   fi
   
@@ -444,10 +444,10 @@ stop_mailserver_if_running(){
       echo ""
       echo "----------------- STOP MAILSERVER ------------------"
       echo ""
-  	  cd $DIR && docker compose down mailserver
+  	  cd $DIR && docker --context default compose down mailserver
       echo ""
   else
-  	cd $DIR && docker compose down mailserver >/dev/null 2>&1
+  	cd $DIR && docker --context default compose down mailserver >/dev/null 2>&1
   	echo "MailServer stopped succesfully."
   fi
   
@@ -477,11 +477,11 @@ remove_mailserver_and_all_config(){
   fi
 
   if [ "$DEBUG" = true ]; then
-      cd $DIR && docker compose down
+      cd $DIR && docker --context default compose down
       rm -rf $DIR
       echo ""
   else
-      cd $DIR && docker compose down >/dev/null 2>&1
+      cd $DIR && docker --context default compose down >/dev/null 2>&1
       rm -rf $DIR >/dev/null 2>&1
       echo "MailServer uninstalled successfully."
   fi
