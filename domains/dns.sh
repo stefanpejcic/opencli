@@ -75,7 +75,7 @@ fi
 
 reconfig_command(){
   echo "Loading new DNS zones.."
-  docker exec openpanel_dns rndc reconfig
+  docker --context default exec openpanel_dns rndc reconfig
   exit 0
 }
 
@@ -83,7 +83,7 @@ reconfig_command(){
 
 check_named_main_conf(){
   echo "Checking /etc/bind/named.conf configuration:"
-  docker exec openpanel_dns named-checkconf  /etc/bind/named.conf
+  docker --context default exec openpanel_dns named-checkconf  /etc/bind/named.conf
   exit 0
 }
 
@@ -93,10 +93,10 @@ reload_one_or_all_dns_zone(){
   DOMAIN=$1
   if [[ -n "$DOMAIN" ]]; then
     echo "Reloading DNS zone for domain: $DOMAIN"
-    docker exec openpanel_dns rndc reload $DOMAIN
+    docker --context default exec openpanel_dns rndc reload $DOMAIN
   else
     echo "Reloading all DNS zones.."
-    docker exec openpanel_dns rndc reload
+    docker --context default exec openpanel_dns rndc reload
   fi
   exit 0
 }
@@ -308,8 +308,8 @@ create_dns_zone_for_domain(){
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
-    cd /root && docker compose up -d bind9  >/dev/null 2>&1
+    docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+    cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
   exit 0
 
 }
@@ -321,13 +321,13 @@ check_single_dns_zone(){
   if [[ -n "$DOMAIN" ]]; then
     echo "Checking DNS zone for domain: $DOMAIN"
   fi
-  docker exec openpanel_dns named-checkzone  $DOMAIN /etc/bind/zones/$DOMAIN.zone
+  docker --context default exec openpanel_dns named-checkzone  $DOMAIN /etc/bind/zones/$DOMAIN.zone
   exit 0
 }
 
 start_dns_server(){
   echo "Starting DNS service.."
-  cd /root && docker compose up -d bind9
+  cd /root && docker --context default compose up -d bind9
   exit 0
 }
 
