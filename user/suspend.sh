@@ -71,8 +71,8 @@ get_docker_context_for_user() {
 
 
 check_and_add_to_enabled() {
-    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
-        docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    if docker --context default exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+        docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
         return 1
@@ -81,10 +81,10 @@ check_and_add_to_enabled() {
 
 validate_conf() {
 
-  	if [ $(docker ps -q -f name=caddy) ]; then
+  	if [ $(docker --context default ps -q -f name=caddy) ]; then
         :
 	else
-        cd /root && docker compose up -d caddy  >/dev/null 2>&1
+        cd /root && docker --context default compose up -d caddy  >/dev/null 2>&1
      fi
      
 	check_and_add_to_enabled
