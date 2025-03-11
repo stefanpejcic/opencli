@@ -43,7 +43,7 @@ validate_conf() {
   	if [ $(docker ps -q -f name=caddy) ]; then
         :
 	else
-        cd /root && docker compose up -d caddy  >/dev/null 2>&1
+        cd /root && docker --context default compose up -d caddy  >/dev/null 2>&1
      fi
      
 	check_and_add_to_enabled
