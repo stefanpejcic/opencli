@@ -40,7 +40,7 @@ check_and_add_to_enabled() {
 
 validate_conf() {
 
-  	if [ $(docker ps -q -f name=caddy) ]; then
+  	if [ $(docker --context default ps -q -f name=caddy) ]; then
         :
 	else
         cd /root && docker --context default compose up -d caddy  >/dev/null 2>&1
