@@ -13,7 +13,6 @@
 
 VERSION=$(opencli version)
 CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-COMPOSE_FILE_PATH='/root/docker-compose.yml'
 CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 CADDY_CERT_DIR="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/"
 OUTPUT_FILE='/etc/openpanel/skeleton/motd'
