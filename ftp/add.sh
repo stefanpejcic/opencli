@@ -59,8 +59,8 @@ check_and_start_ftp_server(){
 	if [ $(docker ps -q -f name=openadmin_ftp) ]; then
 	    :
 	else
-        cd /root && docker compose up -d ftp_env_generator  >/dev/null 2>&1
-	    cd /root && docker compose up -d openadmin_ftp  >/dev/null 2>&1
+        cd /root && docker --context default compose up -d ftp_env_generator  >/dev/null 2>&1
+	    cd /root && docker --context default compose up -d openadmin_ftp  >/dev/null 2>&1
 	fi
 }
 
