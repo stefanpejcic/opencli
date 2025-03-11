@@ -380,7 +380,7 @@ vhost_files_create() {
 vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
-vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf" 		
+vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf" 		
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
 	elif [[ $ws == *litespeed* ]]; then
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
@@ -401,11 +401,11 @@ virtualHost $domain_name{
 	fi
 
 	log "Creating $vhost_in_docker_file"
-	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file > /dev/null 2>&1
+	docker --context $user cp $vhost_docker_template $ws:$vhost_in_docker_file > /dev/null 2>&1
 
 	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
 
-	docker --context "$user" exec "$container_name" bash -c "
+	docker --context "$user" exec "$ws" bash -c "
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
