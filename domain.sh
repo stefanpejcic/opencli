@@ -5,7 +5,7 @@
 # Usage: opencli domain [set <domain_name | ip] 
 # Author: Stefan Pejcic
 # Created: 09.02.2025
-# Last Modified: 23.02.2025
+# Last Modified: 11.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
