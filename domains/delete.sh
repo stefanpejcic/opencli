@@ -163,10 +163,10 @@ fi
 # Function to validate and reload Caddy service
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    docker --context default compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
     if [ $? -eq 0 ]; then
         # If validation is successful, reload the Caddy service
-        docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        docker --context default compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
         # If validation fails, revert the domains file and return an error
@@ -237,7 +237,7 @@ delete_mail_mountpoint(){
             log "Removing directory $DOMAIN_DIR from mail server volumes"
             volume_to_remove="  - $DOMAIN_DIR:/var/mail/$domain_name/"
             sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/,/\$/ { /$volume_to_remove/d }}" "$COMPOSE_FILE"
-            cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown
+            cd /usr/local/mail/openmail/ && docker --context default compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown
         fi
     fi
 }
