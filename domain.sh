@@ -72,10 +72,10 @@ do_reload() {
    if [[ "$3" != '--no-restart' ]]; then
        cd /root
        # restart only user panel!
-       docker compose restart openpanel > /dev/null 2>&1
+       docker --context default compose restart openpanel > /dev/null 2>&1
 
 	# start caddy if not running!
-       docker compose down caddy > /dev/null 2>&1 && docker compose up -d caddy  > /dev/null 2>&1
+       docker --context default compose down caddy > /dev/null 2>&1 && docker --context default compose up -d caddy  > /dev/null 2>&1
    fi
 }
 
