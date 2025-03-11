@@ -83,7 +83,7 @@ get_docker_context_for_user(){
 
 # Function to remove Docker container and all user files
 remove_docker_container_and_volume() {
-    cd /home/$provided_username && docker compose down $provided_username   2>/dev/null
+    cd /home/$provided_username && docker --context $context compose down $provided_username   2>/dev/null
     # home data is deleted anyways! #docker --context $context volume rm $(docker --context $context volume ls -q) 2>/dev/null
 }
 
@@ -125,7 +125,7 @@ delete_vhosts_files() {
         deleted_count=$((deleted_count + 1))
     done
     
-    docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
     
     echo "Configuration (VirutalHosts) for $deleted_count domain(s) of user '$username' deleted successfully."
 }
