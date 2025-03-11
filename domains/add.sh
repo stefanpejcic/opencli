@@ -645,12 +645,12 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    if [ $(docker ps -q -f name=openpanel_dns) ]; then
+    if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, adding the zone"
-	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+	docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
 	log "DNS is enabled but the DNS service is not yet started, starting now.."
- 	nohup sh -c "cd /root && docker compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
+ 	nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 }
 
