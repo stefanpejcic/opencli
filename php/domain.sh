@@ -112,11 +112,16 @@ if [ -n "$owner" ]; then
                         docker --context $context exec "$container_name" service nginx reload    
                     elif [ "$web_server_type" == "apache" ]; then
                         echo "Updating PHP version in the Apache configuration file..."
-                        docker --context $context exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$apache_conf_path"
+                        docker --context $context exec "$container_name" sed -i "s/php[0-9.]\+/php$new_php_version/g" "$c"
                         # Restart Apache to apply the changes
                         docker --context $context exec "$container_name" service apache2 reload    
                     fi
-                    echo "Updated PHP version in the configuration file to $new_php_version"
+
+                    # 
+                    local update_query="UPDATE domains SET php_version = '$new_php_version' WHERE domain_url = '$domain';"
+                    mysql -e "$update_query"
+                    
+                    echo "Updated PHP version in domain VirtualHost file and database to: $new_php_version"
                 else
                     echo "Error: --update flag requires a new PHP version in the format number.number."
                     exit 1
