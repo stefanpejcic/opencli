@@ -414,10 +414,10 @@ virtualHost $domain_name{
 	    $vhost_in_docker_file
 	"
  
-	log "Starting $ws container in background.."
+	log "Starting $ws container.."
 
-       #docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
-       nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
+       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
+       #nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
  
 }
 
@@ -649,7 +649,7 @@ create_zone_file() {
         log "DNS service is running, adding the zone"
 	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-	log "DNS is eanbled but the DNS service is not yet started, starting now.."
+	log "DNS is enabled but the DNS service is not yet started, starting now.."
  	nohup sh -c "cd /root && docker compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 }
