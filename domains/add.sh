@@ -526,9 +526,9 @@ fi
 
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    if docker --context default exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
         # Wait for validation to finish before proceeding
-        docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
         return 1
@@ -538,7 +538,7 @@ check_and_add_to_enabled() {
 
 
  	# Check if the 'caddy' container is running
-	if [ $(docker ps -q -f name=caddy) ]; then
+	if [ $(docker --context default ps -q -f name=caddy) ]; then
  	    log "Caddy is running, validating new domain configuration"
 
                 check_and_add_to_enabled
@@ -549,7 +549,7 @@ check_and_add_to_enabled() {
 		fi
 	else
 	    log "Caddy is not running, starting in background.."
-	    nohup sh -c "cd /root && docker compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
+	    nohup sh -c "cd /root && docker --context default compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
      	fi
 
 }
