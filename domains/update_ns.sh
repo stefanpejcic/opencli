@@ -145,8 +145,8 @@ case "$1" in
 esac
 
 # Reload BIND service
-docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
-cd /root && docker compose up -d bind9  >/dev/null 2>&1
+docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
 
 echo "Nameservers have been updated and BIND9 zones reloaded."
 exit 0
