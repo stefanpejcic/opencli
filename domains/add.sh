@@ -91,6 +91,9 @@ else
     log "No document root specified, using /var/www/html/$domain_name"
 fi
 
+
+
+
 # added in 0.3.8 so user can not add the server hostname and take over server!
 compare_with_force_domain() {
 	local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
@@ -365,6 +368,11 @@ start_default_php_fpm_service() {
 }
 
 
+get_php_version() {
+	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
+}
+
+
 
 auto_start_webserver_for_user_in_future(){
         log "Checking and setting $ws service to automatically start on reboot"
@@ -424,7 +432,6 @@ virtualHost $domain_name{
 	docker --context $user cp $vhost_docker_template $user:$vhost_in_docker_file > /dev/null 2>&1
 
   	# gateway is always 172.17.0.0/16
-	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
 	# should be skipped for litespeed!
 
  	docker --context $user exec $container_name touch $vhost_in_docker_file > /dev/null 2>&1 # to be removed!
@@ -750,7 +757,7 @@ add_domain() {
     local user_id="$1"
     local domain_name="$2"
     log "Adding $domain_name to the domains database"
-    local insert_query="INSERT INTO domains (user_id, docroot, domain_url) VALUES ('$user_id', '$docroot', '$domain_name');"
+    local insert_query="INSERT INTO domains (user_id, docroot, php_version, domain_url) VALUES ('$user_id', '$docroot', '$php_version', '$domain_name');"
     mysql -e "$insert_query"
     result=$(mysql -se "$query")
 
@@ -785,5 +792,5 @@ add_domain() {
 }
 
 
-
+get_php_version
 add_domain "$user_id" "$domain_name"
