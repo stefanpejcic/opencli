@@ -291,9 +291,7 @@ clear_cache_for_user() {
 
 make_folder() {
 	log "Creating document root directory $docroot"
-	docker --context $context exec $container_name bash -c "mkdir -p $docroot"
-	docker --context $context exec $container_name bash -c "chown 0:33 $docroot"
-	docker --context $context exec $container_name bash -c "chmod -R g+w $docroot" #maybe back
+        docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c "mkdir -p $docroot && chown 0:33 $docroot && chmod -R g+w $docroot"
 }
 
 
@@ -386,8 +384,8 @@ vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
 
-docker --context $context exec $container_name bash -c "echo '
-virtualHost $domain_name{
+
+        docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox echo 'virtualHost $domain_name{
     vhRoot                   ${docroot}/
     allowSymbolLink          1
     enableScript             1
@@ -397,15 +395,22 @@ virtualHost $domain_name{
     setUIDMode               0
     chrootMode               0
     configFile               conf/vhosts/${domain_name}.conf
-}' >> /usr/local/lsws/conf/httpd_config.conf"
+}' >> /usr/local/lsws/conf/httpd_config.conf
 	fi
 
 	log "Creating $vhost_in_docker_file"
+ 
+	log "Starting $ws container.."
+
+       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
+       #nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
+       
 	docker --context $user cp $vhost_docker_template $ws:$vhost_in_docker_file > /dev/null 2>&1
+  	# docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox wget -O $vhost_in_docker_file https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/nginx/vhosts/1.1/docker_nginx_domain.conf
 
 	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
-
-	docker --context "$user" exec "$ws" bash -c "
+ 
+	docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c"
 	  sed -i \
 	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
 	    -e 's|<USER>|$user|g' \
@@ -413,11 +418,6 @@ virtualHost $domain_name{
 	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
 	    $vhost_in_docker_file
 	"
- 
-	log "Starting $ws container.."
-
-       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
-       #nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
  
 }
 
@@ -719,7 +719,7 @@ dns_stuff() {
 
 
 litespeed_extra() {
-	docker --context $context exec $container_name bash -c "chown $nobody:33 $docroot"
+ 	docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c "chown $nobody:33 $docroot"
 }
 
 
