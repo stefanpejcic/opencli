@@ -140,26 +140,26 @@ if [ "$SNAPPYMAIL" = true ]; then
       echo "----------------- STOPPING EXISTING WEBMAIL SOFTWARE ------------------"
       echo ""
       echo "Stopping RoundCube:"
-    docker compose rm -s -v roundcube
+    docker --context default compose rm -s -v roundcube
       echo "Stopping SoGO:"
-    docker compose rm -s -v sogo
+    docker --context default compose rm -s -v sogo
       echo ""
       echo "----------------- STARTING SNAPPYMAIL ------------------"
       echo ""
-    docker compose up -d snappymail
+    docker --context default compose up -d snappymail
   else
-    docker compose rm -s -v roundcube >/dev/null 2>&1
-    docker compose rm -s -v sogo >/dev/null 2>&1
-    docker compose up -d snappymail >/dev/null 2>&1
+    docker --context default compose rm -s -v roundcube >/dev/null 2>&1
+    docker --context default compose rm -s -v sogo >/dev/null 2>&1
+    docker --context default compose up -d snappymail >/dev/null 2>&1
   fi
 elif [ "$ROUNDCUBE" = true ]; then
-    docker compose rm -s -v snappymail >/dev/null 2>&1
-    docker compose rm -s -v sogo >/dev/null 2>&1
-    docker compose up -d roundcube
+    docker --context default compose rm -s -v snappymail >/dev/null 2>&1
+    docker --context default compose rm -s -v sogo >/dev/null 2>&1
+    docker --context default compose up -d roundcube
 elif [ "$SOGO" = true ]; then
-    docker compose rm -s -v roundcube >/dev/null 2>&1
-    docker compose rm -s -v snappymail >/dev/null 2>&1
-    docker compose up -d sogo
+    docker --context default compose rm -s -v roundcube >/dev/null 2>&1
+    docker --context default compose rm -s -v snappymail >/dev/null 2>&1
+    docker --context default compose up -d sogo
 else
     get_domain_for_webmail    # display domain only
 fi
