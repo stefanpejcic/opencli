@@ -11,13 +11,15 @@ def extract_error_log_from_docker(error_code):
     # Use subprocess to get the container logs
     try:
         result = subprocess.run(
-            ['docker', 'logs', '--since=10m', container_name],
+            ['docker', '--context', 'default',  'logs', '--since=60m', container_name],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            #stderr=subprocess.PIPE,
             text=True,
             check=True
         )
     except subprocess.CalledProcessError as e:
+        print(f"Error running docker logs: {e.stderr}")
         return f"Error while fetching logs: {e.stderr}"
 
     logs = result.stdout.splitlines()
@@ -30,7 +32,7 @@ def extract_error_log_from_docker(error_code):
             result_log.append(line.strip())
             if 'ERROR' in line:
                 break
-        elif error_code in line:
+        elif error_code.lower() in line.lower():
             found_error_code = True
             result_log.append(line.strip())
 
