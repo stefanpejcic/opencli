@@ -119,10 +119,7 @@ fi
 
 # Replace '-' with '/' in the name
 binary_command="${binary_name//-//}"
-
-# Build the full path to the file
 binary_path="$script_dir/$binary_command.sh" # add .sh to each command, opencli <1.0 had no .sh
-
 
 if [ "$binary_name" = "blacklist" ]; then
   binary_path="/usr/ipset-blacklist.sh"
@@ -132,15 +129,10 @@ if [ "$binary_name" = "sentinel" ]; then
   binary_path="/usr/local/admin/service/notifications.sh"
 fi
 
-# Check if the binary exists and is executable
 if [ -f "$binary_path" ]; then
-  # Shift to remove the binary name from the arguments
   shift
-
-  # log to file
   log_command
 
-  # pass arguments to the script
   if [ "$#" -gt 0 ]; then
     bash "$binary_path" "$@"
   else
