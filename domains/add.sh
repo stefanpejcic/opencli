@@ -732,7 +732,6 @@ add_domain() {
     log "Adding $domain_name to the domains database"
     local insert_query="INSERT INTO domains (user_id, docroot, php_version, domain_url) VALUES ('$user_id', '$docroot', '$php_version', '$domain_name');"
     mysql -e "$insert_query"
-    result=$(mysql -se "$query")
 
     # Verify if the domain was added successfully
     local verify_query="SELECT COUNT(*) FROM domains WHERE user_id = '$user_id' AND docroot = '$docroot' AND domain_url = '$domain_name';"
