@@ -290,7 +290,7 @@ clear_cache_for_user() {
 
 make_folder() {
 	log "Creating document root directory $docroot"
-        docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c "mkdir -p $docroot && chown 0:33 $docroot && chmod -R g+w $docroot"
+        docker --context $context compose -f /home/$context/docker-compose.yml run --rm -v ${context}_html_data:/var/www/html/ busybox sh -c "mkdir -p $docroot && chown 0:33 $docroot && chmod -R g+w $docroot"
 }
 
 
