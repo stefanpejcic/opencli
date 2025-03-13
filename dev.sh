@@ -70,7 +70,7 @@ install_fzf() {
 
 
 get_all_available_files(){
-    available_files=$(docker exec openpanel find / -maxdepth 3 \( -name "app.py" -o -path "/modules/*.py" -o -path "/templates/*.html" \) 2>/dev/null | sort | uniq)
+    available_files=$(docker --context default exec openpanel find / -maxdepth 3 \( -name "app.py" -o -path "/modules/*.py" -o -path "/templates/*.html" \) 2>/dev/null | sort | uniq)
     if [ -z "$available_files" ]; then
       echo "No files found in the container! is openpanel running?"
       usage
@@ -144,12 +144,12 @@ if [[ "$path" =~ \.py$ || "$path" =~ \.html$ ]]; then
   fi
 
 
-  docker cp $TMPFILE openpanel:/"$path" #> /dev/null 2>&1
+  docker --context default cp $TMPFILE openpanel:/"$path" #> /dev/null 2>&1
   rm $TMPFILE
   echo "Restarting OpenPanel container to pickup the new file.."
-  docker restart openpanel
+  docker --context default restart openpanel
   echo "Following new logs:"
-  docker logs --follow --since=0s openpanel
+  docker --context default logs --follow --since=0s openpanel
 else
 
     echo "invalid file!"
