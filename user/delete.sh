@@ -121,7 +121,7 @@ delete_vhosts_files() {
     deleted_count=0 
     
     for domain in $all_user_domains; do
-        rm /etc/openpanel/caddy/${username}/domains/${domain}.conf >/dev/null 2>&1
+        rm /etc/openpanel/caddy/domains/${domain}.conf >/dev/null 2>&1
         deleted_count=$((deleted_count + 1))
     done
     
