@@ -97,8 +97,9 @@ if [ -n "$owner" ]; then
                     
                     echo "Updated PHP version in the configuration file to $new_php_version"
                 else
-                echo "Error: new php verison not provied!"
-                exit 1
+                    echo "Error: new php verison not provied!"
+                    exit 1
+                fi
         else
             echo "Failed to determine the PHP version for the domain '$domain' (owned by user $owner)." >&2
             exit 1
