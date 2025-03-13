@@ -185,7 +185,7 @@ delete_domain_file() {
  	rm -rf $domains_file
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
-	    check_and_add_to_enabled
+	    ###############3check_and_add_to_enabled
 	fi   
 	 #stats and logs
  	rm -rf /var/log/caddy/domlogs/$domain_name/
