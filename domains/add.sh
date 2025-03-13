@@ -740,7 +740,7 @@ add_domain() {
     if [ "$result" -eq 1 ]; then
     
     	clear_cache_for_user                         # rm cached file for ui
-php_ve    	make_folder                                  # create dirs on host server
+    	make_folder                                  # create dirs on host server
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
