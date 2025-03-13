@@ -79,7 +79,7 @@ if [ -n "$owner" ]; then
     get_context_for_user
     
         domain_path_in_volume="/home/$context/docker-data/volumes/${context}_webserver_data/_data/$domain.conf"
-        php_version=$(grep -o "php[0-9.]\+" "$domain_path_in_volume" | head -n 1)
+        php_version=$(grep -o "php-fpm-[0-9.]\+" "$domain_path_in_volume" | grep -o "[0-9.]\+" | head -n 1)
 
         #echo "PHP version: $php_version"
 
