@@ -338,7 +338,7 @@ get_webserver_for_user(){
 	        ws="nginx"
 	 	check_and_create_default_file
 	    elif [[ $output == *apache* ]]; then
-	        ws="apache2"
+	        ws="apache"
 	    elif [[ $output == *litespeed* ]]; then
 	        ws="litespeed"
 	    else
@@ -373,7 +373,7 @@ start_default_php_fpm_service() {
 
 vhost_files_create() {
 	
-	if [[ $ws == *apache2* ]]; then
+	if [[ $ws == *apache* ]]; then
 #vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 
