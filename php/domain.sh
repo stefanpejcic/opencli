@@ -54,13 +54,8 @@ if [ "$2" == "--update" ]; then
     new_php_version="$3"
 fi
 
-#echo "Provided domain: $domain"
-if [ "$update_flag" == true ]; then
-    echo "Updating PHP version to: $new_php_version"
-fi
 
 # Determine the owner of the domain
-#echo "Determining the owner of the domain..."
 whoowns_output=$(opencli domains-whoowns "$domain")
 owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
@@ -87,9 +82,8 @@ if [ -n "$owner" ]; then
             if [ "$update_flag" == true ]; then
                 if [ -n "$new_php_version" ]; then
                 
-                        echo "Updating PHP version in the domain configuration file..."
-                        sed -i "s/php-fpm-[0-9.]\+/php$new_php_version/g" "$domain_path_in_volume"
-                        
+                        #echo "Updating PHP version in the domain configuration file..."
+                        sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
                         docker --context $context restart nginx > /dev/null 2>&1
                         docker --context $context restart apache > /dev/null 2>&1
                     
