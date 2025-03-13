@@ -88,7 +88,7 @@ if [ -n "$owner" ]; then
                         docker --context $context restart nginx > /dev/null 2>&1
                         docker --context $context restart apache > /dev/null 2>&1
 
-                        local update_query="UPDATE domains SET php_version='$new_php_version' WHERE domain_url='$domain';"
+                        update_query="UPDATE domains SET php_version='$new_php_version' WHERE domain_url='$domain';"
                         mysql -e "$update_query"
                     
                     echo "Updated PHP version in the configuration file to $new_php_version"
