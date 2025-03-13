@@ -402,23 +402,19 @@ vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
  
 	log "Starting $ws container.."
 
-       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
-       #nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
+       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1       
        
-	docker --context $user cp $vhost_docker_template $ws:$vhost_in_docker_file > /dev/null 2>&1
-  	# docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox wget -O $vhost_in_docker_file https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/nginx/vhosts/1.1/docker_nginx_domain.conf
-
-	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
- 
-	docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c"
-	  sed -i \
-	    -e 's|<DOMAIN_NAME>|$domain_name|g' \
-	    -e 's|<USER>|$user|g' \
-	    -e 's|<PHP>|${php_version}|g' \
-	    -e 's|<DOCUMENT_ROOT>|$docroot|g' \
-	    $vhost_in_docker_file
-	"
- 
+       docker --context $user cp $vhost_docker_template $ws:$vhost_in_docker_file > /dev/null 2>&1
+       
+       php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
+       
+	docker --context $context exec $ws sed -i \
+	  -e "s|<DOMAIN_NAME>|$domain_name|g" \
+	  -e "s|<USER>|$user|g" \
+	  -e "s|<PHP>|$php_version|g" \
+	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
+	  $vhost_in_docker_file
+	
 }
 
 
