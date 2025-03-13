@@ -302,10 +302,12 @@ run_update_immediately(){
     wget --spider -q "$url"
     if [ $? -ne 0 ]; then
         :
+        echo "No custom scripts provided.."
     else
+        echo "Downloading and executing custom post-update script for this version: $url"
         timeout 300 bash -c "wget -q -O - '$url' | bash" &>> "$log_file"
         if [ $? -eq 124 ]; then
-            echo "Error: Checking for additional scripts for version $version timed out after 5 minutes."
+            echo "Error: Running custom post-update script for version $version timed out after 5 minutes."
         fi
     fi
     
