@@ -73,7 +73,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-# used for flask route to show progress..
 log() {
     if $debug_mode; then
         echo "$1"
@@ -375,11 +374,14 @@ start_default_php_fpm_service() {
 vhost_files_create() {
 	
 	if [[ $ws == *apache2* ]]; then
-vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+#vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
+vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
-vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf" 		
+#vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf" 		
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
+vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *litespeed* ]]; then
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
@@ -397,24 +399,23 @@ vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
     configFile               conf/vhosts/${domain_name}.conf
 }' >> /usr/local/lsws/conf/httpd_config.conf
 	fi
-
-	log "Creating $vhost_in_docker_file"
  
-	log "Starting $ws container.."
-
+       log "Starting $ws container.."
        docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1       
-       
-       docker --context $user cp $vhost_docker_template $ws:$vhost_in_docker_file > /dev/null 2>&1
-       
+
+       log "Creating ${domain_name}.conf" #$vhost_in_docker_file
+       cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
        php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
-       
-	docker --context $context exec $ws sed -i \
+
+	sed -i \
 	  -e "s|<DOMAIN_NAME>|$domain_name|g" \
 	  -e "s|<USER>|$user|g" \
 	  -e "s|<PHP>|$php_version|g" \
 	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
 	  $vhost_in_docker_file
-	
+
+       docker --context $context restart $ws > /dev/null 2>&1       
+ 
 }
 
 
@@ -537,7 +538,8 @@ check_and_add_to_enabled() {
 	if [ $(docker --context default ps -q -f name=caddy) ]; then
  	    log "Caddy is running, validating new domain configuration"
 
-                check_and_add_to_enabled
+                ########check_and_add_to_enabled
+		docker --context default restart caddy >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
 		    log "Domain successfully added and Caddy reloaded."
 		else
