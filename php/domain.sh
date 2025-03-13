@@ -84,8 +84,6 @@ if [ -n "$owner" ]; then
         #echo "PHP version: $php_version"
 
         if [ -n "$php_version" ]; then
-            echo "Domain '$domain' (owned by user: $owner) uses PHP version: $php_version"
-
             if [ "$update_flag" == true ]; then
                 if [ -n "$new_php_version" ]; then
                 
@@ -100,6 +98,9 @@ if [ -n "$owner" ]; then
                     echo "Error: new php verison not provied!"
                     exit 1
                 fi
+            else
+                echo "Domain '$domain' (owned by user: $owner) uses PHP version: $php_version"
+            fi
         else
             echo "Failed to determine the PHP version for the domain '$domain' (owned by user $owner)." >&2
             exit 1
