@@ -84,6 +84,7 @@ if [ -n "$owner" ]; then
                 
                         #echo "Updating PHP version in the domain configuration file..."
                         sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
+                        nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
                         docker --context $context restart nginx > /dev/null 2>&1
                         docker --context $context restart apache > /dev/null 2>&1
                     
