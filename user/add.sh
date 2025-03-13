@@ -1345,6 +1345,7 @@ fi
 mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
 echo "[mysqld]" > /home/${username}/custom.cnf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
+cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
 chown -R $username:$username /home/$username/sockets
 chmod 777 /home/$username/sockets/
 
