@@ -721,14 +721,16 @@ litespeed_extra() {
 }
 
 
-
+get_php_version() {
+	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
+}
 
 # Add domain to the database
 add_domain() {
     local user_id="$1"
     local domain_name="$2"
     log "Adding $domain_name to the domains database"
-    local insert_query="INSERT INTO domains (user_id, docroot, domain_url) VALUES ('$user_id', '$docroot', '$domain_name');"
+    local insert_query="INSERT INTO domains (user_id, docroot, php_version, domain_url) VALUES ('$user_id', '$docroot', '$php_version', '$domain_name');"
     mysql -e "$insert_query"
     result=$(mysql -se "$query")
 
@@ -739,7 +741,7 @@ add_domain() {
     if [ "$result" -eq 1 ]; then
     
     	clear_cache_for_user                         # rm cached file for ui
-    	make_folder                                  # create dirs on host server
+php_ve    	make_folder                                  # create dirs on host server
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
 	vhost_files_create                           # create file in container
@@ -759,5 +761,5 @@ add_domain() {
 }
 
 
-
+get_php_version
 add_domain "$user_id" "$domain_name"
