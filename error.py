@@ -6,12 +6,10 @@ Display logs for error code
 '''
 
 def extract_error_log_from_docker(error_code):
-    container_name = 'openpanel'
-
     # Use subprocess to get the container logs
     try:
         result = subprocess.run(
-            ['docker', '--context', 'default',  'logs', '--since=60m', container_name],
+            ['docker', '--context', 'default',  'logs', '--since=60m', 'openpanel'],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             #stderr=subprocess.PIPE,
@@ -39,7 +37,8 @@ def extract_error_log_from_docker(error_code):
     result_log.reverse()
 
     if not found_error_code:
-        return f"Error Code '{error_code}' not found in the {container_name} logs."
+        print("\n=== NO LOGS FOR ERROR ID ===")
+        return f"Error Code '{error_code}' not found in the OpenPanel UI logs."
 
     return result_log
 
@@ -54,7 +53,8 @@ def main():
     if isinstance(error_log, str):
         print(error_log)
     else:
-        for line in error_log:
+        print(f"\n=== LOGS FOR ERROR ID: '{args.error_code}' ===\n")
+        for line in error_log[:-1]:
             print(line)
 
 if __name__ == "__main__":
