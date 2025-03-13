@@ -145,17 +145,13 @@ fi
 
 
 
-	log "Deleting $vhost_in_docker_file"
-	docker --context $context exec $user bash -c 'rm $vhost_in_docker_file' >/dev/null 2>&1
-	docker --context $context exec $user bash -c 'rm $vhost_ln_in_docker_file' >/dev/null 2>&1
-	
-	  
+	log "Deleting $vhost_in_docker_file"	
+	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+	rm $vhost_in_docker_file >/dev/null 2>&1
+
+   
  	log "Restarting $ws inside container to apply changes"
 	docker --context $context exec $user bash -c 'service $ws restart' >/dev/null 2>&1
-
-	logs_dir="/var/log/$ws/domlogs"
-	log "Deleting access logs for the domain"
-	rm $logs_dir/${domain_name}.log  >/dev/null 2>&1
 }
 
 
