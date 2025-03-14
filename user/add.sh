@@ -1331,7 +1331,7 @@ if [[ -n "$webserver" ]]; then
         log "Setting varnish caching and $webserver as webserver for the user.."
 	sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
 	    -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_5\"|g" \
-    elif [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
+    elif [[ "$webserver" =~ ^nginx$ || "$webserver" =~ ^apache$ ]]; then
         log "Setting $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
 	VARNISH=false
