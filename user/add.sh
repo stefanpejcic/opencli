@@ -1261,7 +1261,7 @@ run_docker() {
 	port_4=""
 	port_5=""
 	port_6=""
- 	port_&=""
+ 	port_7=""
     fi
 
 
