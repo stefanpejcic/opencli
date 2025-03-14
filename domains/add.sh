@@ -348,6 +348,23 @@ get_webserver_for_user(){
 
 
 
+: '
+get_varnish_for_user(){
+	    log "Checking if Varnish is configured"
+	    output=$(opencli user-varnish $user)
+	    if [[ $output == *disabled* ]]; then
+	 	:
+	    elif [[ $output == *enabled* ]]; then
+	        
+		switch_from_ws_to_varnish
+  		use_varnish
+	    else
+	        ws="unknown"
+	    fi
+}
+'
+
+
 
 add_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
