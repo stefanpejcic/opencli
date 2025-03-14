@@ -7,8 +7,8 @@
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 11.03.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -65,10 +65,10 @@ run_csf_rules() {
 check_services_status() {
   echo "=== Services Status ===" >> "$output_file"
   run_command "docker compose ls" "OpenPanel Stack"
+  run_command "docker context ls" "Docker Contexts"
   run_command "systemctl status admin" "OpenAdmin Service"
   run_command "systemctl status docker" "Docker Status"
   run_command "systemctl status csf" "ConfigServer Firewall Status"
-  run_command "systemctl status named" "BIND9 Status"
 }
 
 # Function to display OpenPanel settings
@@ -80,7 +80,7 @@ display_openpanel_settings() {
 # admin in 0.2.3
 display_openadmin_settings() {
   echo "=== OpenAdmin Service ===" >> "$output_file"
-  run_command "python3 -m pip list" "Installed PIP packages:"
+  run_command "source /usr/local/admin/venv/bin/activate && python3 -m pip list" "Installed PIP packages:"
   run_command "service admin status" "Admin service status:"
   run_command "tail -100 /var/log/openpanel/admin/error.log" "OpenAdmin error log:"
 }
@@ -90,7 +90,6 @@ display_openadmin_settings() {
 display_mysql_information() {
   echo "=== MySQL Information ===" >> "$output_file"
   run_command "docker logs --tail 100 openpanel_mysql" "openpanel_mysql docker container logs"
-  run_command "cat /etc/openpanel/mysql/db.cnf" "MySQL login information for OpenCLI scripts"
 }
 
 # Default values
@@ -129,7 +128,6 @@ run_command "df -h" "Disk Information"
 # Collect application information
 run_command "opencli --version" "OpenPanel version"
 run_command "mysql --protocol=tcp --version" "MySQL Version"
-run_command "python3 --version" "Python version"
 run_command "docker info" "Docker Information"
 
 # Run OpenCLI commands if --cli flag is provided
