@@ -1195,7 +1195,7 @@ run_docker() {
               for ((port=32768; port<=65535; port++)); do
                   if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                       found_ports+=("$port")
-                      if [ ${#found_ports[@]} -ge 6 ]; then
+                      if [ ${#found_ports[@]} -ge 7 ]; then
                           break
                       fi
                   fi
@@ -1208,7 +1208,7 @@ run_docker() {
             for ((port=32768; port<=65535; port++)); do
                 if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                     found_ports+=("$port")
-                    if [ ${#found_ports[@]} -ge 6 ]; then
+                    if [ ${#found_ports[@]} -ge 7 ]; then
                         break
                     fi
                 fi
@@ -1241,17 +1241,19 @@ run_docker() {
 	FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
 	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
         SIXTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $6}')
-
+	SEVENTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $7}')
+ 
 	#echo "DEBUG: Available ports: $AVAILABLE_PORTS"
 
     # todo: better validation!
-    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE" && validate_port "$SIXTH_NEXT_AVAILABLE"; then
+    if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE" && validate_port "$SIXTH_NEXT_AVAILABLE" && validate_port "$SEVENTH_NEXT_AVAILABLE"; then
 	port_1="$FIRST_NEXT_AVAILABLE:22"
 	port_2="$SECOND_NEXT_AVAILABLE:3306"
 	port_3="$THIRD_NEXT_AVAILABLE:7681"
 	port_4="$FOURTH_NEXT_AVAILABLE:80"
 	port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:80"
         port_6="127.0.0.1:$SIXTH_NEXT_AVAILABLE:443"
+	port_7="127.0.0.1:$SEVENTH_NEXT_AVAILABLE:80"
     else
 	port_1=""
 	port_2=""
@@ -1259,6 +1261,7 @@ run_docker() {
 	port_4=""
 	port_5=""
 	port_6=""
+ 	port_&=""
     fi
 
 
@@ -1322,12 +1325,18 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     "/home/$username/.env"
 
 if [[ -n "$webserver" ]]; then
-    if [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
+    # Check for varnish+nginx or varnish+apache, and extract the web server part
+    if [[ "$webserver" =~ ^varnish\+([a-zA-Z]+)$ ]]; then
+        webserver="${BASH_REMATCH[1]}"  # Extract the part after varnish+
+        log "Setting varnish caching and $webserver as webserver for the user.."
+	sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
+	    -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_5\"|g" \
+    elif [[ "$webserver" =~ ^(nginx|apache)$ ]]; then
         log "Setting $webserver as webserver for the user.."
-        sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
-            "/home/$username/.env"
+        sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
+	VARNISH=false
     else
-        log "Warning: invalid webserver type selected: $webserver. Must be 'nginx' or 'apache'. Using the default instead.."
+        log "Warning: invalid webserver type selected: $webserver. Must be 'nginx', 'apache', 'varnish+nginx', or 'varnish+apache'. Using the default instead.."
     fi
 fi
 
