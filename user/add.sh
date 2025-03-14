@@ -1352,7 +1352,7 @@ if [[ -n "$sql_type" ]]; then
 fi
 
 
-mkdir -p /home/$username/sockets/mysqld /home/$username/sockets/postgres
+mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
 echo "[mysqld]" > /home/${username}/custom.cnf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
 cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
