@@ -316,8 +316,8 @@ suspend_user() {
             sqlite3 $db_file_path "UPDATE user SET is_active='0' WHERE username='$username';"
             echo "User '$username' suspended successfully."
 
-            echo ""
-            echo "Suspending accounts owned by the reseller $username"
+            #echo ""
+            #echo "Suspending accounts owned by the reseller $username"
             query_for_usernames="SELECT username FROM users WHERE owner='$username';"
             usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
             if [ $? -eq 0 ]; then
@@ -342,8 +342,8 @@ unsuspend_user() {
             sqlite3 $db_file_path "UPDATE user SET is_active='1' WHERE username='$username';"
             echo "User '$username' unsuspended successfully."
 
-            echo ""
-            echo "Unsuspending accounts owned by the reseller $username"
+            #echo ""
+            #echo "Unsuspending accounts owned by the reseller $username"
             query_for_usernames="SELECT username FROM users WHERE owner='$username';"
             usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
             if [ $? -eq 0 ]; then
