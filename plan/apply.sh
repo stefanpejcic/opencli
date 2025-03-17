@@ -203,7 +203,8 @@ do
         else
     
             # TOD: GET CONTEXT!
-            sed -i 's/^TOTAL_RAM="[^"]*"/TOTAL_RAM="${Nram}"/' /home/$server/.env > /dev/null
+            sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${Nram}\"/" /home/$server/.env > /dev/null
+
             echo "RAM limit set to ${numNram}GB."
             echo ""
         fi
@@ -214,7 +215,7 @@ do
             echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
         else
             # TOD: GET CONTEXT!
-            sed -i 's/^TOTAL_CPU="[^"]*"/TOTAL_CPU="${Ncpu}"/' /home/$server/.env > /dev/null
+            sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${Ncpu}\"/" /home/$server/.env > /dev/null
             echo ""
         fi
     fi
