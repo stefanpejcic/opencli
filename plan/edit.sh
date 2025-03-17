@@ -229,9 +229,9 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
           check_if_we_need_to_edit_docker_containers
             # do it!
             if [ ${#flags[@]} -gt 0 ]; then
-                echo "Plan ID $plan_id updated successfully. There are currently $count users on this plan. Applying new limits to all users on this plan:"
+                echo "Plan ID $plan_id updated successfully. Applying new limits to $count users on this plan.."
                 echo ""
-                echo "Even if you leave this page, the process will continue. You can track progress using the command:"
+                echo "You can track progress using the command:"
                 timestamp=$(date +"%Y%m%d_%H%M%S")
                 echo "tail -f /tmp/opencli_plan_apply_$timestamp.log"
                 if [ "$DEBUG" = true ]; then
