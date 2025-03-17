@@ -149,7 +149,7 @@ fi
     
     if [ "$DEBUG" = true ]; then
         # Change the user password in the Docker container
-        echo "root:$new_password" | docker --context $context exec -i root chpasswd
+        echo "root:$new_password" | docker --context $context exec $context -i root chpasswd
         if [ "$random_flag" = true ]; then
             echo "SSH root user in container now also have password: $new_password"
         else
@@ -157,7 +157,7 @@ fi
         fi
     else
         # Change the user password in the Docker container
-        echo "root:$new_password" | docker --context $context exec -i root chpasswd
+        echo "root:$new_password" | docker --context $context exec $context -i root chpasswd
     fi
     
 fi
