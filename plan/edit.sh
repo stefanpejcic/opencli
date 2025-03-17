@@ -6,7 +6,7 @@
 # Example: opencli plan-edit 1 sad_se_zove_ovako "novi plan skroz" 0 0 0 0 10 500000 1 1 1 openpanel_nginx 500
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 14.03.2025
+# Last Modified: 17.03.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 

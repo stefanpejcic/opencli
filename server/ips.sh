@@ -6,7 +6,7 @@
 #        opencli server-ips <USERNAME>
 # Author: Stefan Pejcic
 # Created: 16.01.2024
-# Last Modified: 14.03.2025
+# Last Modified: 17.03.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
