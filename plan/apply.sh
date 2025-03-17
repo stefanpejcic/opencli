@@ -165,42 +165,8 @@ do
     current_plan_name=$(get_plan_name "$current_plan_id")
     new_plan_name=$(get_plan_name "$new_plan_id")
 
-    # Check if the container exists in db
-    if [ -z "$current_plan_id" ]; then
-        echo "Error: Docker container for user '$container_name' exited."
-        continue
-    fi
-
-
-    if docker --context $server inspect "$container_name" >/dev/null 2>&1; then
-        if $debug; then
-            echo "DEBUG: Container $container_name exists!"
-        fi
-    else
-        echo "Error: Docker container for user '$container_name' is not running! (Is account suspended?)"
-        continue
-    fi
-
-    # Fetch limits for the current plan
-#    current_plan_limits=$(get_plan_limits "$current_plan_id")
-
-    ##echo "Current plan limits:('$current_plan_limits')."
-
-    # Check if the current plan limits were retrieved
-#    if [ -z "$current_plan_limits" ]; then
-#        echo "Warning: Unable to fetch old plan limits for plan with ID ('$current_plan_id')."
-#    fi
-
-    # Fetch limits for the new plan
-#    new_plan_limits=$(get_plan_limits "$new_plan_id")
-    ##echo "New plan limits:('$new_plan_limits')."
-
-    # Check if the new plan limits were retrieved
-#    if [ -z "$new_plan_limits" ]; then
-#        echo "Error: Unable to fetch limits for the new plan with ID('$new_plan_id')."
-#        continue
-#    fi
-
+    # todo: test context 
+    
 
 
     #Limiti stari i novi cpu, ram, storage_file, inodes_limit, bandwidth
@@ -235,7 +201,9 @@ do
         if (( $numNram > $maxRAM )); then
             echo "Error: New RAM value exceeds the server limit, not enough physical memory - $numNram > $maxRam."
         else
-            docker --context $server update --memory="$Nram" --memory-swap="$Nram" "$container_name" > /dev/null
+    
+            # TOD: GET CONTEXT!
+            sed -i 's/^TOTAL_RAM="[^"]*"/TOTAL_RAM="${Nram}"/' /home/$server/.env > /dev/null
             echo "RAM limit set to ${numNram}GB."
             echo ""
         fi
@@ -245,8 +213,8 @@ do
         if (( $Ncpu > $maxCPU )); then
             echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
         else
-            docker --context $server update --cpus="$Ncpu" "$container_name" > /dev/null
-            echo "CPU limit set to $Ncpu cores."
+            # TOD: GET CONTEXT!
+            sed -i 's/^TOTAL_CPU="[^"]*"/TOTAL_CPU="${Ncpu}"/' /home/$server/.env > /dev/null
             echo ""
         fi
     fi
@@ -255,12 +223,8 @@ do
     ####### DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK #######
     ####################################################################################################################################################################################
     if [ "$partial" != "true" ] || [ "$dodsk" = "true" ]; then
-        setquota -u $username $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /
+        setquota -u $server $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /
         reload_user_quotas
-        
-
-        
-        
     fi
 
     ################################################################################################################################################################################
@@ -270,8 +234,6 @@ do
     if [ "$partial" != "true" ] || [ "$donet" = "true" ]; then
         #sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
         :
-
-
     fi
 done
 
