@@ -282,6 +282,7 @@ run_update_immediately(){
  
     echo "Updating OpenAdmin.."
     cd /usr/local/admin && git pull
+    chmod +x /usr/local/admin/modules/security/csf.pl # for csf!
 
     echo "Restarting OpenPanel service to use the newest image.."
     cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel
