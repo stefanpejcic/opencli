@@ -1136,6 +1136,31 @@ run_docker() {
 #
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
+
+	last_user=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -se "SELECT server FROM users ORDER BY id DESC LIMIT 1;")
+
+	if [[ -n "$last_user" ]]; then
+		env_file="/home/$last_user/.env"
+	
+		if [[ ! -f "$env_file" ]]; then
+		    echo "Warning: .env file is missing for existing users, port generation may be a bit off - make sure to check ports assigned to user afterwards."
+      		    min_port="32768"
+		fi
+		
+		highest_port=$(grep -E '^[A-Z_]+_PORT=' "$env_file" | grep -oE '[0-9]+' | sort -nr | head -n 1)
+		
+		if [[ -z "$highest_port" ]]; then
+		    echo "ERROR: No ports found in the .env file."
+		    exit 1
+		fi
+		
+  		min_port=${highest_port}
+	else
+		# no users yet! 
+      		min_port="32768"
+	fi      
+      
+      
       local found_ports=()
                   
         if [ -n "$node_ip_address" ]; then
@@ -1192,7 +1217,7 @@ run_docker() {
             # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" '
               declare -a found_ports=()
-              for ((port=32768; port<=65535; port++)); do
+              for ((port=$min_port; port<=65535; port++)); do
                   if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                       found_ports+=("$port")
                       if [ ${#found_ports[@]} -ge 7 ]; then
@@ -1205,7 +1230,7 @@ run_docker() {
             '
         else
             declare -a found_ports=()
-            for ((port=32768; port<=65535; port++)); do
+            for ((port=$min_port; port<=65535; port++)); do
                 if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
                     found_ports+=("$port")
                     if [ ${#found_ports[@]} -ge 7 ]; then
@@ -1222,7 +1247,7 @@ run_docker() {
     
 	validate_port() {
 	  local port=$1
-	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 32768 ] && [ "$port" -le 65535 ]; then
+	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge $min_port ] && [ "$port" -le 65535 ]; then
 	    return 0
 	  else
 	    echo "DEBUG: Invalid port detected: $port"
