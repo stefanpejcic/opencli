@@ -1081,39 +1081,39 @@ EOF
   
   		ln -sf $system_wide_rootless_script /home/$username/bin/dockerd-rootless-setuptool.sh
 
-		machinectl shell $username@ /bin/bash -c "
+machinectl shell $username@ /bin/bash -c "
+    # Setup environment for rootless Docker
+    source ~/.bashrc
 
-		    # Setup environment for rootless Docker
-		    source ~/.bashrc
-		     
-		    /home/$username/bin/dockerd-rootless-setuptool.sh install >/dev/null 2>&1
-		
-		    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
-		    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
-		    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
-		
-		    source ~/.bashrc
-			mkdir -p ~/.config/systemd/user/
-			cat > ~/.config/systemd/user/docker.service <<EOF
-		[Unit]
-		Description=Docker Application Container Engine (Rootless)
-		After=network.target
-			
-		[Service]
-		Environment=PATH=/home/$username/bin:$PATH
-		Environment=DOCKER_HOST=unix://%t/docker.sock
-		ExecStart=/home/$username/bin/dockerd-rootless.sh
-		Restart=on-failure
-		StartLimitBurst=3
-		StartLimitInterval=60s
-			
-		[Install]
-		WantedBy=default.target
-		EOF
-		
-		systemctl --user daemon-reload > /dev/null 2>&1
-		systemctl --user restart docker > /dev/null 2>&1
-		" 2>/dev/null
+    /home/$username/bin/dockerd-rootless-setuptool.sh install >/dev/null 2>&1
+
+    echo 'export XDG_RUNTIME_DIR=/home/$username/.docker/run' >> ~/.bashrc
+    echo 'export PATH=/home/$username/bin:\$PATH' >> ~/.bashrc
+    echo 'export DOCKER_HOST=unix:///home/$username/.docker/run/docker.sock' >> ~/.bashrc
+
+    source ~/.bashrc
+    mkdir -p ~/.config/systemd/user/
+
+    cat <<EOF > ~/.config/systemd/user/docker.service
+[Unit]
+Description=Docker Application Container Engine (Rootless)
+After=network.target
+
+[Service]
+Environment=PATH=/home/$username/bin:\$PATH
+Environment=DOCKER_HOST=unix://%t/docker.sock
+ExecStart=/home/$username/bin/dockerd-rootless.sh
+Restart=on-failure
+StartLimitBurst=3
+StartLimitInterval=60s
+
+[Install]
+WantedBy=default.target
+EOF
+
+    systemctl --user daemon-reload > /dev/null 2>&1
+    systemctl --user restart docker > /dev/null 2>&1
+" 2>/dev/null
 	fi
 }
 
