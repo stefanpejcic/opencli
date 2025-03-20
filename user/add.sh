@@ -1247,7 +1247,7 @@ run_docker() {
     
 	validate_port() {
 	  local port=$1
-	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -g $min_port ] && [ "$port" -le 65535 ]; then
+	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge "$min_port" ] && [ "$port" -le 65535 ]; then
 	    return 0
 	  else
 	    echo "DEBUG: Invalid port detected: $port"
