@@ -1150,11 +1150,11 @@ run_docker() {
 		highest_port=$(grep -E '^[A-Z_]+_PORT=' "$env_file" | grep -oE '[0-9]+' | sort -nr | head -n 1)
 		
 		if [[ -z "$highest_port" ]]; then
-		    echo "ERROR: No ports found in the .env file."
-		    exit 1
+			echo "ERROR: No ports found in the .env file."
+		 	exit 1
+      		else
+			min_port=${highest_port}
 		fi
-		
-  		min_port=${highest_port}
 	else
 		# no users yet! 
       		min_port="32768"
@@ -1244,15 +1244,18 @@ run_docker() {
 
 
     }
-    
+
+	    
 	validate_port() {
-	  local port=$1
-	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge "$min_port" ] && [ "$port" -le 65535 ]; then
-	    return 0
-	  else
-	    echo "DEBUG: Invalid port detected: $port"
-	    return 1
-	  fi
+	    local port="$1"
+	    port="$(echo "$1" | tr -d '[:space:]')"  # Trim spaces
+	
+	    if [[ "$port" =~ ^[0-9]+$ ]]; then
+	        return 0  # Port is valid
+	    else
+	        echo "DEBUG: Invalid port detected: $port"
+	        return 1  # Port is invalid
+	    fi
 	}
 
     # Find available ports
