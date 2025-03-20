@@ -1384,6 +1384,7 @@ mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
 echo "[mysqld]" > /home/${username}/custom.cnf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
 cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
+cp /etc/openpanel/varnish/default.vcl /home/$username/default.vcl
 cp -r /etc/openpanel/php/ini /home/${username}/php.ini
 chown -R $username:$username /home/$username/sockets
 chmod 777 /home/$username/sockets/
