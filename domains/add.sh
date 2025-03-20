@@ -348,21 +348,13 @@ get_webserver_for_user(){
 
 
 
-: '
 get_varnish_for_user(){
-	    log "Checking if Varnish is configured"
-	    output=$(opencli user-varnish $user)
-	    if [[ $output == *disabled* ]]; then
-	 	:
-	    elif [[ $output == *enabled* ]]; then
-	        
-		switch_from_ws_to_varnish
-  		use_varnish
-	    else
-	        ws="unknown"
-	    fi
+	VARNISH=false
+	if grep -q "^PROXY_HTTP_PORT=" "/home/$context/.env"; then
+	  VARNISH=true
+	fi
+
 }
-'
 
 
 
@@ -416,9 +408,17 @@ vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_da
     configFile               conf/vhosts/${domain_name}.conf
 }' >> /usr/local/lsws/conf/httpd_config.conf
 	fi
- 
-       log "Starting $ws container.."
-       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1       
+
+	
+ 	get_varnish_for_user
+  	
+   	if [ "$VARNISH" = true ]; then
+	       log "Starting $ws and Varnish containers.."
+	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1 
+       else
+	       log "Starting $ws container.."
+	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1     
+       fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
@@ -430,23 +430,13 @@ vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_da
 	  -e "s|<PHP>|$php_version|g" \
 	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
 	  $vhost_in_docker_file
+       
+       docker --context $context restart $ws > /dev/null 2>&1
 
-       docker --context $context restart $ws > /dev/null 2>&1       
  
 }
 
 
-check_if_varnish_installed_for_user() {
-# todo: edit to check if running!
-	# VARNISH
- 	# added in 0.3.7
-	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish"; then
- 	    log "Varnish is installed"
-      		VARNISH=true
-	else
- 		VARNISH=false
-	fi
-}
 
 
 
@@ -467,18 +457,6 @@ create_domain_file() {
 	
 	    non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
 	    ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
-
-
- # VARNISH
- 	# added in 0.2.6
-	if su "$user" -c "docker exec $container_name test -f /etc/default/varnish" > /dev/null 2>&1; then
-	    log "Detected Varnish for user, setting Caddy to proxy requests to Varnish in user container."
-	else
-	    log "Setting Caddy to proxy requests to $ws user container."
-	fi
-
-
-
 
 	if [ "$IPV4" == "yes" ]; then
  		ip_format_for_nginx="$current_ip"
@@ -509,6 +487,15 @@ else
                                            -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
 fi
         echo "$domain_conf" > "$domains_file"
+
+
+   	if [ "$VARNISH" = true ]; then
+    	    log "Enabling Varnish cache for the domain.."
+	    #opencli domains-varnish $domain_name on #> /dev/null 2>&1
+	    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^/#/' "$domains_file"
+	    sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$domains_file"
+       fi
+
 
 }
 
