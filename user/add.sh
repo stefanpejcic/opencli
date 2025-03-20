@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|nginx+varnish|apache+varnish>"] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|varnish+nginx|varnish+apache>"] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
