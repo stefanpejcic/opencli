@@ -1154,7 +1154,7 @@ run_docker() {
 		    exit 1
 		fi
 		
-  		min_port=${highest_port}
+  		min_port=$((highest_port + 1))
 	else
 		# no users yet! 
       		min_port="32768"
