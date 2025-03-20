@@ -1326,7 +1326,7 @@ pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
     log "MYSQL_ROOT_PASSWORD: $mysql_root_password"    
 '
 
-if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
+if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$port_7" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
    echo "ERROR: One or more required variables are not set."
    exit 1
 fi
@@ -1338,7 +1338,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|CONTEXT=\"[^\"]*\"|CONTEXT=\"$username\"|g" \
     -e "s|TOTAL_CPU=\"[^\"]*\"|TOTAL_CPU=\"$cpu\"|g" \
     -e "s|TOTAL_RAM=\"[^\"]*\"|TOTAL_RAM=\"$ram\"|g" \
-    -e "s|HTTP_PORT=\"[^\"]*\"|HTTP_PORT=\"$port_5\"|g" \
+    -e "s|^HTTP_PORT=\"[^\"]*\"|HTTP_PORT=\"$port_5\"|g" \
     -e "s|HTTPS_PORT=\"[^\"]*\"|HTTPS_PORT=\"$port_6\"|g" \
     -e "s|HOSTNAME=\"[^\"]*\"|HOSTNAME=\"$hostname\"|g" \
     -e "s|SSH_PORT=\"[^\"]*\"|SSH_PORT=\"127.0.0.1:$port_1\"|g" \
@@ -1358,7 +1358,7 @@ if [[ -n "$webserver" ]]; then
         webserver="${BASH_REMATCH[1]}"  # Extract the part after varnish+
         log "Setting varnish caching and $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
-               -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_5\"|g" "/home/$username/.env"
+               -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_7\"|g" "/home/$username/.env"
     elif [[ "$webserver" =~ ^nginx$ || "$webserver" =~ ^apache$ ]]; then
         log "Setting $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
