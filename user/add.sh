@@ -1154,7 +1154,7 @@ run_docker() {
 		    exit 1
 		fi
 		
-  		min_port=$((highest_port + 1))
+  		min_port=${highest_port}
 	else
 		# no users yet! 
       		min_port="32768"
@@ -1247,7 +1247,7 @@ run_docker() {
     
 	validate_port() {
 	  local port=$1
-	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge $min_port ] && [ "$port" -le 65535 ]; then
+	  if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -g $min_port ] && [ "$port" -le 65535 ]; then
 	    return 0
 	  else
 	    echo "DEBUG: Invalid port detected: $port"
