@@ -77,16 +77,22 @@ process_user() {
 
 # Attempt to extract detailed stats
 current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' | jq -s '{
-  total_block_rx: (map(.BlockIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx // "0" | tonumber) | add | .*100 | round / 100),
-  total_block_tx: (map(.BlockIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx // "0" | tonumber) | add | .*100 | round / 100),
-  total_cpu: (map(.CPUPerc | sub("%";"") | tonumber // 0) | add | .*100 | round / 100),
-  total_mem_usage: (map(.MemUsage | capture("(?<value>\\d+\\.?\\d*)") | .value // "0" | tonumber) | add | .*100 | round / 100),
-  total_mem_limit: (map(.MemUsage | capture(".+ / (?<value>\\d+\\.?\\d*)MiB") | .value // "0" | tonumber) | add | .*100 | round / 100),
-  total_mem_precent: (map(.MemPerc | sub("%";"") | tonumber // 0) | add | .*100 | round / 100),
-  total_pids: (map(.PIDs | tonumber // 0) | add),
-  total_net_rx: (map(.NetIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx // "0" | tonumber) | add | .*100 | round / 100),
+  total_block_rx: (map(.BlockIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx // "0" | tonumber) | add // 0 | .*100 | round / 100),
+  total_block_tx: (map(.BlockIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx // "0" | tonumber) | add // 0 | .*100 | round / 100),
+  total_cpu: (map(.CPUPerc | sub("%";"") | tonumber // 0) | add // 0 | .*100 | round / 100),
+  total_mem_usage: (map(.MemUsage | capture("(?<value>\\d+\\.?\\d*)(?<unit>[KMGT]?iB) / .*") // {"value": "0", "unit": "MiB"} |
+    if .unit == "GiB" then (.value | tonumber * 1024)
+    elif .unit == "KiB" then (.value | tonumber / 1024)
+    else (.value | tonumber) end) | add // 0 | .*100 | round / 100),
+  total_mem_limit: (map(.MemUsage | capture(".+ / (?<value>\\d+\\.?\\d*)(?<unit>[KMGT]?iB)") // {"value": "0", "unit": "MiB"} |
+    if .unit == "GiB" then (.value | tonumber * 1024)
+    elif .unit == "KiB" then (.value | tonumber / 1024)
+    else (.value | tonumber) end) | add // 0 | .*100 | round / 100),
+  total_mem_precent: (map(.MemPerc | sub("%";"") | tonumber // 0) | add // 0 | .*100 | round / 100),
+  total_pids: (map(.PIDs | tonumber // 0) | add // 0),
+  total_net_rx: (map(.NetIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx // "0" | tonumber) | add // 0 | .*100 | round / 100),
   total_containers: (map(.Container) | unique | length),
-  total_net_tx: (map(.NetIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx // "0" | tonumber) | add | .*100 | round / 100)
+  total_net_tx: (map(.NetIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx // "0" | tonumber) | add // 0 | .*100 | round / 100)
 } | {
   "BlockIO": "\(.total_block_rx)B / \(.total_block_tx)B",
   "CPUPerc": "\(.total_cpu) %",
@@ -98,6 +104,8 @@ current_usage=$(docker --context $context stats --no-stream --format '{{json .}}
   "NetIO": "\(.total_net_rx) / \(.total_net_tx)",
   "PIDs": .total_pids
   }' | jq -c)
+
+
 
 # Check if the first command failed by inspecting `current_usage`
 if [[ "$current_usage" == "null" || -z "$current_usage" ]]; then
