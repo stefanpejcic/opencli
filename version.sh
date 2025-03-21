@@ -43,7 +43,7 @@ check_images() {
 # CHECK ENV FILE FIRST
 version_check() {
     if [ -f "/root/.env" ]; then
-        image_version=$(grep "^VERSION=" /root/.env | awk -F'=' '{print $2}' | xargs)
+        image_version=$(grep "^VERSION=" /root/.env | sed -E 's/^VERSION="([^"]+)"$/\1/' | xargs)
         if [ -n "$image_version" ]; then
             echo $image_version
         else
