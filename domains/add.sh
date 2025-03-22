@@ -675,7 +675,7 @@ notify_slave(){
 
     echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
 
-ssh root@$SLAVE_IP <<EOF
+ssh -T root@$SLAVE_IP <<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
         touch /etc/bind/zones/$domain_name.zone
