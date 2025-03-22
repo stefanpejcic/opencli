@@ -623,6 +623,7 @@ create_zone_file() {
 
     ns1=$(get_config_value 'ns1')
     ns2=$(get_config_value 'ns2')
+    ns3=$(get_config_value 'ns3')
 
     # Fallback
     if [ -z "$ns1" ]; then
@@ -637,11 +638,23 @@ create_zone_file() {
     timestamp=$(date +"%Y%m%d")
     
     # Replace placeholders in the template
+    if [ -z "$ns3" ]; then
 	zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
                                            -e "s|{ns1}|$ns1|g" \
                                            -e "s|{ns2}|$ns2|g" \
                                            -e "s|{server_ip}|$current_ip|g" \
                                            -e "s|YYYYMMDD|$timestamp|g")
+    else
+	ns4=$(get_config_value 'ns4')
+	zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
+                                           -e "s|{ns1}|$ns1|g" \
+                                           -e "s|{ns2}|$ns2|g" \
+                                           -e "s|{ns3}|$ns3|g" \
+                                           -e "s|{ns4}|$ns4|g" \
+                                           -e "s|{server_ip}|$current_ip|g" \
+                                           -e "s|YYYYMMDD|$timestamp|g")
+    fi
+
  
     mkdir -p "$ZONE_FILE_DIR"
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
