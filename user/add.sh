@@ -1350,6 +1350,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:$port_2\"|g" \
     -e "s|DEFAULT_PHP_VERSION=\"[^\"]*\"|DEFAULT_PHP_VERSION=\"$default_php_version\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
+    -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|#PROXY_HTTP_PORT=\"$port_7\"|g" \
     "/home/$username/.env"
 
 if [[ -n "$webserver" ]]; then
@@ -1358,7 +1359,7 @@ if [[ -n "$webserver" ]]; then
         webserver="${BASH_REMATCH[1]}"  # Extract the part after varnish+
         log "Setting varnish caching and $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
-               -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_7\"|g" "/home/$username/.env"
+	-e "s|^#PROXY_HTTP_PORT|PROXY_HTTP_PORT|g" "/home/$username/.env"
     elif [[ "$webserver" =~ ^nginx$ || "$webserver" =~ ^apache$ ]]; then
         log "Setting $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
