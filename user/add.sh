@@ -883,20 +883,20 @@ docker_compose() {
  		architecture=$(lscpu | grep Architecture | awk '{print $2}')
 	    	log "Configuring Docker Compose for user $username"
       		if [ "$architecture" == "aarch64" ]; then
+			log "Setting compose for ARM CPU (/etc/openpanel/docker/docker-compose-linux-aarch64)"
 			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-aarch64"
 	      		if [ ! -f "$system_wide_compose_file" ]; then
 				curl -sSL https://github.com/linuxserver/docker-docker-compose/releases/download/1.28.5-ls32/docker-compose-armhf -o $system_wide_compose_file
-	   			chmod +x $system_wide_compose_file
 			fi
   		else 
+    			log "Setting compose for x86_64 CPU (/etc/openpanel/docker/docker-compose-linux-x86_64)"
 			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-x86_64"
 	   
 	      		if [ ! -f "$system_wide_compose_file" ]; then
 				curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o $system_wide_compose_file
-	   			chmod +x $system_wide_compose_file
 			fi
      		fi
-     
+     		chmod +x $system_wide_compose_file
       		mkdir -p /home/$username/.docker/cli-plugins
 	        ln -sf $system_wide_compose_file /home/$username/.docker/cli-plugins/docker-compose
 	fi
