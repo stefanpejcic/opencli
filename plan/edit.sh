@@ -156,7 +156,6 @@ update_plan() {
   bandwidth="${13}"
 
   # Format disk_limit with 'GB' 
-  disk_limit="${int_disk_limit} GB"
     if [[ ! "$disk_limit" =~ GB$ ]]; then
       disk_limit="${int_disk_limit} GB"
     else
