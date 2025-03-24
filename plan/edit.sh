@@ -157,7 +157,12 @@ update_plan() {
 
   # Format disk_limit with 'GB' 
   disk_limit="${int_disk_limit} GB"
-  
+    if [[ ! "$disk_limit" =~ GB$ ]]; then
+      disk_limit="${int_disk_limit} GB"
+    else
+      disk_limit="${int_disk_limit}"
+    fi
+
   # format without GB for old limits
   old_disk_limit="${int_old_disk_limit} GB"
   int_old_ram=${old_ram%"g"}
