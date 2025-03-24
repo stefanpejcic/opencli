@@ -166,14 +166,6 @@ update_plan() {
   old_disk_limit="${int_old_disk_limit} GB"
   int_old_ram=${old_ram%"g"}
   
-  # Ensure inodes_limit is not less than 500000
-  if [ "$inodes_limit" -lt 250000 ]; then
-    if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Inodes limit can not be lower than 250k."
-    fi
-      inodes_limit=250000
-  fi
-
   # Format ram with 'g' at the end
   ram="${ram}g"
 
