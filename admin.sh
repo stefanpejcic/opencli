@@ -262,10 +262,13 @@ update_username() {
         else
        
             sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
+	    
+	    sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log   > /dev/null 2>&1
+     
             echo "User '$old_username' renamed to '$new_username'."
             
             local reseller_limits_dir="/etc/openpanel/openadmin/resellers"
-			mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
+	    mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
    
         fi
     else
