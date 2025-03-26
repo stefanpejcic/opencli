@@ -164,11 +164,15 @@ update_plan() {
 
   # format without GB for old limits
   old_disk_limit="${int_old_disk_limit} GB"
-  int_old_ram=${old_ram%"g"}
   
-  # Format ram with 'g' at the end
-  ram="${ram}g"
 
+if [[ $int_ram =~ gg$ ]]; then
+  ram="${int_ram%g}" # fix for 1.1.6 where we added extra gg !TO BE REMOVED!
+elif [[ ! $int_ram =~ g$ ]]; then
+  ram="${int_ram}g"   # append g if just number
+else
+  ram="${int_ram}"    # keep if already has g 
+fi
 
 if [ "$DEBUG" = true ]; then
   echo "+===================================+"
