@@ -261,7 +261,7 @@ run_update_immediately(){
 
     # log in file and show on terminal!
     log() {
-        echo "" | tee -a "$log_file"
+        echo "" | tee -a "$log_file" > /dev/null # only in log file
         echo "$1" | tee -a "$log_file"
     }
 
