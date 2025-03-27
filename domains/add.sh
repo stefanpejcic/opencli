@@ -117,9 +117,8 @@ compare_with_force_domain() {
 
 
 # added in 0.3.8 so admin can disable some domains!
-compare_with_dorbidden_domains_list() {
+compare_with_forbidden_domains_list() {
     local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
-    local CADDYFILE='/etc/openpanel/caddy/Caddyfile'
     local domain_name="$1"
     local forbidden_domains=()
 
@@ -132,20 +131,18 @@ compare_with_dorbidden_domains_list() {
             exit 1
         fi    
     fi
+}
 
-    # Check domains in Caddyfile
-    if [ -f "$CADDYFILE" ]; then
-        log "Checking domain against system domains"
-        while IFS= read -r line; do
-            if [[ "$line" =~ ^[a-zA-Z0-9.-]+\s+\{ ]]; then
-                caddy_domain=$(echo "$line" | awk '{print $1}')
-                if [[ "$domain_name" == "$caddy_domain" ]]; then
-                    echo "ERROR: $domain_name is already configured."
-                    exit 1
-                fi
-            fi
-        done < "$CADDYFILE"
-    fi
+compare_with_system_domains() {
+     local CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+     local CADDYFILE='/etc/openpanel/caddy/Caddyfile'
+     if [ -f "$CADDYFILE" ] || [ -f "$CONFIG_FILE" ]; then
+         log "Checking domain against system domains list"
+         if grep -q -E "^\s*$domain_name\s*\{" "$CADDYFILE" 2>/dev/null || grep -q "^$domain_name" "$CONFIG_FILE" 2>/dev/null; then
+             echo "ERROR: $domain_name is already configured."
+             exit 1
+         fi
+     fi
 }
 
 
