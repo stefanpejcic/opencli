@@ -91,30 +91,6 @@ else
     log "No document root specified, using /var/www/html/$domain_name"
 fi
 
-# added in 0.3.8 so user can not add the server hostname and take over server!
-compare_with_force_domain() {
-	read_config() {
-	    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $PANEL_CONFIG_FILE)
-	    echo "$config"
-	}
-	
-	local config=$(read_config)
-	local force_domain=$(echo "$config" | grep -i 'force_domain' | cut -d'=' -f2)
-
-	if [ -n "$force_domain" ]; then
-	    if [ "$force_domain" == "$domain_name" ]; then
-		echo "ERROR: domain $domain_name can not be added as it is currently used as the server hostname."
-  		exit 1
-	    fi
-	fi
-}
-
-
-
-
-
-
-
 
 # added in 0.3.8 so admin can disable some domains!
 compare_with_forbidden_domains_list() {
@@ -133,6 +109,7 @@ compare_with_forbidden_domains_list() {
     fi
 }
 
+# added in 1.1.7 to not allow histname, webmail or ns takeover
 compare_with_system_domains() {
      local CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
      local CADDYFILE='/etc/openpanel/caddy/Caddyfile'
@@ -150,9 +127,8 @@ compare_with_system_domains() {
 # Check if domain already exists
 log "Checking if domain already exists on the server"
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
-    :
-    compare_with_force_domain                      # dont allow hostname takeover
-    compare_with_dorbidden_domains_list            # dont allow admin-defined domains
+    compare_with_forbidden_domains_list            # dont allow admin-defined domains
+    compare_with_system_domains                    # hostname, ns or webmail takeover
 else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
