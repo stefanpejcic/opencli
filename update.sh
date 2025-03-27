@@ -261,7 +261,7 @@ run_update_immediately(){
 
     # log in file and show on terminal!
     log() {
-        echo "$1" | tee -a "$logfile"
+        echo "$1" | tee -a "$log_file"
     }
 
     run_custom_postupdate_script() {
@@ -269,7 +269,7 @@ run_update_immediately(){
             log " "
             log "Running post update script: '/root/openpanel_run_after_update'"
             log "https://dev.openpanel.com/customize.html#After-update"
-            bash /root/openpanel_run_after_update | tee -a "$logfile"
+            bash /root/openpanel_run_after_update | tee -a "$log_file"
         fi
     }
 
@@ -280,32 +280,32 @@ run_update_immediately(){
     log "Updating to version $version"
 
     log "Updating OpenPanel.."
-    docker image pull ${image_name}:${version} | tee -a "$logfile"
+    docker image pull ${image_name}:${version} | tee -a "$log_file"
     
     log "Setting version in /root/.env"
-    sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env | tee -a "$logfile"
+    sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env | tee -a "$log_file"
 
 
     log "Updating configuration files.."
-    cd /etc/openpanel && git pull | tee -a "$logfile"
+    cd /etc/openpanel && git pull | tee -a "$log_file"
 
     log "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
-    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull  | tee -a "$logfile"
+    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull  | tee -a "$log_file"
  
     log "Updating OpenAdmin.."
-    cd /usr/local/admin && git pull | tee -a "$logfile"
+    cd /usr/local/admin && git pull | tee -a "$log_file"
     chmod +x /usr/local/admin/modules/security/csf.pl  > /dev/null 2>&1 # for csf!
     ln -s /etc/csf/ui/images/ /usr/local/admin/static/configservercsf  > /dev/null 2>&1 # for csf!
 
     log "Restarting OpenPanel service to use the newest image.."
-    cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel | tee -a "$logfile"
+    cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel | tee -a "$log_file"
     
     log "Restarting OpenAdmin service.."
-    service admin restart | tee -a "$logfile"
+    service admin restart 2>&1 | tee -a "$log_file"
 
     log "Adding OpenCLI commands to path.."
-    opencli commands | tee -a "$logfile"
+    opencli commands | tee -a "$log_file"
 
     log "Checking for custom scripts.."
     url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
