@@ -261,6 +261,7 @@ run_update_immediately(){
 
     # log in file and show on terminal!
     log() {
+        echo "" | tee -a "$log_file"
         echo "$1" | tee -a "$log_file"
     }
 
@@ -287,14 +288,14 @@ run_update_immediately(){
 
 
     log "Updating configuration files.."
-    cd /etc/openpanel && git pull | tee -a "$log_file"
+    cd /etc/openpanel && git pull 2>&1 | tee -a "$log_file"
 
     log "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
-    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull  | tee -a "$log_file"
+    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull 2>&1 | tee -a "$log_file"
  
     log "Updating OpenAdmin.."
-    cd /usr/local/admin && git pull | tee -a "$log_file"
+    cd /usr/local/admin && git pull 2>&1 | tee -a "$log_file"
     chmod +x /usr/local/admin/modules/security/csf.pl  > /dev/null 2>&1 # for csf!
     ln -s /etc/csf/ui/images/ /usr/local/admin/static/configservercsf  > /dev/null 2>&1 # for csf!
 
