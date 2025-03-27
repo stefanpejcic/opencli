@@ -119,8 +119,7 @@ check_update() {
     }
 
     remove_last_notification() {
-        local title="$1"
-        sed -i "/^\(UNREAD\|READ\) ${title} MESSAGE:/d" "$LOG_FILE"
+        sed -i '/OpenPanel update started MESSAGE/d' "$LOG_FILE"
     }
 
     remove_update_notifications() {
@@ -326,8 +325,8 @@ run_update_immediately(){
     run_custom_postupdate_script
 
 
-    remove_last_notification "OpenPanel update started"
-    remove_update_notifications
+    remove_last_notification # remove update started msg
+    remove_update_notifications # remove update available msg
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
     
     echo "DONE!"
