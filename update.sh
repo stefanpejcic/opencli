@@ -257,14 +257,17 @@ run_update_immediately(){
         log_file="${log_dir}/${version}_${timestamp}.log"
     fi
 
+    # log in file and show on terminal!
+    log() {
+        echo "$1" | tee -a "$logfile"
+    }
 
     run_custom_postupdate_script() {
-    
         if [ -f "/root/openpanel_run_after_update" ]; then
-            echo " "
-            echo "Running post update script: '/root/openpanel_run_after_update'"
-            echo "https://dev.openpanel.com/customize.html#After-update"
-            bash /root/openpanel_run_after_update
+            log " "
+            log "Running post update script: '/root/openpanel_run_after_update'"
+            log "https://dev.openpanel.com/customize.html#After-update"
+            bash /root/openpanel_run_after_update | tee -a "$logfile"
         fi
     }
 
@@ -272,64 +275,58 @@ run_update_immediately(){
     
     write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
    
-    echo "Updating to version $version"
+    log "Updating to version $version"
 
-    echo "Updating OpenPanel.."
-    docker image pull ${image_name}:${version}
+    log "Updating OpenPanel.."
+    docker image pull ${image_name}:${version} | tee -a "$logfile"
     
-    echo "Setting version in /root/.env"
-    sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
+    log "Setting version in /root/.env"
+    sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env | tee -a "$logfile"
 
 
-    echo "Updating configuration files.."
-    cd /etc/openpanel && git pull
+    log "Updating configuration files.."
+    cd /etc/openpanel && git pull | tee -a "$logfile"
 
-    echo "Updating OpenCLI.."
+    log "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
-    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull
+    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull  | tee -a "$logfile"
  
-    echo "Updating OpenAdmin.."
-    cd /usr/local/admin && git pull
+    log "Updating OpenAdmin.."
+    cd /usr/local/admin && git pull | tee -a "$logfile"
     chmod +x /usr/local/admin/modules/security/csf.pl  > /dev/null 2>&1 # for csf!
     ln -s /etc/csf/ui/images/ /usr/local/admin/static/configservercsf  > /dev/null 2>&1 # for csf!
 
-    echo "Restarting OpenPanel service to use the newest image.."
-    cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel
+    log "Restarting OpenPanel service to use the newest image.."
+    cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel | tee -a "$logfile"
     
-    echo "Restarting OpenAdmin service.."
-    service admin restart
+    log "Restarting OpenAdmin service.."
+    service admin restart | tee -a "$logfile"
 
-: ' 
-    echo "Restarting Caddy service.."
-    docker restart caddy
-'
-    echo "Adding OpenCLI commands to path.."
-    opencli commands
+    log "Adding OpenCLI commands to path.."
+    opencli commands | tee -a "$logfile"
 
-
-    echo "Checking for custom scripts.."
+    log "Checking for custom scripts.."
     url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
     wget --spider -q "$url"
     if [ $? -ne 0 ]; then
         :
-        echo "No custom scripts provided.."
+        log "No custom scripts provided.."
     else
-        echo "Downloading and executing custom post-update script for this version: $url"
+        log "Downloading and executing custom post-update script for this version: $url"
         timeout 300 bash -c "wget -q -O - '$url' | bash" &>> "$log_file"
         if [ $? -eq 124 ]; then
-            echo "Error: Running custom post-update script for version $version timed out after 5 minutes."
+            log "Error: Running custom post-update script for version $version timed out after 5 minutes."
         fi
     fi
     
-    echo "Checking for POST-upgrade scripts.."
+    log "Checking for POST-upgrade scripts.."
     run_custom_postupdate_script
-
 
     remove_last_notification # remove update started msg
     remove_update_notifications # remove update available msg
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
     
-    echo "DONE!"
+    log "DONE!"
    
 }
 
