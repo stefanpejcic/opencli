@@ -117,10 +117,14 @@ check_update() {
       local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
       echo "$current_message" >> "$LOG_FILE"
     }
-    
+
     remove_last_notification() {
         local title="$1"
-        tac "$LOG_FILE" | sed -n '0,/^\(UNREAD\|READ\) '"$title"' MESSAGE:/!p' | tac > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+        sed -i "/^\(UNREAD\|READ\) ${title} MESSAGE:/d" "$LOG_FILE"
+    }
+
+    remove_update_notifications() {
+        sed -i "/New OpenPanel update is available/d" "$LOG_FILE"
     }
 
     ensure_jq_installed() {
@@ -323,6 +327,7 @@ run_update_immediately(){
 
 
     remove_last_notification "OpenPanel update started"
+    remove_update_notifications
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
     
     echo "DONE!"
