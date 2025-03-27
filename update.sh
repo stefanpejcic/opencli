@@ -248,7 +248,7 @@ compare_versions() {
 
 run_update_immediately(){
     version="$1"
-    log_dir="/usr/local/admin/updates"
+    log_dir="/var/log/openpanel/updates"
     mkdir -p $log_dir
     log_file="$log_dir/$version.log"
     # if not first try then set timestamp in filename
@@ -256,6 +256,8 @@ run_update_immediately(){
         timestamp=$(date +"%Y%m%d_%H%M%S")
         log_file="${log_dir}/${version}_${timestamp}.log"
     fi
+
+    touch $log_file
 
     # log in file and show on terminal!
     log() {
