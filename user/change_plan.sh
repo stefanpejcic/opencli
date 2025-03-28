@@ -179,14 +179,12 @@ get_compose_limit() {
         Ocpu=$(get_plan_limit "$current_plan_id" "$key")
         Oram=$(get_compose_limit "$current_plan_id" "ram")
     fi
-
-
-
-
+}
 
 # OLD LIMITS
 Ocpu=$(get_compose_limit "cpu") # from compose file, fallback to mysql!
 Oram=$(get_compose_limit "ram") # from compose file, fallback to mysql!
+
 
 
 
