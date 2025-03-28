@@ -177,7 +177,6 @@ get_compose_limit() {
         echo "Warning: Key '$key' not found in $docker_compose_file."
         # fallback to mysql!
         Ocpu=$(get_plan_limit "$current_plan_id" "$key")
-        Oram=$(get_compose_limit "$current_plan_id" "ram")
     fi
 }
 
