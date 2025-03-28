@@ -189,22 +189,6 @@ Oram=$(get_compose_limit "ram") # from compose file, fallback to mysql!
 
 
 
-# FUNCTIONS
-update_compose_value() {
-    local key="$1"
-    local value="$2"
-
-    sed -i "s/^$key=[^ ]*/$key=$value/" "$docker_compose_file" > /dev/null 2>&1
-    if grep -q "^$key=$value" "$docker_compose_file"; then
-        echo "Successfully updated $key to $value in $docker_compose_file."
-    else
-        ((write_failure_count++))
-        echo "[✘] Error changing $key value in docker compose file for the user"
-    fi
-}
-
-
-
 update_container_cpu() {
     if (( $Ncpu > $maxCPU )); then
         echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
@@ -212,19 +196,18 @@ update_container_cpu() {
     
     else
         if $debug; then
-            echo "Updating CPU% limit from: $Ocpu to $Ncpu"
+            echo "Updating total CPU% limit from: $Ocpu to $Ncpu"
         fi
-        command="docker --context $server update --cpus=\"$Ncpu\" \"$container_name\""
+        command="opencli user-resources \"$container_name\" --update_ram=\"$Nram\""
         eval $command > /dev/null
         if [ $? -eq 0 ]; then
             ((success_count++))
-            echo "[✔] CPU limit ($Ncpu) changed successfully for container."
+            echo "[✔] Total CPU limit ($Ncpu) changed successfully for container."
         else
             ((failure_count++))
-            echo "[✘] Error setting CPU limit for the container:"
+            echo "[✘] Error setting total CPU limit for the user:"
             echo "Command used: $command"
         fi
-        update_compose_value "$docker_compose_file" "cpu" "$Ncpu"
     fi
 }
 
@@ -237,20 +220,18 @@ update_container_ram() {
         if $debug; then
             echo "Updating Memory limit from: $Oram to $Nram"
         fi
-        command="docker --context $server update --memory=\"$Nram\" --memory-swap=\"$Nram\" \"$container_name\""
+        command="opencli user-resources \"$container_name\" --update_ram=\"$Nram\""
         eval $command > /dev/null
         if [ $? -eq 0 ]; then
             ((success_count++))
-            echo "[✔] Memory limit $Nram changed successfully for container"
+            echo "[✔] Total Memory limit $Nram changed successfully for user"
         else
             ((failure_count++))
-            echo "[✘] Error setting RAM limit for the container:"
+            echo "[✘] Error setting total RAM limit for user:"
             echo "Command used: $command"
         fi 
-        update_compose_value "$docker_compose_file" "memory" "$Nram"
     fi
 }
-
 
 
 update_used_disk_inodes() {
