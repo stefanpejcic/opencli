@@ -138,7 +138,7 @@ get_license_key_and_verify_on_my_openpanel() {
                   echo "Please restart OpenAdmin service to enable new features."
 		  exit 0
             else
-                service admin restart
+                service admin restart > /dev/null
 		echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
             fi
 
@@ -169,8 +169,8 @@ save_license_to_file() {
             fi
 
 	    enable_emails_module  > /dev/null
-	    docker restart openpanel > /dev/null &
-	     
+	    docker --context default ps -q -f name=openpanel | grep . && docker --context default restart openpanel > /dev/null &
+
             # Check if --no-restart flag is present
             if [[ "$NO_RESTART" == "yes" ]]; then
                   echo "Please restart OpenAdmin service to enable new features."
