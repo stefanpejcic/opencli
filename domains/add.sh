@@ -323,7 +323,7 @@ get_webserver_for_user(){
 
 get_varnish_for_user(){
 	VARNISH=false
-	if grep -q "^PROXY_HTTP_PORT=" "/home/$context/.env"; then
+ 	if grep -qE "^PROXY_HTTP_PORT=" "/home/$context/.env"; then
 	  VARNISH=true
 	fi
 
