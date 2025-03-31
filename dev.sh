@@ -55,14 +55,23 @@ usage() {
 
 
 
-
-
 install_fzf() {
     if ! command -v fzf &> /dev/null; then
         echo "Attempting to install fzf..."
         apt install -y fzf > /dev/null 2>&1 || dnf install -y fzf
         if ! command -v fzf &> /dev/null; then
             echo "Failed to install fzf. Please install it manually."
+            exit 1
+        fi
+    fi   
+}
+
+install_nano() {
+    if ! command -v nano &> /dev/null; then
+        echo "Attempting to install nano editor..."
+        apt install -y nano > /dev/null 2>&1 || dnf install -y nano
+        if ! command -v nano &> /dev/null; then
+            echo "Failed to install nano. Please install it manually."
             exit 1
         fi
     fi   
@@ -105,6 +114,7 @@ if [ $# -gt 0 ]; then
     fi
 else
     install_fzf
+    install_nano
     get_all_available_files
 fi
 
