@@ -46,7 +46,7 @@ usage() {
     echo "  domains_limit - Max number of domains (integer, 0 for unlimited)."
     echo "  websites_limit- Max number of websites (integer, 0 for unlimited)."
     echo "  disk_limit    - Disk space limit in GB (integer)."
-    echo "  inodes_limit  - Max number of inodes (integer, min 250000)."
+    echo "  inodes_limit  - Max number of inodes (integer, 0 = unlimited)."
     echo "  db_limit      - Max number of databases (integer, 0 for unlimited)."
     echo "  cpu           - CPU core limit (integer)."
     echo "  ram           - RAM limit in GB (integer)."
@@ -80,9 +80,8 @@ insert_plan() {
 # Format disk_limit with 'GB' 
 disk_limit="${disk_limit} GB"
 
-  # Ensure inodes_limit is not less than 500000
-  if [ "$inodes_limit" -lt 250000 ]; then
-    inodes_limit=250000
+  if [ "$inodes_limit" -lt 0 ]; then
+    inodes_limit=0
   fi
 
   # Format ram with 'g' at the end
