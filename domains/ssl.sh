@@ -94,7 +94,7 @@ show_examples() {
 	echo "Usage:"
 	echo ""
 	echo "Check current SSL status for domain (AutoSSL, CustomSSL or No SSL):"
-	echo '"
+	echo ""
 	echo "opencli domains-ssl $DOMAIN status"
 	echo ""
 	echo "Display fullchain and key files for the domain:"
