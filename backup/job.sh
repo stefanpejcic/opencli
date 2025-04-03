@@ -155,6 +155,15 @@ EOF
     # Create the new .json file with the provided content
     echo "$json_content" > "$new_file"
     echo "Successfully created $(basename "$new_file" .json)"
+    validate_json_file "$new_file"
+}
+
+validate_json_file() {
+    local file="$1"
+    if ! jq empty "$file" >/dev/null 2>&1; then
+        echo "Error: Invalid JSON format in $file"
+        exit 1
+    fi
 }
 
 # Edit a backup job

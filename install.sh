@@ -36,6 +36,8 @@ chmod +x -R /usr/local/opencli/
 # https://openpanel.co/docs/changelog/0.1.9/#cloudflare-only
 wget -O /usr/local/opencli/cloudflare https://raw.githubusercontent.com/stefanpejcic/ipset-cloudflare/main/run.sh
 
+chmod 700 /usr/local/opencli/
+chmod 600 /usr/local/opencli/cloudflare
 
 # Generate a list of commands for the opencli
 #opencli commands

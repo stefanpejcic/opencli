@@ -17,7 +17,7 @@
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 # 
-# The above copyright notice and this permission notice shall be included in
+# The above copyright notice and this permission shall be included in
 # all copies or substantial portions of the Software.
 # 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -1315,7 +1315,11 @@ MYSQL_VERSION="latest"
 MYSQL_PORT="$port_2"
 MYSQL_CPU="0.5"
 MYSQL_RAM="0.5G"
-MYSQL_ROOT_PASSWORD="rootpassword"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-$(openssl rand -base64 16)}"
+echo "Generated MySQL root password: $MYSQL_ROOT_PASSWORD"
+# Store the password securely in a file with restricted permissions
+echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" > /etc/openpanel/mysql_credentials.env
+chmod 600 /etc/openpanel/mysql_credentials.env
 
 # PHPMYADMIN
 PMA_VERSION=""

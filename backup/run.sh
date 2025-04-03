@@ -184,6 +184,9 @@ types=($(echo "$data" | awk 'NR==4'))
 retention=$(echo "$data" | awk 'NR==6')
 filters=$(echo "$data" | awk 'NR==7')
 
+# Validate destination directory
+validate_backup_path "$dest_destination_dir_name"
+
 # Check if the status is "off" and --force-run flag is not provided
 if [ "$status" == "off" ] && [ "$FORCE_RUN" == false ]; then
     echo "Backup job is disabled. Use --force-run to run the backup job anyway."

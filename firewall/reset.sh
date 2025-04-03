@@ -170,8 +170,10 @@ if [ "$FIREWALL" = "CSF" ]; then
         
 elif [ "$FIREWALL" = "UFW" ]; then
     ufw allow 80/tcp #http
+    ufw allow from 192.168.1.0/24 to any port 80 proto tcp # Restrict HTTP to local network
     ufw allow 53  #dns
     ufw allow 443/tcp # https
+    ufw allow from 192.168.1.0/24 to any port 443 proto tcp # Restrict HTTPS to local network
     
     ufw allow 21/tcp #ftp
     ufw allow 21000-21010/tcp #passive ftp

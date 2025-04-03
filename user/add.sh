@@ -841,7 +841,7 @@ docker_compose() {
 	    	log "Configuring Docker Compose for user $username"
 		machinectl shell $username@ /bin/bash -c "
 		DOCKER_CONFIG=${DOCKER_CONFIG:-/home/$username/.docker}
-		mkdir -p /home/$username/.docker/cli-plugins
+		mkdir --p /home/$username/.docker/cli-plugins
 		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
 		chmod +x /home/$username/.docker/cli-plugins/docker-compose
 		docker compose version
@@ -1594,6 +1594,14 @@ reload_user_quotas() {
 collect_stats() {
 	opencli docker-collect_stats $username  > /dev/null 2>&1
 }
+
+sanitize_input() {
+    local input="$1"
+    echo "$input" | sed 's/[^a-zA-Z0-9_-]//g'
+}
+
+username=$(sanitize_input "$username")
+node_ip_address=$(sanitize_input "$node_ip_address")
 
 # MAIN
 

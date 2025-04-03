@@ -278,6 +278,12 @@ update_dns_zone_file() {
 
 
 ensure_jq_installed
+
+if ! command -v csf >/dev/null 2>&1 && ! command -v ufw >/dev/null 2>&1; then
+    echo "Warning: No firewall is installed. User ports are exposed to the internet."
+    exit 1
+fi
+
 # Check if the action is 'delete'
 if [ "$ACTION" = "delete" ]; then
     current_ip "$USERNAME" 
