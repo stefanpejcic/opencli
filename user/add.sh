@@ -1393,7 +1393,7 @@ fi
 
 
 mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
-echo "[mysqld]" > /home/${username}/custom.cnf
+cp /etc/openpanel/mysql/user.cnf /home/${username}/custom.cnf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
 cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
 cp /etc/openpanel/varnish/default.vcl /home/$username/default.vcl
