@@ -4,12 +4,6 @@
 ############################### DB LOGIN ################################ 
 #########################################################################
 
-: '
-both are available on /etc/my.cnf
-- for container: /usr/local/admin/container_my.cnf is mounted to /etc/my.cnf
-- for host server: /usr/local/admin/host_my.cnf is symlinked to /etc/my.cnf
-'
-
 config_files=("/etc/my.cnf")
 
 check_config_file() {
