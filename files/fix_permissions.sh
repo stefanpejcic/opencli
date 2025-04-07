@@ -60,73 +60,63 @@ apply_permissions_in_container() {
   local container_name="$1"
   local path="$2"
 
-    if [ -n "$path" ]; then
-        # this is also checked on the backend
-        if [[ $path != /var/www/html/* ]]; then
-            path="${path#/}" # strip / from beginning if relative path is sued
-            path="/var/www/html/$path" # prepend user home directory
+        get_user_info() {
+            local user="$1"
+            local query="SELECT id, server FROM users WHERE username = '${user}';"
+            user_info=$(mysql -se "$query")
+            
+            user_id=$(echo "$user_info" | awk '{print $1}')
+            context=$(echo "$user_info" | awk '{print $2}')
+            
+            echo "$user_id,$context"
+        }
+
+        
+        result=$(get_user_info "$container_name")
+        context=$(echo "$result" | cut -d',' -f2)
+
+
+        if [ -z "$context" ]; then
+            echo "FATAL ERROR: user $container_name does not have a valid docker context."
+            exit 1
         fi
-        directory="$path"
-    else   
-        directory="/var/www/html/"
-    fi
 
 
-
-get_user_info() {
-    local user="$1"
-    local query="SELECT id, server FROM users WHERE username = '${user}';"
-    user_info=$(mysql -se "$query")
+        if [ -n "$path" ]; then       
+            if [[ $path == /var/www/html/* ]]; then
+                path="${path#/var/www/html/}"
+            fi
     
-    user_id=$(echo "$user_info" | awk '{print $1}')
-    context=$(echo "$user_info" | awk '{print $2}')
+            directory="/hostfs/home/${context}/docker-data/volumes/${context}_html_data/_data/$path"
+            fake_directory="/var/www/html/$path"
+        else   
+            directory="/hostfs/home/${context}/docker-data/volumes/${context}_html_data/_data/"     
+            fake_directory="/var/www/html/"
+        fi
     
-    echo "$user_id,$context"
-}
 
-
-result=$(get_user_info "$container_name")
-context=$(echo "$result" | cut -d',' -f2)
-
-
-if [ -z "$context" ]; then
-    echo "FATAL ERROR: user $container_name does not have a valid docker context."
-    exit 1
-fi
-
-
-  # Check if the container exists
-  if docker --context $context inspect -f '{{.State.Running}}' "$container_name" &>/dev/null; then
 
         # USERNAME OWNER
-        docker --context $context exec $container_name bash -c "chown -R $verbose www-data:www-data $directory"  > /dev/null 2>&1
-        #chown -R $verbose $user_ud:33 $directory
+        chown -R $verbose $context:$context $directory
+        find $directory -print0 | xargs -0 chown $verbose $context:$context > /dev/null 2>&1
         owner_result=$?
         
-        # WWW-DATA GROUP
-        #docker --context $context exec $container_name bash -c "cd $directory && xargs -d$'\n' -r chmod $verbose -R g+w $directory"
-        docker --context $context exec $container_name bash -c "find $directory -print0 | xargs -0 chmod $verbose -R g+w"  > /dev/null 2>&1
-        group_result=$?
-
         # FILES
-        #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 644"
-        docker --context $context exec $container_name bash -c "find $directory -type f -print0 | xargs -0 chmod $verbose 755"  > /dev/null 2>&1
+        #find $directory -type f -print0 | xargs -0 chmod $verbose 644
+        find $directory -type f -print0 | xargs -0 chmod $verbose 755 > /dev/null 2>&1
         files_result=$?
         
         # FOLDERS
-        #docker --context $context exec -u 0 -it "$container_name" bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 775"
-        docker --context $context exec $container_name bash -c "find $directory -type d -print0 | xargs -0 chmod $verbose 644"  > /dev/null 2>&1
+        #find $directory -type d -print0 | xargs -0 chmod $verbose 775
+        find $directory -type d -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
         folders_result=$?
         
         # CHECK ALL 4
-            if [ $group_result -eq 0 ] && [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
-                echo "Permissions applied successfully to $directory"
+            if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
+                echo "Permissions applied successfully to $fake_directory"
             else
-                echo "Error applying permissions to $directory"
+                echo "Error applying permissions to $fake_directory"
             fi
-  else
-    echo "Container for user $container_name not found or is not running."
-  fi
 }
 
 
