@@ -5,7 +5,7 @@
 # Usage: opencli domains-docroot <DOMAIN_NAME> [update </var/www/html/>] --debug
 # Author: Stefan Pejcic
 # Created: 10.02.2025
-# Last Modified: 23.02.2025
+# Last Modified: 07.05.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -101,7 +101,7 @@ get_user_context() {
 
 validate_docroot() {
 
-  log "Updating document root for doamin: $domain to: $new_docroot"
+  log "Updating document root for domain: $domain to: $new_docroot"
   if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
       echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
       exit 1
@@ -122,33 +122,14 @@ make_folder() {
 
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
-	    output=$(opencli webserver-get_webserver_for_user $user)
-	    if [[ $output == *nginx* ]]; then
-	        ws="nginx"
-	    elif [[ $output == *apache* ]]; then
-	        ws="apache2"
-	    elif [[ $output == *litespeed* ]]; then
-	        ws="litespeed"
-	    else
-	        ws="unknown"
-	    fi
+	    ws=$(opencli webserver-get_webserver_for_user $user)
 }
 
 
 vhost_file_edit() {
-
-	if [[ $ws == *apache2* ]]; then
-    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf"
-	elif [[ $ws == *nginx* ]]; then
-    vhost_in_docker_file="/etc/$ws/sites-available/${domain}.conf" 		
-	elif [[ $ws == *litespeed* ]]; then
- 		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain}.conf"
-  fi
-  
-  sed_command="sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' \"$vhost_in_docker_file\""
-  docker --context "$context" exec "$user" bash -c "$sed_command" > /dev/null 2>&1
-  docker --context $context restart $ws > /dev/null 2>&1
-
+	vhost_file="/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf"  
+	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' \"$vhost_in_docker_file\" > /dev/null 2>&1
+	docker --context $context restart $ws > /dev/null 2>&1
 }
 
 
