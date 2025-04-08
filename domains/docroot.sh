@@ -111,11 +111,16 @@ validate_docroot() {
 
 
 make_folder() {  
+: '
+# strip /var/www/html/
+RADOVANEEEEEEEEe
+prepend: /home/${context}/docker-data/volumes/${context}_html_data/_data/
+'
+
+
   	log "Creating document root directory $new_docroot"
-  	docker --context $context exec $user bash -c "mkdir -p $new_docroot"
-  	docker --context $context exec $user bash -c "chown 0:33 $new_docroot"
-  	docker --context $context exec $user bash -c "chmod -R g+w $new_docroot" #maybe back
- 
+  	mkdir -p $new_docroot
+  	chown $user:$user $new_docroot 
 }
 
 
