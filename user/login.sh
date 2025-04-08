@@ -102,7 +102,7 @@ else
             --pids-limit="10" \
             --security-opt no-new-privileges \
             -v /hostfs/run/user/$USER_UID/docker.sock:/var/run/docker.sock \
-            lazyteam/lazydocker
+            openpanel/lazydocker
     else
         echo "Neither container nor the user $selected_user exist on the server."
         exit 1
