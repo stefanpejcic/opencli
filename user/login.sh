@@ -95,7 +95,14 @@ if [ -z "$user_id" ]; then
     exit 1
 else
     if id "$selected_user" &>/dev/null; then     
-       docker --context $context exec -it $selected_user /bin/bash
+       USER_UID=$(id -u)
+        exec docker run --rm -it \
+            --cpus="0.1" \
+            --memory="100m" \
+            --pids-limit="10" \
+            --security-opt no-new-privileges \
+            -v /hostfs/run/user/$USER_UID/docker.sock:/var/run/docker.sock \
+            lazyteam/lazydocker
     else
         echo "Neither container nor the user $selected_user exist on the server."
         exit 1
