@@ -127,8 +127,8 @@ get_webserver_for_user(){
 
 
 vhost_file_edit() {
-	vhost_file="/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf"  
-	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' \"$vhost_in_docker_file\" > /dev/null 2>&1
+	vhost_file=/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf
+	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' $vhost_file > /dev/null 2>&1
 	docker --context $context restart $ws > /dev/null 2>&1
 }
 
