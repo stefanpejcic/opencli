@@ -110,17 +110,16 @@ validate_docroot() {
 }
 
 
-make_folder() {  
-: '
-# strip /var/www/html/
-RADOVANEEEEEEEEe
-prepend: /home/${context}/docker-data/volumes/${context}_html_data/_data/
-'
+make_folder() {
+  # Extract the folder name from new_docroot
+  folder_name="${new_docroot##/var/www/html/}"
 
+  # Build the new path
+  newnew_docroot="/home/${context}/docker-data/volumes/${context}_html_data/_data/${folder_name}"
 
-  	log "Creating document root directory $new_docroot"
-  	mkdir -p $new_docroot
-  	chown $user:$user $new_docroot 
+  log "Creating document root directory $new_docroot"
+  mkdir -p "$newnew_docroot"
+  chown "$user:$user" "$newnew_docroot"
 }
 
 
