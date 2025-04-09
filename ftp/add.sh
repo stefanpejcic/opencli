@@ -67,7 +67,11 @@ check_and_start_ftp_server(){
 
 
 get_docker_context_for_user(){
-    context=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+    context=$(mysql -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+    if [ -z "$context" ]; then
+        echo "ERROR: No context found for user '$openpanel_username'. Aborting!"
+        exit 1
+    fi    
 }
 
 # Function to read users from users.list files and create them
