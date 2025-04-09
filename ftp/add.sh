@@ -66,8 +66,19 @@ check_and_start_ftp_server(){
 
 
 
+get_docker_context_for_user(){
+    context=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+}
+
 # Function to read users from users.list files and create them
 create_user() {
+
+	get_docker_context_for_user
+ 
+	real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
+	relative_path="${directory##/var/www/html/}"
+	directory="${real_path}${relative_path}"
+
     docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${directory} -s /sbin/nologin -G xfs ${username} > /dev/null 2>&1"
     # group xfs is id 33 in alpine, but www-data in ubuntu
 
@@ -75,7 +86,7 @@ create_user() {
     if [ $? -eq 0 ]; then
         mkdir -p $directory
         #chown 1000:33 $directory # causes user not to be able to write!
-        echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list        
+        echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
         echo "Success: FTP user '$username' created successfully."
     else
         if [ "$DEBUG" = true ]; then
