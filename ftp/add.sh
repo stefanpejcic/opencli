@@ -82,19 +82,20 @@ create_user() {
 	real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
 	relative_path="${directory##/var/www/html/}"
 	new_directory="${real_path}${relative_path}"
+	# todo: do GID!
 
-    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin -G xfs ${username} > /dev/null 2>&1"
+    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin -G ${openpanel_username} ${username} > /dev/null 2>&1"
 
     # Check if the command was successful
     if [ $? -eq 0 ]; then
         mkdir -p "/hostfs$new_directory"
 	# todo: chown also!
- 	chown ${username}:${username} "/hostfs$new_directory"
-	chmod +rx /hostfs/home/$username
- 	chmod +rx /hostfs/home/$username/docker-data
-	chmod +rx /hostfs/home/$username/docker-data/volumes
-	chmod +rx /hostfs/home/$username/docker-data/volumes/${username}_html_data
-	chmod +rx /hostfs/home/$username/docker-data/volumes/${username}_html_data/_data     
+ 	chown ${openpanel_username}:${openpanel_username} "/hostfs$new_directory"
+	chmod +rx /hostfs/home/$openpanel_username
+ 	chmod +rx /hostfs/home/$openpanel_username/docker-data
+	chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes
+	chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data
+	chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data     
  
         echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
         echo "Success: FTP user '$username' created successfully."
