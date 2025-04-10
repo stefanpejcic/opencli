@@ -84,7 +84,23 @@ create_user() {
 	new_directory="${real_path}${relative_path}"
 	# todo: do GID!
 
-    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin -G ${openpanel_username} ${username} > /dev/null 2>&1"
+	GROUP=$(docker exec openadmin_ftp sh -c  "getent group $GID | cut -d: -f1")
+	     if [ ! -z "$GROUP" ]; then
+	      GROUP_OPT="-G $GROUP"
+	    elif [ ! -z "$GID" ]; then
+       	      GID=$(grep $openpanel_username /hostfs/etc/group | cut -d: -f3)
+	      addgroup -g $GID $OPENPANEL_USER
+	      GROUP_OPT="-G $OPENPANEL_USER"
+	
+	      # https://serverfault.com/a/435430/1254613
+	      chmod +rx /home/$OPENPANEL_USER
+	      chmod +rx /home/$OPENPANEL_USER/docker-data
+	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes
+	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes/${OPENPANEL_USER}_html_data
+	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes/${OPENPANEL_USER}_html_data/_data     
+	    fi
+ 
+    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin ${GROUP_OPT} ${username} > /dev/null 2>&1"
 
     # Check if the command was successful
     if [ $? -eq 0 ]; then
