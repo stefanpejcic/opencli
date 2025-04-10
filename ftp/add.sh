@@ -81,26 +81,32 @@ create_user() {
  
 	real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
 	relative_path="${directory##/var/www/html/}"
-	directory="${real_path}${relative_path}"
+	new_directory="${real_path}${relative_path}"
 
-    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${directory} -s /sbin/nologin -G xfs ${username} > /dev/null 2>&1"
-    # group xfs is id 33 in alpine, but www-data in ubuntu
+    docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin -G xfs ${username} > /dev/null 2>&1"
 
     # Check if the command was successful
     if [ $? -eq 0 ]; then
-        mkdir -p $directory
-        #chown 1000:33 $directory # causes user not to be able to write!
+        mkdir -p "/hostfs$new_directory"
+	# todo: chown also!
+ 	chown ${username}:${username} "/hostfs$new_directory"
+	chmod +rx /hostfs/home/$username
+ 	chmod +rx /hostfs/home/$username/docker-data
+	chmod +rx /hostfs/home/$username/docker-data/volumes
+	chmod +rx /hostfs/home/$username/docker-data/volumes/${username}_html_data
+	chmod +rx /hostfs/home/$username/docker-data/volumes/${username}_html_data/_data     
+ 
         echo "$username|$password|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
         echo "Success: FTP user '$username' created successfully."
     else
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to create FTP user with command:"     
             echo ""
-            echo "docker exec openadmin_ftp sh -c 'echo -e ${password}\n${password} | adduser -h $directory -s /sbin/nologin $username'"
+            echo "docker exec openadmin_ftp sh -c 'echo -e ${password}\n${password} | adduser -h $new_directory -s /sbin/nologin $username'"
             echo ""
             echo "Run the command manually to check for errors."
         else
-            echo "ERROR: Failed to create FTP user. To debug run this command on terminal: opencli ftp-add $username $password '$directory' $openpanel_username --debug"  
+            echo "ERROR: Failed to create FTP user. To debug run this command on terminal: opencli ftp-add $username $password '$new_directory' $openpanel_username --debug"  
         fi
         exit 1
     fi
