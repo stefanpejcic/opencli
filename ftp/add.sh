@@ -82,16 +82,15 @@ create_user() {
 	real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
 	relative_path="${directory##/var/www/html/}"
 	new_directory="${real_path}${relative_path}"
-	# todo: do GID!
-
+ 
+	GID=$(grep $openpanel_username /hostfs/etc/group | cut -d: -f3)
 	GROUP=$(docker exec openadmin_ftp sh -c  "getent group $GID | cut -d: -f1")
 	     if [ ! -z "$GROUP" ]; then
 	      GROUP_OPT="-G $GROUP"
 	    elif [ ! -z "$GID" ]; then
-       	      GID=$(grep $openpanel_username /hostfs/etc/group | cut -d: -f3)
+       	      
 	      addgroup -g $GID $OPENPANEL_USER
 	      GROUP_OPT="-G $OPENPANEL_USER"
-	
 	      # https://serverfault.com/a/435430/1254613
 	      chmod +rx /home/$OPENPANEL_USER
 	      chmod +rx /home/$OPENPANEL_USER/docker-data
