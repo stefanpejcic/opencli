@@ -273,8 +273,12 @@ get_active_services_and_their_usage() {
             ram_value=${!ram_var:-0}
     
             if [ -z "${!cpu_var}" ] || [ -z "${!ram_var}" ]; then
-                # If either the CPU or RAM value is missing in the .env file, show a message
+                # If either the CPU or RAM value is missing in the .env file, abort
+                projected_cpu="0"
+                projected_ram="0"
                 message+="<br> Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
+                display_json_or_message
+                exit 1 
             fi
     
     
@@ -373,6 +377,10 @@ stop_service_now() {
 
 display_json_or_message() {
         if $json_output; then
+
+            # Remove last comma for valid JSON
+            services_data=$(echo "$services_data" | sed 's/,$//')
+            
             json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}}, \"message\": \"$message\"}"
             echo "$json_data" | jq .
         else
@@ -401,10 +409,10 @@ add_new_service() {
 
         # Check if the CPU value is a valid float or integer
         if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            message+="<br> Error: Service $new_service_name does not have a valid CPU limit defined!"
+            message+="<br> Error: Service $new_service_name does not have a valid CPU limit defined!" 
         # Check if the CPU value is 0.0 or less (for floats)
         elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
-            message+="<br>Error: Service $new_service_name does not have CPU or RAM limits defined!"
+            message+="<br>Error: Service $new_service_name does not have CPU or RAM limits defined!"          
         fi
 
         projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
