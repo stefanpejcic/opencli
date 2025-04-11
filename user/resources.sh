@@ -276,7 +276,7 @@ get_active_services_and_their_usage() {
                 # If either the CPU or RAM value is missing in the .env file, abort
                 projected_cpu="0"
                 projected_ram="0"
-                message+="<br> Warning: Service $service_name does not have CPU or RAM limits defined in .env file!"
+                message+="<br> Error: Service $service_name does not have CPU or RAM limits defined in .env file!"
                 display_json_or_message
                 exit 1 
             fi
