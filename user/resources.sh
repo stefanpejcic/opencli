@@ -359,12 +359,11 @@ check_if_service_exists_or_running() {
 start_service_now() {
     service_name="$1"
 
-    PULL_FLAG=""
     if $FORCE_PULL; then
-        PULL_FLAG="--pull"
+        docker --context $context compose -f /home/$context/docker-compose.yml pull $service_name > /dev/null 2>&1  
     fi
     
-    docker --context $context compose $PULL_FLAG -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
+    docker --context $context compose -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
 }
 
 stop_service_now() {
