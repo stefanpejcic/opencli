@@ -477,6 +477,8 @@ stop_container() {
         status=$?
         if [ $status -eq 0 ]; then
             message+="<br>Service $stop_service did not stop. Contact Administrator."
+            display_json_or_message
+            exit 1
         elif [ $status -eq 2 ]; then
             message+="<br>Service $stop_service stopped successfully."
             opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
