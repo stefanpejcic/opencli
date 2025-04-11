@@ -361,7 +361,7 @@ start_service_now() {
 
     PULL_FLAG=""
     if $FORCE_PULL; then
-        PULL_FLAG="--pull always"
+        PULL_FLAG="--pull"
     fi
     
     docker --context $context compose $PULL_FLAG -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
