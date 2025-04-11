@@ -442,6 +442,8 @@ add_new_service() {
                 opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
             elif [ $status -eq 2 ]; then
                 message+="<br>Service $service_name did not start. Contact Administrator."
+                display_json_or_message
+                exit 1
             fi
 
             # DON'T SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
