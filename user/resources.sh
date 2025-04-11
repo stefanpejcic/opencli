@@ -45,17 +45,19 @@ usage() {
     echo "  <context>          The docker context for user."
     echo ""
     echo "Options:"
-    echo "  --json                   Output the result in JSON format."
-    echo "  --update_cpu=<value>     Update CPU allocation for the service (e.g., --update_cpu=2 --service=apache)."
-    echo "  --update_ram=<value>     Update RAM allocation for the service (e.g., --update_ram=4 --service=apache)."
-    echo "  --activate=<service>     Activate the specified docker service."
-    echo "  --service=<service_name> Specify a service to update its CPU and RAM configuration."
-    echo "  --deactivate=<service>   Deactivate the specified service."
+    echo "  --json                       Output the result in JSON format."
+    echo "  --update_cpu=<value>         Update CPU allocation for the service (e.g., --update_cpu=2 --service=apache)."
+    echo "  --update_ram=<value>         Update RAM allocation for the service (e.g., --update_ram=4 --service=apache)."
+    echo "  --activate=<service>         Activate the specified docker service."
+    echo "  --service=<service_name>     Specify a service to update its CPU and RAM configuration."
+    echo "  --deactivate=<service>       Deactivate the specified service."
+    echo "  --activate=<service> --force Pull image again and activate."
     echo ""
     echo "Example usage:"
     echo "  opencli user-resources stefan --json"
     echo "  opencli user-resources stefan --activate=apache"
     echo "  opencli user-resources stefan --deactivate=apache"
+    echo "  opencli user-resources stefan --activate=apache --force"
     echo "  opencli user-resources stefan --update_cpu=2"
     echo "  opencli user-resources stefan --update_ram=4"
     echo "  opencli user-resources stefan --service=apache --update_ram=1.2"
@@ -82,6 +84,9 @@ for arg in "$@"; do
             ;;
         --activate=*)
             new_service="${arg#--activate=}"
+            ;;
+        --force*)
+            FORCE_PULL=true
             ;;
         --service=*)
             service_to_update_cpu_ram="${arg#--service=}"
@@ -353,7 +358,13 @@ check_if_service_exists_or_running() {
 
 start_service_now() {
     service_name="$1"
-    docker --context $context compose -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
+
+    PULL_FLAG=""
+    if $FORCE_PULL; then
+        PULL_FLAG="--pull always"
+    fi
+    
+    docker --context $context compose $PULL_FLAG -f /home/$context/docker-compose.yml up -d $service_name > /dev/null 2>&1   
 }
 
 stop_service_now() {
@@ -422,7 +433,7 @@ add_new_service() {
         else
             # START SERVICE
             start_service_now "$new_service"
-
+    
             # CHECK IF RUNNING
             check_if_service_exists_or_running "$service_name" "status"
             status=$?
