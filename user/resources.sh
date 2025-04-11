@@ -445,7 +445,7 @@ add_new_service() {
                 exit 1
             fi
 
-            # DON'T SHOW final_output_for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
+            # DON'T SHOW final_output_ for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
             if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
                 display_json_or_message
                 exit 1
@@ -459,7 +459,7 @@ add_new_service() {
 
 
 stop_container() {
-    # Handle new service addition if --activate=<service_name> is provided
+    # if --deactivate=<service_name> is provided
     if [[ -n "$stop_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
         stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')  
@@ -490,7 +490,6 @@ stop_container() {
 }
 
 
-
 final_output_for_json() {
     if $json_output; then
         echo "$json_data" | jq .
@@ -506,7 +505,7 @@ get_total_cpu_and_ram                         # get total cpu/ram usage allocate
 get_active_services_and_their_usage           # get combined cpu/ram usage for all active services
 stop_container                                # stop container
 add_new_service                               # check if starting new service is within user limits and start it
-final_output_for_json                         # pretty print the data
+#######final_output_for_json                         # pretty print the data
 
 exit 0
 
