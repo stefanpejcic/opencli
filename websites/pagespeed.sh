@@ -44,6 +44,13 @@ get_page_speed() {
   local strategy=$2
   local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
   local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$website_url&strategy=$strategy")
+
+  # Check for error in API response
+  local error_message=$(echo "$api_response" | jq -r '.error.message // empty')
+  if [[ -n "$error_message" ]]; then
+    echo "API Error: $error_message"
+    return 1
+  fi
   
   local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score')
   local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue')
@@ -60,6 +67,10 @@ get_page_speed() {
 generate_report() {
   local website=$1
   local desktop_speed=$(get_page_speed "$website" "desktop")
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to fetch desktop speed data. Aborting report."
+    return 1
+  fi
   local mobile_speed=$(get_page_speed "$website" "mobile")
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   local filename="/etc/openpanel/openpanel/websites/$(echo "$website" | sed 's|https\?://||' | sed 's|/|_|g').json"
