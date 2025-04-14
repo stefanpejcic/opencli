@@ -5,7 +5,7 @@
 # Usage: opencli websites-pagespeed <DOMAIN> [-all]
 # Author: Stefan Pejcic
 # Created: 27.06.2024
-# Last Modified: 23.02.2025
+# Last Modified: 14.04#"AIzaSyDow0GLE7N5gcZXa72tpqIvIaJtn1bDtsk"  .2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -39,12 +39,52 @@ usage() {
   exit 1
 }
 
+
+get_api_key() {
+  actual_domain="${website_url%%/*}"
+  actual_domain="${actual_domain#*://}"
+  
+  whoowns_output=$(opencli domains-whoowns "$actual_domain")
+  owner=$(echo "$whoowns_output" | awk -F "Owner of '$actual_domain': " '{print $2}')
+  
+if [ -n "$owner" ]; then
+  source /usr/local/opencli/db.sh
+  query="SELECT server FROM users WHERE username = '$owner'"
+  context=$(mysql -D "$mysql_database" -e "$query" -sN)
+  if [ -z "$context" ]; then
+    api_key=""
+  else
+    api_key=$(cat /etc/openpanel/openpanel/service/pagespeed.api)
+    user_key_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/pagespeed_api_key.txt"
+    global_key_path="/hostfs/etc/openpanel/openpanel/service/pagespeed.api"
+    
+    if [[ -s "$user_key_path" ]]; then
+      api_key=$(cat "$user_key_path")
+    elif [[ -s "$global_key_path" ]]; then
+      api_key=$(cat "$global_key_path")
+    else
+      api_key=""
+    fi
+  fi
+fi
+
+
+}
+
 get_page_speed() {
   local website_url=$1
   local strategy=$2
   local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
-  local api_response=$(curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$website_url&strategy=$strategy")
+  
 
+  local api_url="https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$encoded_domain&strategy=$strategy"
+
+  get_api_key
+  
+  [[ -n "$api_key" ]] && api_url+="&key=$api_key"
+
+  local api_response=$(curl -s "$api_url")
+  
   # Check for error in API response
   local error_message=$(echo "$api_response" | jq -r '.error.message // empty')
   if [[ -n "$error_message" ]]; then
@@ -59,8 +99,6 @@ get_page_speed() {
   
   echo "{\"performance_score\": $performance_score, \"first_contentful_paint\": \"$first_contentful_paint\", \"speed_index\": \"$speed_index\", \"interactive\": \"$interactive\"}"
 }
-
-
 
 
 # Function to generate report for a domain
