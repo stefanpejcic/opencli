@@ -49,9 +49,9 @@ get_page_speed() {
   local error_message=$(echo "$api_response" | jq -r '.error.message // empty')
   if [[ -n "$error_message" ]]; then
     echo "API Error: $error_message"
-    return 1
+    return 0  # Return 0 so `$(...)` doesn't break; use output to detect error
   fi
-  
+
   local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score')
   local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue')
   local speed_index=$(echo "$api_response" | jq -r '.lighthouseResult.audits."speed-index".displayValue')
@@ -67,8 +67,9 @@ get_page_speed() {
 generate_report() {
   local website=$1
   local desktop_speed=$(get_page_speed "$website" "desktop")
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to fetch desktop speed data. Aborting report."
+  if echo "$desktop_speed" | grep -q "API Error"; then
+    echo "$desktop_speed"
+    echo "Aborting due to API error."
     return 1
   fi
   local mobile_speed=$(get_page_speed "$website" "mobile")
