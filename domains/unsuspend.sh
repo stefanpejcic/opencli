@@ -55,7 +55,7 @@ validate_conf() {
 	fi
 }
 
-edit_nginx_vhosts() {
+edit_caddy_vhosts() {
        domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
        suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
        conf_template="/etc/openpanel/caddy/templates/suspended.conf"
@@ -78,4 +78,4 @@ fi
 
 # Get the domain name from the command line argument
 domain_name="$1"
-edit_nginx_vhosts
+edit_caddy_vhosts
