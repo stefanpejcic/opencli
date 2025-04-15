@@ -9,17 +9,17 @@
 # Last Modified: 23.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -52,7 +52,7 @@ DEBUG=false  # Default value for DEBUG
 SNAPPYMAIL=false
 ROUNDCUBE=false
 SOGO=false
-WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain proxy only!
+WEBMAIL_PORT=""  # Port is now empty as we use domain proxy only
 
 
 
@@ -117,10 +117,10 @@ get_domain_for_webmail() {
         echo "Configuration file not found at $PROXY_FILE"
         exit 1
     fi
-    
+
     # Use grep and awk to extract the domain from the /webmail block
     domain=$(grep "^redir @webmail" "$PROXY_FILE" | awk '{print $3}' | sed -e 's|https://||' -e 's|http://||' -e 's|:.*||')
-    
+
     if [[ -n "$domain" ]]; then
         echo "$domain"
     else
@@ -173,7 +173,7 @@ fi
 function open_port_csf() {
     local port=$1
     local csf_conf="/etc/csf/csf.conf"
-    
+
     # Check if port is already open
     port_opened=$(grep "TCP_IN = .*${port}" "$csf_conf")
     if [ -z "$port_opened" ]; then
@@ -198,13 +198,59 @@ function open_port_csf() {
 }
 
 
+configure_webmail_access() {
+    # Check if we're using domain proxy or direct access
+    if [ -n "$WEBMAIL_PORT" ]; then
+        echo "[WARNING] Direct port access to webmail is enabled. This is not recommended for security!"
+        echo "          Consider switching to domain proxy only by running: opencli config update webmail_port \"\""
+    else
+        # Using domain proxy only (more secure)
+        echo "Webmail is configured to use domain proxy only (secure configuration)"
+
+        # Ensure nginx proxy configuration exists
+        if [ -d "/etc/nginx/conf.d/" ]; then
+            # Create or update webmail proxy configuration
+            cat > /etc/nginx/conf.d/webmail-proxy.conf << EOF
+# Webmail proxy configuration - secure domain proxy only
+server {
+    listen 80;
+    server_name webmail.$HOSTNAME mail.$HOSTNAME;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # Security headers
+        proxy_set_header X-Content-Type-Options nosniff;
+        proxy_set_header X-XSS-Protection "1; mode=block";
+        proxy_set_header X-Frame-Options "SAMEORIGIN";
+        proxy_set_header Referrer-Policy "strict-origin-when-cross-origin";
+    }
+
+    # Block access to sensitive files
+    location ~ /\.(ht|git) {
+        deny all;
+    }
+}
+EOF
+            # Test and reload nginx
+            nginx -t && systemctl reload nginx
+        fi
+    fi
+}
+
+configure_webmail_access
+
 if [ "$DEBUG" = true ]; then
     echo ""
     echo "----------------- OPENING PORT 8080 ON FIREWALL ------------------"
 fi
 # CSF
 if command -v csf >/dev/null 2>&1; then
-    open_port_csf $WEBMAIL_PORT    
+    open_port_csf $WEBMAIL_PORT
 # UFW
 elif command -v ufw >/dev/null 2>&1; then
       if [ "$DEBUG" = true ]; then
@@ -223,7 +269,3 @@ else
           :
       fi
 fi
-
-
-
-

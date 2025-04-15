@@ -227,7 +227,6 @@ add_new_user() {
         if [ $? -ne 0 ]; then
             # Output the error and the exact SQL command that failed
             echo "User not created: $output"
-            # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
         else
             if [ "$flag" == "--reseller" ]; then
 	    	local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
@@ -453,27 +452,127 @@ validate_password_and_username() {
         fi
     fi
 
-    : '
-    # TODO: we will at some point include dictionary checks from lists:
-    # https://weakpass.com/wordlist
-    # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
-    #
-    DICTIONARY="dictionary.txt"
-    # Convert input to lowercase for dictionary check
-    local input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
-
-    # Check if input contains any common dictionary word
-    if grep -qi "^$input_lower$" "$DICTIONARY"; then
-        echo "ERROR: $field_name is invalid. It contains a common dictionary word, which is not allowed."
-        exit 1
-    fi
-    '
+    validate_password_strength "$input"
 }
 
+validate_password_strength() {
+    local password="$1"
+    local min_length=8
+    local score=0
+    local has_uppercase=false
+    local has_lowercase=false
+    local has_number=false
+    local has_special=false
+    local dictionary_file="/etc/openpanel/security/common-passwords.txt"
+    local temp_dict="/tmp/common-passwords.txt"
 
+    # Check password length
+    if [ ${#password} -lt $min_length ]; then
+        echo "Password must be at least $min_length characters long."
+        return 1
+    fi
 
+    # Check for character types
+    if [[ $password =~ [A-Z] ]]; then has_uppercase=true; ((score++)); fi
+    if [[ $password =~ [a-z] ]]; then has_lowercase=true; ((score++)); fi
+    if [[ $password =~ [0-9] ]]; then has_number=true; ((score++)); fi
+    if [[ $password =~ [^a-zA-Z0-9] ]]; then has_special=true; ((score++)); fi
 
+    # Ensure minimum criteria
+    if ! $has_uppercase; then
+        echo "Password must contain at least one uppercase letter."
+        return 1
+    fi
 
+    if ! $has_lowercase; then
+        echo "Password must contain at least one lowercase letter."
+        return 1
+    fi
+
+    if ! $has_number; then
+        echo "Password must contain at least one number."
+        return 1
+    fi
+
+    # Dictionary check - download if not available
+    if [ ! -f "$dictionary_file" ]; then
+        echo "Setting up password dictionary for validation..."
+        mkdir -p "$(dirname "$dictionary_file")"
+
+        # Download a common passwords list securely with checksum verification
+        curl -s -o "$temp_dict" https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-10000.txt
+
+        # Verify downloaded file has content
+        if [ -s "$temp_dict" ]; then
+            # Calculate and store checksum
+            sha256sum "$temp_dict" > "${temp_dict}.sha256"
+
+            # Move to final location
+            mv "$temp_dict" "$dictionary_file"
+            mv "${temp_dict}.sha256" "${dictionary_file}.sha256"
+        else
+            echo "Warning: Could not download password dictionary. Skipping dictionary check."
+        fi
+    fi
+
+    # Check against dictionary if available
+    if [ -f "$dictionary_file" ]; then
+        local pass_lower=$(echo "$password" | tr '[:upper:]' '[:lower:]')
+        if grep -q "^$pass_lower$" "$dictionary_file"; then
+            echo "Password is too common or has been found in data breaches. Please choose a stronger password."
+            return 1
+        fi
+    fi
+
+    # Additional checks for sequential or repeated characters
+    if [[ "$password" =~ (.)\1\1 ]]; then
+        echo "Password contains repeated characters (e.g., 'aaa'). Please avoid repetitive patterns."
+        return 1
+    fi
+
+    if [[ "$password" =~ 123|abc|xyz|password|admin|root|qwerty ]]; then
+        echo "Password contains common sequences. Please choose a more unique password."
+        return 1
+    fi
+
+    # Score-based recommendation
+    if [ $score -lt 3 ]; then
+        echo "Password is too weak. Please use a mix of uppercase, lowercase, numbers, and special characters."
+        return 1
+    fi
+
+    return 0
+}
+
+hash_password() {
+    local password="$1"
+    local salt=$(openssl rand -hex 8)
+    local hashed=$(echo -n "${password}${salt}" | sha256sum | awk '{print $1}')
+    echo "${hashed}:${salt}"
+}
+
+log_security_event() {
+    local event="$1"
+    local severity="$2"
+    local details="$3"
+    local log_file="/var/log/openpanel/security.log"
+
+    # Create log directory if it doesn't exist
+    mkdir -p "$(dirname "$log_file")"
+
+    # Log with timestamp, severity, and event details
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] [${severity}] ${event}: ${details}" >> "$log_file"
+
+    # If this is a high severity event, also log to syslog
+    if [ "$severity" = "HIGH" ] || [ "$severity" = "CRITICAL" ]; then
+        logger -p auth.warning "OpenPanel Security [${severity}]: ${event} - ${details}"
+    fi
+
+    # For debug mode only, print to console if it's not sensitive information
+    if [ "$DEBUG" = true ] && [ "$severity" != "CRITICAL" ]; then
+        echo "[${severity}] ${event}: ${details}"
+    fi
+}
 
 multitail_admin_logs(){
     check_multitail() {

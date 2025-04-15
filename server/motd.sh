@@ -32,12 +32,12 @@ read_config() {
 
     if [[ ! -f "$CONFIG_FILE_PATH" || ! -s "$CONFIG_FILE_PATH" ]]; then
         echo -e  "${RED}FATAL ERROR:${RESET} OpenPanel main configuration file $CONFIG_FILE_PATH is empty or missing!"
-        echo -e  "OpenPanel and OpenAdmin services will not work!"    
+        echo -e  "OpenPanel and OpenAdmin services will not work!"
         echo -e  ""
         echo -e  "Restore configuration from a backup or download defaults from $GITHUB_CONF_REPO"
         exit 1
     fi
-    
+
     awk -F '=' -v section="$section" '
         BEGIN {flag=0}
         /^\[/{flag=0}
@@ -49,12 +49,12 @@ read_config() {
 get_license() {
     config=$(read_config "LICENSE")
     LICENSE_KEY=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
-    
+
     if [[ $LICENSE_KEY =~ ^enterprise ]]; then
         LICENSE="${GREEN}Enterprise${RESET} edition"
     elif [ -z "$LICENSE_KEY" ]; then
         LICENSE="${RED}Community${RESET} edition"
-    else 
+    else
         LICENSE="" # older versions <0.2.1
     fi
     echo "$LICENSE"
@@ -64,11 +64,11 @@ get_license() {
 
 get_public_ip() {
     ip=$(curl --silent --max-time 1 -4 https://ip.openpanel.com || wget --timeout=1 -qO- https://ipv4.openpanel.com || curl --silent --max-time 1 -4 https://ifconfig.me)
-    
+
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
-    
+
     echo "$ip"
 }
 
@@ -78,7 +78,34 @@ get_user_url() {
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
     domain=$(echo "$domain" | sed 's|^http[s]*://||')
-    port="2083" # TODO!
+
+    # Replace the hardcoded port with secure configuration
+    port=$(grep "^panel_secure_port=" /etc/openpanel/openpanel/conf/openpanel.config | cut -d'=' -f2)
+
+    # If no specific port is configured, use a high random port
+    if [ -z "$port" ] || [ "$port" = "2083" ]; then
+        # Generate a random port number between 10000 and 65535
+        port=$(shuf -i 10000-65535 -n 1)
+
+        # Update the configuration file
+        if grep -q "^panel_secure_port=" /etc/openpanel/openpanel/conf/openpanel.config; then
+            sed -i "s/^panel_secure_port=.*/panel_secure_port=$port/" /etc/openpanel/openpanel/conf/openpanel.config
+        else
+            echo "panel_secure_port=$port" >> /etc/openpanel/openpanel/conf/openpanel.config
+        fi
+
+        echo "Assigned secure random port: $port"
+
+        # Configure firewall
+        if command -v ufw &> /dev/null; then
+            ufw allow $port/tcp comment "OpenPanel Secure Port" > /dev/null 2>&1
+            ufw reload > /dev/null 2>&1
+        elif command -v csf &> /dev/null; then
+            csf -p $port tcp in "OpenPanel Secure Port" > /dev/null 2>&1
+            csf -r > /dev/null 2>&1
+        fi
+    fi
+
     if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
         ip=$(get_public_ip)
         user_url="http://${ip}:${port}/"
@@ -90,8 +117,8 @@ get_user_url() {
             user_url="http://${ip}:${port}/"
         fi
     fi
-    
-    echo "$user_url"    
+
+    echo "$user_url"
 }
 
 user_url=$(get_user_url)

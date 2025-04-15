@@ -8,17 +8,17 @@
 # Last Modified: 03.01.2024
 # Company: openpanel.co
 # Copyright (c) openpanel.co
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -27,8 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-
-# TODO: handle csf instead of ufw for dedi ip port rules!
 
 USERNAME=$1
 ACTION=$2
@@ -164,10 +162,10 @@ update_nginx_conf() {
             fi
         done
     fi
-    
+
 
     # Restart Nginx to apply changes
-    docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1 
+    docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1
 }
 
 # Create or overwrite the JSON file
@@ -195,11 +193,11 @@ update_firewall_rules() {
     #echo "Currently private IP will be used only for websites, other services need to be accessed via domain/shared ip."
 
 
-                
+
     # Check for UFW
     elif command -v ufw >/dev/null 2>&1; then
         #echo "UFW is installed."
-        
+
         if [ "$DEBUG" = true ];then
             ufw status numbered | awk -F'[][]' -v user="$USERNAME" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn| \
             while read -r rule_number; do
@@ -211,7 +209,7 @@ update_firewall_rules() {
                 yes | ufw delete "$rule_number"  >/dev/null 2>&1
             done
         fi
-        
+
     else
         echo "Danger! Neither CSF nor UFW are installed, all user ports will be exposed to the internet, without any protection."
     fi
@@ -269,22 +267,138 @@ update_dns_zone_file() {
             ZONE_CONF="$ZONE_FILE/$domain.zone"
             if [ -f "$DOMAIN_CONF" ]; then
                 # Update the server IP using sed
-                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"        
+                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"
             fi
         done
     fi
 }
 
+# Handle firewall securely for dedicated IP port rules
+check_firewall_installed() {
+    local csf_installed=false
+    local ufw_installed=false
 
+    if command -v csf > /dev/null 2>&1; then
+        csf_installed=true
+    fi
+
+    if command -v ufw > /dev/null 2>&1; then
+        ufw_installed=true
+    fi
+
+    if ! $csf_installed && ! $ufw_installed; then
+        echo "ERROR: No firewall (CSF or UFW) is installed. Installing UFW for security..."
+        apt-get update > /dev/null 2>&1
+        apt-get install -y ufw > /dev/null 2>&1
+        ufw default deny incoming
+        ufw default allow outgoing
+        ufw allow ssh
+        ufw --force enable
+        return 1
+    fi
+
+    return 0
+}
+
+handle_csf_firewall_rules() {
+    local username="$1"
+    local port="$2"
+    local action="$3"  # open or close
+
+    if [ "$action" = "open" ]; then
+        csf -p "$port" tcp in "$username port $port"
+    elif [ "$action" = "close" ]; then
+        csf -p "$port" tcp in delete "$username port $port"
+    fi
+
+    # Reload CSF to apply changes
+    csf -r
+}
+
+handle_ufw_firewall_rules() {
+    local username="$1"
+    local port="$2"
+    local action="$3"  # open or close
+
+    if [ "$action" = "open" ]; then
+        ufw allow "$port/tcp" comment "$username port $port"
+    elif [ "$action" = "close" ]; then
+        ufw delete allow "$port/tcp"
+    fi
+}
+
+handle_firewall_port_rules() {
+    local username="$1"
+    local port="$2"
+    local action="$3"  # open or close
+
+    # Always check if a firewall is installed
+    check_firewall_installed
+
+    # If no firewall was installed, one was just installed (UFW)
+    if command -v csf > /dev/null 2>&1; then
+        handle_csf_firewall_rules "$username" "$port" "$action"
+    elif command -v ufw > /dev/null 2>&1; then
+        handle_ufw_firewall_rules "$username" "$port" "$action"
+    else
+        echo "ERROR: Failed to configure firewall rules. Port $port remains insecure."
+        return 1
+    fi
+
+    return 0
+}
+
+configure_firewall_for_dedicated_ip() {
+    local username="$1"
+    local dedicated_ip="$2"
+    local port_range_start=32768
+    local port_range_end=33768
+
+    echo "Configuring firewall rules for dedicated IP $dedicated_ip for user $username"
+
+    # Check if firewall is installed
+    if ! check_firewall_installed; then
+        echo "Installed UFW as a security measure"
+    fi
+
+    # Open necessary ports
+    for port in $(seq $port_range_start $port_range_end); do
+        handle_firewall_port_rules "$username" "$port" "open"
+    done
+
+    # Log the configuration
+    echo "$(date): Configured ports $port_range_start-$port_range_end for user $username with dedicated IP $dedicated_ip" >> /var/log/openpanel/firewall.log
+}
+
+remove_firewall_rules_for_user() {
+    local username="$1"
+    local log_file="/var/log/openpanel/firewall.log"
+
+    echo "Removing firewall rules for user $username"
+
+    # Find all ports associated with this user from logs
+    if [ -f "$log_file" ]; then
+        ports=$(grep "$username" "$log_file" | grep -oE 'port [0-9]+' | awk '{print $2}')
+
+        for port in $ports; do
+            handle_firewall_port_rules "$username" "$port" "close"
+        done
+    else
+        echo "Warning: No firewall log found for user $username"
+    fi
+
+    echo "$(date): Removed all firewall rules for user $username" >> "$log_file"
+}
 
 ensure_jq_installed
 # Check if the action is 'delete'
 if [ "$ACTION" = "delete" ]; then
-    current_ip "$USERNAME" 
+    current_ip "$USERNAME"
     delete_ip_config
-    update_nginx_conf "$USERNAME" 
+    update_nginx_conf "$USERNAME"
     update_firewall_rules "$USERNAME"
     update_dns_zone_file "$USERNAME"
+    remove_firewall_rules_for_user "$USERNAME"
 else
 # If the action is not 'delete', continue with IP update
 IP=$2
@@ -294,7 +408,7 @@ if [ -z "$IP" ]; then
     exit 1
 fi
 # Check if the IP is already used by another user
-current_ip "$USERNAME" 
+current_ip "$USERNAME"
 check_ip_validity "$IP"
 check_ip_usage "$IP" "$CONFIRM_FLAG"
 # Call the function to update Nginx configuration
@@ -302,6 +416,7 @@ create_ip_file "$USERNAME" "$IP"
 update_nginx_conf "$USERNAME" "$IP"
 update_firewall_rules "$USERNAME"
 update_dns_zone_file "$USERNAME"
+configure_firewall_for_dedicated_ip "$USERNAME" "$IP"
 fi
 
 
@@ -327,16 +442,16 @@ elif command -v ufw >/dev/null 2>&1; then
     # Loop through the container_ports array and open the ports in UFW if not already open
     for port in "${container_ports[@]}"; do
         host_port=$(extract_host_port "$port")
-    
+
         if [ "$DEBUG" = true ]; then
             if [ -n "$host_port" ]; then
                 # Open the port in CSF
                 echo "Opening port ${host_port} for port ${port} in CSF"
                 #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
                 #ufw allow ${host_port}/tcp  comment "${username}"
-    
+
                 echo "CSF not yet ready!"
-    
+
                 ports_opened=1
             else
                 echo "Port ${port} not found in container"
@@ -347,19 +462,19 @@ elif command -v ufw >/dev/null 2>&1; then
                 echo "Opening port ${host_port} for port ${port} in CSF" >/dev/null 2>&1
                 #csf -a "0.0.0.0" "${host_port}" "TCP" "Allow incoming traffic for port ${host_port}"
                 #ufw allow ${host_port}/tcp  comment "${username}"
-    
+
                     if [ "$ACTION" = "delete" ]; then
                         ufw allow to $SERVER_IP port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
                     else
                         IP=$2 # Assuming the IP should be the second argument
                         ufw allow to "$IP" port "$host_port" proto tcp comment "$USERNAME" >/dev/null 2>&1
                     fi
-    
+
                 ports_opened=1
                 fi
             fi
     done
-    
+
     # Restart UFW if ports were opened
     if [ "$DEBUG" = true ]; then
         if [ $ports_opened -eq 1 ]; then

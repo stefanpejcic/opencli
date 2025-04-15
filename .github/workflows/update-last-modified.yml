@@ -33,17 +33,17 @@ jobs:
             echo "No .sh files modified, skipping update."
             exit 0
           fi
-          
+
           # Get the formatted date: 3 digits of year, 4th digit of year + month, and 0 + day
           YEAR=$(date +'%Y')           # Full year (e.g., 2025)
           YEAR_SHORT=${YEAR:0:3}       # First 3 digits of year (e.g., 202)
           YEAR_4TH=${YEAR:3:1}         # 4th digit of the year (e.g., 5)
           MONTH=$(date +'%m')          # Month with leading zero (e.g., 02)
           DAY=$(date +'%d')            # Day with leading zero (e.g., 03)
-          
+
           # Format version as: 202.502.003
           VERSION="${YEAR_SHORT}.${YEAR_4TH}${MONTH}.0${DAY}"
-          
+
           while IFS= read -r file; do
             echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
@@ -56,13 +56,10 @@ jobs:
           fi
 
       - name: Commit and Push Changes
-        env:
-          PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git add .
           git commit -m "autoupdate date after edit" || exit 0
           git push origin HEAD:main
-
