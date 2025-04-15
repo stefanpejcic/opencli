@@ -2,23 +2,23 @@
 ################################################################################
 # Script Name: admin.sh
 # Description: Manage OpenAdmin service and Administrators.
-# Usage: opencli admin <setting_name> 
+# Usage: opencli admin <setting_name>
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 23.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -130,7 +130,7 @@ swap=40
 
 
 
-    
+
 }
 
 read_config() {
@@ -152,7 +152,7 @@ get_admin_url() {
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
     domain=$(echo "$domain" | sed 's|^http[s]*://||')
-        
+
     if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
         ip=$(get_public_ip)
         admin_url="http://${ip}:2087/"
@@ -164,14 +164,14 @@ get_admin_url() {
             admin_url="http://${ip}:2087/"
         fi
     fi
-    
-    echo "$admin_url"    
+
+    echo "$admin_url"
 }
 
 
 get_public_ip() {
     ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
-        
+
     # Check if IP is empty or not a valid IPv4
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
@@ -196,14 +196,14 @@ add_new_user() {
     local username="$1"
     local password="$2"
     local flag="$3"
-    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
+    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
     else
     # Define the SQL commands
-    
+
     create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
     if [ "$flag" == "--reseller" ]; then
         role="reseller"
@@ -260,30 +260,30 @@ update_username() {
         if [ "$new_user_exists" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
-       
+
             sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
-	    
+
 	    sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log   > /dev/null 2>&1
-     
+
             echo "User '$old_username' renamed to '$new_username'."
-            
+
             local reseller_limits_dir="/etc/openpanel/openadmin/resellers"
 	    mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
-   
+
         fi
     else
         echo -e "${RED}Error${RESET}: User '$old_username' not found."
     fi
-}   
+}
 
 # Function to update the password for provided user
 update_password() {
     local username="$1"
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")    
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
     local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$new_password")
 
     if [ "$user_exists" -gt 0 ]; then
-        sqlite3 $db_file_path "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"        
+        sqlite3 $db_file_path "UPDATE user SET password_hash='$password_hash' WHERE username='$username';"
         echo "Password for user '$username' changed."
         echo ""
         printf "=%.0s"  $(seq 1 63)
@@ -328,8 +328,8 @@ suspend_user() {
                     echo "User: $user"
                     opencli user-suspend "$user"
                 done
-            fi         
-           
+            fi
+
         fi
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
@@ -354,7 +354,7 @@ unsuspend_user() {
                     echo "User: $user"
                     opencli user-unsuspend "$user"
                 done
-            fi         
+            fi
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
     fi
@@ -369,11 +369,11 @@ delete_existing_users() {
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
         else
-        
+
             local reseller_limits_file="/etc/openpanel/openadmin/resellers/$username.json"
 			rm $reseller_limits_file  > /dev/null 2>&1
-        
-            sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
+
+            sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"
             echo "User '$username' deleted successfully."
         fi
     else
@@ -389,7 +389,7 @@ config_file="/etc/openpanel/openadmin/config/notifications.ini"
 get_config() {
     param_name="$1"
     param_value=$(grep "^$param_name=" "$config_file" | cut -d= -f2-)
-    
+
     if [ -n "$param_value" ]; then
         echo "$param_value"
     elif grep -q "^$param_name=" "$config_file"; then
@@ -409,7 +409,7 @@ update_config() {
         # Update the parameter with the new value
         sed -i "s/^$param_name=.*/$param_name=$new_value/" "$config_file"
         echo "Updated $param_name to $new_value"
-        
+
     else
         echo "Parameter $param_name not found in the configuration file. Docs: https://dev.openpanel.com/cli/admin.html#Update"
     fi
@@ -419,17 +419,40 @@ update_config() {
 validate_password_and_username() {
     local input="$1"
     local field_name="$2"
-    
-    # Check if input contains only letters and numbers
-    if [[ "$input" =~ ^[a-zA-Z0-9_]{5,30}$ ]]; then
-        #echo "$field_name is valid."
-        :
-    else
-        echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 30 characters."
-        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openadmin"
+    local min_length=12 # Increased minimum length
+    local max_length=30
+
+    # Check length
+    if [ ${#input} -lt $min_length ] || [ ${#input} -gt $max_length ]; then
+        echo "ERROR: $field_name must be between $min_length and $max_length characters long."
         exit 1
     fi
-    
+
+    # Check complexity for passwords
+    if [ "$field_name" == "Password" ]; then
+        # Require at least one lowercase letter, one uppercase letter, one digit, and one special character
+        # Allowed special characters: !@#$%^&*()-_=+[]{};:,.<>/?~
+        if ! [[ "$input" =~ [a-z] ]] || \
+           ! [[ "$input" =~ [A-Z] ]] || \
+           ! [[ "$input" =~ [0-9] ]] || \
+           ! [[ "$input" =~ [!@#\$%\^\&\*\(\)_\-\=\+\[\]\{\}\;:\,\.\<\>\/\?\~] ]]; then
+            echo "ERROR: Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character (!@#\$%^&*()-_=+[]{};:,.<>/?~)."
+            exit 1
+        fi
+        # Check if password contains only allowed characters (alphanumeric + specified special chars)
+        if [[ "$input" =~ [^a-zA-Z0-9!@#\$%\^\&\*\(\)_\-\=\+\[\]\{\}\;:\,\.\<\>\/\?\~] ]]; then
+             echo "ERROR: Password contains invalid characters. Only letters, numbers, and !@#\$%^&*()-_=+[]{};:,.<>/?~ are allowed."
+             exit 1
+        fi
+    else # Username validation
+        # Check if username contains only letters, numbers, and underscore
+        if ! [[ "$input" =~ ^[a-zA-Z0-9_]+$ ]]; then
+            echo "ERROR: $field_name is invalid. It must contain only letters, numbers, and underscores (_)."
+            echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openadmin"
+            exit 1
+        fi
+    fi
+
     : '
     # TODO: we will at some point include dictionary checks from lists:
     # https://weakpass.com/wordlist
@@ -460,7 +483,7 @@ multitail_admin_logs(){
             return 1
         fi
     }
-    
+
     # Function to install multitail
     install_multitail() {
         if command -v apt &> /dev/null; then
@@ -481,7 +504,7 @@ multitail_admin_logs(){
         fi
 
         all_files_exist=true
-        
+
         # List of required files
         required_files=(
             "$admin_logs_file"
@@ -490,23 +513,23 @@ multitail_admin_logs(){
             "$admin_failed_login_log"
             "$admin_crons_log"
         )
-        
+
         key_value=$(grep "^key=" $CONFIG_FILE_PATH | cut -d'=' -f2-)
         if [ -z "$key_value" ]; then
             required_files+=("$admin_api_log")
         fi
-                
+
         for file in "${required_files[@]}"; do
             if [ ! -f "$file" ]; then
                 touch "$file"
             fi
         done
-        
+
         if [ -n "$key_value" ]; then
             multitail "$admin_logs_file" "$admin_access_log" "$admin_login_log" "$admin_failed_login_log" "$admin_crons_log"
         else
             multitail "$admin_logs_file" "$admin_access_log" "$admin_api_log" "$admin_login_log" "$admin_failed_login_log" "$admin_crons_log"
-        fi    
+        fi
 }
 
 
@@ -556,7 +579,7 @@ case "$1" in
         else
             echo "Error: File $db_file_path does not exist, password not changed for user."
         fi
-                
+
         ;;
     "rename")
         # Change username
@@ -573,12 +596,12 @@ case "$1" in
         # List users
         username="$2"
         suspend_user "$username"
-        ;;   
+        ;;
     "unsuspend")
         # List users
         username="$2"
         unsuspend_user "$username"
-        ;;       
+        ;;
     "new")
         # Add a new user
         new_username="$2"
@@ -605,7 +628,7 @@ case "$1" in
                 exit 1
             fi
         fi
-        
+
         case "$command" in
             check)
                 bash  /usr/local/admin/service/notifications.sh
@@ -621,7 +644,7 @@ case "$1" in
                 fi
                 new_value="$4"
                 update_config "$param_name" "$new_value"
-                
+
                 case "$param_name" in
                     ssl)
                         update_ssl_config "$new_value"
@@ -640,9 +663,9 @@ case "$1" in
                 usage
                 exit 1
                 ;;
-        esac        
+        esac
         ;;
-        
+
     "delete")
         # Add a new user
         username="$2"
