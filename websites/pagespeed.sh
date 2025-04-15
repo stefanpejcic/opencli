@@ -5,20 +5,20 @@
 # Usage: opencli websites-pagespeed <DOMAIN> [-all]
 # Author: Stefan Pejcic
 # Created: 27.06.2024
-# Last Modified: 14.04#"AIzaSyDow0GLE7N5gcZXa72tpqIvIaJtn1bDtsk"  .2025
+# Last Modified: 14.04.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -43,10 +43,10 @@ usage() {
 get_api_key() {
   actual_domain="${website_url%%/*}"
   actual_domain="${actual_domain#*://}"
-  
+
   whoowns_output=$(opencli domains-whoowns "$actual_domain")
   owner=$(echo "$whoowns_output" | awk -F "Owner of '$actual_domain': " '{print $2}')
-  
+
 if [ -n "$owner" ]; then
   source /usr/local/opencli/db.sh
   query="SELECT server FROM users WHERE username = '$owner'"
@@ -57,7 +57,7 @@ if [ -n "$owner" ]; then
     api_key=$(cat /etc/openpanel/openpanel/service/pagespeed.api)
     user_key_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/pagespeed_api_key.txt"
     global_key_path="/hostfs/etc/openpanel/openpanel/service/pagespeed.api"
-    
+
     if [[ -s "$user_key_path" ]]; then
       api_key=$(cat "$user_key_path")
     elif [[ -s "$global_key_path" ]]; then
@@ -74,17 +74,22 @@ fi
 get_page_speed() {
   local website_url=$1
   local strategy=$2
-  local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
-  
 
-  local api_url="https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$encoded_domain&strategy=$strategy"
+  # Make sure we have a protocol, default to https if none provided
+  if [[ ! "$website_url" =~ ^https?:// ]]; then
+    website_url="https://$website_url"
+  fi
+
+  local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
+
+  local api_url="https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=$encoded_domain&strategy=$strategy"
 
   get_api_key
-  
+
   [[ -n "$api_key" ]] && api_url+="&key=$api_key"
 
   local api_response=$(curl -s "$api_url")
-  
+
   # Check for error in API response
   local error_message=$(echo "$api_response" | jq -r '.error.message // empty')
   if [[ -n "$error_message" ]]; then
@@ -96,7 +101,7 @@ get_page_speed() {
   local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue')
   local speed_index=$(echo "$api_response" | jq -r '.lighthouseResult.audits."speed-index".displayValue')
   local interactive=$(echo "$api_response" | jq -r '.lighthouseResult.audits.interactive.displayValue')
-  
+
   echo "{\"performance_score\": $performance_score, \"first_contentful_paint\": \"$first_contentful_paint\", \"speed_index\": \"$speed_index\", \"interactive\": \"$interactive\"}"
 }
 
@@ -113,7 +118,7 @@ generate_report() {
   local mobile_speed=$(get_page_speed "$website" "mobile")
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   local filename="/etc/openpanel/openpanel/websites/$(echo "$website" | sed 's|https\?://||' | sed 's|/|_|g').json"
-  
+
   cat <<EOF > "$filename"
 {
   "timestamp": "$timestamp",
@@ -145,5 +150,5 @@ elif [[ "$1" == "-all" || "$1" == "--all" ]]; then
 elif [ $# -eq 1 ]; then
   generate_report "$1"
 else
-  usage  
+  usage
 fi
