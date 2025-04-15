@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|varnish+nginx|varnish+apache>"] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|openresty|varnish+nginx|varnish+apache|varnish+openresty>"] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -1376,7 +1376,7 @@ if [[ -n "$webserver" ]]; then
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
         VARNISH=false
     else
-        log "Warning: invalid webserver type selected: $webserver. Must be 'nginx', 'apache', 'varnish+nginx', or 'varnish+apache'. Using the default instead.."
+        log "Warning: invalid webserver type selected: $webserver. Must be 'nginx', 'apache', 'openresty', 'varnish+nginx', 'varnish+apache' or 'varnish+openresty'. Using the default instead.."
     fi
 fi
 
@@ -1394,7 +1394,8 @@ fi
 
 mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
 cp /etc/openpanel/mysql/user.cnf /home/${username}/custom.cnf
-cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf
+cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf  # added in 1.2.2
+cp /etc/openpanel/openresty/nginx.conf /home/$username/openresty.conf
 cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
 cp /etc/openpanel/varnish/default.vcl /home/$username/default.vcl
 cp /etc/openpanel/ofelia/users.ini /home/$username/crons.ini  > /dev/null 2>&1 # added in 1.2.1
