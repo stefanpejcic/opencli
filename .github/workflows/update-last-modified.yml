@@ -46,7 +46,7 @@ jobs:
 
           while IFS= read -r file; do
             echo "Updating: $file"
-            sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
+            sed -i "s/^# Last Modified: .*/# Last Modified: ${VERSION}/" "$file"
           done <<< "$FILES"
 
           # Update OPENCLI_VERSION in the opencli file
