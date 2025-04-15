@@ -91,6 +91,8 @@ get_webserver_for_user(){
 	        ws="nginx"
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache2"
+	    elif [[ $output == *openresty* ]]; then
+	        ws="openresty"
 	    else
 	        ws="unknown"
 	    fi
@@ -302,7 +304,7 @@ delete_domain() {
 
     if [ "$result" -eq 0 ]; then
         clear_cache_for_user                         # rm cached file for ui
-        get_webserver_for_user                       # nginx or apache
+        get_webserver_for_user                       # nginx, openresty or apache
         vhost_files_delete                           # delete file in container
         delete_domain_file                           # create file on host
 	dns_stuff
