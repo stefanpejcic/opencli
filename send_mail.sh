@@ -72,7 +72,7 @@
                         IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
                     fi
 
-                    ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
+                    ip=$(curl --silent --max-time 2 -4 "$IP_SERVER_1" || wget --timeout=2 -qO- "$IP_SERVER_2" || curl --silent --max-time 2 -4 "$IP_SERVER_3")
 
                     # Check if IP is empty or not a valid IPv4
                     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
