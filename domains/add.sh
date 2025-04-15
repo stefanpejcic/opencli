@@ -364,7 +364,7 @@ vhost_files_create() {
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
 		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *openresty* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openresty_domain.conf"
 		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *litespeed* ]]; then
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
