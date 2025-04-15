@@ -53,7 +53,7 @@ usage() {
     echo "  bandwidth     - Port speed in Mbit/s (integer)."
     echo
     echo "Example:"
-    echo "  opencli plan-create 'basic' 'Basic Hosting Plan' 10 5 10 5 50 500000 10 2 4 nginx 1000"
+    echo "  opencli plan-create 'basic' 'Basic Hosting Plan' 10 5 10 5 50 500000 10 2 4 1000"
     echo
     exit 1
 }
