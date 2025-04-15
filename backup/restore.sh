@@ -8,17 +8,17 @@
 # Last Modified: 23.02.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -147,8 +147,8 @@ mkdir -p $local_temp_dir
 run_restore() {
     source_path_restore=$1
     local_destination=$2
-    
-    #remove / from beginning
+
+    # Remove leading and trailing slashes
     source_path_restore="${source_path_restore#/}"
     source_path_restore="${source_path_restore%/}"
     local_destination="${local_destination#/}"
@@ -158,12 +158,9 @@ run_restore() {
         if [ "$DEBUG" = true ]; then
             echo "rsync command: rsync -e ssh -i $dest_ssh_key_path -p $dest_ssh_port -r -p $dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$source_path_restore $local_temp_dir"
         fi
-             cp -Lr "$local_temp_dir" "/$local_destination"
-
+        cp -Lr "$local_temp_dir" "/$local_destination"
     else
-             cp -Lr "$source_path_restore" "/$local_destination"
-
-        fi
+        cp -Lr "$source_path_restore" "/$local_destination"
     fi
 }
 
@@ -171,6 +168,3 @@ run_restore() {
 edit run_restore function to if local just untar, else if remote rsync keep locally and then untar.
 delete user once we have the tar file and start untar
 run everything from https://github.com/stefanpejcic/opencli/blob/main/backup/restore_user.sh
-
-
-

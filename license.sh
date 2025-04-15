@@ -2,23 +2,23 @@
 ################################################################################
 # Script Name: license.sh
 # Description: Manage OpenPanel Enterprise license.
-# Usage: opencli license verify 
+# Usage: opencli license verify
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 23.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -62,14 +62,14 @@ usage() {
 
 
         # Check if --json flag is present
-        if [[ " $@ " =~ " --json " ]]; then
+        if [[ " $* " =~ " --json " ]]; then
           JSON="yes"
         else
           JSON="no"
         fi
 
         # Check if --json flag is present
-        if [[ " $@ " =~ " --no-restart " ]]; then
+        if [[ " $* " =~ " --no-restart " ]]; then
           NO_RESTART="yes"
         else
           NO_RESTART="no"
@@ -88,20 +88,20 @@ get_license_key() {
 
     if [ -z "$license_key" ]; then
         # Check if --json flag is present
-        if [[ " $@ " =~ " --json " ]]; then
+        if [[ " $* " =~ " --json " ]]; then
           license_key="No License Key"
         else
           license_key="${RED}No License Key${RESET}"
         fi
     else
         # Check if --json flag is present
-        if [[ " $@ " =~ " --json " ]]; then
+        if [[ " $* " =~ " --json " ]]; then
           echo "$license_key"
         else
           echo -e "${GREEN}$license_key${RESET}"
         fi
     fi
-    
+
 }
 
 
@@ -120,14 +120,14 @@ get_license_key_and_verify_on_my_openpanel() {
     else
         ip_address=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)  # Get the public IP address
         check_token=$(openssl rand -hex 16)  # Generate a random token
-        
+
         response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" $WHMCS_URL)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
-        
+
         if [ "$license_status" = "Active" ]; then
 
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ " $* " =~ " --json " ]]; then
                   echo "License is valid"
             else
                 echo -e "${GREEN}License is valid${RESET}"
@@ -144,7 +144,7 @@ get_license_key_and_verify_on_my_openpanel() {
 
         else
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ " $* " =~ " --json " ]]; then
                   echo "License is invalid"
             else
                 echo -e "${RED}License is invalid${RESET}"
@@ -162,7 +162,7 @@ save_license_to_file() {
         new_key=$1
         if opencli config update key "$new_key" > /dev/null; then
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ " $* " =~ " --json " ]]; then
                 echo "License key ${new_key} added."
             else
                 echo -e "License key ${GREEN}${new_key}${RESET} added."
@@ -182,7 +182,7 @@ save_license_to_file() {
             fi
         else
             # Check if --json flag is present
-            if [[ " $@ " =~ " --json " ]]; then
+            if [[ " $* " =~ " --json " ]]; then
                 echo "License is valid, but failed to save the license key ${new_key}"
             else
                 echo -e "${RED}License is valid, but failed to save the license key.${RESET}"
@@ -199,7 +199,7 @@ verify_license_first() {
         check_token=$(openssl rand -hex 16)
         response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" $WHMCS_URL)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
-        
+
         if [ "$license_status" = "Active" ]; then
             save_license_to_file $new_key
         else
@@ -230,10 +230,10 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
     else
         ip_address=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)  # Get the public IP address
         check_token=$(openssl rand -hex 16)  # Generate a random token
-        
+
         response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" $WHMCS_URL)
         license_status=$(echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)')
-        
+
         if [ "$license_status" = "Active" ]; then
             registered_name=$(echo "$response" | grep -oP '(?<=<registeredname>).*?(?=</registeredname>)')
             company_name=$(echo "$response" | grep -oP '(?<=<companyname>).*?(?=</companyname>)')
@@ -245,7 +245,7 @@ get_license_key_and_verify_on_my_openpanel_then_show_info() {
             valid_ip=$(echo "$response" | grep -oP '(?<=<validip>).*?(?=</validip>)')
 
             # Check if --json flag is present
-            if [[ "$JSON" == "yes" ]]; then          
+            if [[ "$JSON" == "yes" ]]; then
                 echo '{"Owner": "'"$registered_name"'","Company Name": "'"$company_name"'","Email": "'"$email"'","License Type": "'"$product_name"'","Registration Date": "'"$reg_date"'","Next Due Date": "'"$next_due_date"'","Billing Cycle": "'"$billing_cycle"'","Valid IP": "'"$valid_ip"'"}'
             else
                 echo "Owner: $registered_name"
@@ -285,13 +285,13 @@ enable_emails_module() {
 	    else
 	        new_modules="${enabled_modules},emails"
 	        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
-		fi  
+		fi
 }
 
 
 disable_emails_module() {
 	    enabled_modules=$(grep '^enabled_modules=' "$CONFIG_FILE_PATH" | cut -d'=' -f2)
-        if echo "$enabled_modules" | grep -q 'emails'; then           
+        if echo "$enabled_modules" | grep -q 'emails'; then
             new_modules=$(echo "$enabled_modules" | sed 's/,emails//g; s/emails,//g; s/^emails$//g')
             sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
         else
@@ -308,7 +308,7 @@ case "$1" in
         ;;
     "info")
         # display license info from whmcs
-        get_license_key_and_verify_on_my_openpanel_then_show_info "$@" 
+        get_license_key_and_verify_on_my_openpanel_then_show_info "$@"
         ;;
     "verify")
         # check license on whmcs
@@ -325,7 +325,7 @@ case "$1" in
         # Update the license key "enterprise-"
         new_key=$1
         verify_license_first $new_key                                   # verify on whmcs, then save to file if valid
-        exit 0        
+        exit 0
         ;;
     *)
         echo -e "${RED}Invalid command.${RESET}"

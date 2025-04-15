@@ -8,17 +8,17 @@
 # Last Modified: 03.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -102,10 +102,12 @@ compare_with_forbidden_domains_list() {
     if [ -f "forbidden_domains.txt" ]; then
         log "Checking domain against forbidden_domains list"
         mapfile -t forbidden_domains < forbidden_domains.txt
-        if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
-            echo "ERROR: $domain_name is a forbidden domain."
-            exit 1
-        fi    
+        for forbidden_domain in "${forbidden_domains[@]}"; do
+            if [[ "$forbidden_domain" == "$domain_name" ]]; then
+                echo "ERROR: $domain_name is a forbidden domain."
+                exit 1
+            fi
+        done
     fi
 }
 
@@ -125,7 +127,7 @@ compare_with_system_domains() {
 
 
 # Check if domain already exists
-log "Checking if domain already exists on the server"
+    compare_with_forbidden_domains_list "$domain_name"  # dont allow admin-defined domains
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     compare_with_forbidden_domains_list            # dont allow admin-defined domains
     compare_with_system_domains                    # hostname, ns or webmail takeover
@@ -139,14 +141,14 @@ fi
 get_user_info() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${user}';"
-    
+
     # Retrieve both id and context
     user_info=$(mysql -se "$query")
-    
+
     # Extract user_id and context from the result
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
-    
+
     echo "$user_id,$context"
 }
 
@@ -183,13 +185,13 @@ get_server_ipv4_or_ipv6() {
 	else
 	    IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
 	fi
- 
+
 	get_ip() {
 	    local ip_version=$1
 	    local server1=$2
 	    local server2=$3
 	    local server3=$4
-	
+
 	    if [ "$ip_version" == "-4" ]; then
 		    curl --silent --max-time 2 $ip_version $server1 || \
 		    wget --timeout=2 -qO- $server2 || \
@@ -210,9 +212,9 @@ get_server_ipv4_or_ipv6() {
 	    log "Fetching IPv4 from local hostname..."
 	    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
 	fi
- 
+
  	IPV4="yes"
-  
+
 	# public IPv6
 	if [ -z "$current_ip" ]; then
  	    IPV4="no"
@@ -224,7 +226,7 @@ get_server_ipv4_or_ipv6() {
 	        current_ip=$(ip addr | grep 'inet6 ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
 	    fi
 	fi
-	
+
 	# no :(
 	if [ -z "$current_ip" ]; then
 	    echo "Error: Unable to determine IP address (IPv4 or IPv6)."
@@ -234,11 +236,11 @@ get_server_ipv4_or_ipv6() {
 
 
 	json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
-	
+
 	if [ -e "$json_file" ]; then
 	    dedicated_ip=$(jq -r '.ip' "$json_file")
 	    log "User has reserved IP: $dedicated_ip."
-	
+
 	    # Check if dedicated_ip is present in the output of `hostname -I`
 	    if hostname -I | grep -q "$dedicated_ip"; then
 	        REMOTE_SERVER="no"
@@ -271,7 +273,7 @@ make_folder() {
 check_and_create_default_file() {
     # extra step needed for nginx
     log "Checking if default configuration file exists for Nginx"
-    
+
     # Check if the file exists
     if [ ! -e "/home/$context/nginx.conf" ]; then
         log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
@@ -331,13 +333,13 @@ get_varnish_for_user(){
 
 
 
-add_domain_to_clamav_list(){	
+add_domain_to_clamav_list(){
 	local domains_list="/etc/openpanel/clamav/domains.list"
 	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
  	if [ -f $domains_list ]; then
       		log "ClamAV Upload Scanner is enabled - Adding $docroot for monitoring"
 		echo "$docroot" >> "$domains_list"
-		# not needed since we also watch the domains list file for changes! 
+		# not needed since we also watch the domains list file for changes!
   		#service clamav_monitor restart > /dev/null 2>&1
  	fi
 }
@@ -354,14 +356,14 @@ start_default_php_fpm_service() {
 
 
 vhost_files_create() {
-	
+
 	if [[ $ws == *apache* ]]; then
 #vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
 vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
-#vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf" 		
+#vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf"
 vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
 vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *litespeed* ]]; then
@@ -382,15 +384,15 @@ vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_da
 }' >> /usr/local/lsws/conf/httpd_config.conf
 	fi
 
-	
+
  	get_varnish_for_user
-  	
+
    	if [ "$VARNISH" = true ]; then
 	       log "Starting $ws and Varnish containers.."
-	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1 
+	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1
        else
 	       log "Starting $ws container.."
-	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1     
+	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1
        fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
@@ -403,10 +405,10 @@ vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_da
 	  -e "s|<PHP>|$php_version|g" \
 	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
 	  $vhost_in_docker_file
-       
+
        docker --context $context restart $ws > /dev/null 2>&1
 
- 
+
 }
 
 
@@ -418,7 +420,7 @@ create_domain_file() {
 	mkdir -p $logs_dir && touch $logs_dir/access.log
 
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
- 
+
 	local env_file="/home/${context}/.env"
  	source $env_file
 
@@ -427,7 +429,7 @@ create_domain_file() {
 	        echo "Error: .env file not found for user $username"
 	        return 1
 	    fi
-	
+
 	    non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
 	    ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
 
@@ -453,7 +455,7 @@ if [ "$REMOTE_SERVER" == "yes" ]; then
 	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
                                            -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
                                            -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
- 
+
 else
 	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
                                            -e "s|<SSL_PORT>|$ssl_port|g" \
@@ -535,7 +537,7 @@ check_and_add_to_enabled() {
 get_slave_dns_option() {
 	# Path to the named.conf.options file
 	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
-	
+
 # Extract the values of allow-transfer and allow-update until the first semicolon
 ALLOW_TRANSFER=$(grep -oP 'allow-transfer\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
 ALLOW_UPDATE=$(grep -oP 'also-notify\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
@@ -556,7 +558,7 @@ update_named_conf() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
     log "Adding the newly created zone file to the DNS server"
-   
+
     local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
     # Check if the domain already exists in named.conf.local
@@ -574,7 +576,7 @@ update_named_conf() {
 
 # Function to create a zone file
 create_zone_file() {
-    
+
     ZONE_FILE_DIR='/etc/bind/zones/'
     CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
@@ -587,7 +589,7 @@ create_zone_file() {
 	fi
 
    zone_template=$(<"$ZONE_TEMPLATE_PATH")
-   
+
    # get nameservers
 	get_config_value() {
 	    local key="$1"
@@ -609,7 +611,7 @@ create_zone_file() {
 
     # Create zone content
     timestamp=$(date +"%Y%m%d")
-    
+
     # Replace placeholders in the template
     if [ -z "$ns3" ]; then
 	zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
@@ -628,7 +630,7 @@ create_zone_file() {
                                            -e "s|YYYYMMDD|$timestamp|g")
     fi
 
- 
+
     mkdir -p "$ZONE_FILE_DIR"
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
@@ -667,7 +669,7 @@ EOF
 # todo: need better solution!
 create_mail_mountpoint(){
     key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
-    
+
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
 	# do for enterprise!
@@ -678,12 +680,12 @@ create_mail_mountpoint(){
      	    mkdir -p $DOMAIN_DIR
 	    log "Adding mountpoint to the mail-server in background"
             volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
-	    
+
 sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
     $volume_to_add
 }" "$COMPOSE_FILE"
 
-	     #cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
+	     #cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown
              nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver " </dev/null >nohup.out 2>nohup.err &
 	fi
     fi
@@ -696,10 +698,10 @@ sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
 dns_stuff() {
 
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
-    if [[ $enabled_modules_line == *"dns"* ]]; then  
+    if [[ $enabled_modules_line == *"dns"* ]]; then
 	    create_zone_file                             # create zone
 	    get_slave_dns_option                         # create zone on slave before include on master
-	    update_named_conf                            # include zone 
+	    update_named_conf                            # include zone
     else
         log "DNS module is disabled - skipping creating DNS records"
     fi
@@ -728,19 +730,19 @@ add_domain() {
     local result=$(mysql -N -e "$verify_query")
 
     if [ "$result" -eq 1 ]; then
-    
+
     	clear_cache_for_user                         # rm cached file for ui
     	make_folder                                  # create dirs on host server
     	get_webserver_for_user                       # nginx or apache
-    	get_server_ipv4_or_ipv6                      # get outgoing ip     
+    	get_server_ipv4_or_ipv6                      # get outgoing ip
 	vhost_files_create                           # create file in container
 	create_domain_file                           # create file on host
 	dns_stuff
 	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
  	#litespeed_extra # TODO!
-    
- 	######add_domain_to_clamav_list                    # added in 0.3.4    
+
+ 	######add_domain_to_clamav_list                    # added in 0.3.4
         echo "Domain $domain_name added successfully"
         #echo "Domain $domain_name has been added for user $user."
     else

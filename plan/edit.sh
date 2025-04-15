@@ -9,17 +9,17 @@
 # Last Modified: 03.03.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -134,14 +134,14 @@ update_plan() {
   # Get old paln data, and if different, we will initiate the `opencli plan-apply` script
   sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth FROM plans WHERE id='$plan_id'"
   result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
-  
+
   old_plan_name=$(echo "$result" | awk '{print $1}')
   int_old_disk_limit=$(echo "$result" | awk '{print $2}')
   old_inodes_limit=$(echo "$result" | awk '{print $4}')
   old_cpu=$(echo "$result" | awk '{print $5}')
   old_ram=$(echo "$result" | awk '{print $6}')
   old_bandwidth=$(echo "$result" | awk '{print $7}')
-  
+
   new_plan_name="$2"
   description="$3"
   ftp_limit="$4"
@@ -155,7 +155,7 @@ update_plan() {
   int_ram="${12}"
   bandwidth="${13}"
 
-  # Format disk_limit with 'GB' 
+  # Format disk_limit with 'GB'
     if [[ ! "$disk_limit" =~ GB$ ]]; then
       disk_limit="${int_disk_limit} GB"
     else
@@ -164,14 +164,14 @@ update_plan() {
 
   # format without GB for old limits
   old_disk_limit="${int_old_disk_limit} GB"
-  
+
 
 if [[ $int_ram =~ gg$ ]]; then
   ram="${int_ram%g}" # fix for 1.1.6 where we added extra gg !TO BE REMOVED!
 elif [[ ! $int_ram =~ g$ ]]; then
   ram="${int_ram}g"   # append g if just number
 else
-  ram="${int_ram}"    # keep if already has g 
+  ram="${int_ram}"    # keep if already has g
 fi
 
 if [ "$DEBUG" = true ]; then
@@ -214,18 +214,18 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 
     # Construct SQL query to select plan name based on ID
     local sql="SELECT name FROM plans WHERE id='$plan_id'"
-    
+
     # Execute MySQL query
     local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-    
+
     # Extract plan name from query result
     local new_plan_name=$(echo "$result" | awk 'NR>1')
-    
+
       count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
-  
+
       if [ "$count" -eq 0 ]; then
           echo "Successfully updated plan id $plan_id"
-      else    
+      else
           check_if_we_need_to_edit_docker_containers
             # do it!
             if [ ${#flags[@]} -gt 0 ]; then
@@ -235,16 +235,16 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
                 timestamp=$(date +"%Y%m%d_%H%M%S")
                 echo "tail -f /tmp/opencli_plan_apply_$timestamp.log"
                 if [ "$DEBUG" = true ]; then
-                    echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
-                    nohup opencli plan-apply $plan_id ${flags[@]} --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
+                    echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[*]} --all --debug"
+                    nohup opencli plan-apply "$plan_id" "${flags[@]}" --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
                 else
-                    nohup opencli plan-apply $plan_id ${flags[@]} --all > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
+                    nohup opencli plan-apply "$plan_id" "${flags[@]}" --all > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
                 fi
             else
                 echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. New limits have been applied."
             fi
       fi
-    
+
   else
     echo "ERROR: Failed to update plan id '$plan_id'"
     exit 1
@@ -256,7 +256,7 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 
 check_cpu_cores() {
   local available_cores=$(nproc)
-  
+
   if [ "$cpu" -gt "$available_cores" ]; then
     echo "ERROR: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
     exit 0

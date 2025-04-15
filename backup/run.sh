@@ -8,17 +8,17 @@
 # Last Modified: 23.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -50,7 +50,7 @@ fi
 if [ -e "$config_file" ]; then
     # enable debug
     debug_value=$(awk -F'=' '/^\[GENERAL\]/{f=1} f&&/^debug/{print $2; f=0}' "$config_file")
-    
+
     if [ -n "$debug_value" ]; then
         if [ "$debug_value" = "no" ]; then
             DEBUG=false
@@ -75,13 +75,13 @@ if [ -e "$config_file" ]; then
         fi
     fi
 
-    #server laod limit 
+    #server laod limit
     avg_load_limit=$(awk -F'=' '/^\[PERFORMANCE\]/{f=1} f&&/^avg_load_limit/{print $2; f=0}' "$config_file")
 
     if [ -n "$avg_load_limit" ]; then
         current_load=$(uptime | awk -F'[a-z]:' '{print $2}' | tr -d '[:space:]')
         one_minute_load=$(echo "$current_load" | awk -F, '{print $1}')
-        
+
         if [ "$(echo "$one_minute_load >= $avg_load_limit" | bc -l)" -eq 1 ]; then
             echo "Current server load ($one_minute_load) is above the average load limit ($avg_load_limit) in server settings. Aborting backup..."
             exit 1
@@ -90,14 +90,14 @@ if [ -e "$config_file" ]; then
             echo "DEBUG: Server load ($one_minute_load) is below the average load limit ($avg_load_limit). Proceeding..."
             fi
         fi
-        
+
     else
         if [ "$DEBUG" = true ]; then
         echo "DEBUG: Error: 'avg_load_limit' setting not found in $config_file. backup will start regardless of the current server load."
         fi
-        
+
     fi
-    
+
 else
 #when config file is missing..
 DEBUG=false
@@ -127,7 +127,7 @@ for arg in "$@"; do
             ;;
         --force-run)
             FORCE_RUN=true
-            ;;            
+            ;;
     esac
 done
 
@@ -239,10 +239,10 @@ if [ "$DEBUG" = true ]; then
     echo "DEBUG: Status: $status"
     echo "DEBUG: Destination ID: $destination"
     echo "DEBUG: Destination Directory Name: $dest_destination_dir_name"
-    echo "DEBUG: Types: ${types[@]}"
+    echo "DEBUG: Types: \"${types[*]}\""
     #echo "Schedule: $schedule"
     echo "DEBUG: Retention: $retention"
-    echo "DEBUG: Filters: ${filters[@]}"
+    echo "DEBUG: Filters: ${filters[*]}"
     # destination json
     echo ""
     echo "------------------------------------------------------------------------"
@@ -324,7 +324,7 @@ copy_files() {
         echo "DEBUG: timeout 10s ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path'"
         fi
 
-        
+
         # Step 2: Rsync the files
         # use parallel for home dir files only for now, and only for remote destination
         if [[ "$source_path" == /home/* ]]; then
@@ -345,14 +345,14 @@ copy_files() {
                             echo "Error: No compatible package manager found. Please install jq manually and try again."
                             exit 1
                         fi
-                
+
                         # Check if installation was successful
                         if ! command -v parallel &> /dev/null; then
                             echo "Error: moreutils installation failed. Please install parallel command manually and try again."
                             exit 1
                         fi
             fi
-            
+
             find /home/$container_name/ -mindepth 1 -maxdepth 1 -print0 | parallel -j 16 | rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
         else
             rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
@@ -373,11 +373,11 @@ copy_files() {
             cp -L "$source_path" "/$dest_destination_dir_name/$container_name/$TIMESTAMP/$destination_path"
             # TODO: cp: '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' and '/backup/sdjnjrz3/20240619142028/20240619142028.tar.gz' are the same file
         fi
-        
+
     fi
 
     # Clean up local temp directory if used
-    [ -n "$local_temp_dir/$container_name" ] && rm -rf "$local_temp_dir/$container_name"
+    [ -d "$local_temp_dir/$container_name" ] && rm -rf "$local_temp_dir/$container_name"
 }
 
 
@@ -427,31 +427,31 @@ run_the_actual_generation_for_user() {
         local caddy_suspended_dir="/etc/openpanel/caddy/suspended_domains/"
         local zones_dir="/etc/bind/zones/"
         local domain_names=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" -N)
-    
-        
+
+
         for domain_name in $domain_names; do
-          cp ${caddy_dir}${domain_name}.conf ${caddy_vhosts}${domain_name}.conf > /dev/null 2>&1 
-          cp ${caddy_suspended_dir}${domain_name}.conf ${caddy_suspended_vhosts}${domain_name}.conf > /dev/null 2>&1 
-          cp ${zones_dir}${domain_name}.zone ${dns_zones}${domain_name}.zone > /dev/null 2>&1 
-        done        
-    
+          cp ${caddy_dir}${domain_name}.conf ${caddy_vhosts}${domain_name}.conf > /dev/null 2>&1
+          cp ${caddy_suspended_dir}${domain_name}.conf ${caddy_suspended_vhosts}${domain_name}.conf > /dev/null 2>&1
+          cp ${zones_dir}${domain_name}.zone ${dns_zones}${domain_name}.zone > /dev/null 2>&1
+        done
+
     }
-    
-    
-    
+
+
+
     export_user_data_from_database() {
-    
+
         echo "Exporting user data from OpenPanel database.."
         user_id=$(mysql -e "SELECT id FROM users WHERE username='$username';" -N)
-    
+
         if [ -z "$user_id" ]; then
             echo "ERROR: export_user_data_to_sql: User '$username' not found in the database."
             exit 1
         fi
-    
-        
-    
-    
+
+
+
+
         check_success() {
           if [ $? -eq 0 ]; then
             echo "- Exporting $1 from database successful"
@@ -463,7 +463,7 @@ run_the_actual_generation_for_user() {
 mysql --defaults-extra-file=$config_file -N -e "
     SELECT CONCAT('INSERT INTO panel.users (id, username, password, email, owner, user_domains, twofa_enabled, otp_secret, plan, registered_date, server, plan_id) VALUES (',
         id, ',', QUOTE(username), ',', QUOTE(password), ',', QUOTE(email), ',', QUOTE(owner), ',', QUOTE(user_domains), ',', twofa_enabled, ',', QUOTE(otp_secret), ',', QUOTE(plan), ',', IFNULL(QUOTE(registered_date), 'NULL'), ',', QUOTE(server), ',', plan_id, ')
-        ON DUPLICATE KEY UPDATE 
+        ON DUPLICATE KEY UPDATE
             username = VALUES(username),
             password = VALUES(password),
             email = VALUES(email),
@@ -479,8 +479,8 @@ mysql --defaults-extra-file=$config_file -N -e "
 " > $openpanel_database/users.sql
 check_success "User data export"
 
-    
-    
+
+
     # Export User's Plan Data with INSERT INTO
     mysql --defaults-extra-file=$config_file -N -e "
         SELECT CONCAT('INSERT INTO panel.plans (id, name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth) VALUES (',
@@ -490,8 +490,8 @@ check_success "User data export"
         WHERE u.id = $user_id
     " > $openpanel_database/plans.sql
     check_success "Plan data export"
-    
-    
+
+
     # Export Domains Data for User with INSERT INTO
     mysql --defaults-extra-file=$config_file -N -e "
         SELECT CONCAT('INSERT INTO panel.domains (domain_id, user_id, domain_url, docroot, php_version) VALUES (',
@@ -503,7 +503,7 @@ check_success "User data export"
 
     # export domains to be checked before import!
     opencli domains-user USERNAME > $openpanel_database/domains.txt
-        
+
     # Export Sites Data for User with INSERT INTO
     mysql --defaults-extra-file=$config_file -N -e "
         SELECT CONCAT('INSERT INTO panel.sites (id, domain_id, site_name, admin_email, version, created_date, type, ports, path) VALUES (',
@@ -513,86 +513,86 @@ check_success "User data export"
         WHERE d.user_id = $user_id
     " > $openpanel_database/sites.sql
     check_success "Sites data export"
-    
-    
+
+
         # no need for sessions!
-    
+
         echo ""
         echo "User '$username' data exported to $openpanel_database successfully."
     }
-    
-    
+
+
     # get user ID from the database
     get_user_info() {
         local user="$1"
         local query="SELECT id, server FROM users WHERE username = '${user}';"
-        
+
         # Retrieve both id and context
         user_info=$(mysql -se "$query")
-        
+
         # Extract user_id and context from the result
         user_id=$(echo "$user_info" | awk '{print $1}')
         context=$(echo "$user_info" | awk '{print $2}')
-        
+
         echo "$user_id,$context"
     }
-    
-    
-    
+
+
+
     mkdirs() {
-    
+
       apparmor_dir="/home/"$context"/apparmor/"
       openpanel_core="/home/"$context"/op_core/"
       openpanel_database="/home/"$context"/op_db/"
       caddy_vhosts="/home/"$context"/caddy/"
-      dns_zones="/home/"$context"/dns/"  
+      dns_zones="/home/"$context"/dns/"
       caddy_suspended_vhosts="/home/"$context"/caddy_suspended/"
-      
+
       mkdir -p $apparmor_dir $openpanel_core $openpanel_database $caddy_vhosts $dns_zones $caddy_suspended_vhosts
-    
+
     }
-    
-    
+
+
     tar_everything() {
       echo "Creating archive for all user files.."
       # home files
       archive_name="backup_${username}_$(date +%Y%m%d_%H%M%S).tar.gz"
       tar czpf "$archive_name" -C /home/"$context" --exclude='*/.sock' .
     }
-    
-    
+
+
     copy_files_temporary_to_user_home() {
-    
+
       # database
       export_user_data_from_database
-      
+
       # apparmor profile
       echo "Collectiong AppArmor profile.."
       cp /etc/apparmor.d/home.$context.bin.rootlesskit $apparmor_dir
       # https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWx1MjY4YXB0YTRla3dlazMxYmhkM3k2MWV0eDVsNDUxcHQ1aW9jNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/uNE1fngZuYhIQ/giphy.gif
       #cp /etc/apparmor.d/$(echo /home/pejcic/bin/rootlesskit | sed -e s@^/@@ -e s@/@.@g) $apparmor_dir
-    
+
       # core panel data
       echo "Collectiong core OpenPanel files.."
       cp -r /etc/openpanel/openpanel/core/users/$context/  $openpanel_core
-    
+
       # caddy and bind9
       echo "Collectiong DNS zones and Caddy files.."
       copy_domain_zones
-      
+
       echo "Collectiong Docker context information.."
       echo "$context" > /home/$context/context
-    
+
     }
-    
-    
+
+
     clean_tmp_files() {
         echo "Cleaning up temporary files.."
-        rm -rf $apparmor_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1 
-    
+        rm -rf $apparmor_dir $openpanel_core ${caddy_vhosts} ${caddy_suspended_vhosts} ${dns_zones} #> /dev/null 2>&1
+
     }
-    
-    
+
+
     result=$(get_user_info "$username")
     user_id=$(echo "$result" | cut -d',' -f1)
     context=$(echo "$result" | cut -d',' -f2)
@@ -678,7 +678,7 @@ backup_for_user_started(){
     user_index_file="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/$TIMESTAMP.index"
     start_backup_for_user_time=$(date -u +"%a %b %d %T UTC %Y")
     mkdir -p "$(dirname "$user_index_file")"
-        
+
     # write that we started backup for user account
     initial_index_content="
     backup_job_id=$NUMBER
@@ -701,12 +701,12 @@ backup_for_user_finished(){
     total_exec_time_spent_for_user=$(($(date -u +"%s") - $(date -u -d "$start_backup_for_user_time" +"%s")))
 
     # TODO: calculate total du for this backup and store it in index file!
-    
+
     sed -i -e "s/end_time=/end_time=$end_backup_for_user_time/" -e "s/total_exec_time=/total_exec_time=$total_exec_time_spent_for_user/" -e "s/status=.*/status=Completed/" "$user_index_file"
         echo ""
-        echo "Backup completed for user: $container_name"                                          
+        echo "Backup completed for user: $container_name"
         retention_check_and_delete_oldest_backup
-        #empty_line    
+        #empty_line
 }
 
 
@@ -720,7 +720,7 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
     for line_number in $lines_with_end_time; do
         end_time=$(sed -n "${line_number}s/.*end_time=\(.*\)/\1/p" "$user_index_file")
         current_date=$(date -d "$end_time" +%s)
-        
+
         if [ -z "$oldest_date" ] || [ "$current_date" -lt "$oldest_date" ]; then
             oldest_date="$current_date"
             oldest_line_number="$line_number"
@@ -758,8 +758,8 @@ retention_for_user_files_delete_oldest_files_for_job_id(){
         rm -rf "$dest_destination_dir_name/$container_name/$TIMESTAMP/"
         echo "Deleted oldest backup for user $container_name from the local server: $dest_destination_dir_name/$container_name/$TIMESTAMP/"
     fi
-    
-    
+
+
 }
 
 
@@ -814,7 +814,7 @@ copy_files_server_conf_only() {
         echo "DEBUG: ssh -i $dest_ssh_key_path -p $dest_ssh_port $dest_ssh_user@$dest_hostname 'mkdir -p $dest_destination_dir_name/$TIMESTAMP/'"
         fi
 
-        
+
         # Step 2: Rsync the files
         # use parallel for home dir files only for now, and only for remote destination
         if [[ "$source_path" == /home/* ]]; then
@@ -826,7 +826,7 @@ copy_files_server_conf_only() {
                     sudo apt-get install -y moreutils > /dev/null 2>&1
                 fi
             fi
-            
+
             find /home/$container_name/ -mindepth 1 -maxdepth 1 -print0 | parallel -j 16 | rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$TIMESTAMP/"
         else
             rsync -e "ssh -i $dest_ssh_key_path -p $dest_ssh_port" -r -p "$source_path" "$dest_ssh_user@$dest_hostname:$dest_destination_dir_name/$TIMESTAMP/"
@@ -856,7 +856,7 @@ run_backup_for_server_configuration_only() {
 
 CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
 
-  
+
     backup_openpanel_conf() {
         echo ""
         echo "## Backing up OpenPanel configuration files."
@@ -865,7 +865,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         find /etc/openpanel/
         cp -r /etc/openpanel ${CONF_DESTINATION_DIR}/openpanel
         #
-       
+
         docker cp openpanel:/usr/local/panel/translations/ ${CONF_DESTINATION_DIR}/openpanel/translations >/dev/null 2>&1
         # here also should do the custom files for panel!
     }
@@ -877,7 +877,7 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         find /etc/bind/
         cp -r /etc/bind ${CONF_DESTINATION_DIR}/bind
     }
-    
+
     # firewall rules
     backup_etc_ufw_and_csf(){
         echo ""
@@ -892,11 +892,11 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         else
             echo "Warning: Neither CSF nor UFW are installed, not backing firewall configuration."
         fi
-        
-    }
-    
 
-   
+    }
+
+
+
     # docker conf
     backup_docker_daemon(){
         echo ""
@@ -907,15 +907,15 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
         # this is symlink, check if it follows
     }
 
-    
-    
+
+
     # panel db
     backup_mysql_panel_database() {
         echo ""
         echo "## Backing up MySQL database for OpenPanel."
         echo ""
         mkdir -p ${CONF_DESTINATION_DIR}/mysql_data/
-        
+
         MY_CNF="/etc/my.cnf"
         DB_NAME=$(grep -oP '(?<=^database = ).*' "$MY_CNF")
         DB_PASSWORD=$(grep -oP '(?<=^password = ).*' "$MY_CNF")
@@ -940,12 +940,12 @@ CONF_DESTINATION_DIR="/tmp" # FOR NOW USE /tmp/ only...
             echo "MySQL container is not running, generating files backup using the docker volume..."
             docker run --rm --volumes-from $CONTAINER_NAME -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar czvf /backup/mysql_volume_data.tar.gz /var/lib/mysql
         fi
-               
+
         #to restore we will use:
         #
         # docker run --rm -v ${CONF_DESTINATION_DIR}/mysql_data:/backup ubuntu tar xzvf /backup/mysql_volume_data.tar.gz -C /backup
     }
-    
+
     # nginx domains
     backup_nginx_data() {
         echo ""
@@ -993,7 +993,7 @@ copy_files_server_conf_only $CONF_DESTINATION_DIR $dest_destination_dir_name
 
 type="OpenPanel configuration"
 sed -i -e "s/type=.*/type=${type}/" "$log_file"
-    
+
 }
 
         empty_line() {
@@ -1003,14 +1003,14 @@ sed -i -e "s/type=.*/type=${type}/" "$log_file"
         }
 
 
-        
+
 
 # MAIN FUNCTION FOR PARTIAL BACKUP OF INDIVIDUAL ACCOUNTS
 run_backup_for_user_data() {
     container_count=0
 
     output=$(opencli user-list --json)
-    
+
     # Check if the output is empty or if MySQL is not running
     if [ -z "$output" ] || [ "$output" = "null" ]; then
         echo "ERROR: No users found in the database or MySQL is not running."
@@ -1030,13 +1030,13 @@ run_backup_for_user_data() {
 
         empty_line
         echo "Starting backup for user: $container_name ($container_count/$total_containers)"
-        
+
         check_if_suspended_user_or_in_exclude_list() {
             if [[ "$container_name" =~ [_] ]]; then
                 echo "Skipping backup for suspended user: $container_name"
                 continue
             fi
-    
+
             excluded_file="/usr/local/opencli/helpers/excluded_from_backups.txt"
 
             if [ -f "$excluded_file" ]; then
@@ -1049,7 +1049,7 @@ run_backup_for_user_data() {
 
         get_current_number_of_backups_for_user() {
             user_indexes="/etc/openpanel/openadmin/config/backups/index/$NUMBER/$container_name/"
-            
+
             # Check if the directory exists
             if [ -d "$user_indexes" ]; then
                 number_of_backups_in_this_job_that_user_has=$(find "$user_indexes" -type f -name "*.index" | wc -l)
@@ -1069,7 +1069,7 @@ run_backup_for_user_data() {
                 echo "User has a total of $number_of_backups_in_this_job_that_user_has backups, retention limit of $retention is not reached."
             fi
         }
-        
+
         check_if_suspended_user_or_in_exclude_list                                                 # should we run the backup?
         get_current_number_of_backups_for_user                                                     # count existing backups
         backup_for_user_started                                                                    # write log per user
@@ -1090,7 +1090,7 @@ if [[ ${types[0]} == "accounts" ]]; then
     echo ""
 
     run_backup_for_user_data
-    
+
 elif [[ ${types[0]} == "configuration" ]]; then
     echo ""
     echo "------------------------------------------------------------------------"
@@ -1098,7 +1098,7 @@ elif [[ ${types[0]} == "configuration" ]]; then
     echo "STARTING SERVER CONFIGURATION BACKUP"
     echo ""
     echo ""
-    
+
     run_backup_for_server_configuration_only
 else
     echo "ERROR: Backup type is unknown, supported types are 'accounts' 'partial' and 'configuration'."
@@ -1108,7 +1108,7 @@ fi
 
 
 
-        
+
 # Update log with end time, total execution time, and status
 end_time=$(date -u +"%a %b %d %T UTC %Y")
 total_exec_time=$(($(date -u +"%s") - $(date -u -d "$start_time" +"%s")))
