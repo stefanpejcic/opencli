@@ -62,7 +62,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
+          
+          # Pull the latest changes to avoid conflicts
+          git fetch origin main
+          git rebase origin/main
+          
           git add .
           git commit -m "autoupdate date after edit" || exit 0
           git push origin HEAD:main
-
