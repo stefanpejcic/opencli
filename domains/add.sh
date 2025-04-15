@@ -310,6 +310,8 @@ get_webserver_for_user(){
 	    if [[ $output == *nginx* ]]; then
 	        ws="nginx"
 	 	check_and_create_default_file
+	    elif [[ $output == *openresty* ]]; then
+	        ws="openresty"
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache"
 	    elif [[ $output == *litespeed* ]]; then
@@ -356,14 +358,14 @@ start_default_php_fpm_service() {
 vhost_files_create() {
 	
 	if [[ $ws == *apache* ]]; then
-#vhost_in_docker_file="/etc/$ws/sites-available/${domain_name}.conf"
-vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-
-vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
+		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
-#vhost_in_docker_file="/etc/$ws/conf.d/${domain_name}.conf" 		
-vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
-vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
+		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+	elif [[ $ws == *openresty* ]]; then
+		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
+		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *litespeed* ]]; then
 		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
  		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
