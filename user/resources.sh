@@ -271,13 +271,11 @@ get_active_services_and_their_usage() {
     
             cpu_value=${!cpu_var:-0}
             ram_value=${!ram_var:-0}
-
-
-            projected_cpu="0"
-            projected_ram="0"
     
             if [ -z "${!cpu_var}" ] || [ -z "${!ram_var}" ]; then
                 # If either the CPU or RAM value is missing in the .env file, abort
+                projected_cpu="0"
+                projected_ram="0"
                 message+="<br> Error: Service $service_name does not have CPU or RAM limits defined in .env file!"
                 display_json_or_message
                 exit 1 
@@ -312,21 +310,7 @@ get_active_services_and_their_usage() {
     
         # Add services to the JSON structure
         if $json_output; then
-            # Build CPU and RAM JSON parts conditionally
-            cpu_json="\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU"
-            if [[ -n "$projected_cpu" && "$projected_cpu" != "none" ]]; then
-                cpu_json+=", \"after\": $projected_cpu"
-            fi
-        
-            ram_json="\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM"
-            if [[ -n "$projected_ram" && "$projected_ram" != "none" ]]; then
-                ram_json+=", \"after\": $projected_ram"
-            fi
-        
-            # Final JSON construction
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {${cpu_json}}, \"ram\": {${ram_json}}}, \"message\": \"$message\"}"
-
-            echo "$json_data" | jq .
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
         else
             echo ""
             echo "Total usage:"
@@ -393,11 +377,23 @@ stop_service_now() {
 
 display_json_or_message() {
         if $json_output; then
-
             # Remove last comma for valid JSON
             services_data=$(echo "$services_data" | sed 's/,$//')
-            
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU, \"after\": $projected_cpu}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM, \"after\": $projected_ram}}, \"message\": \"$message\"}"
+        
+            # Build CPU and RAM JSON parts conditionally
+            cpu_json="\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU"
+            if [[ "$projected_cpu" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                cpu_json+=", \"after\": $projected_cpu"
+            fi
+        
+            ram_json="\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM"
+            if [[ "$projected_ram" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                ram_json+=", \"after\": $projected_ram"
+            fi
+        
+            # Final JSON construction
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {${cpu_json}}, \"ram\": {${ram_json}}}, \"message\": \"$message\"}"
+        
             echo "$json_data" | jq .
         else
             echo "$message"
@@ -532,5 +528,4 @@ add_new_service                               # check if starting new service is
 #######final_output_for_json                         # pretty print the data
 
 exit 0
-
 
