@@ -8,17 +8,17 @@
 # Last Modified: 23.02.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -58,7 +58,7 @@ check_site_already_exists_in_db() {
     local site_name="$1"
 
     local result=$(mysql -sse "SELECT EXISTS(SELECT 1 FROM sites WHERE site_name = '$site_name');")
-    
+
     if [[ "$result" -eq 1 ]]; then
         return 0  # exists
     else
@@ -85,14 +85,14 @@ existing_count=0
 # Iterate through user files
 while IFS= read -r -d '' config_file_path; do
     echo "- Parsing file: $config_file_path"
-    
+
     # get sitename for manager
 	# Remove /wp-config.php sufix
 	site_name=${config_file_path%/wp-config.php}
 
 	# Remove /home/$current_username/ prefix
 	site_name=${site_name/#\/home\/$current_username\//}
-    
+
 
 
     # Get domain name
@@ -102,7 +102,7 @@ while IFS= read -r -d '' config_file_path; do
     if check_site_already_exists_in_db "$site_name"; then
     	echo "  Site $site_name already exists in the SiteManager - Skipping"
         existing_installations+=("- $site_name - domain: $domain_name, config: ${config_file_path%/wp-config.php}")
-        ((existing_count++))   	
+        ((existing_count++))
         continue
     fi
 
@@ -110,33 +110,47 @@ while IFS= read -r -d '' config_file_path; do
     admin_email=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "option get admin_email 2>/dev/null")
     if [[ ! "$admin_email" =~ "@" ]]; then
         echo "  WARNING: Invalid admin email: $admin_email"
+        admin_email=""
     fi
-    
 
     # Get WordPress version
     version=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "core version 2>/dev/null")
+    if [ -z "$version" ]; then
+        echo "  WARNING: Could not determine WordPress version"
+        version="unknown"
+    fi
 
     # Get domain ID
     domain_id=$(get_domain_id "$domain_name")
     if ! [[ "$domain_id" =~ ^[0-9]+$ ]]; then
-    	echo "  WARNING: ID not detected for domain $domain_name - make sure that domain is added for user - Skipping"
-    	exit 1
+        echo "  WARNING: ID not detected for domain $domain_name - make sure that domain is added for user - Skipping this site"
+        continue  # Skip this site but continue with others
     fi
-    
-     
-    
-     echo "Adding website $site_name to Site Manager"
-     echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$site_name', '$domain_id', '$admin_email', '$version', 'wordpress');" | mysql
 
-     echo "Enabling auto-login to wp-admin from Site Manager interface"
-     run_wp_cli "$current_username" "$(dirname "$config_file_path")" "package install aaemnnosttv/wp-cli-login-command"
+    # Sanitize inputs to prevent SQL injection
+    site_name_sanitized=$(echo "$site_name" | sed 's/'"'"'/'"'"'"'"'"'"'"'"'/g')
+    admin_email_sanitized=$(echo "$admin_email" | sed 's/'"'"'/'"'"'"'"'"'"'"'"'/g')
+    version_sanitized=$(echo "$version" | sed 's/'"'"'/'"'"'"'"'"'"'"'"'/g')
 
-    found_installations+=("- $site_name, domain: $domain_name, email: $admin_email, version: $version")
-    ((found_count++))
+    echo "Adding website $site_name to Site Manager"
+    mysql -e "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$site_name_sanitized', '$domain_id', '$admin_email_sanitized', '$version_sanitized', 'wordpress');"
+
+    if [ $? -eq 0 ]; then
+        echo "  SUCCESS: Site added to database"
+
+        echo "Enabling auto-login to wp-admin from Site Manager interface"
+        wp_login_result=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "package install aaemnnosttv/wp-cli-login-command")
+
+        if [ $? -ne 0 ]; then
+            echo "  WARNING: Failed to install WP-CLI login command: $wp_login_result"
+        fi
+
+        found_installations+=("- $site_name, domain: $domain_name, email: $admin_email, version: $version")
+        ((found_count++))
+    else
+        echo "  ERROR: Failed to add site to database"
+    fi
 done < <(find "$base_directory" -name 'wp-config.php' -print0)
-
-
-
 
 
 # Summary messages
@@ -175,13 +189,13 @@ elif [[ "$1" == "-all" ]]; then
     echo "No users found in the database."
     exit 1
   fi
-  
+
   total_users=$(echo "$users" | wc -w)
   current_user_index=1
-  
+
   for user in $users; do
     echo "Processing user: $user ($current_user_index/$total_users)"
-        run_for_single_user "$user"   
+        run_for_single_user "$user"
     echo "------------------------------"
     ((current_user_index++))
   done
