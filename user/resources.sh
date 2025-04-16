@@ -312,7 +312,21 @@ get_active_services_and_their_usage() {
     
         # Add services to the JSON structure
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
+            # Build CPU and RAM JSON parts conditionally
+            cpu_json="\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU"
+            if [[ "$projected_cpu" != "none" ]]; then
+                cpu_json+=", \"after\": $projected_cpu"
+            fi
+        
+            ram_json="\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM"
+            if [[ "$projected_ram" != "none" ]]; then
+                ram_json+=", \"after\": $projected_ram"
+            fi
+        
+            # Final JSON construction
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {${cpu_json}}, \"ram\": {${ram_json}}}, \"message\": \"$message\"}"
+            
+            echo "$json_data" | jq .
         else
             echo ""
             echo "Total usage:"
