@@ -271,11 +271,13 @@ get_active_services_and_their_usage() {
     
             cpu_value=${!cpu_var:-0}
             ram_value=${!ram_var:-0}
+
+
+            projected_cpu="0"
+            projected_ram="0"
     
             if [ -z "${!cpu_var}" ] || [ -z "${!ram_var}" ]; then
                 # If either the CPU or RAM value is missing in the .env file, abort
-                projected_cpu="0"
-                projected_ram="0"
                 message+="<br> Error: Service $service_name does not have CPU or RAM limits defined in .env file!"
                 display_json_or_message
                 exit 1 
