@@ -302,9 +302,6 @@ run_update_immediately(){
     log "Restarting OpenPanel service to use the newest image.."
     cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel | tee -a "$log_file"
     
-    log "Restarting OpenAdmin service.."
-    service admin restart 2>&1 | tee -a "$log_file"
-
     log "Adding OpenCLI commands to path.."
     opencli commands | tee -a "$log_file"
 
@@ -330,6 +327,9 @@ run_update_immediately(){
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
     
     log "DONE!"
+
+    log "Restarting OpenAdmin service.."
+    service admin restart 2>&1 | tee -a "$log_file"
    
 }
 
