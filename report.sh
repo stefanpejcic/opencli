@@ -93,6 +93,22 @@ display_mysql_information() {
   run_command "cat /etc/openpanel/mysql/db.cnf" "MySQL login information for OpenCLI scripts"
 }
 
+# added in 1.2.2
+list_user_services() {
+  echo "=== Docker Context Services ===" >> "$output_file"
+  for dir in /home/*; do
+      file="$dir/docker-compose.yml"
+      user=$(basename "$dir")
+      if [[ -f "$file" ]]; then
+        run_command "docker --context=$user compose -f  $dir/docker-compose.yml config --services" "- User: $user"
+      else
+        run_command "echo 'Most likely not an OpenPanel user'" "- User: $user"
+      fi
+  done
+}
+
+
+
 # Default values
 cli_flag=false
 ufw_flag=false
@@ -157,19 +173,8 @@ display_mysql_information
 # Check the status of services
 check_services_status
 
-# Check users
-for dir in /home/*; do
-    file="$dir/docker-compose.yml"
-    user=$(basename "$dir")
-    if [[ -f "$file" ]]; then
-      echo "Services for context: $user"
-      docker --context=$user compose -f  $dir/docker-compose.yml config --services
-    else
-      echo "No services."
-    fi
-done
-
-
+# list users services
+list_user_services
 
 if [ "$upload_flag" = true ]; then
   response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
