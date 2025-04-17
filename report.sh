@@ -246,7 +246,7 @@ upload_report() {
 	      echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide content from the following file to the support team:\n$output_file"
 	    elif echo "$response" | grep -q "name="; then
 	      FILE_NAME=$(echo "$response" | cut -d'=' -f2)
-	      echo -e "Information collected successfully. Please provide the following key to the support team:\n${GREEN} ${FILE_NAME} $VERSION_ID ${RESET}"
+	      echo -e "Information collected successfully. Please provide the following key to the support team:\n\n${GREEN}${FILE_NAME}${RESET}"
 	    else
 	      echo -e "Unexpected upload response:\n$response"
 	      echo -e "Please send the content of the following file manually:\n$output_file"
