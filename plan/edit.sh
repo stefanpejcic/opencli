@@ -283,9 +283,45 @@ if [ "$#" -lt 12 ]; then
     exit 1
 fi
 
+validate_fields_first() {
+    local plan_id="$1"
+    local ftp_limit="$2"
+    local emails_limit="$3"
+    local domains_limit="$4"
+    local websites_limit="$5"
+    local disk_limit="$6"
+    local inodes_limit="$7"
+    local db_limit="${8}"
+    local cpu="${9}"
+    local ram="${10}"
+    local bandwidth="${11}"
 
+    is_integer() {
+        [[ "$1" =~ ^-?[0-9]+$ ]]
+    }
 
+    # Check if value is a valid float or integer
+    is_number() {
+        [[ "$1" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]
+    }
+    
+    # Validate all numeric inputs
+    for var_name in plan_id ftp_limit emails_limit domains_limit websites_limit disk_limit inodes_limit db_limit bandwidth; do
+        value="${!var_name}"
+        if ! is_integer "$value"; then
+            echo "Error: $var_name must be a number (integer only)"
+            exit 1
+        fi
+    done
 
+    for var_name in cpu ram; do
+        value="${!var_name}"
+        if ! is_number "$value"; then
+            echo "Error: $var_name must be a number (integer or float)"
+            exit 1
+        fi
+    done
+}
 
 
 
@@ -357,10 +393,6 @@ for arg in "$@"; do
   esac
 done
 
-
-
-
-
 check_cpu_cores "$cpu"
 check_available_ram "$ram"
 
@@ -370,4 +402,5 @@ if [ -z "$existing_plan" ]; then
   exit 1
 fi
 
+validate_fields_first "$plan_id" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
 update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
