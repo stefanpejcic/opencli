@@ -74,15 +74,15 @@ check_services_status() {
 # Function to display OpenPanel settings
 display_openpanel_settings() {
   echo "=== OpenPanel Settings ===" >> "$output_file"
-  run_command "cat /etc/openpanel/openpanel/conf/openpanel.config" "OpenPanel Configuration file:"
+  run_command "cat /etc/openpanel/openpanel/conf/openpanel.config" "OpenPanel Configuration file"
 }
 
 # admin in 0.2.3
 display_openadmin_settings() {
   echo "=== OpenAdmin Service ===" >> "$output_file"
-  run_command "python3 -m pip list" "Installed PIP packages:"
-  run_command "service admin status" "Admin service status:"
-  run_command "tail -100 /var/log/openpanel/admin/error.log" "OpenAdmin error log:"
+  run_command "python3 -m pip list" "Installed PIP packages"
+  run_command "service admin status" "Admin service status"
+  run_command "tail -100 /var/log/openpanel/admin/error.log" "OpenAdmin error log"
 }
 
 
