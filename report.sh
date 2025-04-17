@@ -163,7 +163,7 @@ for dir in /home/*; do
     user=$(basename "$dir")
     if [[ -f "$file" ]]; then
       echo "Services for context: $user"
-      docker --context=$user compose -f  $dir/docker-compose.yml --services
+      docker --context=$user compose -f  $dir/docker-compose.yml config --services
     else
       echo "No services."
     fi
