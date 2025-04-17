@@ -3,7 +3,7 @@
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
 # Usage: opencli report
-#        opencli report --public [--cli] [--csf|--ufw]
+#        opencli report [--public] [--cli] [--csf|--ufw]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 17.04.2025
@@ -273,7 +273,7 @@ while [[ $# -gt 0 ]]; do
         --ufw)
             ufw_flag=true
             ;; 
-        --upload)
+        --public|--link|--upload)
             upload_flag=true
             ;; 
         *)
