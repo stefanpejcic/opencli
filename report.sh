@@ -235,20 +235,26 @@ get_docker_info() {
 }
 
 upload_report() {
-  if [ "$upload_flag" = true ]; then
-    response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
-    if echo "$response" | grep -q "File upload failed."; then
-      echo ""
-      echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide content from the following file to the support team:\n$output_file"
-    else
-      LINKHERE=$(echo "$response" | grep -o 'http[s]\?://[^ ]*')
-      clear
-      echo -e "Information collected successfully. Please provide the following link to the support team:\n$LINKHERE"
-    fi
-  else
-    clear
-    echo -e "Information collected successfully. Please provide content of the following file to the support team:\n$output_file"
-  fi
+	if [ ! -f "$output_file" ]; then
+	  echo "Information not collected! report file does not exist: $output_file"
+   	else
+	  clear
+	  if [ "$upload_flag" = true ]; then
+	    response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
+	    if echo "$response" | grep -q "File upload failed."; then
+	      echo ""
+	      echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide content from the following file to the support team:\n$output_file"
+	    elif echo "$response" | grep -q "http"; then
+	      LINKHERE=$(echo "$response" | grep -o 'http[s]\?://[^ ]*')
+	      echo -e "Information collected successfully. Please provide the following link to the support team:\n$LINKHERE"
+	    else
+	      echo -e "Unexpected upload response:\n$response"
+	      echo -e "Please send the content of the following file manually:\n$output_file"
+	    fi
+	  else
+	    echo -e "Information collected successfully. Please provide content of the following file to the support team:\n$output_file"
+	  fi
+	fi
 }
 
 
