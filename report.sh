@@ -273,7 +273,7 @@ while [[ $# -gt 0 ]]; do
         --ufw)
             ufw_flag=true
             ;; 
-        --ufw)
+        --upload)
             upload_flag=true
             ;; 
         *)
