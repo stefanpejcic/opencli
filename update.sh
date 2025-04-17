@@ -246,6 +246,20 @@ compare_versions() {
 }
 
 
+# added in 0.2.3 to auto-purge older tags after update
+purge_previous_images() {
+  all_images=$(docker --context default images --format "{{.Repository}} {{.ID}}" | grep "^openpanel/openpanel-ui" | awk '{print $2}')
+  used_images=$(docker --context default ps --format "{{.Image}}" | xargs -n1 docker inspect --format '{{.Id}}' 2>/dev/null | sort | uniq)
+  for img in $all_images; do
+      if echo "$used_images" | grep -q "$img"; then
+          echo "⏩ Skipping in-use image: $img"
+      else
+          echo "🗑️ Deleting unused image: $img"
+          docker --context default rmi "$img"
+      fi
+  done
+}
+
 run_update_immediately(){
     version="$1"
     log_dir="/var/log/openpanel/updates"
@@ -304,7 +318,10 @@ run_update_immediately(){
     
     log "Adding OpenCLI commands to path.."
     opencli commands | tee -a "$log_file"
-
+    
+    log "Removing previous OpenPanel UI image tags.."
+    purge_previous_images
+    
     log "Checking for custom scripts.."
     url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
     wget --spider -q "$url"
@@ -325,6 +342,8 @@ run_update_immediately(){
     remove_last_notification # remove update started msg
     remove_update_notifications # remove update available msg
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
+
+    
     
     log "DONE!"
 
