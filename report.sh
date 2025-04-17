@@ -68,7 +68,6 @@ check_services_status() {
   run_command "systemctl status admin" "OpenAdmin Service"
   run_command "systemctl status docker" "Docker Status"
   run_command "systemctl status csf" "ConfigServer Firewall Status"
-  run_command "systemctl status named" "BIND9 Status"
 }
 
 # Function to display OpenPanel settings
@@ -80,16 +79,17 @@ display_openpanel_settings() {
 # admin in 0.2.3
 display_openadmin_settings() {
   echo "=== OpenAdmin Service ===" >> "$output_file"
+  run_command "cat /etc/openpanel/openadmin/config/admin.ini" "OpenAdmin Configuration file"
   run_command "python3 -m pip list" "Installed PIP packages"
   run_command "service admin status" "Admin service status"
-  run_command "tail -100 /var/log/openpanel/admin/error.log" "OpenAdmin error log"
+  run_command "tail -30 /var/log/openpanel/admin/error.log" "OpenAdmin error log"
 }
 
 
 # Function to display MySQL information
 display_mysql_information() {
   echo "=== MySQL Information ===" >> "$output_file"
-  run_command "docker logs --tail 100 openpanel_mysql" "openpanel_mysql docker container logs"
+  run_command "docker logs --tail 30 openpanel_mysql" "openpanel_mysql docker container logs"
   run_command "cat /etc/openpanel/mysql/db.cnf" "MySQL login information for OpenCLI scripts"
 }
 
@@ -156,6 +156,20 @@ display_mysql_information
 
 # Check the status of services
 check_services_status
+
+# Check users
+for dir in /home/*; do
+    file="$dir/docker-compose.yml"
+    user=$(basename "$dir")
+    if [[ -f "$file" ]]; then
+      echo "Services for context: $user"
+      docker --context=$user compose -f  $dir/docker-compose.yml --services
+    else
+      echo "No services."
+    fi
+done
+
+
 
 if [ "$upload_flag" = true ]; then
   response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
