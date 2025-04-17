@@ -289,7 +289,6 @@ done
 
 (
 flock -n 200 || { echo "Error: Another instance of the report script is already running. Exiting."; exit 1; }
-# shellcheck disable=SC2068
 parse_args "$@"
 main
 )200>/root/openpanel_install.lock
