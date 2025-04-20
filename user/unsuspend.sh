@@ -121,12 +121,16 @@ unsuspend_user_websites() {
 
 start_docker_container() {
     if [ "$DEBUG" = true ]; then
-        echo "Starting docker container"
-        docker $context_flag start "$username"
+        echo "Unpausing containers for user: $username"
+        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
+            echo "- Unpausing container: $container"
+            docker $context_flag unpause "$container"
+        done
     else
-        docker $context_flag start "$username" > /dev/null 2>&1
+        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
+            docker $context_flag unpause "$container" > /dev/null 2>&1
+        done
     fi
-
 }
 
 
