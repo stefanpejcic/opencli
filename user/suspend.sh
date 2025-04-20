@@ -131,12 +131,16 @@ echo "$domain_conf" > "$domain_vhost"
 
 stop_docker_container() {
     if [ "$DEBUG" = true ]; then
-        echo "Stopping docker container"
-        docker $context_flag stop "$username"
+        echo "Pausing containers for user: $username"
+        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
+            echo "- Pausing container: $container"
+            docker $context_flag pause "$container"
+        done
     else
-        docker $context_flag stop "$username" > /dev/null 2>&1
+        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
+            docker $context_flag pause "$container" > /dev/null 2>&1
+        done
     fi
-
 }
 
 
