@@ -35,9 +35,11 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  status                                        Check if CorazaWAF is enabled for new domains and users."
+    echo "  domain                                        Check if CorazaWAF is enabled for a domain."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
+    echo "  opencli waf domain pcx3.com"
     exit 1
 }
 
