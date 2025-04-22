@@ -36,10 +36,14 @@ usage() {
     echo "Commands:"
     echo "  status                                        Check if CorazaWAF is enabled for new domains and users."
     echo "  domain                                        Check if CorazaWAF is enabled for a domain."
+    echo "  domain DOMAIN_NAME enable                     Enable CorazaWAF for a domain."
+    echo "  domain DOMAIN_NAME disable                    Disable CorazaWAF for a domain."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
     echo "  opencli waf domain pcx3.com"
+    echo "  opencli waf domain pcx3.com enable"
+    echo "  opencli waf domain pcx3.com disable"
     exit 1
 }
 
@@ -54,7 +58,6 @@ check_domain() {
         exit 1
     fi
 
-    
     if grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+On' "$file"; then
         echo "SecRuleEngine is set to On for domain $domain"
     elif grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+Off' "$file"; then
@@ -75,18 +78,77 @@ check_coraza_status() {
   fi
 }
 
+reload_caddy_now() {
+    docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
+}
 
+enable_coraza_waf_for_domain() {
+    local domain="$1"
+    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "Domain not found!"
+        exit 1
+    fi
 
+    sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$file"
+    
+    if [[ $? -eq 0 ]]; then
+        echo "SecRuleEngine On is now set for domain $domain"
+        reload_caddy_now
+    else
+        echo "Failed setting SecRuleEngine On - please contact Administrator."
+        exit 1
+    fi
+}
 
+disable_coraza_waf_for_domain() {
+    local domain="$1"
+    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "Domain not found!"
+        exit 1
+    fi
 
-# MAIN
+    sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' "$file"
+    
+    if [[ $? -eq 0 ]]; then
+        echo "SecRuleEngine Off is now set for domain $domain"
+        reload_caddy_now
+    else
+        echo "Failed setting SecRuleEngine Off - please contact Administrator."
+        exit 1
+    fi
+}
+
 # MAIN
 case "$1" in
     "status")
         check_coraza_status
         ;;
     "domain")
-        check_domain $2
+        if [[ -z "$2" ]]; then
+            echo "Domain name is required."
+            usage
+            exit 1
+        fi
+        case "$3" in
+            "enable")
+                enable_coraza_waf_for_domain "$2"
+                ;;
+            "disable")
+                disable_coraza_waf_for_domain "$2"
+                ;;
+            "")
+                check_domain "$2"
+                ;;
+            *)
+                echo "Invalid action for domain: $3"
+                usage
+                exit 1
+                ;;
+        esac
         ;;
     "enable")
         enable_coraza_waf
