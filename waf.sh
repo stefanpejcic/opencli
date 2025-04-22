@@ -38,7 +38,7 @@ usage() {
     echo "  domain                                              Check if CorazaWAF is enabled for a domain."
     echo "  domain DOMAIN_NAME enable                           Enable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
-    echo "  domain stats <contry|agent|hourly|ip|request|paths> Display top requests by countr, ip, path, etc."
+    echo "  domain stats <country|agent|hourly|ip|request|paths> Display top requests by countr, ip, path, etc."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
@@ -132,7 +132,7 @@ get_stats_from_file() {
     
     if [ -f "$log_file" ]; then
         case "$mode" in
-            contry)
+            country)
                 grep -i 'cf-ipcountry:' "$log_file" | cut -d':' -f2 | tr -d ' ' | sort | uniq -c | sort -nr
                 ;;
             agent)
