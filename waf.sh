@@ -42,8 +42,28 @@ usage() {
 }
 
 
+
+check_domain() {
+    local domain="$1"
+    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "Domain not found!"
+        exit 1
+    fi
+
+    
+    if grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+On' "$file"; then
+        echo "SecRuleEngine is set to On for domain $domain"
+    elif grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+Off' "$file"; then
+        echo "SecRuleEngine is set to Off for domain $domain"
+    else
+        echo "SecRuleEngine is not set for domain $domain"
+    fi
+}
+
 check_coraza_status() {
-  local env_file="/root/.env"
+  local env_file="/hostfs/root/.env"
   local custom_image='CADDY_IMAGE="openpanel/caddy-coraza"'
   
   if grep -q "^$custom_image" "$env_file"; then
@@ -62,6 +82,9 @@ check_coraza_status() {
 case "$1" in
     "status")
         check_coraza_status
+        ;;
+    "domain")
+        check_domain $2
         ;;
     "enable")
         enable_coraza_waf
