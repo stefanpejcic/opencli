@@ -34,16 +34,19 @@ usage() {
     echo "Usage: opencli waf <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  status                                        Check if CorazaWAF is enabled for new domains and users."
-    echo "  domain                                        Check if CorazaWAF is enabled for a domain."
-    echo "  domain DOMAIN_NAME enable                     Enable CorazaWAF for a domain."
-    echo "  domain DOMAIN_NAME disable                    Disable CorazaWAF for a domain."
+    echo "  status                                              Check if CorazaWAF is enabled for new domains and users."
+    echo "  domain                                              Check if CorazaWAF is enabled for a domain."
+    echo "  domain DOMAIN_NAME enable                           Enable CorazaWAF for a domain."
+    echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
+    echo "  domain stats <contry|agent|hourly|ip|request|paths> Display top requests by countr, ip, path, etc."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
     echo "  opencli waf domain pcx3.com"
     echo "  opencli waf domain pcx3.com enable"
     echo "  opencli waf domain pcx3.com disable"
+    echo "  opencli waf stats ip"
+    echo "  opencli waf stats hourly"
     exit 1
 }
 
@@ -122,6 +125,53 @@ disable_coraza_waf_for_domain() {
     fi
 }
 
+
+get_stats_from_file() {
+    local log_file="/var/log/caddy/coraza_audit.log"
+    local mode="$1"
+    
+    if [ -f "$log_file" ]; then
+        case "$mode" in
+            contry)
+                grep -i 'cf-ipcountry:' "$log_file" | cut -d':' -f2 | tr -d ' ' | sort | uniq -c | sort -nr
+                ;;
+            agent)
+                grep -i 'user-agent:' "$log_file" | cut -d':' -f2- | sort | uniq -c | sort -nr | head
+                ;;
+            hourly)
+                grep -oP '\[\K[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}' "$log_file" | sort | uniq -c
+                ;;
+            ip)
+                grep -oP '\[.*\] \S+ \K[\d.]+' "$log_file" | sort | uniq -c | sort -nr | head
+                ;;
+            request)
+                grep -oP '^(GET|POST|HEAD|PUT|DELETE|OPTIONS) .+' "$log_file" | sort | uniq -c | sort -nr | head
+                ;;
+            paths)
+                grep -oP 'GET\s+\K\S+' "$log_file" | sort | uniq -c | sort -nr | head
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    fi
+}
+
+
+
+
+
+
+get_count_from_file() {
+    local log_file="/var/log/caddy/coraza_audit.log"
+    if [ -f "$log_file" ]; then
+        local record_count=$(grep -cE '^--.*-B--$' "$log_file")
+        echo "$record_count"
+    fi
+}
+
+
+
 # MAIN
 case "$1" in
     "status")
@@ -155,6 +205,12 @@ case "$1" in
         ;;
     "disable")
         disable_coraza_waf
+        ;;
+    "stats")
+        get_stats_from_file $2
+        ;;
+    "count")
+        get_count_from_file
         ;;
     "help")
         usage
