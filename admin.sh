@@ -5,7 +5,7 @@
 # Usage: opencli admin <setting_name> 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 23.02.2025
+# Last Modified: 23.05.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -419,10 +419,17 @@ update_config() {
 validate_password_and_username() {
     local input="$1"
     local field_name="$2"
+
+    # https://github.com/stefanpejcic/OpenPanel/issues/442
+    if [[ "$input" =~ ^\$\$ ]]; then
+        echo "ERROR: $field_name cannot start with '\$\$' as it may cause unintended behavior."
+	echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openadmin"
+        exit 1
+    fi
+
     
     # Check if input contains only letters and numbers
     if [[ "$input" =~ ^[a-zA-Z0-9_]{5,30}$ ]]; then
-        #echo "$field_name is valid."
         :
     else
         echo "ERROR: $field_name is invalid. It must contain only letters and numbers, and be between 5 and 30 characters."
