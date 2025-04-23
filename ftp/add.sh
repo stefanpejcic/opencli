@@ -89,8 +89,8 @@ create_user() {
 	      GROUP_OPT="-G $GROUP"
 	    elif [ ! -z "$GID" ]; then
        	      
-	      addgroup -g $GID $OPENPANEL_USER
-	      GROUP_OPT="-G $OPENPANEL_USER"
+	      addgroup -g $GID $openpanel_username
+	      GROUP_OPT="-G $openpanel_username"
 	      # https://serverfault.com/a/435430/1254613
 	      chmod +rx /home/$openpanel_username
 	      chmod +rx /home/$openpanel_username/docker-data
