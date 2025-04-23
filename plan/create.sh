@@ -156,17 +156,16 @@ fi
 
 
 validate_fields_first() {
-    local plan_id="$1"
-    local ftp_limit="$2"
-    local emails_limit="$3"
-    local domains_limit="$4"
-    local websites_limit="$5"
-    local disk_limit="$6"
-    local inodes_limit="$7"
-    local db_limit="${8}"
-    local cpu="${9}"
-    local ram="${10}"
-    local bandwidth="${11}"
+    local ftp_limit="$1"
+    local emails_limit="$2"
+    local domains_limit="$3"
+    local websites_limit="$4"
+    local disk_limit="$5"
+    local inodes_limit="$6"
+    local db_limit="${7}"
+    local cpu="$8"
+    local ram="$9"
+    local bandwidth="${10}"
 
     is_integer() {
         [[ "$1" =~ ^-?[0-9]+$ ]]
@@ -178,7 +177,7 @@ validate_fields_first() {
     }
     
     # Validate all numeric inputs
-    for var_name in plan_id ftp_limit emails_limit domains_limit websites_limit disk_limit inodes_limit db_limit bandwidth; do
+    for var_name in ftp_limit emails_limit domains_limit websites_limit disk_limit inodes_limit db_limit bandwidth; do
         value="${!var_name}"
         if ! is_integer "$value"; then
             echo "Error: $var_name must be a number (integer only)"
