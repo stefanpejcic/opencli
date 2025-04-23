@@ -92,11 +92,11 @@ create_user() {
 	      addgroup -g $GID $OPENPANEL_USER
 	      GROUP_OPT="-G $OPENPANEL_USER"
 	      # https://serverfault.com/a/435430/1254613
-	      chmod +rx /home/$OPENPANEL_USER
-	      chmod +rx /home/$OPENPANEL_USER/docker-data
-	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes
-	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes/${OPENPANEL_USER}_html_data
-	      chmod +rx /home/$OPENPANEL_USER/docker-data/volumes/${OPENPANEL_USER}_html_data/_data     
+	      chmod +rx /home/$openpanel_username
+	      chmod +rx /home/$openpanel_username/docker-data
+	      chmod +rx /home/$openpanel_username/docker-data/volumes
+	      chmod +rx /home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data
+	      chmod +rx /home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data     
 	    fi
  
     docker exec openadmin_ftp sh -c "echo -e '${password}\n${password}' | adduser -h ${new_directory} -s /sbin/nologin ${GROUP_OPT} ${username} > /dev/null 2>&1"
