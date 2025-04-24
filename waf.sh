@@ -160,7 +160,7 @@ get_stats_from_file() {
 }
 
 list_all_tags() {
-    grep -oP "tag:\s*['\"]\K[^'\"]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | sort -u
+    grep -oP "tag:\s*['\"]\K[^'\"]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | grep -v "OWASP_CRS" | sort -u
 }
 
 
