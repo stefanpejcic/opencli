@@ -181,6 +181,7 @@ delete_domain_file() {
 	mkdir -p /etc/openpanel/openpanel/core/users/$user/
 	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf" 
  	rm -rf $domains_file
+  
 	if [ $(docker ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
 	    ###############3check_and_add_to_enabled
@@ -188,6 +189,7 @@ delete_domain_file() {
 	 #stats and logs
  	rm -rf /var/log/caddy/domlogs/$domain_name/
   	rm -rf /var/log/caddy/stats/$user/$domain_name.html
+   	rm -rf /var/log/caddy/coraza_waf/${domain_name}.log > /dev/null 2>&1
 }
 
 
