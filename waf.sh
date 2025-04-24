@@ -5,7 +5,7 @@
 # Usage: opencli waf <setting> 
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 22.05.2025
+# Last Modified: 24.05.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -38,7 +38,9 @@ usage() {
     echo "  domain                                              Check if CorazaWAF is enabled for a domain."
     echo "  domain DOMAIN_NAME enable                           Enable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
-    echo "  domain stats <country|agent|hourly|ip|request|path> Display top requests by countr, ip, path, etc."
+    echo "  tags                                                Display all tags from enabled sets."
+    echo "  ids                                                 Display all rule IDs from enabled sets."
+    echo "  stats <country|agent|hourly|ip|request|path> Display top requests by countr, ip, path, etc."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
@@ -157,9 +159,14 @@ get_stats_from_file() {
     fi
 }
 
+list_all_tags() {
+    grep -oP "tag:\s*['\"]\K[^'\"]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | sort -u
+}
 
 
-
+list_all_ids() {
+    grep -oP "id:\K[0-9]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | sort -u
+}
 
 
 get_count_from_file() {
@@ -211,6 +218,12 @@ case "$1" in
         ;;
     "count")
         get_count_from_file
+        ;;
+    "tags")
+        list_all_tags
+        ;;
+    "ids")
+        list_all_ids
         ;;
     "help")
         usage
