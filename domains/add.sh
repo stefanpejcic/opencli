@@ -417,8 +417,9 @@ vhost_files_create() {
 
 create_domain_file() {
 	local logs_dir="/var/log/caddy/domlogs/${domain_name}"
+ 	local waf_dir="/var/log/caddy/coraza_waf"
 	mkdir -p $logs_dir && touch $logs_dir/access.log
-
+	mkdir -p $waf_dir && touch $waf_dir/${domain_name}.log
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
  
 	local env_file="/home/${context}/.env"
