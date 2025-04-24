@@ -86,11 +86,11 @@ create_user() {
 	GID=$(grep $openpanel_username /hostfs/etc/group | cut -d: -f3)
 	GROUP=$(docker exec openadmin_ftp sh -c  "getent group $GID | cut -d: -f1")
 	     if [ ! -z "$GROUP" ]; then
-	      GROUP_OPT="-G $GROUP"
+	      GROUP_OPT="-g $GROUP"
 	    elif [ ! -z "$GID" ]; then
        	      
 	      addgroup -g $GID $openpanel_username
-	      GROUP_OPT="-G $openpanel_username"
+	      GROUP_OPT="-g $openpanel_username"
 	      # https://serverfault.com/a/435430/1254613
 	      chmod +rx /home/$openpanel_username
 	      chmod +rx /home/$openpanel_username/docker-data
