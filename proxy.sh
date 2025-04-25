@@ -86,9 +86,8 @@ update_path() {
 
 if [ -z "$1" ]; then
     get_current_path
-
 elif [[ "$1" == 'set' && -n "$2" ]]; then
-    if [[ "$2" =~ ^(/?[a-zA-Z]+)$ ]]; then
+    if [[ "$2" =~ ^(/?[a-zA-Z0-9_-]+)$ ]]; then
         new_path="${2#/}"
         update_path $new_path
     else
