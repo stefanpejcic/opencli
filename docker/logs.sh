@@ -3,7 +3,7 @@
 # Script Name: logs.sh
 # Description: Display log sizes for user and ssytem containers
 # Usage: opencli docker-logs [--all|system|<USERNAME>]
-# Author: Petar Curic, Stefan Pejcic
+# Author: Stefan Pejcic
 # Created: 28.05.2025
 # Last Modified: 28.05.2025
 # Company: openpanel.com
