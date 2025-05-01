@@ -877,7 +877,6 @@ docker_compose() {
 		mkdir -p /home/$username/.docker/cli-plugins
 		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
 		chmod +x /home/$username/.docker/cli-plugins/docker-compose
-		docker compose version
 		'"
 	else	
  		architecture=$(lscpu | grep Architecture | awk '{print $2}')
