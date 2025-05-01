@@ -1532,7 +1532,7 @@ create_context() {
 
 
     # Check if Docker Compose is working
-    if ! docker --context "$username" compose version; then
+    if ! docker --context "$username" compose version >/dev/null 2>&1; then
         echo "[✘] Error: Docker Compose is not working in this context. User creation failed."
 	hard_cleanup # remove data!
         exit 1
