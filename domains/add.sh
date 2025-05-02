@@ -263,7 +263,10 @@ clear_cache_for_user() {
 
 make_folder() {
 	log "Creating document root directory $docroot"
-        docker --context $context compose -f /home/$context/docker-compose.yml run --rm -v ${context}_html_data:/var/www/html/ busybox sh -c "mkdir -p $docroot && chown 0:33 $docroot && chmod -R g+w $docroot"
+ 	local stripped_docroot="${docroot#/var/www/html/}"
+	local full_path = "/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
+	mkdir -p $full_path && \
+ 	chown $context:$context $full_path && chmod -R g+w $full_path
 }
 
 
@@ -314,8 +317,6 @@ get_webserver_for_user(){
 	        ws="openresty"
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache"
-	    elif [[ $output == *litespeed* ]]; then
-	        ws="litespeed"
 	    else
 	        ws="unknown"
 	    fi
@@ -366,22 +367,6 @@ vhost_files_create() {
 	elif [[ $ws == *openresty* ]]; then
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openresty_domain.conf"
 		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-	elif [[ $ws == *litespeed* ]]; then
-		vhost_docker_template="/etc/openpanel/docker/templates/docker_litespeed_domain.conf"
- 		vhost_in_docker_file="/usr/local/lsws/conf/vhosts/${domain_name}.conf"
-
-
-        docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox echo 'virtualHost $domain_name{
-    vhRoot                   ${docroot}/
-    allowSymbolLink          1
-    enableScript             1
-    restrained               1
-    maxKeepAliveReq
-    smartKeepAlive
-    setUIDMode               0
-    chrootMode               0
-    configFile               conf/vhosts/${domain_name}.conf
-}' >> /usr/local/lsws/conf/httpd_config.conf
 	fi
 
 	
@@ -709,11 +694,6 @@ dns_stuff() {
 }
 
 
-litespeed_extra() {
- 	docker --context $context compose -f /home/$context/docker-compose.yml run --rm busybox sh -c "chown $nobody:33 $docroot"
-}
-
-
 get_php_version() {
 	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
 }
@@ -741,7 +721,6 @@ add_domain() {
 	dns_stuff
 	start_default_php_fpm_service                # start phpX.Y-fpm service
 	create_mail_mountpoint                       # add mountpoint to mailserver
- 	#litespeed_extra # TODO!
     
  	######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
