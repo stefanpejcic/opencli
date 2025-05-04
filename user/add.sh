@@ -821,7 +821,8 @@ create_local_user() {
   		exit 1
 	fi
  
- 	echo "$username:$password" | chpasswd
+ 	# https://github.com/stefanpejcic/OpenPanel/issues/367
+  	#echo "$username:$password" | chpasswd
 
 }
 
@@ -1434,20 +1435,7 @@ set_ssh_user_password_inside_container() {
     venv_path="/usr/local/admin/venv"
     hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
     
-      echo "root:$password" | docker $context_flag exec $username chpasswd"
-      
-	      # TODO FOR LS!
-              # log "Adding 'root' user to the 'nobody' group for OpenLiteSpeed.."
-	      # docker $context_flag exec $username usermod -aG nogroup root > /dev/null 2>&1
-	      # docker $context_flag exec $username usermod -aG root nobody > /dev/null 2>&1
-	      # docker $context_flag exec $username chown nobody:nogroup -R /usr/local/lsws/Example/
-       
-              log "Adding 'root' user to the 'www-data' group.."
-	       docker $context_flag exec $username usermod -aG www-data root > /dev/null 2>&1
-	       docker $context_flag exec $username usermod -aG root www-data > /dev/null 2>&1
-
-      docker $context_flag exec $username chmod -R g+w /var/www/html/" > /dev/null 2>&1
-      
+            
       if [ "$DEBUG" = true ]; then
         echo "SSH password set to: $password"
       fi
