@@ -233,22 +233,27 @@ delete_mail_mountpoint(){
         DOMAIN_DIR="/home/$user/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         mount_path="/var/mail/$domain_name/"
-        volume_entry="$DOMAIN_DIR:$mount_path"
+        volume_to_remove="$DOMAIN_DIR:$mount_path"
 
         if [ -f "$COMPOSE_FILE" ]; then
-            log "Removing $volume_entry from mail server volumes"
+            log "Attempting to remove $volume_to_remove from mail server volumes"
 
-            if yq e ".services.mailserver.volumes[]" "$COMPOSE_FILE" | grep -qF "$volume_entry"; then
-                yq e -i 'del(.services.mailserver.volumes[] | select(. == "'"$volume_entry"'"))' "$COMPOSE_FILE"
-                log "Volume removed."
-            else
-                log "Volume not found. Nothing to remove."
-            fi
+            # Escape slashes for sed
+            escaped_volume=$(printf '%s\n' "  - $volume_to_remove" | sed 's/[\/&]/\\&/g')
 
+            # Remove the exact volume line if it exists in the mailserver service block
+            sed -i "/^  mailserver:/,/^[^[:space:]]/ {
+                /^    volumes:/,/^[^[:space:]]/ {
+                    /^\s*- $escaped_volume/d
+                }
+            }" "$COMPOSE_FILE"
+
+            log "Restarting mailserver to apply changes"
             (cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver) > /dev/null 2>&1 & disown
         fi
     fi
 }
+
 
 
 delete_websites() {
