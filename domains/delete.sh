@@ -227,17 +227,25 @@ delete_zone_file() {
 # add mountpoint and reload mailserver
 # todo: need better solution!
 delete_mail_mountpoint(){
-    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
-    
-    # Check if 'enterprise edition'
+    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
+
     if [ -n "$key_value" ]; then
         DOMAIN_DIR="/home/$user/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
+        mount_path="/var/mail/$domain_name/"
+        volume_entry="$DOMAIN_DIR:$mount_path"
+
         if [ -f "$COMPOSE_FILE" ]; then
-            log "Removing directory $DOMAIN_DIR from mail server volumes"
-            volume_to_remove="  - $DOMAIN_DIR:/var/mail/$domain_name/"
-            sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/,/\$/ { /$volume_to_remove/d }}" "$COMPOSE_FILE"
-            cd /usr/local/mail/openmail/ && docker --context default compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown
+            log "Removing $volume_entry from mail server volumes"
+
+            if yq e ".services.mailserver.volumes[]" "$COMPOSE_FILE" | grep -qF "$volume_entry"; then
+                yq e -i 'del(.services.mailserver.volumes[] | select(. == "'"$volume_entry"'"))' "$COMPOSE_FILE"
+                log "Volume removed."
+            else
+                log "Volume not found. Nothing to remove."
+            fi
+
+            (cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver) > /dev/null 2>&1 & disown
         fi
     fi
 }
