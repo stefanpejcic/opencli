@@ -87,7 +87,6 @@ if [ -n "$user_id" ]; then
         mount_flag="-v /hostfs/run/user/$user_id/docker.sock:/var/run/docker.sock:ro"
     else
         mount_flag=""
-        continue
     fi
 else
     mount_flag="-v /var/run/docker.sock:/var/run/docker.sock:ro"
