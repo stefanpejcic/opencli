@@ -55,7 +55,7 @@ run_for_all_users() {
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-contexts=$(docker context ls --format '{{.Name}}')
+contexts=$(docker context ls --format '{{.Name}}' | grep -v '^default$')
 
 for ctx in $contexts; do
   # Check if the skip_cup.flag file exists for this context
