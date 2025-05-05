@@ -50,11 +50,6 @@ usage() {
 
 run_for_all_users() {
 
-#!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status.
-set -e
-
 contexts=$(docker context ls --format '{{.Name}}' | grep -v '^default$')
 
 for ctx in $contexts; do
