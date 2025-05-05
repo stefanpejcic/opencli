@@ -236,7 +236,7 @@ delete_mail_mountpoint(){
         volume_to_remove="$DOMAIN_DIR:$mount_path"
 
         if [ -f "$COMPOSE_FILE" ]; then
-            log "Attempting to remove $volume_to_remove from mail server volumes"
+            log "Removign volume: $volume_to_remove from mailserver"
 
             # Escape slashes for sed
             escaped_volume=$(printf '%s\n' "  - $volume_to_remove" | sed 's/[\/&]/\\&/g')
@@ -248,7 +248,7 @@ delete_mail_mountpoint(){
                 }
             }" "$COMPOSE_FILE"
 
-            log "Restarting mailserver to apply changes"
+            log "Reloading mailserver to apply changes"
             (cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver) > /dev/null 2>&1 & disown
         fi
     fi
