@@ -264,7 +264,7 @@ clear_cache_for_user() {
 make_folder() {
 	log "Creating document root directory $docroot"
  	local stripped_docroot="${docroot#/var/www/html/}"
-	local full_path = "/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
+	local full_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
 	mkdir -p $full_path && \
  	chown $context:$context $full_path && chmod -R g+w $full_path
 }
