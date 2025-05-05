@@ -101,7 +101,7 @@ if [ -z "$mount_flag" ] && [ "$ctx" == "default" ]; then
   fi
 
   # Define the output directory
-  output_dir="/home/$ctx/docker-data/cup"
+  output_dir="/hostfs/home/$ctx/docker-data/cup"
   
   # Check if the directory is writable
   if ! mkdir -p "$output_dir" || ! [ -w "$output_dir" ]; then
