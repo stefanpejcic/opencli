@@ -654,28 +654,33 @@ EOF
 # add mountpoint and reload mailserver
 # todo: need better solution!
 create_mail_mountpoint(){
-    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
-    
+    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
+
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
-	# do for enterprise!
- 	DOMAIN_DIR="/home/$context/mail/$domain_name/"
+        DOMAIN_DIR="/home/$context/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
-	    log "Creating directory $DOMAIN_DIR for emails"
-     	    mkdir -p $DOMAIN_DIR
-	    log "Adding mountpoint to the mail-server in background"
+            log "Creating directory $DOMAIN_DIR for emails"
+            mkdir -p "$DOMAIN_DIR"
+            log "Adding mountpoint to the mail-server in background"
             volume_to_add="  - $DOMAIN_DIR:/var/mail/$domain_name/"
-	    
-sed -i "/^  mailserver:/,/^  sogo:/ { /^    volumes:/a\\
-    $volume_to_add
-}" "$COMPOSE_FILE"
 
-	     #cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver > /dev/null 2>&1 & disown  
-             nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver " </dev/null >nohup.out 2>nohup.err &
-	fi
+            # Check if the volume is already in the compose file
+            if ! grep -qF "$volume_to_add" "$COMPOSE_FILE"; then
+                sed -i "/^  mailserver:/,/^  sogo:/ {
+                    /^    volumes:/a\\
+$volume_to_add
+                }" "$COMPOSE_FILE"
+            else
+                log "Mountpoint already exists. Skipping addition."
+            fi
+
+            nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
+        fi
     fi
 }
+
 
 
 
