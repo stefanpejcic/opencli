@@ -146,7 +146,7 @@ if [ -z "$context" ]; then
     exit 1
 fi
     
-    
+    : '
     if [ "$DEBUG" = true ]; then
         # Change the user password in the Docker container
         echo "root:$new_password" | docker --context $context exec $context -i root chpasswd
@@ -159,5 +159,6 @@ fi
         # Change the user password in the Docker container
         echo "root:$new_password" | docker --context $context exec $context -i root chpasswd
     fi
+    '
     
 fi
