@@ -114,6 +114,9 @@ if [ -z "$mount_flag" ] && [ "$ctx" == "default" ]; then
   # Run the Docker container
   if docker --context=$ctx run --rm $mount_flag ghcr.io/sergi0g/cup check -r > "$output_file"; then
     echo "Output for context $ctx saved to $output_file"
+    echo ""
+    cat $output_file
+    echo  ""
   else
     echo "Error running Cup for context $ctx"
     continue
