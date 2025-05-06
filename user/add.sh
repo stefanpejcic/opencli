@@ -909,12 +909,8 @@ docker_rootless() {
 log "Configuring Docker in Rootless mode"
 
 mkdir -p /home/$username/docker-data /home/$username/.config/docker > /dev/null 2>&1
-		
-echo "{
-	\"data-root\": \"/home/$username/docker-data\",
-         \"no-new-privileges\": true
-}" > /home/$username/.config/docker/daemon.json
-		
+cp /etc/openpanel/docker/daemon/rootless.json /home/$username/.config/docker/daemon.json
+sed -i "s/USERNAME/$username/g" /home/$username/.config/docker/daemon.json
 		
 mkdir -p /home/$username/bin > /dev/null 2>&1
 chmod 755 -R /home/$username/ >/dev/null 2>&1
