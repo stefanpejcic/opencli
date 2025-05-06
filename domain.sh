@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domain.sh
 # Description: View and set domain/ip for accessing panels.
-# Usage: opencli domain [set <domain_name | ip] 
+# Usage: opencli domain [set <domain_name | ip]  [--debug]
 # Author: Stefan Pejcic
 # Created: 09.02.2025
 # Last Modified: 23.02.2025
@@ -30,6 +30,7 @@
 
 CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 DOMAINS_DIR="/etc/openpanel/caddy/domains/"
+DEBUG=false  # Default to false
 
 get_server_ipv4(){
 	# list of ip servers for checks
@@ -70,12 +71,19 @@ get_server_ipv4(){
 
 do_reload() {
    if [[ "$3" != '--no-restart' ]]; then
+   	if [ "$DEBUG" = true ]; then
+    		echo "Restarting both OpenPanel and Caddy containers to use new domain.."
+	fi
        cd /root
        # restart only user panel!
        docker --context default compose restart openpanel > /dev/null 2>&1
 
 	# start caddy if not running!
        docker --context default compose down caddy > /dev/null 2>&1 && docker --context default compose up -d caddy  > /dev/null 2>&1
+   else
+   	if [ "$DEBUG" = true ]; then
+    		echo "Skip restarting OpenPanel and Caddy containers due to '--no-restart' flag."
+	fi   
    fi
 }
 
@@ -114,12 +122,53 @@ update_domain() {
             
             if [[ $new_hostname == 'example.net' ]]; then
                 new_hostname="http://$server_ip"
+	   	if [ "$DEBUG" = true ]; then
+	    		echo "Editing redirect for /openpanel on every website to the IP address.."
+		fi   
             else
                 new_hostname="https://$new_hostname"
+	   	if [ "$DEBUG" = true ]; then
+	    		echo "Editing redirect for /openpanel on every website to the custom domain.."
+		fi   
             fi
 
 		sed -i -E 's|(redir @openpanel )https?://[^:]+:|\1'$new_hostname':|; s|(redir @openadmin )https?://[^:]+:|\1'$new_hostname':|' /etc/openpanel/caddy/redirects.conf
 
+	}
+
+ 	mailserver() {
+  		local env_file="/usr/local/mail/openmail/mailserver.env"
+    		if [ -f "$env_file" ]; then
+
+      			if [[ $new_hostname == 'example.net' ]]; then
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Editing mailserver configuration to use plain-text authentication and IP address.."
+		        fi
+			    sed -i '/^SSL_TYPE=/c\SSL_TYPE=' "$env_file"
+			    sed -i '/^SSL_CERT_PATH=/d' "$env_file"
+			    sed -i '/^SSL_KEY_PATH=/d' "$env_file"
+	            else
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Editing mailserver configuration to use TLS/SSL authentication with the new domain.."
+		        fi
+			    sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$env_file"
+			
+			    cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
+			    key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
+			
+			    grep -q '^SSL_CERT_PATH=' "$env_file" && \
+			        sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$env_file" || \
+			        echo "SSL_CERT_PATH=$cert_path" >> "$env_file"
+			
+			    grep -q '^SSL_KEY_PATH=' "$env_file" && \
+			        sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$env_file" || \
+			        echo "SSL_KEY_PATH=$key_path" >> "$env_file"
+	            fi
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Restarting mailserver to apply new domain.."
+		        fi
+   			nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default restart openadmin_mailserver" </dev/null >nohup.out 2>nohup.err &
+	     fi
 	}
 
 
@@ -137,6 +186,7 @@ update_domain() {
      
       update_caddyfile
       create_mv_file
+      mailserver
       update_redirects
       do_reload
       success_msg
@@ -145,16 +195,22 @@ update_domain() {
 
 
 
-
-
 usage() {
-
-echo "Usage:"
-echo ""
-echo "opencli domain                        - displays current url  "
-echo "opencli domain set example.net        - set domain name for access"
-echo "opencli domain ip                     - set IP for access"
+	echo "Usage:"
+	echo ""
+	echo "opencli domain                        - displays current url  "
+	echo "opencli domain set example.net        - set domain name for access"
+	echo "opencli domain ip                     - set IP for access"
 }
+
+
+# Check if --debug flag is provided
+for arg in "$@"; do
+    if [ "$arg" == "--debug" ]; then
+        DEBUG=true
+        echo "'--debug' flag provided: displaying verbose information."
+    fi
+done
 
 
 if [ -z "$1" ]; then
@@ -162,6 +218,9 @@ if [ -z "$1" ]; then
 elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
         new_hostname=$2
+	if [ "$DEBUG" = true ]; then
+		echo "Domain new_hostname is valid, starting.."
+   	fi
         update_domain $new_hostname
     else
         echo "Invalid domain format. Please provide a valid domain."
@@ -169,6 +228,9 @@ elif [[ "$1" == 'set' && -n "$2" ]]; then
     fi       
 elif [[ "$1" == 'ip' ]]; then
         new_hostname="example.net"
+	if [ "$DEBUG" = true ]; then
+		echo "Setting IP address for accessing panels, starting.."
+   	fi
         update_domain $new_hostname
 else
     usage
