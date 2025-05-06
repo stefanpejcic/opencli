@@ -172,6 +172,38 @@ update_domain() {
 	}
 
 
+
+	roundcube() {
+  		local compose_file="/usr/local/mail/openmail/compose.yml"
+    		if [ -f "$compose_file" ]; then
+
+      			if [[ $new_hostname == 'example.net' ]]; then
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Editing roundcube configuration to use plain-text authentication to connect to mailserver.."
+		        fi
+				sed -i 's|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=openadmin_mailserver|' $compose_file
+				sed -i 's|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|' $compose_file
+				sed -i 's|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=openadmin_mailserver|' $compose_file
+				sed -i 's|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|' $compose_file
+
+	            else
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Editing mailserver configuration to use TLS/SSL authentication with the new domain.."
+		        fi
+				sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" $compose_file
+				sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" $compose_file
+				sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" $compose_file
+				sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" $compose_file
+	            fi
+	      		if [ "$DEBUG" = true ]; then
+			      echo "Restarting roundcube to apply new domain.."
+		        fi
+   			nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default restart roundcube" </dev/null >nohup.out 2>nohup.err &
+	     fi
+	}
+
+
+
 	success_msg() {
             if [[ $new_hostname == 'http://example.net' ]]; then
                 new_hostname="$server_ip"
@@ -187,6 +219,7 @@ update_domain() {
       update_caddyfile
       create_mv_file
       mailserver
+      roundcube
       update_redirects
       do_reload
       success_msg
