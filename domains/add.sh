@@ -264,7 +264,7 @@ clear_cache_for_user() {
 make_folder() {
 	log "Creating document root directory $docroot"
  	local stripped_docroot="${docroot#/var/www/html/}"
- 	local context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /etc/passwd)
+ 	local context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
 
 	if [ -z "$context_uid" ]; then
 	log "Warning: failed detecting user id, permissions issue!"
