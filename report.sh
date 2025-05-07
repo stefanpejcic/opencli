@@ -167,7 +167,7 @@ run_csf_rules() {
 # Function to check the status of services
 check_services_status() {
   echo "=== Services Status ===" >> "$output_file"
-  run_command "docker --context default compose ls" "Listing OpenPanel Stack"
+  run_command "docker --context=default compose ls" "Listing OpenPanel Stack"
   run_command "systemctl status admin" "Checking status of OpenAdmin service"
   run_command "systemctl status docker" "Checking status of Docker service"
   run_command "systemctl status csf" "Checking if CSF is running"
