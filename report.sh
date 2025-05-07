@@ -183,7 +183,7 @@ display_openpanel_settings() {
 display_openadmin_settings() {
   echo "=== OpenAdmin Service ===" >> "$output_file"
   run_command "cat /etc/openpanel/openadmin/config/admin.ini" "Listing OpenAdmin configuration file"
-  run_command "python3 -m pip list" "Listing PIP packages in OpenAdmin venv"
+  run_command "/usr/local/admin/venv/bin/python3 -m pip list" "Listing PIP packages in OpenAdmin venv"
   run_command "tail -30 /var/log/openpanel/admin/error.log" "Checking OpenAdmin log for errors"
 }
 
@@ -227,7 +227,7 @@ get_mysql_info() {
 }
 
 get_admin_info() {
-  run_command "python3 --version" "Checking Python version for OpenAdmin venv"
+  run_command "/usr/local/admin/venv/bin/python3 --version" "Checking Python version for OpenAdmin venv"
 }
 
 get_docker_info() {
