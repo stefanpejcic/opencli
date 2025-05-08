@@ -31,7 +31,7 @@
 
 # CHECK IMAGE AS A FALLBACK
 check_images() {
-    LOCAL_TAG=$(docker images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)            
+    LOCAL_TAG=$(docker --context=default images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)            
     if [ -n "$LOCAL_TAG" ]; then
         echo $LOCAL_TAG
     else
