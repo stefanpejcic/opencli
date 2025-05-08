@@ -107,7 +107,7 @@ hard_cleanup() {
   deluser --remove-home $username  > /dev/null 2>&1
   rm -rf /etc/openpanel/openpanel/core/stats/$username
   rm -rf /etc/openpanel/openpanel/core/users/$username
-  docker context rm $context  > /dev/null 2>&1
+  docker context rm $username  > /dev/null 2>&1
   quotacheck -avm >/dev/null 2>&1
   repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
   exit 1
