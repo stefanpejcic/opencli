@@ -1163,79 +1163,21 @@ run_docker() {
                   
         if [ -n "$node_ip_address" ]; then
             # TODO: Use a custom user or configure SSH instead of using root
-            ssh "root@$node_ip_address" 'if ! command -v lsof &> /dev/null; then
-                echo "lsof is not installed but needed for setting ports. Installing lsof..."
-        
-                # Detect the package manager and install lsof
-                if command -v apt-get &> /dev/null; then
-                    sudo apt-get update > /dev/null 2>&1
-                    sudo apt-get install -y lsof > /dev/null 2>&1
-                elif command -v yum &> /dev/null; then
-                    sudo yum install -y lsof > /dev/null 2>&1
-                elif command -v dnf &> /dev/null; then
-                    sudo dnf install -y lsof > /dev/null 2>&1
-                else
-                    echo "[✘] Error: No compatible package manager found. Please install lsof manually and try again."
-                    exit 1
-                fi
-        
-                # Check if installation was successful
-                if ! command -v lsof &> /dev/null; then
-                    echo "[✘] Error: lsof installation failed. Please install lsof manually and try again."
-                    exit 1
-                fi
-            fi'
-        else
-            if ! command -v lsof &> /dev/null; then
-                echo "lsof is not installed but needed for setting ports. Installing lsof..."
-        
-                # Detect the package manager and install lsof
-                if command -v apt-get &> /dev/null; then
-                    sudo apt-get update > /dev/null 2>&1
-                    sudo apt-get install -y lsof > /dev/null 2>&1
-                elif command -v yum &> /dev/null; then
-                    sudo yum install -y lsof > /dev/null 2>&1
-                elif command -v dnf &> /dev/null; then
-                    sudo dnf install -y lsof > /dev/null 2>&1
-                else
-                    echo "[✘] Error: No compatible package manager found. Please install lsof manually and try again."
-                    exit 1
-                fi
-        
-                # Check if installation was successful
-                if ! command -v lsof &> /dev/null; then
-                    echo "[✘] Error: lsof installation failed. Please install lsof manually and try again."
-                    exit 1
-                fi
-            fi
-        fi
-        
-        
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
             ssh "root@$node_ip_address" '
-              declare -a found_ports=()
-              for ((port=$min_port; port<=65535; port++)); do
-                  if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-                      found_ports+=("$port")
-                      if [ ${#found_ports[@]} -ge 7 ]; then
-                          break
-                      fi
-                  fi
-              done
-        
+		declare -a found_ports=()
+		for ((i=1; i<=7; i++)); do
+		    port=$((min_port + i))
+		    found_ports+=("$port")
+		done
+		        
               echo "${found_ports[@]}"
             '
         else
-            declare -a found_ports=()
-            for ((port=$min_port; port<=65535; port++)); do
-                if ! lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-                    found_ports+=("$port")
-                    if [ ${#found_ports[@]} -ge 7 ]; then
-                        break
-                    fi
-                fi
-            done
+		declare -a found_ports=()
+		for ((i=1; i<=7; i++)); do
+		    port=$((min_port + i))
+		    found_ports+=("$port")
+		done
             echo "${found_ports[@]}"
         fi
 
