@@ -50,7 +50,7 @@ version_check() {
             check_images
         fi
     else
-        echo '{"error": "Docker compose or .env files are missing."}' >&2
+        echo '{"error": "Docker image or .env files are missing."}' >&2
         exit 1
     fi
 }
