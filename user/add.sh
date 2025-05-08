@@ -869,14 +869,15 @@ create_user_set_quota_and_password() {
 
 
 docker_compose() {
-
+	local arm_link="https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-aarch64"
+ 	local x86_link="https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-x86_64"
    	if [ -n "$node_ip_address" ]; then
     		# TODO: CHECK ARMCPU!
 	    	log "Configuring Docker Compose for user $username on node $node_ip_address"
 		ssh $key_flag root@$node_ip_address "su - $username -c '
 		DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
 		mkdir -p /home/$username/.docker/cli-plugins
-		curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o /home/$username/.docker/cli-plugins/docker-compose
+		curl -sSL $x86_link -o /home/$username/.docker/cli-plugins/docker-compose
 		chmod +x /home/$username/.docker/cli-plugins/docker-compose
 		'"
 	else	
@@ -886,14 +887,14 @@ docker_compose() {
 			log "Setting compose for ARM CPU (/etc/openpanel/docker/docker-compose-linux-aarch64)"
 			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-aarch64"
 	      		if [ ! -f "$system_wide_compose_file" ]; then
-				curl -sSL https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-x86_64 -o $system_wide_compose_file
+				curl -sSL $arm_link -o $system_wide_compose_file
 			fi
   		else 
     			log "Setting compose for x86_64 CPU (/etc/openpanel/docker/docker-compose-linux-x86_64)"
 			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-x86_64"
 	   
 	      		if [ ! -f "$system_wide_compose_file" ]; then
-				curl -sSL https://github.com/docker/compose/releases/download/v2.32.1/docker-compose-linux-x86_64 -o $system_wide_compose_file
+				curl -sSL $x86_link -o $system_wide_compose_file
 			fi
      		fi
      		chmod +x $system_wide_compose_file
