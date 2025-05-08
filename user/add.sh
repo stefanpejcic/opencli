@@ -104,7 +104,7 @@ trap cleanup EXIT
 hard_cleanup() {
   # todo: remove user, files, container..
   killall -u $username -9  > /dev/null 2>&1
-  deluser --remove-home $username  > /dev/null 2>&1
+  deluser --remove-home $username  > /dev/null 2>&1   # command missing on alma!
   rm -rf /etc/openpanel/openpanel/core/stats/$username
   rm -rf /etc/openpanel/openpanel/core/users/$username
   docker context rm $username  > /dev/null 2>&1
@@ -1516,7 +1516,7 @@ create_context() {
 
 
     # Check if Docker Compose is working
-    if ! docker --context "$username" compose version >/dev/null 2>&1; then
+    if ! docker --context=$username compose version >/dev/null 2>&1; then
         echo "[✘] Error: Docker Compose is not working in this context. User creation failed."
 	hard_cleanup # remove data!
         exit 1
