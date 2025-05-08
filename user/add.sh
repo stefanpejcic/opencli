@@ -886,7 +886,7 @@ docker_compose() {
 			log "Setting compose for ARM CPU (/etc/openpanel/docker/docker-compose-linux-aarch64)"
 			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-aarch64"
 	      		if [ ! -f "$system_wide_compose_file" ]; then
-				curl -sSL https://github.com/linuxserver/docker-docker-compose/releases/download/1.28.5-ls32/docker-compose-armhf -o $system_wide_compose_file
+				curl -sSL https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-x86_64 -o $system_wide_compose_file
 			fi
   		else 
     			log "Setting compose for x86_64 CPU (/etc/openpanel/docker/docker-compose-linux-x86_64)"
@@ -1122,16 +1122,6 @@ EOF
     systemctl --user restart docker > /dev/null 2>&1
 " 2>/dev/null
 	fi
-}
-
-
-
-change_default_email_and_allow_email_network () {
-    # set default sender email address
-    log "Setting ${username}@${hostname} as the default email address to be used for outgoing emails in /etc/msmtprc"
-    
-    docker $context_flag exec "$username" bash -c "sed -i 's/^from\s\+.*/from       ${username}@${hostname}/' /etc/msmtprc"  >/dev/null 2>&1
-
 }
 
 
@@ -1418,43 +1408,6 @@ fi
 
 }
 
-set_ssh_user_password_inside_container() {
-    log "Setting ssh password for the root user inside the container"
-    
-    # Generate password if needed
-    if [ "$password" = "generate" ]; then
-        password=$(openssl rand -base64 12)
-        log "Generated password: $password" 
-    fi
-    
-    # Hash password
-    venv_path="/usr/local/admin/venv"
-    hashed_password=$("$venv_path/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
-    
-            
-      if [ "$DEBUG" = true ]; then
-        echo "SSH password set to: $password"
-      fi
-
-    
-}
-
-
-
-phpfpm_config() {
-
-        
-	# log "Creating user 'nobody' for OpenLiteSpeed inside the container.."
-	# docker $context_flag exec $username usermod -u $user_id nobody > /dev/null 2>&1
-		
-	log "Creating user 'www-data' inside the container.."
-	docker $context_flag exec $username usermod -u $user_id www-data > /dev/null 2>&1
-	docker $context_flag exec chown -R www-data:www-data /var/www/html/ > /dev/null 2>&1
-    
-    #log "Setting container services..."
-    
-}
-
 
 
 
@@ -1513,7 +1466,9 @@ create_context() {
 			  --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" \
 		   	  --description "$username"
    fi
+}
 
+test_compose_command_for_user() {
 
     # Check if Docker Compose is working
     if ! docker --context=$username compose version >/dev/null 2>&1; then
@@ -1616,12 +1571,10 @@ setup_ssh_key                                # set key for the user
 docker_rootless                              # install 
 docker_compose                               # magic happens here
 create_context                               # on master
+test_compose_command_for_user
 get_php_version                              # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
-###########set_ssh_user_password_inside_container       # create/rename ssh user and set password
-###########change_default_email_and_allow_email_network # added in 0.2.5 to allow users to send email, IF mailserver network exists
-############phpfpm_config                                # edit phpfpm username in container
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
