@@ -530,13 +530,11 @@ get_slave_dns_option() {
 	# Path to the named.conf.options file
 	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
 	
-# Extract the values of allow-transfer and allow-update until the first semicolon
-ALLOW_TRANSFER=$(grep -oP 'allow-transfer\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
-ALLOW_UPDATE=$(grep -oP 'also-notify\s+\{\s*\K[^\;]*' $BIND_CONFIG_FILE | tr -d '[:space:]')
-
-
-	# Check if both allow-transfer and allow-update are set to the same value
-	if [[ "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" && -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" ]]; then
+	ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+	ALLOW_UPDATE=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+	
+	# Check if both values are non-empty and equal
+	if [[ -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" && "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" ]]; then
 	    SLAVE_IP=$ALLOW_TRANSFER
      	    MASTER_IP=$current_ip
      	    notify_slave
