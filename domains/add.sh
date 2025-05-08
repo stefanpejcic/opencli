@@ -269,10 +269,16 @@ make_folder() {
 	if [ -z "$context_uid" ]; then
 	log "Warning: failed detecting user id, permissions issue!"
 	fi
-  
+ 
 	local full_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
 	mkdir -p $full_path && \
  	chown $context_uid:$context_uid $full_path && chmod -R g+w $full_path
+
+ 	# when it is first domain!
+  	# https://github.com/stefanpejcic/OpenPanel/issues/472
+	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
+	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
+  
 }
 
 
