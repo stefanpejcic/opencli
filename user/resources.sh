@@ -330,29 +330,26 @@ get_active_services_and_their_usage() {
 check_if_service_exists_or_running() {
     service_name="$1"
     action="$2"
-
-    service_exists=$(docker --context $context compose -f /home/$context/docker-compose.yml config --services | grep -w "$service_name")
+    sanitized_service_name=${service_name//_/-}
+    service_exists=$(docker --context "$context" compose -f "/home/$context/docker-compose.yml" config --services | grep -w "$sanitized_service_name")
 
     if [ -z "$service_exists" ]; then
-        echo "Service $service_name does not exist in the Docker Compose file."
+        echo "Service $sanitized_service_name does not exist in the Docker Compose file."
         return 1  # Service doesn't exist
     fi
 
     # Action "check" – just verify if the service exists
     if [ "$action" == "check" ]; then
-        #echo "Service '$service_name' exists in the Docker Compose file."
         return 0
     fi
 
     # Action "status" – check if the service is running
     if [ "$action" == "status" ]; then
-        running_service=$(docker --context $context ps --filter "name=$service_name" --format '{{.Names}}')
+        running_service=$(docker --context $context ps --filter "name=$sanitized_service_name" --format '{{.Names}}')
 
-        if [ "$running_service" == "$service_name" ]; then
-            #echo "Service '$service_name' is already running."
+        if [ "$running_service" == "$sanitized_service_name" ]; then
             return 0  # Service is running
         else
-            #echo "Service '$service_name' is not running."
             return 2  # Service exists but is not running
         fi
     
@@ -422,9 +419,9 @@ add_new_service() {
         # Check if the CPU value is a valid float or integer
         if ! [[ "$new_cpu_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             message+="<br> Error: Service $new_service_name does not have a valid CPU limit defined!" 
-        # Check if the CPU value is 0.0 or less (for floats)
-        elif awk -v n="$new_cpu_value" 'BEGIN {exit !(n > 0)}' || [ -z "$new_ram_value" ]; then
-            message+="<br>Error: Service $new_service_name does not have CPU or RAM limits defined!"          
+        # Check if CPU is <= 0 or RAM is not defined or <= 0
+        elif ! awk -v n="$new_cpu_value" 'BEGIN {exit (n > 0 ? 0 : 1)}' || ! awk -v r="$new_ram_value" 'BEGIN {exit (r > 0 ? 0 : 1)}'; then
+            message+="<br>Error activating: service $new_service_name does not have CPU or RAM limits defined!"
         fi
 
         projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $new_cpu_value}")
