@@ -40,11 +40,21 @@ fi
 domain_name="$1"
 user="$2"
 container_name="$2"
-
+onion_domain=false
 if ! [[ "$domain_name" =~ ^(xn--[a-z0-9-]+\.[a-z0-9-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$ ]]; then
     echo "FATAL ERROR: Invalid domain name: $domain_name"
     exit 1
 fi
+
+
+if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
+    onion_domain=true
+    log ".onion address - Tor will be configured.."
+    verify_onion_files
+fi
+
+hs_ed25519_public_key=""
+hs_ed25519_secret_key=""
 
 debug_mode=false
 docroot=""
@@ -66,11 +76,109 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --hs_ed25519_public_key)
+            if [[ -n "$2" ]]; then
+                hs_ed25519_public_key="$2"
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --hs_ed25519_public_key"
+                exit 1
+            fi
+            ;;
+        --hs_ed25519_secret_key)
+            if [[ -n "$2" ]]; then
+                hs_ed25519_secret_key="$2"
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --hs_ed25519_secret_key"
+                exit 1
+            fi
+            ;;
         *)
             shift
             ;;
     esac
 done
+
+verify_onion_files() {
+	if $onion_domain; then
+		# Validate that hs_ed25519_public_key and hs_ed25519_secret_key are set
+		if [[ -z "$hs_ed25519_public_key" || -z "$hs_ed25519_secret_key" ]]; then
+		    echo "FATAL ERROR: Both --hs_ed25519_public_key and --hs_ed25519_secret_key are required for .onion domains."
+		    exit 1
+		fi
+	
+		if [[ ! "$hs_ed25519_public_key" =~ ^/var/www/html/ ]]; then
+		    echo "FATAL ERROR: --hs_ed25519_public_key must be inside your /var/www/html/ directory."
+		    exit 1
+		fi
+	 
+	 	if [[ ! "$hs_ed25519_secret_key" =~ ^/var/www/html/ ]]; then
+		    echo "FATAL ERROR: --hs_ed25519_secret_key must be inside your /var/www/html/ directory."
+		    exit 1
+		fi
+	
+	 	hs_public_key="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/${hs_ed25519_public_key#/var/www/html/}"
+	   	hs_secret_key="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/${hs_ed25519_secret_key#/var/www/html/}"
+		
+		if [ ! -f "$hs_public_key" ] || [ ! -f "$hs_secret_key" ]; then
+		    echo "FATAL ERROR: hs_ed25519_public_key or hs_ed25519_secret_key do not exist!"
+		    exit 1
+		fi
+	fi
+}
+
+
+start_tor_for_user() {
+	if [ $(docker --context $context ps -q -f name=tor) ]; then
+ 	    log "Tor service is already running, restarting to apply new service configuration"
+		docker --context $context restart tor >/dev/null 2>&1
+	else
+	    log "Starting Tor service.."
+	    nohup sh -c "cd /hostfs/home/$context/ && docker --context $context  compose up -d tor" </dev/null >nohup.out 2>nohup.err &
+     	fi  
+}
+
+
+setup_tor_for_user() {
+	local tor_dir="/hostfs/home/$context/tor"
+	if [ ! -d "$tor_dir/hidden_service" ] || [ ! -f "$tor_dir/torrc" ]; then
+ 		folder_name="hidden_service"
+	else
+		highest_folder=0
+		for folder in "$tor_dir/hidden_service"/*; do
+		  if [[ -d "$folder" && "$(basename "$folder")" =~ ^[0-9]+$ ]]; then
+		    folder_num=$(basename "$folder")
+		    if (( folder_num > highest_folder )); then
+		      highest_folder=$folder_num
+		    fi
+		  fi
+		done
+	  	next_folder=$((highest_folder + 1))
+    		folder_name="hidden_service/$next_folder"
+      	fi
+       
+    	mkdir -p "$tor_dir/$folder_name/authorized_clients"
+	cp $hs_public_key $tor_dir/$folder_name/hs_ed25519_public_key
+	cp $hs_secret_key $tor_dir/$folder_name/hs_ed25519_secret_key
+
+ 	chown $context_uid:$context_uid /hostfs/home/$context/tor
+	chmod 0600 /hostfs/home/$context/tor/torrc
+
+	if [ "$VARNISH" = true ]; then
+		proxy_ws="varnish"
+	else
+		proxy_ws="$ws"
+	fi
+
+	echo "HiddenServiceDir /var/lib/tor/$folder_name/
+HiddenServicePort 80 $proxy_ws:80
+" >> $tor_dir/torrc
+
+  	log ".onion files are saved in $folder_name directory."
+	
+}
+
 
 
 log() {
@@ -731,15 +839,25 @@ add_domain() {
     	make_folder                                  # create dirs on host server
     	get_webserver_for_user                       # nginx or apache
     	get_server_ipv4_or_ipv6                      # get outgoing ip     
+     
 	vhost_files_create                           # create file in container
-	create_domain_file                           # create file on host
-	dns_stuff
+
+ 	if $onion_domain; then
+		setup_tor_for_user		     # create conf files
+		start_tor_for_user		     # actually run service
+    	else
+		create_domain_file                   # create file on host
+		dns_stuff
+ 	fi
 	start_default_php_fpm_service                # start phpX.Y-fpm service
-	create_mail_mountpoint                       # add mountpoint to mailserver
-    
+ 
+	if $onion_domain; then
+ 		:
+   	else
+ 		create_mail_mountpoint                       # add mountpoint to mailserver
+    	fi
  	######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
-        #echo "Domain $domain_name has been added for user $user."
     else
         log "Adding domain $domain_name failed! Contact administrator to check if the mysql database is running."
         echo "Failed to add domain $domain_name for user $user (id:$user_id)."
