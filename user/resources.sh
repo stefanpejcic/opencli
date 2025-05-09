@@ -406,7 +406,7 @@ add_new_service() {
         check_if_service_exists_or_running "$new_service" "check"
 
         if [ $? -eq 1 ]; then
-            echo "ERROR: Service $new_service_name does not exist in docker-compose.yml file. Contact the administrator."
+            echo "Error starting: service $new_service_name does not exist in docker-compose.yml file. Contact the administrator."
         fi
 
         new_cpu_var="${new_service_name^^}_CPU"
@@ -479,13 +479,14 @@ stop_container() {
     # if --deactivate=<service_name> is provided
     if [[ -n "$stop_service" ]]; then
         # Replace dots and hyphens with underscores in the new service name
-        stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')  
+          
 
         check_if_service_exists_or_running "$stop_service" "check"
         
         if [ $? -eq 1 ]; then
-            echo "ERROR: Service $stop_service does not exist in docker-compose.yml file. Contact the administrator."
+            echo "Error stopping: service $stop_service does not exist in docker-compose.yml file. Contact the administrator."
         fi
+        ####stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')
         
         # STOP SERVICE
         stop_service_now "$stop_service"
