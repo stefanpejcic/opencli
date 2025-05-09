@@ -38,7 +38,7 @@ fi
 
 # Parameters
 domain_name="$1"
-
+onion_domain=false
 debug_mode=false
 PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 
@@ -75,12 +75,53 @@ if [[ -z "$domain_id" ]]; then
 fi
 
 
+if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
+    onion_domain=true
+    log ".onion address - Tor website will be removed from the configuration.."
+fi
+
 
 
 clear_cache_for_user() {
 	log "Purging cached list of domains for the account"
 	rm /etc/openpanel/openpanel/core/users/${user}/data.json >/dev/null 2>&1
 }
+
+remove_onion_files() {
+    if $onion_domain; then
+        hostfs_path="/hostfs/home/$context/tor"
+        onion_dir=$(grep -rlE '\.onion$' "$hostfs_path" | grep '/hostname$' | xargs -n1 dirname)
+        for dir in $onion_dir; do
+            dir_name=$(basename "$dir")
+
+            if [[ "$dir_name" == "hidden_service" ]]; then
+                sed -i '/^HiddenServiceDir.*\/hidden_service$/{
+                    N
+                    /\nHiddenServicePort/d
+                    d
+                }' "$hostfs_path/torrc"
+
+            elif [[ "$dir_name" =~ ^[0-9]+$ ]]; then
+                sed -i "/^HiddenServiceDir.*\/hidden_service\/$dir_name$/{
+                    N
+                    /\nHiddenServicePort/d
+                    d
+                }" "$hostfs_path/torrc"
+            fi
+        done
+	rm -rf $onion_dir
+    fi
+}
+
+
+
+restart_tor_for_user() {
+	if [ $(docker --context $context ps -q -f name=tor) ]; then
+ 	    log "Tor service is running, restarting to remove configuration.."
+ 	    docker --context $context restart tor >/dev/null 2>&1
+     	fi  
+}
+
 
 
 
@@ -321,8 +362,14 @@ delete_domain() {
         clear_cache_for_user                         # rm cached file for ui
         get_webserver_for_user                       # nginx, openresty or apache
         vhost_files_delete                           # delete file in container
-        delete_domain_file                           # create file on host
-	dns_stuff
+
+	if $onion_domain; then
+		remove_onion_files		     # delete conf files
+		restart_tor_for_user		     # restart if running
+ 	else
+	        delete_domain_file                   # remove caddy files
+	 	dns_stuff			     # remove dns files
+ 	fi
         delete_mail_mountpoint                       # delete mountpoint to mailserver
         delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
