@@ -117,6 +117,13 @@ if [ "$binary_name" = "locale" ]; then
  exit 0
 fi
 
+
+# pre and post hooks added in 1.2.9
+pre_hook_file="/etc/openpanel/openpanel/hooks/pre_$binary_name"
+post_hook_file="/etc/openpanel/openpanel/hooks/post_$binary_name"
+
+
+
 # Replace '-' with '/' in the name
 binary_command="${binary_name//-//}"
 binary_path="$script_dir/$binary_command.sh" # add .sh to each command, opencli <1.0 had no .sh
@@ -133,11 +140,30 @@ if [ -f "$binary_path" ]; then
   shift
   log_command
 
+  #run pre-hook, wait for it to complete
+  if [ -f "$pre_hook_file" ]; then
+    if [ "$#" -gt 0 ]; then
+      bash "$pre_hook_file" "$@" </dev/null >nohup.out 2>nohup.err
+    else
+      bash "$pre_hook_file" </dev/null >nohup.out 2>nohup.err
+    fi
+  fi
+
   if [ "$#" -gt 0 ]; then
     bash "$binary_path" "$@"
   else
     bash "$binary_path"
   fi
+
+  #run post-hook in background
+  if [ -f "$post_hook_file" ]; then
+    if [ "$#" -gt 0 ]; then
+      nohup bash "$post_hook_file" "$@" </dev/null >nohup.out 2>nohup.err &
+    else
+      nohup bash "$post_hook_file" </dev/null >nohup.out 2>nohup.err &
+    fi
+  fi
+
 else
   echo "Error: Command '$binary_command' not found - file '$binary_path' does not exist."
   usage
