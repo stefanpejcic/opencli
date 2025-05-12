@@ -216,6 +216,7 @@ do
         else
             # TOD: GET CONTEXT!
             sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${Ncpu}\"/" /home/$server/.env > /dev/null
+            echo "CPU limit set to ${Ncpu}"
             echo ""
         fi
     fi
@@ -225,6 +226,8 @@ do
     ####################################################################################################################################################################################
     if [ "$partial" != "true" ] || [ "$dodsk" = "true" ]; then
         setquota -u $server $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /
+        echo "Disk limit set to ${storage_in_blocks} and Inodes: $Ninodes_limit"
+        echo ""
         reload_user_quotas
     fi
 
