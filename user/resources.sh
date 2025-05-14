@@ -457,14 +457,9 @@ add_new_service() {
             fi
         fi
 
-        if awk -v cpu="$projected_cpu" -v total_cpu="$TOTAL_CPU" -v ram="$projected_ram" -v total_ram="$TOTAL_RAM" \
-            'BEGIN {exit !(cpu > total_cpu || ram > total_ram)}'; then
-            display_json_or_message
-            exit 1
-        else
+        if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
             # START SERVICE
             start_service_now "$new_service"
-    
             # CHECK IF RUNNING
             check_if_service_exists_or_running "$service_name" "status"
             status=$?
@@ -476,14 +471,29 @@ add_new_service() {
                 display_json_or_message
                 exit 1
             fi
-
-            # DON'T SHOW final_output_ for_json IF WE HAVE WARNINGS FOR UNLIMITED CPU/RAM
-            if [ "$TOTAL_RAM" -eq 0 ] || [ "$TOTAL_CPU" -eq 0 ]; then
+            display_json_or_message
+            exit 1
+        
+        elif awk -v cpu="$projected_cpu" -v total_cpu="$TOTAL_CPU" -v ram="$projected_ram" -v total_ram="$TOTAL_RAM" \
+            'BEGIN {exit !(cpu > total_cpu || ram > total_ram)}'; then
+            display_json_or_message
+            exit 1
+        else
+            # START SERVICE
+            start_service_now "$new_service"
+            # CHECK IF RUNNING
+            check_if_service_exists_or_running "$service_name" "status"
+            status=$?
+            if [ $status -eq 0 ]; then
+                message+="<br>Service $service_name started successfully."
+                opencli docker-collect_stats "$USERNAME" >/dev/null 2>&1 &
+            elif [ $status -eq 2 ]; then
+                message+="<br>Service $service_name did not start. Contact Administrator."
                 display_json_or_message
                 exit 1
             fi
-
             display_json_or_message
+            exit 1
         fi
     fi
 }
