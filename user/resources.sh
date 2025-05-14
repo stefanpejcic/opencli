@@ -139,7 +139,10 @@ update_cpu_for_service_or_total() {
                 message+="<br> Updating CPU limit for service $service_to_update_cpu_ram to: $update_cpu Core"
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
+                elif [[ "$service_to_update_cpu_ram" == php-fpm-* ]]; then
+                    service_to_update_cpu_ram="${service_to_update_cpu_ram//./_}"
                 fi
+                service_to_update_cpu_ram="${service_to_update_cpu_ram//-/_}"
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_CPU=".*"/'"${service_to_update_cpu_ram^^}"'_CPU="'"$update_cpu"'"/' "$env_file"
             else
                 message+="<br> Updating total CPU limit to: $update_cpu Core"
@@ -162,7 +165,11 @@ update_ram_for_service_or_total() {
 
                 if [[ "$service_to_update_cpu_ram" == "mariadb" ]]; then
                     service_to_update_cpu_ram="mysql"
+                elif [[ "$service_to_update_cpu_ram" == php-fpm-* ]]; then
+                    service_to_update_cpu_ram="${service_to_update_cpu_ram//./_}"
                 fi
+                service_to_update_cpu_ram="${service_to_update_cpu_ram//-/_}"
+
                 sed -i 's/^'"${service_to_update_cpu_ram^^}"'_RAM=".*"/'"${service_to_update_cpu_ram^^}"'_RAM="'"$update_ram"'"/' "$env_file"
             else
                 message+="<br> Updating total RAM limit to: $update_ram"
