@@ -1141,15 +1141,15 @@ run_docker() {
 		env_file="/home/$last_user/.env"
 	
 		if [[ ! -f "$env_file" ]]; then
-		    echo "Warning: .env file is missing for existing users, port generation may be a bit off - make sure to check ports assigned to user afterwards."
+		    ###echo "Warning: .env file is missing for existing users, port generation may be a bit off - make sure to check ports assigned to user afterwards."
       		    min_port="32768"
 		fi
 		
 		highest_port=$(grep -E '^[A-Z_]+_PORT=' "$env_file" | grep -oE '[0-9]+' | sort -nr | head -n 1)
 		
 		if [[ -z "$highest_port" ]]; then
-			echo "ERROR: No ports found in the .env file."
-		 	exit 1
+			###echo "ERROR: No ports found in the .env file."
+   			min_port="32768"
       		else
 			min_port=${highest_port}
 		fi
