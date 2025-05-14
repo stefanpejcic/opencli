@@ -38,6 +38,9 @@ update_ram=""
 service_to_update_cpu_ram=""
 message=""
 
+json_print=false
+message_print=false
+
 usage() {
     echo "Usage: opencli user-resources <context> [options]"
     echo ""
@@ -224,8 +227,10 @@ get_active_services_and_their_usage() {
         if $json_output; then
             json_data="{\"context\": \"$context\", \"message\": \"$message\"}"
             echo "$json_data" | jq .
+            json_print=true
         else
             echo "$message"
+            message_print=true
         fi
         exit 1
     fi
@@ -322,6 +327,7 @@ get_active_services_and_their_usage() {
     else
         message+="<br> No currently running services."
         echo "$message"
+        message_print=true
     fi
 }
 
@@ -392,8 +398,10 @@ display_json_or_message() {
             json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {${cpu_json}}, \"ram\": {${ram_json}}}, \"message\": \"$message\"}"
         
             echo "$json_data" | jq .
+            json_print=true
         else
             echo "$message"
+            message_print=true
         fi
 }    
 
@@ -486,7 +494,6 @@ stop_container() {
         if [ $? -eq 1 ]; then
             echo "Error stopping: service $stop_service does not exist in docker-compose.yml file. Contact the administrator."
         fi
-        ####stop_service=$(echo "$stop_service" | sed 's/[.-]/_/g')
         
         # STOP SERVICE
         stop_service_now "$stop_service"
@@ -509,7 +516,7 @@ stop_container() {
 
 
 final_output_for_json() {
-    if $json_output; then
+    if [ "$json_output" = true ] && [ "$json_print" != true ]; then # skip if alreay printed json!
         echo "$json_data" | jq .
     fi
 }
@@ -523,7 +530,8 @@ get_total_cpu_and_ram                         # get total cpu/ram usage allocate
 get_active_services_and_their_usage           # get combined cpu/ram usage for all active services
 stop_container                                # stop container
 add_new_service                               # check if starting new service is within user limits and start it
-#######final_output_for_json                         # pretty print the data
+
+final_output_for_json                         # pretty print the data
 
 exit 0
 
