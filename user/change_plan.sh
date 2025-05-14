@@ -281,6 +281,10 @@ change_plan_name_in_db() {
     fi
 }
 
+drop_redis_cache() {
+    docker --context=default exec -it openpanel_redis bash -c "redis-cli --raw KEYS 'flask_cache_*' | xargs -r redis-cli DEL" >/dev/null 2>&1 &
+}
+
 tada() {
     if [ $write_failure_count -gt 0 ]; then
         echo ""
@@ -302,6 +306,7 @@ update_container_ram            # update ram on container and change in docker c
 #update_user_tc                 # todo
 update_used_disk_inodes         # change quota for user, check all user files and update cached file for user panel
 change_plan_name_in_db          # finally store new plan for user in database
+drop_redis_cache
 tada                            # check if any errors writing data to compose file, if so, cpu and ram changes are not permanent!
 
 exit 0
