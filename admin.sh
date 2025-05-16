@@ -521,6 +521,7 @@ case "$1" in
     "on")
         # Enable and check
         echo "Enabling the OpenAdmin..."
+	rm /root/openadmin_is_disabled > /dev/null 2>&1
         systemctl enable --now $service_name > /dev/null 2>&1
         detect_service_status
         ;;
@@ -542,6 +543,7 @@ case "$1" in
         # Disable admin panel service
         echo "Disabling the OpenAdmin..."
         systemctl disable --now $service_name > /dev/null 2>&1
+	touch /root/openadmin_is_disabled
         detect_service_status
         ;;
     "help")
