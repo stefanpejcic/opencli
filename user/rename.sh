@@ -259,81 +259,6 @@ change_default_email () {
 }
 
 
-
-################## UFW CHANGE COMMENT TO NEW USERNAME
-
-extract_host_port() {
-    local port_number="$1"
-    local host_port
-    host_port=$(docker port "$new_username" | grep "${port_number}/tcp" | awk -F: '{print $2}' | awk '{print $1}')
-    echo "$host_port"
-}
-
-
-# Define the list of container ports to check and open
-container_ports=("21" "22" "3306" "7681" "8080")
-
-# Variable to track whether any ports were opened
-ports_opened=0
-
-
-# Delete exisitng rules for the old username
-update_firewall_rules() {
-    IP_TO_USE=$1
-    if [ "$DEBUG" = true ]; then
-        # Delete existing rules for the specified user
-        ufw status numbered | awk -F'[][]' -v user="$old_username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn | \
-        
-        while read -r rule_number; do
-            yes | ufw delete "$rule_number"
-        done
-
-        # Loop through the container_ports array and open the ports in UFW if not already open
-        for port in "${container_ports[@]}"; do
-            host_port=$(extract_host_port "$port")
-        
-            if [ -n "$host_port" ]; then
-                # Open the port in UFW
-                echo "Opening port ${host_port} for port ${port} in UFW"
-                ufw allow to $IP_TO_USE port "$host_port" proto tcp comment "$new_username"
-                ports_opened=1
-            else
-                echo "Port ${port} not found in container"
-            fi
-        done
-
-        # Restart UFW if ports were opened
-        if [ $ports_opened -eq 1 ]; then
-            echo "Restarting UFW"
-            ufw reload
-        fi
-    else
-        # Delete existing rules for the specified user
-        while read -r rule_number; do
-            yes | ufw delete "$rule_number" >/dev/null 2>&1
-        done < <(ufw status numbered | awk -F'[][]' -v user="$old_username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sort -rn)
-
-        # Loop through the container_ports array and open the ports in UFW if not already open
-        for port in "${container_ports[@]}"; do
-            host_port=$(extract_host_port "$port")
-        
-            if [ -n "$host_port" ]; then
-                # Open the port in UFW
-                ufw allow to $IP_TO_USE port "$host_port" proto tcp comment "$new_username" >/dev/null 2>&1
-                ports_opened=1
-            else
-                # Empty else block
-                :
-            fi
-        done
-
-        # Restart UFW if ports were opened
-        if [ $ports_opened -eq 1 ]; then
-            ufw reload >/dev/null 2>&1
-        fi
-    fi
-}
-
 # Function to rename user in the database
 rename_user_in_db() {
     OLD_USERNAME=$1
@@ -360,20 +285,6 @@ reload_user_quotas() {
 
 
 
-
-edit_firewall_ports_comments() {
-    # Check for CSF
-    if command -v csf >/dev/null 2>&1; then
-        # do nothing for csf, ports are already opened..
-        FIREWALL="CSF"
-    elif command -v ufw >/dev/null 2>&1; then
-        # rename username in ufw comments
-        FIREWALL="UFW"
-        update_firewall_rules "$IP_TO_USE"
-    fi
-} 
-
-
 # MAIN
 check_username_is_valid                                                    # validate username first
 #check_if_container_name_taken                                              # check in docker namespaces
@@ -383,7 +294,6 @@ mv_user_data                                                               # /et
 ensure_jq_installed                                                        # just helper for parsing json
 get_ipv4_for_user                                                          # get shared or dedi ip to be used for nginx files
 rename_docker_container                                                    # rename docker, doh! 
-edit_firewall_ports_comments                    # TODOOOO                           # firewall ports
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
 # we dotnt cjhange context!  reload_user_quotas "$old_username" "$new_username"
 change_default_email                                                       # change default email

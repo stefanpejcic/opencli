@@ -205,20 +205,9 @@ fi
 # CSF
 if command -v csf >/dev/null 2>&1; then
     open_port_csf $WEBMAIL_PORT    
-# UFW
-elif command -v ufw >/dev/null 2>&1; then
-      if [ "$DEBUG" = true ]; then
-          echo "Opening port on UncomplicatedFirewall"
-          echo ""
-          ufw allow $WEBMAIL_PORT
-          echo ""
-      else
-          ufw allow $WEBMAIL_PORT >/dev/null 2>&1
-      fi
-
 else
       if [ "$DEBUG" = true ]; then
-          echo "Warning: Neither CSF nor UFW are installed. In order for Webmail to work, make sure port 8080 is opened on external firewall.."
+          echo "Warning: CSF is not installerd. In order for Webmail to work, make sure port 8080 is opened on external firewall.."
       else
           :
       fi

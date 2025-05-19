@@ -282,16 +282,8 @@ install_mailserver(){
         open_port_csf 465
         open_port_csf 587
         open_port_csf 993
-    # UFW
-    elif command -v ufw >/dev/null 2>&1; then
-        ufw allow 25
-        #ufw allow 8080 && \ #uncomment to expose webmail
-        ufw allow 143
-        ufw allow 465
-        ufw allow 587
-        ufw allow 993
     else
-        echo "Error: Neither CSF nor UFW are installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
+        echo "Error: CSF is not installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
     fi
   else
 
@@ -302,17 +294,8 @@ install_mailserver(){
         open_port_csf 465 >/dev/null 2>&1
         open_port_csf 587 >/dev/null 2>&1
         open_port_csf 993 >/dev/null 2>&1
-        
-    # UFW
-    elif command -v ufw >/dev/null 2>&1; then
-        ufw allow 25 >/dev/null 2>&1
-        #ufw allow 8080 && \ #uncomment to expose webmail
-        ufw allow 143 >/dev/null 2>&1
-        ufw allow 465 >/dev/null 2>&1
-        ufw allow 587 >/dev/null 2>&1
-        ufw allow 993 >/dev/null 2>&1
     else
-        echo "Error: Neither CSF nor UFW are installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
+        echo "Error: CSF is not installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
     fi
 
 fi

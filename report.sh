@@ -3,7 +3,7 @@
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
 # Usage: opencli report
-#        opencli report [--public] [--cli] [--csf|--ufw]
+#        opencli report [--public] [--cli] [--csf]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 17.04.2025
@@ -29,7 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# todo: ufw flag with firewallflag to cover also csf
 
 # Create directory if it doesn't exist
 output_dir="/var/log/openpanel/admin/reports"
@@ -90,7 +89,6 @@ get_admin_info
 get_docker_info
 run_opencli # Run OpenCLI commands if --cli flag is provided
 run_csf_rules
-run_ufw_rules
 display_openpanel_settings # Display OpenPanel settings
 display_openadmin_settings # Display OpenAdmin settings
 display_mysql_information # Display MySQL information
@@ -149,12 +147,6 @@ run_opencli() {
   fi
 }
 
-run_ufw_rules() {
-  if [ "$ufw_flag" = true ]; then
-    echo "=== Firewall Rules ===" >> "$output_file"
-    run_command "ufw status numbered" "Collecting Firewall Rules"
-  fi
-}
 
 run_csf_rules() {
   if [ "$csf_flag" = true ]; then
@@ -262,7 +254,6 @@ upload_report() {
 
 # Default values
 cli_flag=false
-ufw_flag=false
 csf_flag=false
 upload_flag=false
 
@@ -275,9 +266,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --csf)
             csf_flag=true
-            ;; 
-        --ufw)
-            ufw_flag=true
             ;; 
         --public|--link|--upload)
             upload_flag=true

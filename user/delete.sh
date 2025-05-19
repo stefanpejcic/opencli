@@ -173,16 +173,6 @@ delete_ftp_users() {
 }
 
 
-# Function to disable UFW rules for ports containing the username
-disable_ports_in_ufw() {
-  line_numbers=$(ufw status numbered | awk -F'[][]' -v user="$username" '$NF ~ " " user "$" {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' |sort -rn)
-
-  for line_number in $line_numbers; do
-    yes | ufw delete $line_number
-    echo "Deleted rule #$line_number"
-  done
-}
-
 
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
@@ -204,12 +194,6 @@ edit_firewall_rules(){
         FIREWALL="CSF"
         container_ports=("22" "3306" "7681" "8080")
         #we use range, so not need to rm rules for account delete..
-    
-    # UFW
-    elif command -v ufw >/dev/null 2>&1; then
-        FIREWALL="UFW"
-        disable_ports_in_ufw
-        ufw reload
     fi
 }
 
