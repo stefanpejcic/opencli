@@ -468,9 +468,16 @@ add_domain_to_clamav_list(){
 
 
 start_default_php_fpm_service() {
+
+    enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
+    if [[ $enabled_modules_line == *"php"* ]]; then  
         log "Starting container for the default PHP version ${php_version}"
-	#docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version} >/dev/null 2>&1
  	nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+    else
+        log "'php' module is disabled, skip starting container for the default PHP version ${php_version}"
+    fi
+
+ 
 }
 
 
@@ -737,6 +744,8 @@ create_zone_file() {
  
     mkdir -p "$ZONE_FILE_DIR"
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
+
+
 
     # Reload BIND service
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
