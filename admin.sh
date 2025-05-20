@@ -658,8 +658,15 @@ case "$1" in
         delete_existing_users "$username"
         ;;
     *)
-        # Display current service status
+    if [ -z "$1" ]; then
+        # No argument provided, show service status
         detect_service_status
+    else
+        # Unknown argument provided, show error
+        echo "ERROR: Unknown command: '$1'"
+        usage
+        exit 1
+    fi
         ;;
 esac
 
