@@ -108,14 +108,20 @@ update_progress() {
 }
 
 main() {
-    enable_trapping                       # clean on CTRL+C
-    setup_scroll_area                     # load progress bar
-    for func in "${FUNCTIONS[@]}"
-    do
-        $func                             # Execute each function
-        update_progress                   # update progress after each
-    done
-    destroy_scroll_area
+	if [ "$non_interactive" = true ]; then
+		for func in "${FUNCTIONS[@]}"; do
+		  $func
+		done
+	else
+	    enable_trapping                       # clean on CTRL+C
+	    setup_scroll_area                     # load progress bar
+	    for func in "${FUNCTIONS[@]}"
+	    do
+	        $func                             # Execute each function
+	        update_progress                   # update progress after each
+	    done
+	    destroy_scroll_area
+	fi
 }
 
 
@@ -132,7 +138,9 @@ main() {
 # Function to run a command and print its output with a custom message
 run_command() {
   echo "# $2:" >> "$output_file"
-  echo "- $2"
+  if [ "$non_interactive" = false ]; then
+  	echo "- $2"
+  fi
   eval "$1" >> "$output_file" 2>&1
   echo >> "$output_file"
 }
@@ -230,7 +238,9 @@ upload_report() {
 	if [ ! -f "$output_file" ]; then
 	  echo "Information not collected! report file does not exist: $output_file"
    	else
-	  clear
+	  if [ "$non_interactive" = false ]; then
+	  	clear
+	  fi
 	  if [ "$upload_flag" = true ]; then
 	    response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
 	    if echo "$response" | grep -q "File upload failed."; then
@@ -238,7 +248,11 @@ upload_report() {
 	      echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide content from the following file to the support team:\n$output_file"
 	    elif echo "$response" | grep -q "name="; then
 	      FILE_NAME=$(echo "$response" | cut -d'=' -f2)
-	      echo -e "Information collected successfully. Please provide the following key to the support team:\n${GREEN}${FILE_NAME}${RESET}"
+       		if [ "$non_interactive" = true ]; then
+		      echo -e "Information collected successfully. Please provide the following key to the support team:\n${FILE_NAME}"
+       		else
+		      echo -e "Information collected successfully. Please provide the following key to the support team:\n${GREEN}${FILE_NAME}${RESET}"
+  		fi
 	    else
 	      echo -e "Unexpected upload response:\n$response"
 	      echo -e "Please send the content of the following file manually:\n$output_file"
@@ -256,11 +270,16 @@ upload_report() {
 cli_flag=false
 csf_flag=false
 upload_flag=false
+non_interactive=false
+
 
 parse_args() {
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --non-interactive)
+            non_interactive=true
+            ;;
         --cli)
             cli_flag=true
             ;;
