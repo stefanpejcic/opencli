@@ -3,7 +3,6 @@
 # Script Name: version.sh
 # Description: Displays the current (installed) version of OpenPanel docker image.
 # Usage: opencli version 
-#        opencli v
 # Author: Stefan Pejcic
 # Created: 15.11.2023
 # Last Modified: 20.05.2025
