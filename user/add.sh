@@ -1477,6 +1477,16 @@ reload_user_quotas() {
 
 
 
+generate_user_password_hash() {
+    if [ "$password" = "generate" ]; then
+        password=$(openssl rand -base64 12)
+        log "Generated password: $password" 
+    fi
+
+    hashed_password=$("/usr/local/admin/venv/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+}
+
+
 collect_stats() {
 	opencli docker-collect_stats $username  > /dev/null 2>&1
 }
@@ -1520,6 +1530,7 @@ test_compose_command_for_user
 get_php_version                              # must be before run_docker !
 run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
+generate_user_password_hash
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
