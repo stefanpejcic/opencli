@@ -66,6 +66,11 @@ usage() {
   echo ""
 }
 
+if [ "$EUID" -ne 0 ]; then
+  echo "OpenCLI scripts must be run as root user."
+  exit 1
+fi
+
 
 # Check if the correct number of arguments is provided
 if [ "$#" -lt 1 ]; then
