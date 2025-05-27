@@ -1330,7 +1330,6 @@ cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
 cp /etc/openpanel/varnish/default.vcl /home/$username/default.vcl
 cp /etc/openpanel/ofelia/users.ini /home/$username/crons.ini  > /dev/null 2>&1 # added in 1.2.1
 cp /etc/openpanel/backups/backup.env /home/$username/backup.env  > /dev/null 2>&1 # added in 1.1.7
-cp /etc/openpanel/openpanel/features/default.txt /home/$username/features.txt > /dev/null 2>&1 # added in 1.3.2
 
 cp -r /etc/openpanel/php/ini /home/${username}/php.ini
 chown -R $username:$username /home/$username/sockets
