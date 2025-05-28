@@ -288,7 +288,7 @@ get_slave_if_set() {
 			hostname=$(ssh "root@$server" "hostname")
 			if [ -z "$hostname" ]; then
 			  echo "ERROR: Unable to reach the node $server - Exiting."
-     			  echo '       Make sure you can connect to the node from terminal with: "ssh $key_flag root@$server -vvv"'
+     			  echo "       Make sure you can connect to the node from terminal with: 'ssh $key_flag root@$server -vvv'"
 			  exit 1
 			fi
    
