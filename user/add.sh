@@ -686,20 +686,22 @@ get_plan_info_and_check_requirements() {
 setup_ssh_key(){
      if [ -n "$node_ip_address" ]; then
 	log "Setting ssh key.."
-	public_key=$(ssh-keygen -y -f "$key")
- 	mkdir -p /home/$username/.ssh/ > /dev/null 2>&1
-	touch  /home/$username/.ssh/authorized_keys > /dev/null 2>&1
-	chown $username -R /home/$username/.ssh > /dev/null 2>&1
+ 
+ 	public_key=$(ssh-keygen -y -f "$key")
+ssh $key_flag root@$node_ip_address << EOF
+  mkdir -p /home/$username/.ssh/ > /dev/null 2>&1
+  touch  /home/$username/.ssh/authorized_keys > /dev/null 2>&1
+  chown $username -R /home/$username/.ssh > /dev/null 2>&1
+  if ! grep -q "$public_key" /home/$username/.ssh/authorized_keys; then
+    echo "$public_key" >> /home/$username/.ssh/authorized_keys
+  fi
+  
+EOF
 
-	if ! grep -q "$public_key" /home/$username/.ssh/authorized_keys; then
-
-	    echo "$public_key" >> /home/$username/.ssh/authorized_keys
-
- 			chmod 600 /home/$username/.ssh/authorized_keys  > /dev/null 2>&1
-			mkdir ~/.ssh  > /dev/null 2>&1
-   			chmod 600 ~/.ssh/config  > /dev/null 2>&1
+mkdir ~/.ssh  > /dev/null 2>&1
+chmod 600 ~/.ssh/config  > /dev/null 2>&1
    
-			cp $key ~/.ssh/$node_ip_address && chmod 600 ~/.ssh/$node_ip_address
+cp $key ~/.ssh/$node_ip_address && chmod 600 ~/.ssh/$node_ip_address
 
 mkdir -p ~/.ssh/cm_socket  > /dev/null 2>&1
    
@@ -713,8 +715,6 @@ echo "Host $username
     ControlMaster auto
     ControlPersist 30s
 " >> ~/.ssh/config
-
-	fi
 
 
 	                ssh "$username" "exit" &> /dev/null
