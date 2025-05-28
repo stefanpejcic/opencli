@@ -780,7 +780,7 @@ print_debug_info_before_starting_creation() {
 	fi
 	
 	if [ -n "$node_ip_address" ]; then
-	        echo "Data for connectiong to the Node server:"
+	        echo "Data for connecting to the Node server:"
 	        echo "- IP address:           $node_ip_address" 
 	        echo "- Hostname:             $hostname" 	 
 	        echo "- SSH user:             root" 	
