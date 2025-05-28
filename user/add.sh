@@ -565,30 +565,6 @@ INNER_EOF
 EOF
 
 
-	ssh $key_flag root@$node_ip_address << EOF
- 
-  if [ ! -d "/etc/openpanel/openpanel" ]; then
-
-    echo "Adding permissions for users to limit CPU% - more info: https://docs.docker.com/engine/security/rootless/#limiting-resources"
-  
-	mkdir -p /etc/systemd/system/user@.service.d
-  
-cat > /etc/systemd/system/user@.service.d/delegate.conf << EOF
-[Service]
-Delegate=cpu cpuset io memory pids
-EOF
-
-systemctl daemon-reload
-EOF  
-
-	ssh $key_flag root@$node_ip_address << EOF
-  if [ ! -d "/etc/openpanel/openpanel" ]; then
-    echo "Configuring OpenPanel Slave on the server.."
-    mkdir -p /etc/openpanel
-    git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
-EOF
-
-
 
 # TODO:
 #  scp -r /etc/openpanel root@$node_ip_address:/etc/openpanel
