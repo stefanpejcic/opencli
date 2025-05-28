@@ -525,7 +525,7 @@ EOF
 # mount openpanel dir on slave
 
 # SSH into the slave server and check if /etc/openpanel exists
-ssh $key_flag root@$node_ip_address << EOF
+ssh -q  $key_flag root@$node_ip_address << EOF
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
@@ -547,7 +547,7 @@ EOF
 
 
 # https://docs.docker.com/engine/security/rootless/#limiting-resources
-ssh $key_flag root@$node_ip_address << 'EOF'
+ssh -q  $key_flag root@$node_ip_address << 'EOF'
  
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Adding permissions for users to limit CPU% - more info: https://docs.docker.com/engine/security/rootless/#limiting-resources"
@@ -896,7 +896,8 @@ sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
 log "Setting AppArmor profile.."
 ssh $key_flag root@$node_ip_address <<'EOF1'
 
-# Create the AppArmor profile directly
+echo 0 > /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+
 cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<'EOT1'
 abi <abi/4.0>,
 include <tunables/global>
