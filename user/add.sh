@@ -285,7 +285,7 @@ get_slave_if_set() {
 	              ${octets[3]} -ge 0 && ${octets[3]} -le 255 ]]; then
 	           	
 			context_flag="--context $server"     
-			hostname=$(ssh "root@$server" "hostname")
+			hostname=$(ssh $key_flag "root@$server" "hostname")
 			if [ -z "$hostname" ]; then
 			  echo "ERROR: Unable to reach the node $server - Exiting."
      			  echo "       Make sure you can connect to the node from terminal with: 'ssh $key_flag root@$server -vvv'"
