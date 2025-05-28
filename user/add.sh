@@ -1194,6 +1194,7 @@ run_docker() {
 	        return 0  # Port is valid
 	    else
 	        echo "DEBUG: Invalid port detected: $port"
+	        echo "DEBUG: Available ports: $AVAILABLE_PORTS"
 	        return 1  # Port is invalid
 	    fi
 	}
@@ -1210,8 +1211,6 @@ run_docker() {
 	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
         SIXTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $6}')
 	SEVENTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $7}')
- 
-	#echo "DEBUG: Available ports: $AVAILABLE_PORTS"
 
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE" && validate_port "$SIXTH_NEXT_AVAILABLE" && validate_port "$SEVENTH_NEXT_AVAILABLE"; then
