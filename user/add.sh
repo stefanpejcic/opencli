@@ -817,7 +817,7 @@ create_local_user() {
 	useradd -m -d /home/$username $username
  	user_id=$(id -u $username)	
 	if [ $? -ne 0 ]; then
-		echo "Failed creating linux user $username on master server."
+		echo "Error: Failed creating linux user $username on master server."
   		exit 1
 	fi
  
@@ -839,7 +839,7 @@ create_remote_user() {
                     ssh "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
 		    user_id=$(ssh "root@$node_ip_address" "id -u $username")
 			if [ $? -ne 0 ]; then
-			    echo "Failed creating linux user $username on node: $node_ip_address"
+			    echo "Error: Failed creating linux user $username on node: $node_ip_address"
 			    exit 1
 			fi
 	fi
