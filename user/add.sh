@@ -836,7 +836,7 @@ create_remote_user() {
   	
    	if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
-                    ssh "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
+                    ssh $key_flag "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
 		    user_id=$(ssh $key_flag "root@$node_ip_address" "id -u $username")
 			if [ $? -ne 0 ]; then
 			    echo "Error: Failed creating linux user $username on node: $node_ip_address"
