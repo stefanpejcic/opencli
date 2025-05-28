@@ -396,7 +396,7 @@ check_and_create_default_file() {
     log "Checking if default configuration file exists for Nginx"
     
     # Check if the file exists
-    if [ ! -e "/home/$context/nginx.conf" ]; then
+    if [ ! -e "/hostfs/home/$context/nginx.conf" ]; then
         log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
 
         # Create the Nginx configuration file
@@ -421,7 +421,7 @@ http {
     #gzip  on;
 
     include /etc/nginx/conf.d/*.conf;
-}" > "/home/$context/nginx.conf"
+}" > "/hostfs/home/$context/nginx.conf"
     fi
 }
 
@@ -446,7 +446,7 @@ get_webserver_for_user(){
 
 get_varnish_for_user(){
 	VARNISH=false
- 	if grep -qE "^PROXY_HTTP_PORT=" "/home/$context/.env"; then
+ 	if grep -qE "^PROXY_HTTP_PORT=" "/hostfs/home/$context/.env"; then
 	  VARNISH=true
 	fi
 
@@ -472,7 +472,7 @@ start_default_php_fpm_service() {
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ $enabled_modules_line == *"php"* ]]; then  
         log "Starting container for the default PHP version ${php_version}"
- 	nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+ 	nohup sh -c "docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
     else
         log "'php' module is disabled, skip starting container for the default PHP version ${php_version}"
     fi
@@ -486,14 +486,14 @@ start_default_php_fpm_service() {
 vhost_files_create() {
 	
 	if [[ $ws == *apache* ]]; then
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+		vhost_in_docker_file="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
 	elif [[ $ws == *nginx* ]]; then
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+		vhost_in_docker_file="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	elif [[ $ws == *openresty* ]]; then
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openresty_domain.conf"
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+		vhost_in_docker_file="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	fi
 
 	
@@ -501,10 +501,10 @@ vhost_files_create() {
   	
    	if [ "$VARNISH" = true ]; then
 	       log "Starting $ws and Varnish containers.."
-	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1 
+	       docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1 
        else
 	       log "Starting $ws container.."
-	       docker --context $context compose -f /home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1     
+	       docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1     
        fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
@@ -534,7 +534,7 @@ create_domain_file() {
 	mkdir -p $waf_dir && touch $waf_dir/${domain_name}.log
 	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
  
-	local env_file="/home/${context}/.env"
+	local env_file="/hostfs/home/${context}/.env"
  	source $env_file
 
 	    # Check if the file exists
@@ -785,7 +785,7 @@ create_mail_mountpoint(){
 
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
-        DOMAIN_DIR="/home/$context/mail/$domain_name/"
+        DOMAIN_DIR="/hostfs/home/$context/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
             log "Creating directory $DOMAIN_DIR for emails"
