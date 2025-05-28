@@ -512,9 +512,7 @@ sshfs_mounts() {
     if [ -n "$node_ip_address" ]; then
 
 
-
-
-ssh $key_flag root@$node_ip_address << EOF
+ssh -q $key_flag root@$node_ip_address << EOF
   if [ ! -d "/etc/openpanel/openpanel" ]; then
 	echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 	echo "AuthorizedKeysFile     .ssh/authorized_keys" >> /etc/ssh/sshd_config
@@ -533,7 +531,8 @@ ssh $key_flag root@$node_ip_address << EOF
 
     # Check for the package manager and install sshfs accordingly
     if command -v apt-get &> /dev/null; then
-      apt-get update && apt-get install -y systemd-container uidmap
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap
     elif command -v dnf &> /dev/null; then
       dnf install -y systemd-container uidmap
     elif command -v yum &> /dev/null; then
