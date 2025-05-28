@@ -38,6 +38,7 @@ fi
 # Default values
 skip_confirmation=false
 delete_all=false
+node_ip_address=""
 
 # Parse arguments
 for arg in "$@"; do
@@ -77,6 +78,21 @@ get_docker_context_for_user(){
     # GET CONTEXT NAME FOR DOCKER COMMANDS
     context=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$provided_username';" -N)
     context_flag="--context $context"
+
+    context_type=$(docker context inspect "$context" --format '{{.Endpoints.docker.Host}}')
+
+    # The Host usually looks like ssh://user@ip or something else
+    if [[ "$context_type" == ssh://* ]]; then
+        ssh_host=${context_type#ssh://}
+        if [[ "$ssh_host" == *@* ]]; then
+            node_ip_address=${ssh_host#*@}
+        else
+            node_ip_address=$ssh_host
+        fi
+        #echo "Remote SSH Docker context detected. Node IP address: $node_ip_address"
+    else
+        node_ip_address=""
+    fi
     
 }
 
@@ -173,7 +189,6 @@ delete_ftp_users() {
 }
 
 
-
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
 
@@ -199,6 +214,12 @@ edit_firewall_rules(){
 
 
 delete_all_user_files() {
+        if [ -n "$node_ip_address" ]; then
+	    umount /home/$username
+            ssh "root@$node_ip_address" rm -rf /home/$username > /dev/null 2>&1  
+            ssh "root@$node_ip_address" killall -u $username -9  > /dev/null 2>&1
+            ssh "root@$node_ip_address" deluser --remove-home $username  > /dev/null 2>&1
+	fi
             rm -rf /home/$username > /dev/null 2>&1
             killall -u $username -9  > /dev/null 2>&1
             deluser --remove-home $username  > /dev/null 2>&1
