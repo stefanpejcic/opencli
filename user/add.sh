@@ -651,7 +651,7 @@ get_plan_info_and_check_requirements() {
     # Get the maximum available CPU cores on the server
     if [ -n "$node_ip_address" ]; then
         # TODO: Use a custom user or configure SSH instead of using root
-        max_available_cores=$(ssh "root@$node_ip_address" "nproc")
+        max_available_cores=$(ssh $key_flag "root@$node_ip_address" "nproc")
     else
         max_available_cores=$(nproc)
     fi
@@ -666,7 +666,7 @@ get_plan_info_and_check_requirements() {
 
     # Get the maximum available RAM on the server in GB
     if [ -n "$node_ip_address" ]; then
-	max_available_ram_gb=$(ssh "root@$node_ip_address" "free -g | awk '/Mem:/{print \$2}'")
+	max_available_ram_gb=$(ssh $key_flag "root@$node_ip_address" "free -g | awk '/Mem:/{print \$2}'")
     else
         max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
     fi    
@@ -837,7 +837,7 @@ create_remote_user() {
    	if [ -n "$node_ip_address" ]; then
                     log "Creating user $username on server $node_ip_address"
                     ssh "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
-		    user_id=$(ssh "root@$node_ip_address" "id -u $username")
+		    user_id=$(ssh $key_flag "root@$node_ip_address" "id -u $username")
 			if [ $? -ne 0 ]; then
 			    echo "Error: Failed creating linux user $username on node: $node_ip_address"
 			    exit 1
