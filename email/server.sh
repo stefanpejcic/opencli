@@ -221,6 +221,7 @@ pflogsumm_get_data() {
 	#echo "Reloading admin panel.."
 	#service admin restart   > /dev/null 2>&1
 	echo "Completed"
+ 	rm -rf PFLogSumm-HTML-GUI
 }
 
 
