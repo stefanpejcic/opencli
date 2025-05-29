@@ -125,15 +125,6 @@ check_username_is_valid() {
 }
 
 
-check_if_container_name_taken(){
-
-    # Check if Docker container with the same username exists
-    if docker $context inspect "$new_username" >/dev/null 2>&1; then
-        echo "Error: Docker context with the same username '$new_username' already exists. Aborting."
-        exit 1
-    fi
-
-}
 
 check_if_exists_in_db() {
     
@@ -248,14 +239,6 @@ get_ipv4_for_user() {
 
 
 
-
-
-change_default_email () {
-    hostname=$(hostname)
-    docker --context $context exec "$new_username" bash -c "sed -i 's/^from\s\+.*/from       ${new_username}@${hostname}/' /etc/msmtprc"
-}
-
-
 # Function to rename user in the database
 rename_user_in_db() {
     OLD_USERNAME=$1
@@ -284,7 +267,6 @@ reload_user_quotas() {
 
 # MAIN
 check_username_is_valid                                                    # validate username first
-#check_if_container_name_taken                                              # check in docker namespaces
 check_if_exists_in_db                                                      # check in mysql db
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
@@ -293,7 +275,6 @@ get_ipv4_for_user                                                          # get
 rename_docker_container                                                    # rename docker, doh! 
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
 # we dotnt cjhange context!  reload_user_quotas "$old_username" "$new_username"
-change_default_email                                                       # change default email
 #TODO: rename ftp accounts suffix!
 
 exit 0
