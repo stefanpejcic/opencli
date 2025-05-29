@@ -173,15 +173,12 @@ check_if_exists_in_db() {
 
 
 rename_docker_container() {
-# Check if the container exists
-if docker --context ${context} ps -a --format '{{.Names}}' | grep -q "^${old_username}$"; then
+if ! docker context inspect "${context}" &>/dev/null; then
+    echo "Error: Context '$old_username' not found."
+    exit 1
 
-	docker --context ${context} rename "$old_username" "$new_username" > /dev/null 2>&1
+fi
 
-    else
-        echo "Error: Container '$old_username' not found."
-        exit 1
-    fi
 }
 
 
