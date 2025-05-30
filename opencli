@@ -90,8 +90,19 @@ log_command() {
 # scripts dir
 script_dir="/usr/local/opencli"
 
+# bash -x script.sh
+if [ "$1" = "-x" ]; then
+  debug_flag="-x"
+  shift
+else
+   debug_flag=""
+fi
+
 # path/filename
 binary_name="$1"
+
+
+
 
 # '-v' is alias for '--version'
 if [ "$binary_name" = "-v" ]; then
@@ -115,9 +126,9 @@ fi
 if [ "$binary_name" = "locale" ]; then
   shift
   if [ "$#" -gt 0 ]; then
-    bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh) "$@"
+    bash $debug_flag <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh) "$@"
   else
-    bash <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh)
+    bash $debug_flag <(curl -sSL https://raw.githubusercontent.com/stefanpejcic/openpanel-translations/main/install.sh)
   fi
  exit 0
 fi
@@ -148,16 +159,16 @@ if [ -f "$binary_path" ]; then
   #run pre-hook, wait for it to complete
   if [ -f "$pre_hook_file" ]; then
     if [ "$#" -gt 0 ]; then
-      bash "$pre_hook_file" "$@" </dev/null >nohup.out 2>nohup.err
+      bash $debug_flag "$pre_hook_file" "$@" </dev/null >nohup.out 2>nohup.err
     else
-      bash "$pre_hook_file" </dev/null >nohup.out 2>nohup.err
+      bash $debug_flag "$pre_hook_file" </dev/null >nohup.out 2>nohup.err
     fi
   fi
 
   if [ "$#" -gt 0 ]; then
-    bash "$binary_path" "$@"
+    bash $debug_flag "$binary_path" "$@"
   else
-    bash "$binary_path"
+    bash $debug_flag "$binary_path"
   fi
 
   #run post-hook in background
