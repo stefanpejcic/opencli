@@ -28,140 +28,111 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if the correct number of command-line arguments is provided
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-	echo "Usage: opencli user-suspend <username>"
+# Constants
+SUSPENDED_DIR="/etc/openpanel/caddy/suspended_domains/"
+TEMPLATE_CONF="/etc/openpanel/caddy/templates/suspended_user.conf"
+CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
+CONFIG_FILE="/usr/local/opencli/db.sh"
+
+# Globals
+DEBUG=false
+USERNAME="$1"
+
+# Usage check
+if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
+    echo "Usage: opencli user-suspend <username> [--debug]"
     exit 1
 fi
 
-# Get username from command-line argument
-username="$1"
-DEBUG=false  # Default value for DEBUG
-
-suspended_dir="/etc/openpanel/caddy/suspended_domains/"
-conf_template="/etc/openpanel/caddy/templates/suspended_user.conf"
-mkdir -p $suspended_dir
-
-
-# Parse optional flags to enable debug mode when needed!
+# Parse optional flags
 for arg in "$@"; do
-    case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        *)
-            ;;
-    esac
+    [[ "$arg" == "--debug" ]] && DEBUG=true
 done
 
-# DB
-source /usr/local/opencli/db.sh
+# Load database configuration
+source "$CONFIG_FILE"
 
-
-
-
-get_docker_context_for_user() {
-    # GET CONTEXT NAME FOR DOCKER COMMANDS
-    server_name=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT server FROM users WHERE username='$username';" -N)
-    
-    context_flag="--context $server_name"
-
+# Retrieve Docker context for user
+get_docker_context() {
+    local query="SELECT server FROM users WHERE username='$USERNAME';"
+    local server_name
+    server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
+    CONTEXT_FLAG="--context $server_name"
 }
 
-
-
-check_and_add_to_enabled() {
+# Validate Caddy configuration and reload if valid
+reload_caddy_if_valid() {
     if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
-        docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
         return 0
-    else
-        return 1
+    fi
+    return 1
+}
+
+# Ensure Caddy container is running
+ensure_caddy_running() {
+    if ! docker --context default ps -q -f name=caddy > /dev/null; then
+        cd /root && docker --context default compose up -d caddy > /dev/null 2>&1
     fi
 }
 
-validate_conf() {
+# Replace user domain configs with suspended template
+suspend_user_domains() {
+    local user_id domain_name domain_vhost suspended_conf
 
-  	if [ $(docker --context default ps -q -f name=caddy) ]; then
-        :
-	else
-        cd /root && docker --context default compose up -d caddy  >/dev/null 2>&1
-     fi
-     
-	check_and_add_to_enabled
- 
-	if [ $? -eq 0 ]; then
-		:
-  #echo "Domain suspended successfully."
-	else
-        mv ${suspended_dir}${domain_name}.conf  $domain_vhost > /dev/null 2>&1
-        check_and_add_to_enabled
-		#echo "ERROR: Failed to validate conf after suspend, changes reverted."
-	fi
-}
-
-
-suspend_user_websites() {
-    user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username='$username';" -N)
-    if [ -z "$user_id" ]; then
-        echo "ERROR: user $username not found in the database"
+    user_id=$(mysql "$mysql_database" -e "SELECT id FROM users WHERE username='$USERNAME';" -N)
+    if [[ -z "$user_id" ]]; then
+        echo "ERROR: User '$USERNAME' not found in the database"
         exit 1
     fi
 
-    
-    domain_names=$(mysql -D "$mysql_database" -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" -N)
-    for domain_name in $domain_names; do
-       domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
+    mkdir -p "$SUSPENDED_DIR"
+    local domain_list
+    domain_list=$(mysql -D "$mysql_database" -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" -N)
 
-       if [ -f "${suspended_dir}${domain_name}.conf" ]; then
-	    	:
-       else       
-           cp $domain_vhost ${suspended_dir}${domain_name}.conf
-       fi
+    for domain_name in $domain_list; do
+        domain_vhost="${CADDY_VHOST_DIR}/${domain_name}.conf"
+        suspended_conf="${SUSPENDED_DIR}${domain_name}.conf"
 
-domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g")
-      
-echo "$domain_conf" > "$domain_vhost"
-	        
+        [[ ! -f "$suspended_conf" ]] && cp "$domain_vhost" "$suspended_conf"
+
+        sed "s|<DOMAIN_NAME>|$domain_name|g" "$TEMPLATE_CONF" > "$domain_vhost"
     done
-    
-        validate_conf
+
+    ensure_caddy_running
+    reload_caddy_if_valid || {
+        for domain_name in $domain_list; do
+            mv "${SUSPENDED_DIR}${domain_name}.conf" "${CADDY_VHOST_DIR}/${domain_name}.conf" > /dev/null 2>&1
+        done
+        reload_caddy_if_valid
+    }
 }
 
+# Stop all Docker containers related to the user
+stop_user_containers() {
+    $DEBUG && echo "Stopping containers for user: $USERNAME"
+    docker $CONTEXT_FLAG ps --filter "name=${USERNAME}" --format "{{.Names}}" | while read -r container; do
+        $DEBUG && echo "- Stopping container: $container"
+        docker $CONTEXT_FLAG stop "$container" > /dev/null 2>&1
+    done
+}
 
+# Rename user in the database
+rename_user_in_db() {
+    local new_username="SUSPENDED_$(date +'%Y%m%d%H%M%S')_${USERNAME}"
+    local query="UPDATE users SET username='${new_username}' WHERE username='${USERNAME}';"
 
-stop_docker_container() {
-    if [ "$DEBUG" = true ]; then
-        echo "Pausing containers for user: $username"
-        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
-            echo "- Pausing container: $container"
-            docker $context_flag pause "$container"
-        done
+    if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
+        echo "User '$USERNAME' suspended successfully as '$new_username'."
     else
-        docker $context_flag ps --filter "name=${username}" --format "{{.Names}}" | while read -r container; do
-            docker $context_flag pause "$container" > /dev/null 2>&1
-        done
+        echo "ERROR: Failed to suspend user '$USERNAME'."
+        exit 1
     fi
 }
 
+# === MAIN EXECUTION FLOW ===
 
-# Function to pause (suspend) a user
-rename_user() {
-    # Add a suspended timestamp prefix to the username in the database
-    suspended_username="SUSPENDED_$(date +"%Y%m%d%H%M%S")_$username"
-
-    # Update the username in the database with the suspended prefix
-    mysql_query="UPDATE users SET username='$suspended_username' WHERE username='$username';"
-    
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
-
-    if [ $? -eq 0 ]; then
-        echo "User '$username' paused (suspended) successfully."
-    else
-        echo "Error: User pause (suspend) failed."
-    fi
-}
-
-get_docker_context_for_user     # node ip and slave/master name
-suspend_user_websites           # redirect domains to suspended_user.html page
-stop_docker_container           # stop docker containerrename
-rename_user                     # rename username in database
+get_docker_context
+suspend_user_domains
+stop_user_containers
+rename_user_in_db
