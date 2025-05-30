@@ -216,7 +216,7 @@ pflogsumm_get_data() {
 	echo "Done, adding reports to OpenAdmin interface"
 	mkdir -p /usr/local/admin/static/reports /usr/local/admin/templates/emails > /dev/null 2>&1
 	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html > /dev/null 2>&1
-	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/data > /dev/null 2>&1
+	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/ > /dev/null 2>&1
  
 	#echo "Reloading admin panel.."
 	#service admin restart   > /dev/null 2>&1
