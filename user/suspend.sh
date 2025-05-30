@@ -71,7 +71,7 @@ get_docker_context_for_user() {
 
 
 check_and_add_to_enabled() {
-    if docker --context default exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
         docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
