@@ -202,8 +202,7 @@ fi
 # Function to validate and reload Caddy service
 check_and_add_to_enabled() {
     # Validate the Caddyfile
-    docker --context default compose exec caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
+    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
         # If validation is successful, reload the Caddy service
         docker --context default compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
