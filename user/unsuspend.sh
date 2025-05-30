@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/unsuspend.sh
-# Description: Unsuspend user: start container and unsuspend domains
+# Description: Unsuspend user: start all containers and unsuspend domains
 # Usage: opencli user-unsuspend <USERNAME>
 # Author: Stefan Pejcic
 # Created: 01.10.2023
