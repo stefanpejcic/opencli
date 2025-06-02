@@ -69,7 +69,7 @@ get_server_ipv4(){
 
 
 	if ! is_valid_ipv4 "$current_ip"; then
-	        echo "Invalid or private IPv4 address: $current_ip. Please contact support."
+	        echo "Invalid or private IPv4 address. Please contact support."
 	fi
 
  echo $current_ip
