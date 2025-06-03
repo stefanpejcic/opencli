@@ -31,24 +31,65 @@
 MAX_JOBS=5  # keep low
 mkdir -p "/etc/openpanel/openpanel/websites/"
 
+
 check_index() {
   local domain=$1
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   local filename="/etc/openpanel/openpanel/websites/$(echo "$domain" | sed 's|https\?://||' | sed 's|/|_|g').google_index.json"
-  local result page_count indexed error_msg=""
+  local result page_count indexed error_msg="" trouble_link=""
 
-  # Fetch search results page from Google
-  result=$(curl -s -A "Mozilla/5.0" "https://www.google.com/search?q=site:$domain")
+  # Fetch initial Google search results page
+  result=$(curl -L -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" --cookie-jar /tmp/google_cookies.txt --cookie /tmp/google_cookies.txt "https://www.google.com/search?q=site:$domain")
 
-  # Determine indexed status and results count
-  if echo "$result" | grep -q "did not match any documents"; then
-    indexed=false
-    page_count=0
+  # Check for "If you're having trouble accessing Google Search" message
+  if echo "$result" | grep -q "If you're having trouble accessing Google Search"; then
+    # Extract the trouble link (href in <a href="...">click here</a>)
+    trouble_link=$(echo "$result" | grep -oP '(?<=<a href=")[^"]+(?=">click here</a>)' | head -1)
+    if [ -n "$trouble_link" ]; then
+      # Make full URL if relative
+      if [[ "$trouble_link" =~ ^/ ]]; then
+        trouble_link="https://www.google.com${trouble_link}"
+      fi
+      
+      # Follow the trouble link to get a new page
+      result=$(curl -L -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" --cookie-jar /tmp/google_cookies.txt --cookie /tmp/google_cookies.txt "$trouble_link")
+
+      # Now try to parse indexed status and results count from this page
+      if echo "$result" | grep -q "did not match any documents"; then
+        indexed=false
+        page_count=0
+      else
+        indexed=true
+        page_count=$(echo "$result" | grep -oP 'About [\d,]+ results' | head -1 | sed 's/About //; s/ results//; s/,//g')
+        if ! [[ "$page_count" =~ ^[0-9]+$ ]]; then
+          page_count=0
+        fi
+      fi
+      
+      # If still no good data, add error message
+      if [ "$page_count" -eq 0 ] && [ "$indexed" = false ]; then
+        error_msg="Google access blocked and no results info found after following trouble link."
+      fi
+    else
+      error_msg="Google access blocked, but trouble link not found."
+    fi
   else
-    indexed=true
-    page_count=$(echo "$result" | grep -oP 'About [\d,]+ results' | head -1 | sed 's/About //; s/ results//; s/,//g')
-    if ! [[ "$page_count" =~ ^[0-9]+$ ]]; then
-      page_count=0
+    # No trouble message, parse normal results page
+    if echo "$result" | grep -q 'consent.google.com'; then
+      error_msg="Consent page detected. Try a different IP or use a real browser."
+    fi
+
+    if [ -z "$error_msg" ]; then
+      if echo "$result" | grep -q "did not match any documents"; then
+        indexed=false
+        page_count=0
+      else
+        indexed=true
+        page_count=$(echo "$result" | grep -oP 'About [\d,]+ results' | head -1 | sed 's/About //; s/ results//; s/,//g')
+        if ! [[ "$page_count" =~ ^[0-9]+$ ]]; then
+          page_count=0
+        fi
+      fi
     fi
   fi
 
@@ -79,8 +120,8 @@ check_index() {
 {
   "timestamp": "$timestamp",
   "domain": "$domain",
-  "indexed": $indexed,
-  "results_count": "$page_count",
+  "indexed": ${indexed:-false},
+  "results_count": "${page_count:-0}",
   "error": "$error_msg"
 }
 EOF
@@ -94,7 +135,6 @@ EOF
 }
 EOF
   fi
-
   # Print JSON to console
   cat "$filename"
 }
