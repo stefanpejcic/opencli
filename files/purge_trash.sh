@@ -28,7 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-
 CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 FORCE_PURGE=false
 DRY_RUN=false
@@ -36,7 +35,6 @@ TARGET_USER=""
 TMP_DIR="/tmp/trash_purge_$$"
 mkdir -p "$TMP_DIR"
 
-# Argument parsing
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force) FORCE_PURGE=true; shift ;;
@@ -72,7 +70,6 @@ if ! $FORCE_PURGE; then
   fi
 
   autopurge_trash=$(grep -E "^autopurge_trash=" "$CONFIG_FILE" | cut -d'=' -f2)
-
   if [[ -z "$autopurge_trash" ]]; then
     echo "[INFO] autopurge_trash not set. Skipping cleanup."
     exit 0
@@ -98,8 +95,8 @@ purge_user_trash() {
     file_base=$(basename "$info_file" .trashinfo)
     file_path="$trash_files_dir/$file_base"
 
-    if [[ -f "$file_path" ]]; then
-      file_size=$(stat -c %s "$file_path")
+    if [[ -e "$file_path" ]]; then
+      file_size=$(du -sb "$file_path" 2>/dev/null | cut -f1)
     else
       file_size=0
     fi
@@ -111,9 +108,7 @@ purge_user_trash() {
     else
       deletion_date=$(grep "^DeletionDate=" "$info_file" | cut -d'=' -f2)
       deletion_epoch=$(date -d "$deletion_date" +%s 2>/dev/null)
-
       [[ -z "$deletion_epoch" ]] && continue
-
       age=$((now_epoch - deletion_epoch))
       if (( age > max_age_seconds )); then
         should_delete=true
@@ -125,7 +120,8 @@ purge_user_trash() {
       if $DRY_RUN; then
         echo "[DRY-RUN] Would delete: $file_base (user: $user_name)"
       else
-        rm -f "$file_path" "$info_file"
+        [[ "$file_path" == "$trash_files_dir/"* ]] && rm -rf -- "$file_path"
+        rm -f -- "$info_file"
       fi
     fi
   done
@@ -133,7 +129,6 @@ purge_user_trash() {
   echo "$freed" > "$TMP_DIR/$user_name"
 }
 
-# Decide which users to process
 users_to_process=()
 
 if [[ -n "$TARGET_USER" ]]; then
@@ -150,14 +145,12 @@ else
   done
 fi
 
-# Process users in parallel
 for user_home in "${users_to_process[@]}"; do
   purge_user_trash "$user_home" &
 done
 
 wait
 
-# Report
 total_freed=0
 echo ""
 echo "🧹 Trash Cleanup Report:"
@@ -166,7 +159,7 @@ for stat_file in "$TMP_DIR"/*; do
   bytes=$(cat "$stat_file")
   total_freed=$((total_freed + bytes))
   hr=$(numfmt --to=iec "$bytes")B
-  echo "  🧑 $user: $hr ${DRY_RUN:+(would be) }freed"
+  echo "  - $user: $hr ${DRY_RUN:+(would be) }freed"
 done
 
 hr_total=$(numfmt --to=iec "$total_freed")B
@@ -177,5 +170,4 @@ else
   echo "✅ Total freed across all users: $hr_total"
 fi
 
-# Cleanup
 rm -rf "$TMP_DIR"
