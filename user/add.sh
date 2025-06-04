@@ -1346,18 +1346,14 @@ copy_skeleton_files() {
 
 
 get_php_version() {
-    # Use grep and awk to extract the value of default_php_version
-    default_php_version=$(grep -E "^default_php_version=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}' | sed 's/^php//')
+    DEFAULT_PHP_VERSION=$(grep '^DEFAULT_PHP_VERSION=' /etc/openpanel/docker/compose/1.0/.env | sed -E 's/^DEFAULT_PHP_VERSION="?([^"]*)"?/\1/')
 
-
-    # Check if default_php_version is empty (in case the panel.config file doesn't exist)
     if [ -z "$default_php_version" ]; then
       if [ "$DEBUG" = true ]; then
         echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
       fi
       default_php_version="8.4"
     fi
-
 }
 
 
