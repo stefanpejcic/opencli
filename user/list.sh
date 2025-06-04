@@ -39,9 +39,49 @@ print_usage() {
 json_output=false
 total_users=false
 
+report_users_over_quota_only() {
+    local repquota_file="/etc/openpanel/openpanel/core/users/repquota"
+
+    if [ ! -f "$repquota_file" ]; then
+        quotacheck -avm >/dev/null 2>&1
+        repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    fi
+    if grep -q '+' "$repquota_file"; then
+        sed -n '3,5p' "$repquota_file"
+        grep '+' "$repquota_file"
+    else
+        No users over quota.
+    fi
+}
+
+
+report_users_quotas_only() {
+    local repquota_file="/etc/openpanel/openpanel/core/users/repquota"
+
+    if [ ! -f "$repquota_file" ]; then
+        quotacheck -avm >/dev/null 2>&1
+        repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    fi
+    if grep -q 'root' "$repquota_file"; then
+        tail -n +3 $repquota_file
+    else
+        No users quota.
+    fi
+}
+
+
+
 # Loop through command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --over_quota)
+            report_users_over_quota_only
+            exit 0
+            ;;
+        --quota)
+            report_users_quotas_only
+            exit 0
+            ;;
         --json)
             json_output=true
             shift
