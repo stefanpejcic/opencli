@@ -6,8 +6,8 @@
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
 # Last Modified: 03.06.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,13 +29,14 @@
 ################################################################################
 # Check if the correct number of arguments is provided
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-    echo "Usage: $0 <old_username> <new_username>"
+    echo "Usage: opencli user-rename <old_username> <new_username>"
     exit 1
 fi
 
 old_username="$1"
 new_username="$2"
-DEBUG=false  # Default value for DEBUG
+DEBUG=false
+RENAME_CONTEXT=false
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 
 
@@ -45,6 +46,9 @@ for arg in "$@"; do
         --debug)
             DEBUG=true
             ;;
+        --context)
+            RENAME_CONTEXT=true
+            ;;     
         *)
             ;;
     esac
@@ -147,7 +151,7 @@ check_if_exists_in_db() {
         exit 1
     fi
 
-    : '
+    
     context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$new_username'"
     context_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
     
@@ -156,20 +160,7 @@ check_if_exists_in_db() {
         echo "Error: Context '$new_username' already exists."
         exit 1
     fi
-
-    '
     
-}
-
-
-
-rename_docker_container() {
-if ! docker context inspect "${context}" &>/dev/null; then
-    echo "Error: Context '$old_username' not found."
-    exit 1
-
-fi
-
 }
 
 
@@ -203,40 +194,18 @@ if [ -z "$user_id" ]; then
     exit 1
 fi
 
+if ! docker context inspect "${context}" &>/dev/null; then
+    echo "ERROR: Context '$context' not found."
+    exit 1
+fi
 
 }
 
 mv_user_data() {
-
         mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
         rm /etc/openpanel/openpanel/core/users/$new_username/data.json > /dev/null 2>&1
 	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/ > /dev/null 2>&1
-
 }
-
-
-get_ipv4_for_user() {    
-    server_shared_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-    json_file="/etc/openpanel/openpanel/core/users/$new_username/ip.json"
-    
-    if [ "$DEBUG" = true ]; then
-        if [ -e "$json_file" ]; then
-            IP_TO_USE=$(jq -r '.ip' "$json_file")
-            echo "User has dedicated IP: $IP_TO_USE."
-        else
-            IP_TO_USE="$server_shared_ip"
-            echo "User has no dedicated IP assigned, using shared IP address: $IP_TO_USE."
-        fi
-    else
-        if [ -e "$json_file" ]; then
-            IP_TO_USE=$(jq -r '.ip' "$json_file")
-        else
-            IP_TO_USE="$server_shared_ip"
-        fi
-    fi
-}
-
-
 
 
 # Function to rename user in the database
@@ -256,13 +225,9 @@ rename_user_in_db() {
     fi
 }
 
-
-reload_user_quotas() {
-	local file="/etc/openpanel/openpanel/core/users/repquota"
-	sed -i -E "s/\b${OLD_USERNAME} /${NEW_USERNAME} /g" "$file"
+rename_env(){
+		sed -i -E "s/^USERNAME=.*/USERNAME=\"${NEW_USERNAME}\"/" "$file"
 }
-
-
 
 
 # MAIN
@@ -271,10 +236,10 @@ check_if_exists_in_db                                                      # che
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
 ensure_jq_installed                                                        # just helper for parsing json
-get_ipv4_for_user                                                          # get shared or dedi ip to be used for nginx files
-rename_docker_container                                                    # rename docker, doh! 
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
-# we dotnt cjhange context!  reload_user_quotas "$old_username" "$new_username"
+# rename_env USERNAME is no longer used!
+reload_user_quotas
 #TODO: rename ftp accounts suffix!
+# rename paths
 
 exit 0
