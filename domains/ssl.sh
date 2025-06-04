@@ -112,6 +112,18 @@ show_examples() {
 }
 
 
+
+check_custom_ssl_or_auto() {   
+	if grep -q "fullchain.pem" "$CONFIG_FILE"; then
+	    echo "Custom SSL"
+	elif grep -q "on_demand" "$CONFIG_FILE"; then
+	    echo "AutoSSL"
+	else
+	    echo "Unknown"
+	fi
+}
+
+
 if [ -n "$2" ]; then
     if [ "$2" == "info" ]; then
 	cat_certificate_files
