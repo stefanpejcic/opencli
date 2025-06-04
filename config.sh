@@ -106,8 +106,8 @@ update_config() {
         sed -i "s/^$param_name=.*/$param_name=$new_value/" "$config_file"
         echo "Updated $param_name to $new_value"
 
-        # Restart the panel service for all settings except autoupdate, default_php_version, and autopatch
-        if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "default_php_version" ] && [ "$param_name" != "autopatch" ]; then
+        # Restart the panel service for all settings except autoupdate and autopatch
+        if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "autopatch" ]; then
             docker restart openpanel &> /dev/null &                        # run in bg, and dont show error if panel not running
             rm -rf /etc/openpanel/openpanel/core/users/*/data.json         # remove data.json files for all users
         fi
