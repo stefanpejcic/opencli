@@ -83,7 +83,7 @@ if [ "$json_output" ]; then
     # For JSON output without --table option
     ensure_jq_installed
     plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT * FROM plans;" | tail -n +2)
-    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4], domains_limit: .[5], websites_limit: .[6], disk_limit: .[7], inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11], bandwidth: .[12]})')
+    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4], domains_limit: .[5], websites_limit: .[6], disk_limit: .[7], inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11], bandwidth: .[12], feature_set: .[13]})')
     echo "Plans:"
     echo "$json_output"
 else
