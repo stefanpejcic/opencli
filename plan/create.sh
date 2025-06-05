@@ -94,9 +94,9 @@ disk_limit="${disk_limit} GB"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
-    echo "Inserted: $name into plans"
+    echo "Plan $name created successfully."
   else
-    echo "Failed to insert: $name into plans"
+    echo "Failed to create plan: $name"
   fi
 }
 
