@@ -2,8 +2,8 @@
 ################################################################################
 # Script Name: plan/create.sh
 # Description: Create a new hosting plan (Package) and set its limits.
-# Usage: opencli plan-create name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT>
-# Example: opencli plan-create name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100
+# Usage: opencli plan-create name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT> featrue_set=<NAME>
+# Example: opencli plan-create name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100 feature_set=default
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
 # Last Modified: 05.06.2025
@@ -36,11 +36,12 @@ DEBUG=false
 
 # Function to display script usage
 usage() {
-    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth"
+    echo "Usage: opencli plan-create 'name' 'description' email_limit ftp_limit domains_limit websites_limit disk_limit inodes_limit db_limit cpu ram bandwidth feature_set"
     echo
     echo "Arguments:"
     echo "  name          - Name of the plan (string, no spaces)."
     echo "  description   - Plan description (string, use quotes for multiple words)."
+    echo "  feature_set   - Name of the feature set used for users on this plan"
     echo "  email_limit   - Max number of email accounts (integer, 0 for unlimited)."
     echo "  ftp_limit     - Max number of FTP accounts (integer, 0 for unlimited)."
     echo "  domains_limit - Max number of domains (integer, 0 for unlimited)."
@@ -76,6 +77,7 @@ insert_plan() {
   local cpu="${10}"
   local ram="${11}"
   local bandwidth="${12}"
+  local feature_set="${13}"
   
 # Format disk_limit with 'GB' 
 disk_limit="${disk_limit} GB"
@@ -88,7 +90,7 @@ disk_limit="${disk_limit} GB"
   ram="${ram}g"
 
   # Insert the plan into the 'plans' table
-  local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth) VALUES ('$name', '$description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', $bandwidth);"
+  local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set) VALUES ('$name', '$description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', $bandwidth, $feature_set);"
 
   mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
@@ -208,8 +210,9 @@ db_limit=""
 cpu=""
 ram=""
 bandwidth=""
+feature_set="default"
 
-# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100
+# opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100 feature_set=default
 for arg in "$@"; do
   case $arg in
     --debug)
@@ -251,6 +254,9 @@ for arg in "$@"; do
     bandwidth=*)
       bandwidth="${arg#*=}"
       ;;
+    feature_set=*)
+      feature_set="${arg#*=}"
+      ;;
     *)
       echo "Unknown argument: $arg"
       usage
@@ -285,4 +291,4 @@ if [ -n "$existing_plan" ]; then
 fi
 
 validate_fields_first "$ftp_limit" "$email_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
-insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
+insert_plan "$name" "$description" "$email_limit" "$ftp_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$feature_set"
