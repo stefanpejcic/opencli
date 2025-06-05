@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: plan/edit.sh
 # Description: Edit an existing hosting plan (Package) and modify its parameters.
-# Usage: opencli plan-edit --debug id=<ID> name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT>
-# Example: opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100
+# Usage: opencli plan-edit --debug id=<ID> name"<TEXT>" description="<TEXT>" emails=<COUNT> ftp=<COUNT> domains=<COUNT> websites=<COUNT> disk=<COUNT> inodes=<COUNT> databases=<COUNT> cpu=<COUNT> ram=<COUNT> bandwidth=<COUNT> feature_set=<DEFAULT>
+# Example: opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100 feature_set="default"
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 05.06.2025
+# Last Modified: 04.06.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -55,10 +55,11 @@ usage() {
     echo "  cpu=<num>            Set the CPU limit"
     echo "  ram=<num>            Set the RAM limit (in GB)"
     echo "  bandwidth=<num>      Set the bandwidth limit (in Mbps)"
+    echo "  feature_set=<name>   Name of the feature set to be used"
     echo "  --debug              Enable debug mode"
     echo ""
     echo "Example:"
-    echo "  opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100"
+    echo "  opencli plan-edit --debug id=1 name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100 feature_set=default"
     exit 1
 }
 
@@ -141,6 +142,7 @@ update_plan() {
   old_cpu=$(echo "$result" | awk '{print $5}')
   old_ram=$(echo "$result" | awk '{print $6}')
   old_bandwidth=$(echo "$result" | awk '{print $7}')
+  old_feature_set=$(echo "$result" | awk '{print $8}')
   
   new_plan_name="$2"
   description="$3"
@@ -154,7 +156,8 @@ update_plan() {
   cpu="${11}"
   int_ram="${12}"
   bandwidth="${13}"
-
+  feature_set="${14}"
+  
   # Format disk_limit with 'GB' 
     if [[ ! "$disk_limit" =~ GB$ ]]; then
       disk_limit="${int_disk_limit} GB"
@@ -185,10 +188,12 @@ if [ "$DEBUG" = true ]; then
   echo "Old CPU:          $old_cpu"
   echo "Old RAM:          $old_ram"
   echo "Old Bandwidth:    $old_bandwidth"
+  echo "Old feature set:  $old_feature_set"
   echo "+===================================+"
   echo "New plan information:"
   echo "Name:             $new_plan_name"
   echo "Description:      $description"
+  echo "Feature set:      $feature_set"
   echo "Disk limit:       $disk_limit"
   echo "Inodes limit:     $inodes_limit"
   echo "CPU:              $cpu cores"
@@ -208,7 +213,7 @@ fi
 ### contruct opencli plan-apply command if needed!
 
 
-local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth WHERE id='$plan_id';"
+local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, feature_set='$feature_set' WHERE id='$plan_id';"
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
 
@@ -340,6 +345,7 @@ db_limit=""
 cpu=""
 ram=""
 bandwidth=""
+feature_set="default"
 
 # opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100
 for arg in "$@"; do
@@ -386,6 +392,9 @@ for arg in "$@"; do
     bandwidth=*)
       bandwidth="${arg#*=}"
       ;;
+    feature_set=*)
+      feature_set="${arg#*=}"
+      ;;
     *)
       echo "Unknown argument: $arg"
       usage
@@ -403,4 +412,4 @@ if [ -z "$existing_plan" ]; then
 fi
 
 validate_fields_first "$plan_id" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
-update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
+update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$feature_set"
