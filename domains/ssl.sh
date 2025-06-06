@@ -133,13 +133,13 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 
 
 cat_certificate_files() {
-    	if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then
+    	if grep -q "fullchain.pem" "$CONFIG_FILE" && grep -q "key.pem" "$CONFIG_FILE"; then
     		cat $hostfs_domain_tls_dir/fullchain.pem
     		cat $hostfs_domain_tls_dir/key.pem
     	else
-    		cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt
-	    	cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key
-    	fi
+    		cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt || 
+	    	cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key || 
+    	fi    
 }
 
 
