@@ -197,11 +197,11 @@ if [ -n "$2" ]; then
     elif [ "$2" == "auto" ]; then
         sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|  tls {\n    on_demand\n  }|g" "$CONFIG_FILE"
 	docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null
-        echo "Updated $DOMAIN to use AutoSSL"
+        echo "Updated $DOMAIN to use AutoSSL."
         exit 0
     elif [ "$2" == "custom" ] && [ -n "$3" ] && [ -n "$4" ]; then        
         check_and_use_tls "$3" "$4"
-        echo "Updated $DOMAIN to use custom SSL with cert: $3 and key: $4"
+        echo "Updated $DOMAIN to use custom SSL."
         exit 0
     else
         echo "Invalid arguments. Usage: opencli domains-ssl <domain> [auto|custom] [cert_path key_path]"
