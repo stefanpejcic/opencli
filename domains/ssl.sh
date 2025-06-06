@@ -137,8 +137,8 @@ cat_certificate_files() {
     		cat $hostfs_domain_tls_dir/fullchain.pem
     		cat $hostfs_domain_tls_dir/key.pem
     	else
-    		cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt || 
-	    	cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key || 
+    		cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt
+	    	cat /hostfs/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key
     	fi    
 }
 
