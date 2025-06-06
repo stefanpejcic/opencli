@@ -51,13 +51,70 @@ hostfs_domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
 domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
 
 
-check_and_use_tls() {
 
+get_user() {
+  whoowns_output=$(opencli domains-whoowns "$DOMAIN")
+  user=$(echo "$whoowns_output" | awk -F "Owner of '$DOMAIN': " '{print $2}')
+  if [ -n "$user" ]; then
+    :
+  else
+      echo "Failed to determine the owner of the domain '$DOMAIN'." >&2
+      exit 1
+  fi
+  
+}
+
+get_user_info() {
+    local user="$1"
+    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    
+    # Retrieve both id and context
+    user_info=$(mysql -se "$query")
+    
+    # Extract user_id and context from the result
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
+    
+    echo "$user_id,$context"
+}
+
+
+
+
+get_user_context() {
+
+  result=$(get_user_info "$user")
+  user_id=$(echo "$result" | cut -d',' -f1)
+  context=$(echo "$result" | cut -d',' -f2)
+
+  if [ -z "$user_id" ]; then
+      echo "FATAL ERROR: user $user does not exist."
+      exit 1
+  fi
+}
+
+
+check_and_use_tls() {
+	local full_cert="$1"
+ 	local full_key="$2"
+	  
+	  if [[ ! "$full_cert" =~ ^/var/www/html/ && ! "$full_key" =~ ^/var/www/html/ ]]; then
+	      echo "ERROR: Paths must be inside /var/www/html/ directory."
+	      exit 1
+	  fi
+
+
+	local cert_path="${full_cert##/var/www/html/}"
+ 	local key_path="${full_key##/var/www/html/}"
+  
+ 	local real_cert_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_cert_path}"
+  	local real_key_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_key_path}"
+  
 	if openssl x509 -noout -checkend 0 -in "$1" >/dev/null 2>&1; then
 	    mkdir -p $domain_tls_dir
-	    
-	    cp /hostfs{$1} $hostfs_domain_tls_dir/fullchain.pem
-	    cp /hostfs{$2} $hostfs_domain_tls_dir/key.pem
+
+	    cp /hostfs{$real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
+	    cp /hostfs{$real_key_path} $hostfs_domain_tls_dir/key.pem
 	    
 		if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then
 		    echo "Custom SSL already configured for $DOMAIN. Updating certificate and key.."
@@ -72,7 +129,7 @@ check_and_use_tls() {
 	    sed -i -E "s|tls\s*{\s*on_demand\s*}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 	    docker --context default caddy caddy reload >/dev/null
 	else
-	    echo "Error: $1 is not valid or expired!"
+	    echo "Error: $full_cert is not valid or expired!"
 	    exit 1
 	fi
 }
@@ -124,6 +181,10 @@ check_custom_ssl_or_auto() {
 
 
 if [ -n "$2" ]; then
+
+  get_user
+  get_user_context
+
     if [ "$2" == "info" ]; then
 	cat_certificate_files
 	exit 0
