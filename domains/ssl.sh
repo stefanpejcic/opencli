@@ -120,7 +120,7 @@ check_and_use_tls() {
 		    echo "Custom SSL already configured for $DOMAIN. Updating certificate and key.."
 		else
 		    echo "Adding custom certificate.."
-      		    sed -i "s/tls[[:space:]]*{[[:space:]]*on_demand[[:space:]]*}/tls $domain_tls_dir\/fullchain.pem $domain_tls_dir\/key.pem/g" "$CONFIG_FILE"
+      		    sed -i -E "s|tls[[:space:]]*\{\s*on_demand\s*\}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 		fi 
 
 	    docker --context default caddy caddy reload >/dev/null
