@@ -110,7 +110,7 @@ check_and_use_tls() {
  	local real_cert_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_cert_path}"
   	local real_key_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_key_path}"
   
-	if openssl x509 -noout -checkend 0 -in "$1" >/dev/null 2>&1; then
+	if openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
 	    mkdir -p $domain_tls_dir
 
 	    cp /hostfs{$real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
@@ -129,7 +129,7 @@ check_and_use_tls() {
 	    sed -i -E "s|tls\s*{\s*on_demand\s*}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 	    docker --context default caddy caddy reload >/dev/null
 	else
-	    echo "Error: $real_cert_path is not valid or expired!"
+	    echo "Error: $cert_path is not valid or expired!"
 	    exit 1
 	fi
 }
