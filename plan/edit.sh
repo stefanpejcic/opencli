@@ -74,7 +74,11 @@ edit_docker_network() {
 }
 
 
-
+flush_redis_cache() {
+    if [ "$old_feature_set" != "$feature_set" ]; then
+        docker --context=default exec -it openpanel_redis bash -c "redis-cli FLUSHALL" > /dev/null 2>&1
+    fi
+}
 
 
 check_if_we_need_to_edit_docker_containers() {
@@ -104,7 +108,7 @@ fi
 # BANDWIDTH CHANGE OR PLAN NAME CHANGE
 if [ "$old_bandwidth" == "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
     if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Port speed and plan name have not changed, skipping renaming docker network."
+        echo "DEBUG: Port speed and plan name have not changed."
     fi
 elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
     if [ "$DEBUG" = true ]; then
@@ -113,7 +117,7 @@ elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_na
     edit_docker_network "$old_plan_name" "$bandwidth"
 elif [ "$old_plan_name" != "$new_plan_name" ]; then
     if [ "$DEBUG" = true ]; then
-        echo "DEBUG: Plan name is changed, renaming docker network is not possible, so creating new network, detaching existing docker containers from old network and atttach to new one."
+        echo "DEBUG: Plan name is changed."
     fi
     #CREATE NEW NETWORK, REMOVE PREVIOUS AND REATACH ALL CONTAINERS
     flags+=( "--net" )
@@ -133,7 +137,7 @@ update_plan() {
   local plan_id="$1"
 
   # Get old paln data, and if different, we will initiate the `opencli plan-apply` script
-  sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth FROM plans WHERE id='$plan_id'"
+  sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth, feature_set FROM plans WHERE id='$plan_id'"
   result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
   
   old_plan_name=$(echo "$result" | awk '{print $1}')
@@ -413,3 +417,4 @@ fi
 
 validate_fields_first "$plan_id" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth"
 update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$feature_set"
+flush_redis_cache
