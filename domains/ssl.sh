@@ -53,8 +53,7 @@ domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
 
 check_and_use_tls() {
 
-	if openssl x509 -noout -in "$3" >/dev/null 2>&1; then
-		    
+	if openssl x509 -noout -checkend 0 -in "$3" >/dev/null 2>&1; then
 	    mkdir -p $domain_tls_dir
 	    
 	    cp /hostfs{$3} $hostfs_domain_tls_dir/fullchain.pem
