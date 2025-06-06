@@ -129,7 +129,7 @@ check_and_use_tls() {
 	    sed -i -E "s|tls\s*{\s*on_demand\s*}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 	    docker --context default caddy caddy reload >/dev/null
 	else
-	    echo "Error: $full_cert is not valid or expired!"
+	    echo "Error: $real_cert_path is not valid or expired!"
 	    exit 1
 	fi
 }
