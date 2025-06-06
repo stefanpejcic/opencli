@@ -121,7 +121,7 @@ check_and_use_tls() {
 		    sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 		else
 		    echo "Adding custom certificate.."
-		    sed -i -E "s|tls\s*\{\s*on_demand\s*\}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
+		    sed -i -E "s|tls\s*\\{\\s*on_demand\\s*\\}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 		fi
 		    
 	    
