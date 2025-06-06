@@ -110,7 +110,7 @@ check_and_use_tls() {
  	local real_cert_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_cert_path}"
   	local real_key_path = "/home/${context}/docker-data/volumes/${context}_html_data/_data/${real_key_path}"
   
-	if openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
+ 	if openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
 	    mkdir -p $domain_tls_dir
 
 	    cp /hostfs{$real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
