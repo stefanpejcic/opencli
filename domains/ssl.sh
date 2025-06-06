@@ -125,7 +125,8 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 " "$CONFIG_FILE"
 		fi 
 
-	    docker --context default caddy caddy reload >/dev/null
+	    docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null
+
 	else
 	    echo "Error: $cert_path is not valid or expired!"
 	    exit 1
