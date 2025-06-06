@@ -50,8 +50,6 @@ fi
 hostfs_domain_tls_dir="/etc/openpanel/caddy/ssl/$DOMAIN"
 domain_tls_dir="/data/caddy/certificates/$DOMAIN"
 
-
-
 get_user() {
   whoowns_output=$(opencli domains-whoowns "$DOMAIN")
   user=$(echo "$whoowns_output" | awk -F "Owner of '$DOMAIN': " '{print $2}')
@@ -191,6 +189,7 @@ if [ -n "$2" ]; then
     	exit 0
     elif [ "$2" == "auto" ]; then
         sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|  tls {\n    on_demand\n  }|g" "$CONFIG_FILE"
+	docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null
         echo "Updated $DOMAIN to use AutoSSL"
         exit 0
     elif [ "$2" == "custom" ] && [ -n "$3" ] && [ -n "$4" ]; then        
