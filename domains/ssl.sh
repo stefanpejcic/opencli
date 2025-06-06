@@ -53,11 +53,11 @@ domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
 
 check_and_use_tls() {
 
-	if openssl x509 -noout -checkend 0 -in "$3" >/dev/null 2>&1; then
+	if openssl x509 -noout -checkend 0 -in "$1" >/dev/null 2>&1; then
 	    mkdir -p $domain_tls_dir
 	    
-	    cp /hostfs{$3} $hostfs_domain_tls_dir/fullchain.pem
-	    cp /hostfs{$4} $hostfs_domain_tls_dir/key.pem
+	    cp /hostfs{$1} $hostfs_domain_tls_dir/fullchain.pem
+	    cp /hostfs{$2} $hostfs_domain_tls_dir/key.pem
 	    
 		if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then
 		    echo "Custom SSL already configured for $DOMAIN. Updating certificate and key.."
@@ -72,7 +72,7 @@ check_and_use_tls() {
 	    sed -i -E "s|tls\s*{\s*on_demand\s*}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 	    docker --context default caddy caddy reload >/dev/null
 	else
-	    echo "Error: $3 is not valid or expired!"
+	    echo "Error: $1 is not valid or expired!"
 	    exit 1
 	fi
 }
@@ -135,7 +135,7 @@ if [ -n "$2" ]; then
         echo "Updated $DOMAIN to use AutoSSL"
         exit 0
     elif [ "$2" == "custom" ] && [ -n "$3" ] && [ -n "$4" ]; then        
-        check_and_use_tls
+        check_and_use_tls "$3" "$4"
         echo "Updated $DOMAIN to use custom SSL with cert: $3 and key: $4"
         exit 0
     else
