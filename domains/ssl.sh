@@ -47,8 +47,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 
-hostfs_domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
-domain_tls_dir="/hostfs/etc/openpanel/caddy/ssl/$DOMAIN"
+hostfs_domain_tls_dir="/etc/openpanel/caddy/ssl/$DOMAIN"
+domain_tls_dir="/data/caddy/certificates/$DOMAIN"
 
 
 
@@ -111,23 +111,18 @@ check_and_use_tls() {
   	local real_key_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/${key_path}"
   
  	if openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
-	    mkdir -p $domain_tls_dir
+	    mkdir -p $hostfs_domain_tls_dir
 
-	    cp /hostfs{$real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
-	    cp /hostfs{$real_key_path} $hostfs_domain_tls_dir/key.pem
+	    cp /hostfs${real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
+	    cp /hostfs${real_key_path} $hostfs_domain_tls_dir/key.pem
 	    
 		if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then
 		    echo "Custom SSL already configured for $DOMAIN. Updating certificate and key.."
-		    sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 		else
 		    echo "Adding custom certificate.."
-	            sed -i -E "s#tls\s*\\{\\s*on_demand\\s*\\}#tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem#g" "$CONFIG_FILE"
+      		    sed -i -E 's|tls[[:space:]]*\{\s*on_demand\s*\}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g' "$CONFIG_FILE"
+		fi 
 
-		fi
-		    
-	    
-	    
-	    sed -i -E "s|tls\s*{\s*on_demand\s*}|tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem|g" "$CONFIG_FILE"
 	    docker --context default caddy caddy reload >/dev/null
 	else
 	    echo "Error: $cert_path is not valid or expired!"
