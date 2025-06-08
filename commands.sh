@@ -45,6 +45,7 @@ find "$SCRIPTS_DIR" -type f \
   ! -name "db.sh" \
   ! -name "aliases.txt" \
   ! -name "send_mail.sh" \
+  ! -name "LICENSE.md" \
   ! -name "README.md" \
   ! -name "*README.md" \
   ! -name "*TODO*" | while read -r script; do
