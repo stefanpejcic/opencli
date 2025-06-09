@@ -24,17 +24,27 @@
                   generate_random_token_one_time_only
                   TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "${CONFIG_FILE_PATH}")
                                 
-                  SSL=$(awk -F'=' '/^ssl/ {print $2}' "${CONFIG_FILE_PATH}")
-                
-                # Determine protocol based on SSL configuration
-                if [ "$SSL" = "yes" ]; then
-                  PROTOCOL="https"
-                else
-                  PROTOCOL="http"
-                fi
+                  # Check for SSL
+                  DOMAIN=$(opencli domain)
+                  
+                  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+                    PROTOCOL="https"
+                  else
+                    PROTOCOL="http"
+                  fi
+                  
+                  admin_conf_file="/etc/openpanel/openadmin/config/admin.ini"
+                  AUTH_OPTION=""
+                  
+                  if grep -q '^basic_auth=yes' "$admin_conf_file"; then
+                      username=$(grep '^basic_auth_username=' "$admin_conf_file" | cut -d'=' -f2)
+                      password=$(grep '^basic_auth_password=' "$admin_conf_file" | cut -d'=' -f2)
+                      AUTH_OPTION="--user ${username}:${password}"
+                  fi
+
                 
                 # Send email using appropriate protocol
-                curl -k -X POST "$PROTOCOL://127.0.0.1:2087/send_email" -F "transient=$TRANSIENT" -F "recipient=$email" -F "subject=$title" -F "body=$message"
+                curl -k -X POST "$PROTOCOL://127.0.0.1:2087/send_email" $AUTH_OPTION -F "transient=$TRANSIENT" -F "recipient=$email" -F "subject=$title" -F "body=$message"
                 
                 }
                 
