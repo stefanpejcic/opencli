@@ -251,7 +251,7 @@ get_active_services_and_their_usage() {
         fi
     fi
 
-    json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
+    json_data="{\"context\": \"$context\", \"services\": [], \"limits\": {\"cpu\": {\"used\": \"$TOTAL_USED_CPU\", \"total\": \"$TOTAL_CPU\"}, \"ram\": {\"used\": \"$TOTAL_USED_RAM\", \"total\": \"$TOTAL_RAM\"}}, \"message\": \"$message\"}"
 
 
     if [ -n "$RUNNING_SERVICES" ]; then
@@ -308,7 +308,7 @@ get_active_services_and_their_usage() {
             # Convert service name to display format (underscores to hyphens and numbers with dots)
             display_service_name=$(echo "$service_name" | sed 's/_/-/g' | sed -E 's/([0-9]+)-([0-9]+)/\1.\2/g')
     
-            service_data="{\"name\": \"$display_service_name\", \"cpu\": $cpu_value, \"ram\": $ram_value}"
+            service_data="{\"name\": \"$display_service_name\", \"cpu\": \"$cpu_value\", \"ram\": \"$ram_value\"}"
             
             if $json_output; then
                 services_data="$services_data$service_data,"
@@ -322,7 +322,7 @@ get_active_services_and_their_usage() {
     
         # Add services to the JSON structure
         if $json_output; then
-            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": $TOTAL_USED_CPU, \"total\": $TOTAL_CPU}, \"ram\": {\"used\": $TOTAL_USED_RAM, \"total\": $TOTAL_RAM}}, \"message\": \"$message\"}"
+            json_data="{\"context\": \"$context\", \"services\": [$services_data], \"limits\": {\"cpu\": {\"used\": \"$TOTAL_USED_CPU\", \"total\": \"$TOTAL_CPU\"}, \"ram\": {\"used\": \"$TOTAL_USED_RAM\", \"total\": \"$TOTAL_RAM\"}}, \"message\": \"$message\"}"
         else
             echo ""
             echo "Total usage:"
@@ -502,9 +502,7 @@ add_new_service() {
 
 stop_container() {
     # if --deactivate=<service_name> is provided
-    if [[ -n "$stop_service" ]]; then
-        # Replace dots and hyphens with underscores in the new service name
-          
+    if [[ -n "$stop_service" ]]; then        
 
         check_if_service_exists_or_running "$stop_service" "check"
         
