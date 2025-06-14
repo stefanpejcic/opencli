@@ -1346,11 +1346,11 @@ copy_skeleton_files() {
 
 
 get_php_version() {
-    DEFAULT_PHP_VERSION=$(grep '^DEFAULT_PHP_VERSION=' /etc/openpanel/docker/compose/1.0/.env | sed -E 's/^DEFAULT_PHP_VERSION="?([^"]*)"?/\1/')
+    default_php_version=$(grep '^DEFAULT_PHP_VERSION=' /etc/openpanel/docker/compose/1.0/.env | sed -E 's/^DEFAULT_PHP_VERSION="?([^"]*)"?/\1/')
 
     if [ -z "$default_php_version" ]; then
       if [ "$DEBUG" = true ]; then
-        echo "Default PHP version not found in $PANEL_CONFIG_FILE using the fallback default version.."
+        echo "Default PHP version not found in .env file, using the fallback default version.."
       fi
       default_php_version="8.4"
     fi
