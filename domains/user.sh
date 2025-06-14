@@ -5,7 +5,7 @@
 # Usage: opencli domains-user <USERNAME>
 # Author: Stefan Pejcic
 # Created: 26.10.2023
-# Last Modified: 09.06.2025
+# Last Modified: 14.06.2025
 # Company: openpanel.co
 # Copyright (c) openpanel.co
 # 
