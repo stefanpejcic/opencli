@@ -192,9 +192,8 @@ fi
 	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	rm $vhost_in_docker_file >/dev/null 2>&1
 
-   
- 	log "Restarting $ws inside container to apply changes"
-	docker --context $context exec $user bash -c 'service $ws restart' >/dev/null 2>&1
+ 	log "Restarting $ws to apply changes"
+	docker --context=$context $user restart $ws >/dev/null 2>&1
 }
 
 
