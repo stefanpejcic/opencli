@@ -67,6 +67,14 @@ check_site_already_exists_in_db() {
 }
 
 
+get_mariadb_or_mysql_for_user() {
+    mysql_type=$(grep '^MYSQL_TYPE=' /home/$current_username/.env | cut -d '=' -f2 | tr -d '"')
+
+    if [[ "$mysql_type" != "mariadb" && "$mysql_type" != "mysql" ]]; then
+        mysql_type="localhost"
+    fi
+
+}
 
 
 run_for_single_user() {
@@ -82,9 +90,16 @@ existing_installations=()
 found_count=0
 existing_count=0
 
+get_mariadb_or_mysql_for_user
+
+
+
 # Iterate through user files
 while IFS= read -r -d '' config_file_path; do
     echo "- Parsing file: $config_file_path"
+	
+    sed -i -E 's/(DB_HOST *= *")localhost(")/\1mariadb\2/g' "$config_file_path"
+    #sed -i -E "s/(DB_HOST *= *)localhost/\1mariadb/g" "$config_file_path"
     
     # get sitename for manager
 	# Remove /wp-config.php sufix
