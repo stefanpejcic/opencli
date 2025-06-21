@@ -97,13 +97,6 @@ get_docker_context_for_user(){
 }
 
 
-# Function to remove Docker container and all user files
-remove_docker_container_and_volume() {
-    cd /home/$provided_username && docker --context $context compose down $provided_username   2>/dev/null
-    # home data is deleted anyways! #docker --context $context volume rm $(docker --context $context volume ls -q) 2>/dev/null
-}
-
-
 get_userid_from_db() {
     # Get the user_id from the 'users' table
     user_id=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "SELECT id FROM users WHERE username='$provided_username';" -N)
@@ -191,7 +184,7 @@ delete_ftp_users() {
 
 # Function to delete bandwidth limit settings for a user
 delete_bandwidth_limits() {
-
+	# TODO
         ip_address=$(docker $context_flag container inspect -f '{{ .NetworkSettings.IPAddress }}' "$username")
         if [ -n "$node_ip_address" ]; then
             # TODO: INSTEAD OF ROOT USER SSH CONFIG OR OUR CUSTOM USER!
@@ -273,8 +266,7 @@ delete_user() {
     get_docker_context_for_user              # on which server is the container running
     delete_vhosts_files                      # delete nginx conf files from that server
     edit_firewall_rules                      # close user ports on firewall
-    delete_bandwidth_limits                  # delete bandwidth limits for private ip
-    remove_docker_container_and_volume       # delete contianer and all docker files
+    #delete_bandwidth_limits                  # delete bandwidth limits for private ip
     delete_ftp_users $provided_username
     delete_user_from_database                # delete user from database
     delete_all_user_files                    # permanently delete data
