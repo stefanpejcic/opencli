@@ -376,6 +376,7 @@ run_update_immediately(){
                 ;;
         esac
     }
+    
     remove_old_kernels_debian() {
         log "Removing old kernels (Debian)"
         CURRENT=$(uname -r)
@@ -385,6 +386,7 @@ run_update_immediately(){
             apt purge -y "${REMOVE[@]}" >> "$log_file" 2>&1
         fi
     }
+    
     remove_old_kernels_rhel() {
         log "Removing old kernels (RHEL)"
         if command -v package-cleanup &>/dev/null; then
@@ -393,6 +395,7 @@ run_update_immediately(){
             log "package-cleanup not available."
         fi
     }
+    
     check_reboot_required() {
         log "Checking if reboot is required"
         if [[ "$DISTRO" == "debian" && -f /var/run/reboot-required ]]; then
@@ -405,6 +408,79 @@ run_update_immediately(){
             fi
         fi
     }
+
+    update_docker_compose_if_needed() {
+        # Determine install location
+        dest="$HOME/.docker/cli-plugins/docker-compose"
+        backup="${dest}.bak"
+    
+        # Detect installed version
+        if command -v docker-compose &> /dev/null; then
+            local_version=$(docker-compose version --short)
+        elif docker compose version &> /dev/null; then
+            local_version=$(docker compose version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        else
+            echo "Docker Compose not installed. Setting local version to 0.0.0"
+            local_version="0.0.0"
+        fi
+    
+        echo "Local Docker Compose version: $local_version"
+    
+        # Get latest version from GitHub
+        latest_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest \
+            | grep '"tag_name":' \
+            | cut -d '"' -f 4 \
+            | sed 's/^v//')
+    
+        echo "Latest Docker Compose version: $latest_version"
+    
+        # Compare versions
+        if [[ "$(printf "%s\n%s" "$latest_version" "$local_version" | sort -V | tail -n1)" != "$local_version" ]]; then
+            echo "Updating Docker Compose..."
+    
+            # Determine arch
+            arch=$(uname -m)
+            if [[ "$arch" == "x86_64" ]]; then
+                binary="docker-compose-linux-x86_64"
+            elif [[ "$arch" == "aarch64" ]]; then
+                binary="docker-compose-linux-aarch64"
+            else
+                echo "Unsupported architecture: $arch"
+                return 1
+            fi
+    
+            url="https://github.com/docker/compose/releases/download/v${latest_version}/${binary}"
+    
+            # Backup current version if it exists
+            if [[ -f "$dest" ]]; then
+                echo "Backing up current Docker Compose binary to $backup"
+                cp "$dest" "$backup"
+            fi
+    
+            # Download and install
+            mkdir -p "$(dirname "$dest")"
+            curl -L "$url" -o "$dest" && chmod +x "$dest"
+    
+            # Test if new version works
+            if docker compose version &>/dev/null; then
+                echo "Update successful. Docker Compose is now version: $(docker compose version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+                [[ -f "$backup" ]] && rm -f "$backup"
+            else
+                echo "Update failed! Reverting to previous version..."
+                if [[ -f "$backup" ]]; then
+                    mv "$backup" "$dest"
+                    echo "Reverted to previous version."
+                else
+                    echo "Backup not found. Manual intervention may be required." >&2
+                    return 1
+                fi
+            fi
+        else
+            echo "Docker Compose is already up to date."
+        fi
+    }
+
+
 
     install_required_tools
     
@@ -439,6 +515,9 @@ run_update_immediately(){
     esac
   
     check_reboot_required
+
+    log "Updating docker-compose plugin.."
+    update_docker_compose_if_needed
 
     log "Checking for POST-upgrade scripts.."
     run_custom_postupdate_script
