@@ -1302,6 +1302,7 @@ cp /etc/openpanel/apache/httpd.conf /home/$username/httpd.conf
 cp /etc/openpanel/varnish/default.vcl /home/$username/default.vcl
 cp /etc/openpanel/ofelia/users.ini /home/$username/crons.ini  > /dev/null 2>&1 # added in 1.2.1
 cp /etc/openpanel/backups/backup.env /home/$username/backup.env  > /dev/null 2>&1 # added in 1.1.7
+cp /etc/openpanel/mysql/phpmyadmin/pma.php /home/$username/pma.php  > /dev/null 2>&1 # added in 1.4.4 for autologin to pma
 
 cp -r /etc/openpanel/php/ini /home/${username}/php.ini
 chown -R $username:$username /home/$username/sockets
