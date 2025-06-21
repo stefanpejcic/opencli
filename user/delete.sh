@@ -166,7 +166,7 @@ delete_user_from_database() {
     # Step 6: Delete the user from the 'users' table
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "DELETE FROM users WHERE username='$suspended_user';"
 
-    echo "User '$username' deleted successfully."
+    #echo "User '$username' deleted successfully."
 }
 
 
@@ -281,7 +281,7 @@ delete_user() {
     delete_context  
     refresh_resellers_data                   # count users for all resellers
     reload_user_quotas
-    echo "User $username deleted."           # if we made it
+    echo "User $username deleted successfully."           # if we made it
 }
 
 
