@@ -321,7 +321,7 @@ run_update_immediately(){
     
     log "Removing previous OpenPanel UI image tags.."
     purge_previous_images
-    
+
     log "Checking for custom scripts.."
     url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
     wget --spider -q "$url"
@@ -335,7 +335,111 @@ run_update_immediately(){
             log "Error: Running custom post-update script for version $version timed out after 5 minutes."
         fi
     fi
+
+    log "Updating server.."
+    KEEP_KERNELS=2
+
+    if command -v apt &>/dev/null; then
+        DISTRO="debian"
+        PKG_MGR="apt"
+    elif command -v dnf &>/dev/null; then
+        DISTRO="dnf"
+        PKG_MGR="dnf"
+    elif command -v yum &>/dev/null; then
+        DISTRO="yum"
+        PKG_MGR="yum"
+    else
+        echo "Unsupported Linux distribution."
+        exit 1
+    fi
+     
+    # Ensure required tools
+    install_required_tools() {
+        log "Checking for required tools"
+        case $DISTRO in
+            debian)
+                for pkg in deborphan; do
+                    if ! dpkg -s "$pkg" &>/dev/null; then
+                        log "Installing $pkg"
+                        apt install -y "$pkg" >> "$log_file" 2>&1
+                    fi
+                done
+                ;;
+            yum|dnf)
+                for cmd in package-cleanup needs-restarting; do
+                    if ! command -v "$cmd" &>/dev/null; then
+                        log "Installing yum-utils for $cmd"
+                        $PKG_MGR install -y yum-utils >> "$log_file" 2>&1
+                        break
+                    fi
+                done
+                ;;
+        esac
+    }
+    remove_old_kernels_debian() {
+        log "Removing old kernels (Debian)"
+        CURRENT=$(uname -r)
+        KERNELS=($(dpkg --list | grep linux-image | awk '{print $2}' | grep -v "$CURRENT" | sort -V))
+        if (( ${#KERNELS[@]} > KEEP_KERNELS )); then
+            REMOVE=("${KERNELS[@]:0:${#KERNELS[@]}-KEEP_KERNELS}")
+            apt purge -y "${REMOVE[@]}" >> "$log_file" 2>&1
+        fi
+    }
+    remove_old_kernels_rhel() {
+        log "Removing old kernels (RHEL)"
+        if command -v package-cleanup &>/dev/null; then
+            package-cleanup --oldkernels --count=$KEEP_KERNELS -y >> "$log_file" 2>&1
+        else
+            log "package-cleanup not available."
+        fi
+    }
+    check_reboot_required() {
+        log "Checking if reboot is required"
+        if [[ "$DISTRO" == "debian" && -f /var/run/reboot-required ]]; then
+            echo "Reboot required!" | tee -a "$log_file"
+            [ -f /var/run/reboot-required.pkgs ] && cat /var/run/reboot-required.pkgs >> "$log_file"
+        elif [[ "$DISTRO" =~ (yum|dnf) ]] && command -v needs-restarting &>/dev/null; then
+            if ! needs-restarting -r &>/dev/null; then
+                echo "Reboot required!" | tee -a "$log_file"
+                needs-restarting >> "$log_file"
+            fi
+        fi
+    }
+
+    install_required_tools
     
+    log "Updating and upgrading $PKG_MGR packages"
+    
+    case $DISTRO in
+        debian)
+            apt update >> "$log_file" 2>&1
+            apt upgrade -y >> "$log_file" 2>&1
+            apt full-upgrade -y >> "$log_file" 2>&1
+            remove_old_kernels_debian
+            log "Cleaning up"
+            apt autoremove -y >> "$log_file" 2>&1
+            apt autoclean -y >> "$log_file" 2>&1
+            apt clean >> "$log_file" 2>&1
+            log "Removing orphan packages"
+            deborphan | xargs -r apt purge -y >> "$log_file" 2>&1
+            log "Removing leftover config files"
+            dpkg -l | awk '/^rc/ { print $2 }' | xargs -r apt purge -y >> "$log_file" 2>&1
+            ;;
+        yum|dnf)
+            $PKG_MGR -y update >> "$log_file" 2>&1
+            remove_old_kernels_rhel
+            log "Cleaning up"
+            $PKG_MGR -y autoremove >> "$log_file" 2>&1
+            $PKG_MGR clean all >> "$log_file" 2>&1
+            log "Removing orphan packages"
+            if command -v package-cleanup &>/dev/null; then
+                package-cleanup --leaves --all --quiet | xargs -r $PKG_MGR remove -y >> "$log_file" 2>&1
+            fi
+            ;;
+    esac
+  
+    check_reboot_required
+
     log "Checking for POST-upgrade scripts.."
     run_custom_postupdate_script
 
