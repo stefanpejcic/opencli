@@ -5,7 +5,7 @@
 # Usage: opencli php-ioncube <username>
 # Author: Stefan Pejcic
 # Created: 26.07.2024
-# Last Modified: 21.06.2025
+# Last Modified: 24.06.2025
 # Company: openpanel.com
 # Copyright (c) Stefan Pejcic
 # 
