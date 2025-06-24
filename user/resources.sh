@@ -220,13 +220,7 @@ get_total_cpu_and_ram() {
 
 }
 
-get_active_services_and_their_usage() {
-    
-    # not sure if used anymore!
-    os_service_name=$(echo "$context" | sed 's/[.-]/_/g')
-    os_cpu_value="$OS_CPU"
-    os_ram_value="$OS_RAM"
-    
+get_active_services_and_their_usage() { 
     
     RUNNING_SERVICES=$(docker --context $context ps --format "{{.Names}}")
     if [ $? -ne 0 ]; then
