@@ -1229,16 +1229,16 @@ pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
     log "HTTP_PORT: $port_5"
     log "HTTPS_PORT: $port_6"
     log "HOSTNAME: $hostname"
-    log "SSH_PORT: $port_1"
-    log "TTYD_PORT: $port_3"
+    log "UNUSED_1_PORT: $port_1"
+    log "UNUSED_2_PORT: $port_3"
     log "PMA_PORT: $port_4"
     log "MYSQL_PORT: $port_2"
     log "DEFAULT_PHP_VERSION: $default_php_version"
     log "POSTGRES_PASSWORD: $postgres_password"
-    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"    
+    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
 '
 
-if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$port_7" ] || [ -z "$hostname" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
+if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$port_7" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
    echo "ERROR: One or more required variables are not set."
    exit 1
 fi
@@ -1252,9 +1252,8 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|TOTAL_RAM=\"[^\"]*\"|TOTAL_RAM=\"$ram\"|g" \
     -e "s|^HTTP_PORT=\"[^\"]*\"|HTTP_PORT=\"$port_5\"|g" \
     -e "s|HTTPS_PORT=\"[^\"]*\"|HTTPS_PORT=\"$port_6\"|g" \
-    -e "s|HOSTNAME=\"[^\"]*\"|HOSTNAME=\"$hostname\"|g" \
-    -e "s|SSH_PORT=\"[^\"]*\"|SSH_PORT=\"127.0.0.1:$port_1\"|g" \
-    -e "s|TTYD_PORT=\"[^\"]*\"|TTYD_PORT=\"$port_3\"|g" \
+    -e "s|UNUSED_1_PORT=\"[^\"]*\"|UNUSED_1_PORT=\"127.0.0.1:$port_1\"|g" \
+    -e "s|UNUSED_2_PORT=\"[^\"]*\"|UNUSED_2_PORT=\"$port_3\"|g" \
     -e "s|PMA_PORT=\"[^\"]*\"|PMA_PORT=\"$port_4\"|g" \
     -e "s|POSTGRES_PASSWORD=\"[^\"]*\"|POSTGRES_PASSWORD=\"$postgres_password\"|g" \
     -e "s|PGADMIN_PW=\"[^\"]*\"|PGADMIN_PW=\"$pg_admin_password\"|g" \
