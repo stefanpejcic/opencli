@@ -293,8 +293,7 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
-
+        "docker --context=$username compose -f /home/$username/docker-compose.yml down && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
 # Close FD 3
