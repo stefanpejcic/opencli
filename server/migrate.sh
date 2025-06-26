@@ -285,7 +285,7 @@ while IFS=: read -r username containers <&3; do
     username=$(echo "$username" | xargs)
 
     if [[ -z "$username" ]] || [[ "$containers" =~ no\ containers ]]; then
-        echo "Skipping user $username (no containers or empty line)"
+        #echo "Skipping user $username (no containers or empty line)"
         continue
     fi
 
@@ -322,7 +322,7 @@ copy_docker_contexts() {
 	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
 	
 	        echo "Configuring docker service for: $USERNAME"
-	 
+
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "loginctl enable-linger" \
 		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
@@ -334,11 +334,11 @@ copy_docker_contexts() {
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
 		    >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
-	  
 	    else
 	        echo "No .docker directory for $USERNAME, skipping."
 	    fi
-	    echo "Done with $USERNAME"
+            echo "[OK] Context $USERNAME processed"
+	    echo ""
 	done
 	
 	# Close FD 3
@@ -406,6 +406,7 @@ if [[ $EXCLUDE_HOME -eq 0 ]]; then
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
         echo "[OK] Files have been copied to the remote server."
+	echo ""
     else
         echo "[ERROR] Rsync failed! Output:"
         echo "$RSYNC_OUTPUT"
@@ -495,4 +496,4 @@ restore_running_containers_for_all_users  # start containers per context on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate users usage on dest
 
-echo "Sync complete."
+echo "[OK] Sync complete"
