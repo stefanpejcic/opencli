@@ -210,11 +210,9 @@ copy_user_accounts() {
     awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
     grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
     eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
-    echo "User account files copied to /root/ on remote server."
-    rm -rf "$TMPDIR"
+    rm -rf "$TMPDIR" >/dev/null
 
-    # ere now we need to add the suers on remote server!
-sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF'
+sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
 USER_PASSWD="/root/passwd.users"
 USER_GROUP="/root/group.users"
 USER_SHADOW="/root/shadow.users"
@@ -241,7 +239,6 @@ cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
 done
 
 rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
-echo "[OK] System users have been created on the remote server."
 
 EOF
     
@@ -294,7 +291,7 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "docker --context=$username compose -f /home/$username/docker-compose.yml down && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
+        "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
 # Close FD 3
@@ -324,16 +321,19 @@ copy_docker_contexts() {
 	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
 	
-	        echo "Starting containers for: $USERNAME"
+	        echo "Configuring docker service for: $USERNAME"
 	 
-	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	            "loginctl enable-linger ${USERNAME}" || echo "Failed to enable linger for $USERNAME"
-	
-	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1'" || echo "Failed to reload daemon for $USERNAME"
-	
-	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user restart docker >/dev/null 2>&1'" || echo "Failed to restart docker for $USERNAME"
+		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		    "loginctl enable-linger" \
+		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
+
+		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
+		    >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
+
+		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
+		    >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
 	  
 	    else
 	        echo "No .docker directory for $USERNAME, skipping."
@@ -348,7 +348,7 @@ copy_docker_contexts() {
 restart_services_on_target() {
             echo "Restarting services on ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && docker compose up -d openpanel bind9 caddy > /dev/null && systemctl restart admin"
+                "cd /root && docker compose compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Starting mailserver and webmail on ${REMOTE_HOST} server ..."
@@ -395,7 +395,7 @@ if [[ $FORCE -eq 0 ]]; then
 fi
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
-    echo "Extracting and copying user accounts ..."
+    echo "Creating system users on remote server ..."
     copy_user_accounts
 fi
 
