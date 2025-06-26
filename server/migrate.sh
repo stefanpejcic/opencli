@@ -286,10 +286,6 @@ restore_running_containers_for_all_users() {
 	done < "$output_file"
 }
 
-
-
-
-
 copy_docker_contexts() {
     awk -F: '$3 >= 1000 {print $1 ":" $3}' /etc/passwd | while IFS=: read USERNAME USER_ID; do
         SRC="/home/$USERNAME/.docker"
@@ -301,34 +297,6 @@ copy_docker_contexts() {
             echo "Starting containers for: $USERNAME"
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
-
-            echo "Fetching plan limits for user from the ..."
-            
-            query="SELECT p.disk_limit, p.inodes_limit 
-                   FROM plans p
-                   JOIN users u ON u.plan_id = p.id
-                   WHERE u.username = '$username'"
-            cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
-            
-            if [ -z "$cpu_ram_info" ]; then
-                disk_limit="0"
-                inodes="0"
-            else
-                disk_limit=$(echo "$cpu_ram_info" | awk '{print $1}' | sed 's/ //;s/B//')
-                inodes=$(echo "$cpu_ram_info" | awk '{print $3}')
-            fi
-
-            if [ "$disk_limit" -ne 0 ]; then
-            	storage_in_blocks=$((disk_limit * 1024000))
-                echo "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
-              	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                   "setquota -u $USERNAME $storage_in_blocks $storage_in_blocks $inodes $inodes /"
-            else
-            	echo "Setting unlimited storage and inodes for the user"
-              	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-              	    "setquota -u $USERNAME 0 0 0 0 /"
-            fi
-
         fi
     done
 }
@@ -384,6 +352,12 @@ if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
     echo "Syncing docker contexts ..."
     copy_docker_contexts # create docker context, start docker, set quotas
 fi
+
+# set quotas
+echo "Restoring user quotas ..."
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	"opencli user-quota --all"
+
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
     echo "Syncing /var/log/openpanel ..."
