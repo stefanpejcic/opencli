@@ -171,7 +171,11 @@ copy_docker_contexts() {
     done
 }
 
-
+restart_services_on_target() {
+            echo "Restarting services on  ${REMOTE_HOST} server ..."
+            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                "cd /root && docker compose up -d openpanel bind9 caddy && systemctl restart admin"
+}
 
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
@@ -231,5 +235,7 @@ if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
     echo "Syncing /root/openpanel_run_after_update ..."
     eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
 fi
+
+restart_services_on_target
 
 echo "Sync complete."
