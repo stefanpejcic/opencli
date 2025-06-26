@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/dns.sh
-# Description: Parse nginx access logs for users domains and generate static html
+# Description: Manage DNS for a domain.
 # Usage: opencli domains-dns <DOMAIN>
 # Author: Stefan Pejcic
 # Created: 31.08.2024
