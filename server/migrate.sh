@@ -314,7 +314,21 @@ refresh_quotas() {
                 "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
 }
   
-   
+replace_ip_in_zones() {
+	source_ip=$(hostname -I | awk '{print $1}')
+
+	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -c "'
+	    zones_dir=\"/etc/bind/zones\"
+	
+	    for ZONE_CONF in \"\$zones_dir\"/*.zone; do
+	        if [ -f \"\$ZONE_CONF\" ]; then
+	            domain=\$(basename \"\$ZONE_CONF\" .zone)
+	            sed -i \"s/$source_ip/$REMOTE_HOST/g\" \"\$ZONE_CONF\"
+	            echo \"Updated DNS zone for domain \$domain - \$ZONE_CONF\"
+	        fi
+	    done
+	'"
+}
 
 
 
@@ -351,6 +365,7 @@ fi
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
     eval $RSYNC_CMD /etc/bind/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/
+    replace_ip_in_zones   
 fi
 
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
