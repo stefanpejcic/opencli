@@ -139,6 +139,31 @@ else
     RSYNC_CMD="rsync $RSYNC_OPTS"
 fi
 
+
+DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+. "$DB_CONFIG_FILE"
+
+get_users_count_on_destination() {
+
+	user_count_query="SELECT COUNT(*) FROM users"
+
+    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
+ 
+        if [ $? -ne 0 ]; then
+            echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
+            exit 1
+        fi
+    
+        if [ "$user_count" -gt 0 ]; then
+            echo "[✘] ERROR: Migration is possible only to a freshly installed OpenPanel with no existing users."
+            exit 1
+        fi
+}
+
+
+get_users_count_on_destination
+
 copy_user_accounts() {
     TMPDIR=$(mktemp -d)
     # Copy user passwd entries (UID >= 1000)
@@ -198,8 +223,6 @@ copy_docker_contexts() {
                 "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
 
             echo "Fetching plan limits for user from the ..."
-            DB_CONFIG_FILE="/usr/local/opencli/db.sh"
-            . "$DB_CONFIG_FILE"
             
             query="SELECT p.disk_limit, p.inodes_limit 
                    FROM plans p
