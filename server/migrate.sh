@@ -431,6 +431,7 @@ if [[ $EXCLUDE_CSF -eq 0 ]]; then
 	"csf -a $current_ip && csf -r >/dev/null && systemctl restart lfd"    
 fi
 
+
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
     eval $RSYNC_CMD /etc/bind/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/
