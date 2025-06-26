@@ -115,7 +115,7 @@ fi
 
 RSYNC_OPTS="-avz" #--progress
 
-ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST
+ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
 
 # If a password is provided, use sshpass for rsync/scp
 if [[ -n "$REMOTE_PASS" ]]; then
