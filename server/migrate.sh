@@ -204,7 +204,7 @@ copy_user_accounts() {
     awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
     grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
     eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
-    echo "User account files for UID >= 1000 copied to /root/ on remote server."
+    echo "User account files copied to /root/ on remote server."
     rm -rf "$TMPDIR"
 
     # ere now we need to add the suers on remote server!
@@ -371,7 +371,7 @@ get_server_ipv4
 get_users_count_on_destination
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
-    echo "Extracting and copying user accounts with UID >= 1000 ..."
+    echo "Extracting and copying user accounts ..."
     copy_user_accounts
 fi
 
