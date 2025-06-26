@@ -47,7 +47,7 @@ process_user() {
   # Set the user's disk quota
   sudo setquota -u "$username" "$block_limit" "$block_limit" "$file_limit" "$file_limit" /
   if [ $? -eq 0 ]; then
-      echo "Quota for user $username has been set to $block_limit blocks ($disk_limit GB) and $file_limit inodes."
+      echo "Quota for user $username has been set to $block_limit blocks ($disk_limit) and $file_limit inodes."
   else
       echo "Failed to set quota for user $username."
       exit 3
