@@ -240,7 +240,7 @@ cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
 done
 
 rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
-echo "System users have been created on the remote server."
+echo "[OK] System users have been created on the remote server."
 
 EOF
     
@@ -347,7 +347,7 @@ copy_docker_contexts() {
 restart_services_on_target() {
             echo "Restarting services on  ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && docker compose up -d openpanel bind9 caddy && systemctl restart admin"
+                "cd /root && docker compose up -d openpanel bind9 caddy > /dev/null && systemctl restart admin"
 }
 
 refresh_quotas() {
@@ -390,8 +390,17 @@ if [[ $EXCLUDE_USERS -eq 0 ]]; then
 fi
 
 if [[ $EXCLUDE_HOME -eq 0 ]]; then
-    echo "Syncing /home ..."
-    eval $RSYNC_CMD /home/ ${REMOTE_USER}@${REMOTE_HOST}:/home/
+    echo "Syncing files (/home directory) ..."
+    RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    RSYNC_EXIT=$?
+    echo "$RSYNC_OUTPUT"
+    if [[ $RSYNC_EXIT -eq 0 ]]; then
+        echo "[OK] Files have been copied to the remote server."
+    else
+        echo "[ERROR] Rsync failed! Output:"
+        echo "$RSYNC_OUTPUT"
+        exit 1
+    fi
 fi
 
 if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
@@ -428,7 +437,7 @@ if [[ $EXCLUDE_CSF -eq 0 ]]; then
     echo "Syncing /etc/csf/ ..."
     eval $RSYNC_CMD /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"csf -a $current_ip && csf -r >/dev/null && systemctl restart lfd"    
+	"csf -a $current_ip > /dev/null && csf -r >/dev/null && systemctl restart lfd"    
 fi
 
 
