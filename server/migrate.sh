@@ -46,6 +46,7 @@ EXCLUDE_STACK=0
 EXCLUDE_POSTUPDATE=0
 EXCLUDE_USERS=0
 EXCLUDE_CONTEXTS=0
+FORCE=0
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -105,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             EXCLUDE_CONTEXTS=1
             shift
             ;;
+        --force)
+            FORCE=1
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
             exit 1
@@ -117,7 +122,7 @@ if [[ -z "$REMOTE_HOST" || -z "$REMOTE_USER" ]]; then
     exit 1
 fi
 
-RSYNC_OPTS="-az --progress"
+RSYNC_OPTS="-az" #--progress
 
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
@@ -208,7 +213,7 @@ copy_user_accounts() {
     rm -rf "$TMPDIR"
 
     # ere now we need to add the suers on remote server!
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF'
+sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF'
 USER_PASSWD="/root/passwd.users"
 USER_GROUP="/root/group.users"
 USER_SHADOW="/root/shadow.users"
@@ -268,22 +273,32 @@ eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 }
 
 restore_running_containers_for_all_users() {
-	output_file="/tmp/docker_containers_names.txt"
-	
-	while IFS=: read -r username containers; do
-	    username=$(echo "$username" | xargs)
-	
-	    if [[ -z "$username" ]] || [[ "$containers" =~ no\ containers ]]; then
-	        echo "Skipping user $username (no containers or empty line)"
-	        continue
-	    fi
-	    echo "Running 'docker --context=$username compose up -d'..."
-	    
-            echo "Starting containers for context: $USERNAME ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
- 
-	done < "$output_file"
+output_file="/tmp/docker_containers_names.txt"
+
+# Count total lines for progress display
+TOTALCOUNT=$(wc -l < "$output_file")
+CURRENT=0
+
+# Open the file on FD 3 to avoid stdin conflicts
+exec 3<"$output_file"
+
+while IFS=: read -r username containers <&3; do
+    CURRENT=$((CURRENT+1))
+    username=$(echo "$username" | xargs)
+
+    if [[ -z "$username" ]] || [[ "$containers" =~ no\ containers ]]; then
+        echo "Skipping user $username (no containers or empty line)"
+        continue
+    fi
+
+    echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
+    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
+
+done
+
+# Close FD 3
+exec 3<&-
 }
 
 copy_docker_contexts() {
@@ -294,18 +309,40 @@ copy_docker_contexts() {
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"systemctl restart apparmor.service"
     
-    awk -F: '$3 >= 1000 {print $1 ":" $3}' /etc/passwd | while IFS=: read USERNAME USER_ID; do
-        SRC="/home/$USERNAME/.docker"
-        if [[ -d "$SRC" ]]; then
-            echo "Creating Docker context: $USERNAME ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'"
-
-            echo "Starting containers for: $USERNAME"
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "loginctl enable-linger ${USERNAME} && machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
-        fi
-    done
+	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
+	TOTALCOUNT=$(wc -l < /tmp/userlist.txt)
+	CURRENT=0
+	
+	# Open the file on FD 3
+	exec 3</tmp/userlist.txt
+	
+	while IFS=: read -r USERNAME USER_ID <&3; do
+	    CURRENT=$((CURRENT+1))
+	    SRC="/home/$USERNAME/.docker"
+	    if [[ -d "$SRC" ]]; then
+	        echo "Creating Docker context: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
+	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
+	
+	        echo "Starting containers for: $USERNAME"
+	 
+	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	            "loginctl enable-linger ${USERNAME}" || echo "Failed to enable linger for $USERNAME"
+	
+	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1'" || echo "Failed to reload daemon for $USERNAME"
+	
+	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user restart docker >/dev/null 2>&1'" || echo "Failed to restart docker for $USERNAME"
+	  
+	    else
+	        echo "No .docker directory for $USERNAME, skipping."
+	    fi
+	    echo "Done with $USERNAME"
+	done
+	
+	# Close FD 3
+	exec 3<&-
 }
 
 restart_services_on_target() {
@@ -343,7 +380,10 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
 check_install_sshpass
 get_server_ipv4
-get_users_count_on_destination
+
+if [[ $FORCE -eq 0 ]]; then
+	get_users_count_on_destination
+fi
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
     echo "Extracting and copying user accounts ..."
@@ -389,7 +429,7 @@ if [[ $EXCLUDE_CSF -eq 0 ]]; then
     echo "Syncing /etc/csf/ ..."
     eval $RSYNC_CMD /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"csf -a $current_ip && csf -r && systemctl restart lfd"    
+	"csf -a $current_ip && csf -r >/dev/null && systemctl restart lfd"    
 fi
 
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
