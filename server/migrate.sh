@@ -113,7 +113,7 @@ if [[ -z "$REMOTE_HOST" || -z "$REMOTE_USER" ]]; then
     exit 1
 fi
 
-RSYNC_OPTS="-avz --progress"
+RSYNC_OPTS="-avz" #--progress
 
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST
 
