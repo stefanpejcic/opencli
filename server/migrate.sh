@@ -210,6 +210,55 @@ EOF
     
 }
 
+store_running_containers_for_users() {
+output_file="/tmp/docker_containers_names.txt"
+> "$output_file"  # clear the file
+
+for userdir in /home/*; do
+    if [ -d "$userdir" ]; then
+        username=$(basename "$userdir")
+        compose_file="$userdir/docker-compose.yml"
+
+        if [ -f "$compose_file" ]; then
+            echo "Checking docker context for user: $username"
+            containers=$(docker --context="$username" ps -a --format "{{.Names}}" 2>/dev/null)
+
+            if [ -n "$containers" ]; then
+                containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
+                echo "$username: $containers_single_line" >> "$output_file"
+            else
+                echo "$username: no containers" >> "$output_file"
+            fi
+        fi
+    fi
+done
+
+eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
+}
+
+restore_running_containers_for_all_users() {
+	output_file="/tmp/docker_containers_names.txt"
+	
+	while IFS=: read -r username containers; do
+	    username=$(echo "$username" | xargs)
+	
+	    if [[ -z "$username" ]] || [[ "$containers" =~ no\ containers ]]; then
+	        echo "Skipping user $username (no containers or empty line)"
+	        continue
+	    fi
+	    echo "Running 'docker --context=$username compose up -d'..."
+	    
+            echo "Starting containers for context: $USERNAME ..."
+            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                "docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
+ 
+	done < "$output_file"
+}
+
+
+
+
+
 copy_docker_contexts() {
     awk -F: '$3 >= 1000 {print $1 ":" $3}' /etc/passwd | while IFS=: read USERNAME USER_ID; do
         SRC="/home/$USERNAME/.docker"
@@ -329,7 +378,9 @@ if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
     eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
 fi
 
-restart_services_on_target
-refresh_quotas
+store_running_containers_for_users        # export running contianers on source and copy to dest
+restore_running_containers_for_all_users  # start containers per context on dest
+restart_services_on_target                # restart openpanel, webserver and admin on dest
+refresh_quotas                            # recalculate users usage on dest
 
 echo "Sync complete."
