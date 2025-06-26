@@ -117,7 +117,7 @@ if [[ -z "$REMOTE_HOST" || -z "$REMOTE_USER" ]]; then
     exit 1
 fi
 
-RSYNC_OPTS="-avz" #--progress
+RSYNC_OPTS="-az --progress"
 
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
@@ -287,6 +287,9 @@ restore_running_containers_for_all_users() {
 }
 
 copy_docker_contexts() {
+
+    eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
+    
     awk -F: '$3 >= 1000 {print $1 ":" $3}' /etc/passwd | while IFS=: read USERNAME USER_ID; do
         SRC="/home/$USERNAME/.docker"
         if [[ -d "$SRC" ]]; then
@@ -353,6 +356,12 @@ if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
     copy_docker_contexts # create docker context, start docker, set quotas
 fi
 
+
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+"systemctl daemon-reload" 
+
+
+
 # set quotas
 echo "Restoring user quotas ..."
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -378,7 +387,6 @@ if [[ $EXCLUDE_CSF -eq 0 ]]; then
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"csf -a $current_ip && csf -r && systemctl restart lfd"    
 fi
-
 
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
