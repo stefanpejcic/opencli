@@ -166,12 +166,9 @@ get_users_count_on_destination
 
 copy_user_accounts() {
     TMPDIR=$(mktemp -d)
-    # Copy user passwd entries (UID >= 1000)
     awk -F: '$3 >= 1000 {print}' /etc/passwd > "$TMPDIR/passwd.users"
     awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
-    # Copy user shadow entries
     grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
-    # Rsync these files to remote /root/
     eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
     echo "User account files for UID >= 1000 copied to /root/ on remote server."
     rm -rf "$TMPDIR"
