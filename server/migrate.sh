@@ -39,6 +39,7 @@ EXCLUDE_HOME=0
 EXCLUDE_LOGS=0
 EXCLUDE_MAIL=0
 EXCLUDE_BIND=0
+EXCLUDE_CSF=0
 EXCLUDE_OPENPANEL=0
 EXCLUDE_MYSQL=0
 EXCLUDE_STACK=0
@@ -69,7 +70,10 @@ while [[ $# -gt 0 ]]; do
             EXCLUDE_LOGS=1
             shift
             ;;
-        --exclude-mail)
+	--exclude-logs)
+            EXCLUDE_CSF=1
+            shift
+            ;;        --exclude-mail)
             EXCLUDE_MAIL=1
             shift
             ;;
@@ -115,33 +119,63 @@ fi
 
 RSYNC_OPTS="-avz" #--progress
 
-ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
+check_install_sshpass() {
+	# If a password is provided, use sshpass for rsync/scp
+	if [[ -n "$REMOTE_PASS" ]]; then
+	    if ! command -v sshpass &>/dev/null; then
+	        echo "sshpass not found. Attempting to install..."
+	        if [[ -x "$(command -v apt-get)" ]]; then
+	            sudo apt-get update && sudo apt-get install -y sshpass
+	        elif [[ -x "$(command -v dnf)" ]]; then
+	            sudo dnf install -y sshpass
+	        elif [[ -x "$(command -v yum)" ]]; then
+	            sudo yum install -y epel-release && sudo yum install -y sshpass
+	        elif [[ -x "$(command -v pacman)" ]]; then
+	            sudo pacman -Sy sshpass
+	        else
+	            echo "Package manager not supported. Please install sshpass manually."
+	            exit 2
+	        fi
+	    fi
+	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
+	else
+	    RSYNC_CMD="rsync $RSYNC_OPTS"
+	fi
+}
 
-# If a password is provided, use sshpass for rsync/scp
-if [[ -n "$REMOTE_PASS" ]]; then
-    if ! command -v sshpass &>/dev/null; then
-        echo "sshpass not found. Attempting to install..."
-        if [[ -x "$(command -v apt-get)" ]]; then
-            sudo apt-get update && sudo apt-get install -y sshpass
-        elif [[ -x "$(command -v dnf)" ]]; then
-            sudo dnf install -y sshpass
-        elif [[ -x "$(command -v yum)" ]]; then
-            sudo yum install -y epel-release && sudo yum install -y sshpass
-        elif [[ -x "$(command -v pacman)" ]]; then
-            sudo pacman -Sy sshpass
-        else
-            echo "Package manager not supported. Please install sshpass manually."
-            exit 2
-        fi
-    fi
-    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
-else
-    RSYNC_CMD="rsync $RSYNC_OPTS"
-fi
 
+get_server_ipv4(){
+	# Get server ipv4
+ 
+	# list of ip servers for checks
+	IP_SERVER_1="https://ip.openpanel.com"
+	IP_SERVER_2="https://ipv4.openpanel.com"
+	IP_SERVER_3="https://ifconfig.me"
 
-DB_CONFIG_FILE="/usr/local/opencli/db.sh"
-. "$DB_CONFIG_FILE"
+	current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || \
+                 wget --inet4-only --timeout=2 -qO- $IP_SERVER_2 || \
+                 curl --silent --max-time 2 -4 $IP_SERVER_3)
+
+	if [ -z "$current_ip" ]; then
+	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
+	fi
+
+	    is_valid_ipv4() {
+	        local ip=$1
+	        # is it ip
+	        [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && \
+	        # is it private
+	        ! [[ $ip =~ ^10\. ]] && \
+	        ! [[ $ip =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]] && \
+	        ! [[ $ip =~ ^192\.168\. ]]
+	    }
+
+	if ! is_valid_ipv4 "$current_ip"; then
+	        echo "Invalid or private IPv4 address: $current_ip. OpenPanel requires a public IPv4 address to bind Nginx configuration files."
+	fi
+
+}
+
 
 get_users_count_on_destination() {
 
@@ -162,7 +196,7 @@ get_users_count_on_destination() {
 }
 
 
-get_users_count_on_destination
+
 
 copy_user_accounts() {
     TMPDIR=$(mktemp -d)
@@ -310,17 +344,16 @@ refresh_quotas() {
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
 }
+
   
 replace_ip_in_zones() {
-	source_ip=$(hostname -I | awk '{print $1}')
-
 	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -c "'
 	    zones_dir=\"/etc/bind/zones\"
 	
 	    for ZONE_CONF in \"\$zones_dir\"/*.zone; do
 	        if [ -f \"\$ZONE_CONF\" ]; then
 	            domain=\$(basename \"\$ZONE_CONF\" .zone)
-	            sed -i \"s/$source_ip/$REMOTE_HOST/g\" \"\$ZONE_CONF\"
+	            sed -i \"s/$current_ip/$REMOTE_HOST/g\" \"\$ZONE_CONF\"
 	            echo \"Updated DNS zone for domain \$domain - \$ZONE_CONF\"
 	        fi
 	    done
@@ -328,8 +361,14 @@ replace_ip_in_zones() {
 }
 
 
+# MAIN
+DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+. "$DB_CONFIG_FILE"
 
-
+ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
+check_install_sshpass
+get_server_ipv4
+get_users_count_on_destination
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
     echo "Extracting and copying user accounts with UID >= 1000 ..."
@@ -358,6 +397,14 @@ if [[ $EXCLUDE_MAIL -eq 0 ]]; then
     echo "Syncing /var/mail ..."
     eval $RSYNC_CMD /var/mail/ ${REMOTE_USER}@${REMOTE_HOST}:/var/mail/
 fi
+
+if [[ $EXCLUDE_CSF -eq 0 ]]; then
+    echo "Syncing /etc/csf/ ..."
+    eval $RSYNC_CMD /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
+    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	"csf -a $current_ip && csf -r && systemctl restart lfd"    
+fi
+
 
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
