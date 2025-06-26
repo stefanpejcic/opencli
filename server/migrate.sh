@@ -47,6 +47,7 @@ EXCLUDE_POSTUPDATE=0
 EXCLUDE_USERS=0
 EXCLUDE_CONTEXTS=0
 FORCE=0
+COMPOSE_START_MAIL=0
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -345,9 +346,18 @@ copy_docker_contexts() {
 }
 
 restart_services_on_target() {
-            echo "Restarting services on  ${REMOTE_HOST} server ..."
+            echo "Restarting services on ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "cd /root && docker compose up -d openpanel bind9 caddy > /dev/null && systemctl restart admin"
+
+	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
+            echo "Starting mailserver and webmail on ${REMOTE_HOST} server ..."
+            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
+	fi
+
+	#todo: ftp, clamav 
+  
 }
 
 refresh_quotas() {
@@ -429,8 +439,16 @@ if [[ $EXCLUDE_LOGS -eq 0 ]]; then
 fi
 
 if [[ $EXCLUDE_MAIL -eq 0 ]]; then
-    echo "Syncing /var/mail ..."
-    eval $RSYNC_CMD /var/mail/ ${REMOTE_USER}@${REMOTE_HOST}:/var/mail/
+    PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+
+    if [ -n "$key_value" ]; then
+    	echo "Syncing /var/mail ..."
+    	eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
+        COMPOSE_START_MAIL=1
+    fi
+
+
 fi
 
 if [[ $EXCLUDE_CSF -eq 0 ]]; then
