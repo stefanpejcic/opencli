@@ -289,6 +289,10 @@ restore_running_containers_for_all_users() {
 copy_docker_contexts() {
 
     eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
+    eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
+
+    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	"systemctl restart apparmor.service"
     
     awk -F: '$3 >= 1000 {print $1 ":" $3}' /etc/passwd | while IFS=: read USERNAME USER_ID; do
         SRC="/home/$USERNAME/.docker"
@@ -299,7 +303,7 @@ copy_docker_contexts() {
 
             echo "Starting containers for: $USERNAME"
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
+                "loginctl enable-linger ${USERNAME} && machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
         fi
     done
 }
