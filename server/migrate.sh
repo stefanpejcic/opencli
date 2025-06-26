@@ -150,6 +150,39 @@ copy_user_accounts() {
     eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
     echo "User account files for UID >= 1000 copied to /root/ on remote server."
     rm -rf "$TMPDIR"
+
+    # ere now we need to add the suers on remote server!
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF'
+USER_PASSWD="/root/passwd.users"
+USER_GROUP="/root/group.users"
+USER_SHADOW="/root/shadow.users"
+
+# Add groups
+cut -d: -f1,3 "$USER_GROUP" | while IFS=: read -r group gid; do
+    if ! getent group "$group" > /dev/null; then
+        groupadd -g "$gid" "$group"
+    fi
+done
+
+# Add users
+cut -d: -f1,3,4,5,6,7 "$USER_PASSWD" | while IFS=: read -r user uid gid comment home shell; do
+    if ! id "$user" &>/dev/null; then
+        useradd -u "$uid" -g "$gid" -c "$comment" -d "$home" -s "$shell" "$user"
+    fi
+done
+
+# Set passwords from shadow file
+cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
+    if [ -n "$hash" ]; then
+        usermod -p "$hash" "$user"
+    fi
+done
+
+rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
+echo "Users have been created on the remote server."
+
+EOF
+    
 }
 
 copy_docker_contexts() {
@@ -157,15 +190,41 @@ copy_docker_contexts() {
         SRC="/home/$USERNAME/.docker"
         if [[ -d "$SRC" ]]; then
             echo "Creating Docker context: $USERNAME ..."
-
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'"
 
-
             echo "Starting containers for: $USERNAME"
-
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload >/dev/null 2>&1; systemctl --user restart docker >/dev/null 2>&1'"
+
+            echo "Fetching plan limits for user from the ..."
+            DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+            . "$DB_CONFIG_FILE"
+            
+            query="SELECT p.disk_limit, p.inodes_limit 
+                   FROM plans p
+                   JOIN users u ON u.plan_id = p.id
+                   WHERE u.username = '$username'"
+            cpu_ram_info=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query" -sN)
+            
+            if [ -z "$cpu_ram_info" ]; then
+                disk_limit="0"
+                inodes="0"
+            else
+                disk_limit=$(echo "$cpu_ram_info" | awk '{print $1}' | sed 's/ //;s/B//')
+                inodes=$(echo "$cpu_ram_info" | awk '{print $3}')
+            fi
+
+            if [ "$disk_limit" -ne 0 ]; then
+            	storage_in_blocks=$((disk_limit * 1024000))
+                echo "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
+              	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                   "setquota -u $USERNAME $storage_in_blocks $storage_in_blocks $inodes $inodes /"
+            else
+            	echo "Setting unlimited storage and inodes for the user"
+              	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+              	    "setquota -u $USERNAME 0 0 0 0 /"
+            fi
 
         fi
     done
@@ -176,6 +235,17 @@ restart_services_on_target() {
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "cd /root && docker compose up -d openpanel bind9 caddy && systemctl restart admin"
 }
+
+refresh_quotas() {
+            echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
+            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
+}
+  
+   
+
+
+
 
 
 if [[ $EXCLUDE_USERS -eq 0 ]]; then
@@ -190,7 +260,7 @@ fi
 
 if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
     echo "Syncing docker contexts ..."
-    copy_docker_contexts
+    copy_docker_contexts # create docker context, start docker, set quotas
 fi
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
@@ -237,5 +307,6 @@ if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
 fi
 
 restart_services_on_target
+refresh_quotas
 
 echo "Sync complete."
