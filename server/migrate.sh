@@ -240,7 +240,7 @@ cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
 done
 
 rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
-echo "Users have been created on the remote server."
+echo "System users have been created on the remote server."
 
 EOF
     
