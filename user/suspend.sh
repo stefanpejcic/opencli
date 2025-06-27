@@ -111,7 +111,7 @@ suspend_user_domains() {
 # Stop all Docker containers related to the user
 stop_user_containers() {
     $DEBUG && echo "Stopping containers for user: $USERNAME"
-    docker $CONTEXT_FLAG ps --filter "name=${USERNAME}" --format "{{.Names}}" | while read -r container; do
+    docker $CONTEXT_FLAG ps --format "{{.Names}}" | while read -r container; do
         $DEBUG && echo "- Stopping container: $container"
         docker $CONTEXT_FLAG stop "$container" > /dev/null 2>&1
     done
