@@ -123,7 +123,7 @@ rename_user_in_db() {
     local query="UPDATE users SET username='${new_username}' WHERE username='${USERNAME}';"
 
     if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
-        echo "User '$USERNAME' suspended successfully as '$new_username'."
+        echo "User '$USERNAME' suspended successfully."
     else
         echo "ERROR: Failed to suspend user '$USERNAME'."
         exit 1
