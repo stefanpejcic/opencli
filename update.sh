@@ -300,10 +300,6 @@ run_update_immediately(){
     log "Setting version in /root/.env"
     sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env | tee -a "$log_file"
 
-
-    log "Updating configuration files.."
-    cd /etc/openpanel && git pull 2>&1 | tee -a "$log_file"
-
     log "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
     cd /usr/local/opencli && git reset --hard origin/1.1 && git pull 2>&1 | tee -a "$log_file"
@@ -317,7 +313,7 @@ run_update_immediately(){
     cd /root && docker --context default compose down openpanel && docker --context default compose up -d openpanel | tee -a "$log_file"
     
     log "Adding OpenCLI commands to path.."
-    opencli commands | tee -a "$log_file"
+    opencli commands > /dev/null 2>&1 | tee -a "$log_file"
     
     log "Removing previous OpenPanel UI image tags.."
     purge_previous_images
