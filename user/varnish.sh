@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/varnish.sh
-# Description: Enable/disable Varnish Cahcing for user and display current status.
+# Description: Enable/disable Varnish Caching for user and display current status.
 # Usage: opencli user-varnish <USERNAME> [on|off]
 # Author: Stefan Pejcic
 # Created: 20.03.2025
