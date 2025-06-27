@@ -110,7 +110,7 @@ unsuspend_user_domains() {
 start_user_containers() {
     [ "$DEBUG" = true ] && echo "Starting containers for user: $USERNAME"
 
-    docker $CONTEXT_FLAG ps --filter "name=${USERNAME}" --format "{{.Names}}" | while read -r container; do
+    docker $CONTEXT_FLAG ps -a --format "{{.Names}}" | while read -r container; do
         [ "$DEBUG" = true ] && echo "- Starting container: $container"
         docker $CONTEXT_FLAG start "$container" > /dev/null 2>&1
     done
