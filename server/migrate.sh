@@ -469,6 +469,10 @@ fi
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
     echo "Syncing /etc/openpanel ..."
     eval $RSYNC_CMD /etc/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/
+
+    echo "Syncing system cronjobs..."
+    eval $RSYNC_CMD /etc/cron.d/openpanel ${REMOTE_USER}@${REMOTE_HOST}:/etc/cron.d/
+    
 fi
 
 if [[ $EXCLUDE_MYSQL -eq 0 ]]; then
