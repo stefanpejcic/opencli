@@ -5,7 +5,7 @@
 # Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 30.06.2025
+# Last Modified: 01.07.2025
 # Company: openpanel.co,
 # Copyright (c) openpanel.co,
 # 
