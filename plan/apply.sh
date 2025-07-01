@@ -6,8 +6,8 @@
 # Author: Petar Ćurić
 # Created: 17.11.2023
 # Last Modified: 30.06.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,219 +28,144 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-
-
-# todo: remove storage
-
-
-
 # DB
 source /usr/local/opencli/db.sh
 
-# Check if the correct number of parameters is provided
-if [ "$#" -lt 2 ]; then
-    echo "Usage: opencli plan-apply <plan_id> <username1> <username2>..."
+# Usage info
+usage() {
+    echo "Usage: opencli plan-apply <plan_id> <username1> <username2>... [--debug] [--all] [--cpu] [--ram] [--dsk] [--net]"
     exit 1
+}
+
+# Ensure minimum params
+if [ "$#" -lt 2 ]; then
+    usage
 fi
 
-new_plan_id=$1
+new_plan_id="$1"
 shift
+
+# Flags
 usernames=()
-#partial kao samo cpu ili samo ram...
 partial=false
 debug=false
 bulk=false
-
 docpu=false
 doram=false
 dodsk=false
 donet=false
-for arg in "$@"
-do
-    # Enable debug mode if --debug flag is provided 
-    if [ "$arg" == "--debug" ]; then
-        debug=true
-        continue
-    elif [ "$arg" == "--all" ]; then
-        bulk=true
-        continue
-    elif [ "$arg" == "--cpu" ]; then
-        partial=true
-        docpu=true
-        continue
-    elif [ "$arg" == "--ram" ]; then
-        partial=true
-        doram=true
-        continue
-    elif [ "$arg" == "--dsk" ]; then
-        partial=true    
-        dodsk=true
-        continue
-    elif [ "$arg" == "--net" ]; then
-        partial=true    
-        donet=true
-        continue
-    fi
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --debug)   debug=true ;;
+        --all)     bulk=true ;;
+        --cpu)     partial=true; docpu=true ;;
+        --ram)     partial=true; doram=true ;;
+        --dsk)     partial=true; dodsk=true ;;
+        --net)     partial=true; donet=true ;;
+        --*)       ;; # ignore unknown flags
+        *)         usernames+=("$arg") ;;
+    esac
 done
 
-if [ "$bulk" = "true" ]; then
-    usernames_raw=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.username FROM users WHERE users.plan_id = '$new_plan_id';" | tail -n +2)
-
-    while IFS= read -r line; do
-        usernames+=("$line")
-    done <<< "$usernames_raw"
-
-    if $debug; then
-        echo "Applying plan changes to users:"
-        echo "${usernames[@]}"
-    fi
-else
-    for arg in "$@"
-    do
-        if [[ "${arg:0:2}" != "--" ]]; then
-            usernames+=("$arg")  # Add the argument to the usernames array
-        fi
-    done
+# Fetch bulk usernames if --all
+if $bulk; then
+    mapfile -t usernames < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e \
+        "SELECT username FROM users WHERE plan_id = '$new_plan_id';")
+    $debug && echo "Applying plan changes to users: ${usernames[*]}"
 fi
 
-
-# Function to fetch the current plan ID for the container
+# Helper: DB queries
 get_current_plan_id() {
-    local container="$1"
-    local query="SELECT plan_id, server FROM users WHERE username = '$container'"
-    local result
-    result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query")
-
-    # Extract plan_id and server from the result
-    current_plan_id=$(echo "$result" | awk '{print $1}')
-    server=$(echo "$result" | awk '{print $2}')
-    if [[ -z "$server" || "$server" == "default" ]]; then
-        server="$container"
-    fi
+    local user="$1"
+    read -r current_plan_id server < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e \
+        "SELECT plan_id, server FROM users WHERE username = '$user'")
+    [ -z "$server" ] || [ "$server" = "default" ] && server="$user"
 }
 
-# Function to fetch plan limits for a given plan ID smece format
-get_plan_limits() {
-    local plan_id="$1"
-    local query="SELECT cpu, ram, disk_limit, inodes_limit, bandwidth FROM plans WHERE id = '$plan_id'"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
-}
-
-# Function to fetch single plan limit for a given plan ID and resource type
 get_plan_limit() {
-    local plan_id="$1"
-    local resource="$2"
-    local query="SELECT $resource FROM plans WHERE id = '$plan_id'"
-    #echo "$query"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$query"
+    local plan_id="$1" resource="$2"
+    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT $resource FROM plans WHERE id = '$plan_id'"
 }
 
-
-# Function to fetch the name of a plan for a given plan ID
 get_plan_name() {
     local plan_id="$1"
-    local query="SELECT name FROM plans WHERE id = '$plan_id'"
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query"
+    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT name FROM plans WHERE id = '$plan_id'"
 }
 
-## Function to create a Docker network with bandwidth limiting
+reload_user_quotas() {
+    quotacheck -avm >/dev/null 2>&1
+    repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+}
 
-
-
+# Main loop
 totalc="${#usernames[@]}"
 counter=0
 
-
-
-for container_name in "${usernames[@]}"
-do
-    # Debug echo
+for container in "${usernames[@]}"; do
     ((counter++))
     echo "+=============================================================================+"
-    echo "Processing user: $container_name (${counter}/${totalc})"
+    echo "Processing user: $container ($counter/$totalc)"
     echo ""
-    # Fetch current plan ID for the container
-    get_current_plan_id "$container_name"
+
+    get_current_plan_id "$container"
     current_plan_name=$(get_plan_name "$current_plan_id")
     new_plan_name=$(get_plan_name "$new_plan_id")
 
-    # todo: test context 
-    
-
-
-    #Limiti stari i novi cpu, ram, storage_file, inodes_limit, bandwidth
-    ##echo "New plan ID:$new_plan_id"
+    # Plan limits
     Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
     Ocpu=$(get_plan_limit "$current_plan_id" "cpu")
     Nram=$(get_plan_limit "$new_plan_id" "ram")
     Oram=$(get_plan_limit "$current_plan_id" "ram")
-    
-    Ndisk_limit=$(get_plan_limit "$new_plan_id" "disk_limit")
-    Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
-    #ne zanima me band
+    Ndisk=$(get_plan_limit "$new_plan_id" "disk_limit")
+    Ninodes=$(get_plan_limit "$new_plan_id" "inodes_limit")
 
-    #Serverski limiti za provere
+    # System limits
     maxCPU=$(nproc)
     maxRAM=$(free -g | awk '/^Mem/ {print $2}')
-    numOram=$(echo "$Oram" | tr -d 'g')
-    numNram=$(echo "$Nram" | tr -d 'g')
-    numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
+    numOram=${Oram//[!0-9]/}
+    numNram=${Nram//[!0-9]/}
+    numNdisk=$(echo "$Ndisk" | awk '{print $1}')
     storage_in_blocks=$((numNdisk * 1024000))
 
-    reload_user_quotas() {
-    	quotacheck -avm >/dev/null 2>&1
-    	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-    }
-
-
-    ########################################################################################################################################################################################
-    #######CPU I RAM##############CPU I RAM##############CPU I RAM##############CPU I RAM##############CPU I RAM##############CPU I RAM##############CPU I RAM##############CPU I RAM#######
-    ########################################################################################################################################################################################
-    if [ "$partial" != "true" ] || [ "$doram" = "true" ]; then
-        if (( $numNram > $maxRAM )); then
-            echo "Error: New RAM value exceeds the server limit, not enough physical memory - $numNram > $maxRam."
+    # RAM
+    if ! $partial || $doram; then
+        if (( numNram > maxRAM )); then
+            echo "- Memory: [ERROR] New RAM value exceeds server limit ($numNram > $maxRAM GB)."
         else
-    
-            # TOD: GET CONTEXT!
-            sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${Nram}\"/" /home/$server/.env > /dev/null
-
-            echo "RAM limit set to ${numNram}GB."
-            echo ""
+            sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${Nram}\"/" "/home/$server/.env"
+            echo "- Memory: [OK] total limit changed to ${numNram}GB."
         fi
     fi
 
-    if [ "$partial" != "true" ] || [ "$docpu" = "true" ]; then
-        if (( $Ncpu > $maxCPU )); then
-            echo "Error: New CPU value exceeds the server limit, not enough CPU cores - $Ncpu > $maxCPU."
+    # CPU
+    if ! $partial || $docpu; then
+        if (( Ncpu > maxCPU )); then
+            echo "- CPU: [ERROR] Number of cores exceeds those of server ($Ncpu > $maxCPU)."
         else
-            # TOD: GET CONTEXT!
-            sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${Ncpu}\"/" /home/$server/.env > /dev/null
-            echo "CPU limit set to ${Ncpu}"
-            echo ""
+            sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${Ncpu}\"/" "/home/$server/.env"
+            echo "- CPU: [OK] limit set to ${Ncpu}"
         fi
     fi
 
-    ####################################################################################################################################################################################
-    ####### DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK ############## DISK #######
-    ####################################################################################################################################################################################
-    if [ "$partial" != "true" ] || [ "$dodsk" = "true" ]; then
-        setquota -u $server $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /
-        echo "Disk limit set to ${storage_in_blocks} and Inodes: $Ninodes_limit"
-        echo ""
+    # Disk/Inodes
+    if ! $partial || $dodsk; then
+        setquota -u "$server" "$storage_in_blocks" "$storage_in_blocks" "$Ninodes" "$Ninodes" /
+        echo "- Storage: [OK] limit set to ${storage_in_blocks} blocks and $Ninodes inodes"
         reload_user_quotas
     fi
 
-    ################################################################################################################################################################################
-    # NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI            NETOWRK AKO NE POSTOJI PRAVIM NOVI #            
-    ################################################################################################################################################################################
-
-    if [ "$partial" != "true" ] || [ "$donet" = "true" ]; then
-        #sudo tc qdisc add dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
+    # Network (stub)
+    if ! $partial || $donet; then
+        # TODO
+        echo "- Port Speed: [WARN] Not implemented yet"
         :
     fi
 done
 
+echo "+=============================================================================+"
+echo "Completed!"
 
-#cleanup
-find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; > /dev/null
+# Cleanup
+find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; >/dev/null 2>&1
