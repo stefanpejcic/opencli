@@ -7,8 +7,8 @@
 # Author: Stefan Pejcic
 # Created: 30.11.2023
 # Last Modified: 01.07.2025
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,16 +29,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Usage function
+# --- Usage function ---
 print_usage() {
-    script_name=$(realpath --relative-to=/usr/local/opencli/ "$0")
-    script_name="${script_name//\//-}"  # Replace / with -
-    script_name="${script_name%.sh}"     # Remove the .sh extension
-    echo "Usage: opencli $script_name [--json]"
+    echo "Usage: opencli plan-list [--json]"
     exit 1
 }
 
-# Command line argument handling
+# --- Command line argument handling ---
+json_output=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --json)
@@ -51,26 +49,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# DB
+# --- Source DB config ---
 source /usr/local/opencli/db.sh
 
+# --- Ensure jq is installed ---
 ensure_jq_installed() {
-    # Check if jq is installed
     if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
         if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq jq > /dev/null 2>&1
+            sudo apt-get update -qq > /dev/null
+            sudo apt-get install -y -qq jq > /dev/null
         elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq > /dev/null 2>&1
+            sudo yum install -y -q jq > /dev/null
         elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq > /dev/null 2>&1
+            sudo dnf install -y -q jq > /dev/null
         else
             echo "Error: No compatible package manager found. Please install jq manually and try again."
             exit 1
         fi
-
-        # Check if installation was successful
         if ! command -v jq &> /dev/null; then
             echo "Error: jq installation failed. Please install jq manually and try again."
             exit 1
@@ -78,22 +73,41 @@ ensure_jq_installed() {
     fi
 }
 
-# Fetch all plan data from the plans table
-if [ "$json_output" ]; then
-    # For JSON output without --table option
+# --- Fetch and output plans ---
+fetch_plans_json() {
     ensure_jq_installed
-    plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database -e "SELECT * FROM plans;" | tail -n +2)
-    json_output=$(echo "$plans_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4], domains_limit: .[5], websites_limit: .[6], disk_limit: .[7], inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11], bandwidth: .[12], feature_set: .[13]})')
+    local data
+    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
+    if [ -z "$data" ]; then
+        echo "No plans."
+        return
+    fi
+    local json
+    json=$(echo "$data" | jq -R '
+        split("\n") | map(select(length > 0) | split("\t") | {
+            id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4],
+            domains_limit: .[5], websites_limit: .[6], disk_limit: .[7],
+            inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11],
+            bandwidth: .[12], feature_set: .[13]
+        })'
+    )
     echo "Plans:"
-    echo "$json_output"
-else
-    # For Terminal output with --table option
-    plans_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT * FROM plans;")
-    # Check if any data is retrieved
-    if [ -n "$plans_data" ]; then
-        # Display data in tabular format
-        echo "$plans_data"
+    echo "$json"
+}
+
+fetch_plans_table() {
+    local data
+    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM plans;")
+    if [ -n "$data" ]; then
+        echo "$data"
     else
         echo "No plans."
     fi
+}
+
+# --- Main ---
+if $json_output; then
+    fetch_plans_json
+else
+    fetch_plans_table
 fi
