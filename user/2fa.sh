@@ -28,34 +28,35 @@
 # THE SOFTWARE.
 ################################################################################
 
+# --- Color Definitions ---
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-# Check if username is provided as an argument
-if [ $# -eq 0 ]; then
+# --- Usage Check ---
+print_usage() {
     echo "Usage: opencli user-2fa <username> [disable]"
     exit 1
+}
+
+if [ $# -eq 0 ]; then
+    print_usage
 fi
 
-
-# DB
+# --- Source DB Config ---
 source /usr/local/opencli/db.sh
 
-# Get the username and optional action (disable)
-username=$1
-action=$2
+# --- Argument Parsing ---
+username="$1"
+action="$2"
 
-# If action is provided, update the twofa value
+# --- Main Logic ---
 if [ "$action" == "disable" ]; then
-    mysql --defaults-extra-file=$config_file -D $mysql_database -e "UPDATE users SET twofa_enabled='0' WHERE username='$username';"
+    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET twofa_enabled='0' WHERE username='$username';"
     echo -e "Two-factor authentication for $username is now ${RED}DISABLED${RESET}."
 else
-    # Get the twofa value for the provided username
-    twofa=$(mysql --defaults-extra-file=$config_file -D $mysql_database -se "SELECT twofa_enabled FROM users WHERE username='$username';")
-
-    # Check the value of twofa and display the status
+    twofa=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "SELECT twofa_enabled FROM users WHERE username='$username';")
     if [ "$twofa" == "0" ]; then
         echo -e "Two-factor authentication for $username is ${RED}DISABLED${RESET}."
     elif [ "$twofa" == "1" ]; then
