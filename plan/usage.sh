@@ -29,19 +29,17 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-# Function to print usage instructions
+# --- Function to print usage instructions ---
 print_usage() {
-    script_name=$(basename "$0")
-    echo "Usage: $script_name <plan_name> [--json]"
+    echo "Usage: plan-usage <plan_name> [--json]"
     exit 1
 }
 
-# Initialize variables
+# --- Initialize variables ---
 json_output=false
 plan_name=""
 
-# Command-line argument processing
+# --- Command-line argument processing ---
 if [ "$#" -lt 1 ]; then
     print_usage
 fi
@@ -61,26 +59,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Source database configuration
+# --- Source database configuration ---
 source /usr/local/opencli/db.sh
 
+# --- Ensure jq is installed ---
 ensure_jq_installed() {
-    # Check if jq is installed
     if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
         if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq jq > /dev/null 2>&1
+            sudo apt-get update -qq > /dev/null
+            sudo apt-get install -y -qq jq > /dev/null
         elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq > /dev/null 2>&1
+            sudo yum install -y -q jq > /dev/null
         elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq > /dev/null 2>&1
+            sudo dnf install -y -q jq > /dev/null
         else
             echo "Error: No compatible package manager found. Please install jq manually and try again."
             exit 1
         fi
-
-        # Check if installation was successful
         if ! command -v jq &> /dev/null; then
             echo "Error: jq installation failed. Please install jq manually and try again."
             exit 1
@@ -88,22 +83,36 @@ ensure_jq_installed() {
     fi
 }
 
-# Fetch user data based on the provided plan name
-if [ "$json_output" = true ]; then
+# --- Fetch user data based on the provided plan name ---
+fetch_users_json() {
     ensure_jq_installed
-    users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" | tail -n +2)
-    if [ -n "$users_data" ]; then
-        json_output=$(echo "$users_data" | jq -R 'split("\n") | map(split("\t") | {id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]})')
+    local data
+    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';" | tail -n +2)
+    if [ -n "$data" ]; then
+        local json
+        json=$(echo "$data" | jq -R 'split("\n") | map(select(length > 0) | split("\t") | {
+            id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]
+        })')
         echo "Users on plan '$plan_name':"
-        echo "$json_output"
+        echo "$json"
     else
         echo "No users on plan '$plan_name'."
     fi
+}
+
+fetch_users_table() {
+    local data
+    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';")
+    if [ -n "$data" ]; then
+        echo "$data"
+    else
+        echo "No users on plan '$plan_name'."
+    fi
+}
+
+# --- Main ---
+if $json_output; then
+    fetch_users_json
 else
-    users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$plan_name';")
-    if [ -n "$users_data" ]; then
-        echo "$users_data"
-    else
-        echo "No users on plan '$plan_name'."
-    fi
+    fetch_users_table
 fi
