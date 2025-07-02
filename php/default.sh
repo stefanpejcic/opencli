@@ -68,7 +68,7 @@ update_php_version() {
         exit 1
     fi
 
-    sed -i "s/\(DEFAULT_PHP_VERSION=\)\(php\?[0-9.]\+\)/\1$new_php_version/" "$config_file"
+    sed -i "s/^DEFAULT_PHP_VERSION=.*/DEFAULT_PHP_VERSION=$new_php_version/" "$config_file"
     echo "Default PHP version for user '$username' updated to: $new_php_version"
 
 }
