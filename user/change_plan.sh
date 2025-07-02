@@ -282,7 +282,8 @@ change_plan_name_in_db() {
 }
 
 drop_redis_cache() {
-    docker --context=default exec -it openpanel_redis bash -c "redis-cli --raw KEYS 'flask_cache_*' | xargs -r redis-cli DEL" >/dev/null 2>&1 &
+    #docker --context=default exec -it openpanel_redis bash -c "redis-cli --raw KEYS 'flask_cache_*' | xargs -r redis-cli DEL" >/dev/null 2>&1 &
+    docker --context=default exec -it openpanel_redis redis-cli FLUSHALL
 }
 
 tada() {
