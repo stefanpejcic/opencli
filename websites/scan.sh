@@ -98,7 +98,7 @@ get_mariadb_or_mysql_for_user
 while IFS= read -r -d '' config_file_path; do
     echo "- Parsing file: $config_file_path"
 	
-    sed -i -E 's/(DB_HOST *= *")localhost(")/\1mariadb\2/g' "$config_file_path"
+    sed -i -E "s/(DB_HOST *= *\")localhost(\")/\1$mysql_type\2/g" "$config_file_path"
     #sed -i -E "s/(DB_HOST *= *)localhost/\1mariadb/g" "$config_file_path"
     
     # get sitename for manager
