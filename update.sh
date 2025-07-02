@@ -302,7 +302,7 @@ run_update_immediately(){
 
     log "Updating OpenCLI.."
     rm /usr/local/opencli/aliases.txt > /dev/null 2>&1
-    cd /usr/local/opencli && git reset --hard origin/1.1 && git pull 2>&1 | tee -a "$log_file"
+    cd /usr/local/opencli && git reset --hard origin/main && git pull 2>&1 | tee -a "$log_file"
  
     log "Updating OpenAdmin.."
     cd /usr/local/admin && git pull 2>&1 | tee -a "$log_file"
