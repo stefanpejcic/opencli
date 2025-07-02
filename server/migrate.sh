@@ -128,24 +128,22 @@ RSYNC_OPTS="-az" #--progress
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
-	    if ! command -v sshpass &>/dev/null; then
-	        echo "sshpass not found. Attempting to install..."
-	        if [[ -x "$(command -v apt-get)" ]]; then
-	            sudo apt-get update && sudo apt-get install -y sshpass
-	        elif [[ -x "$(command -v dnf)" ]]; then
-	            sudo dnf install -y sshpass
-	        elif [[ -x "$(command -v yum)" ]]; then
-	            sudo yum install -y epel-release && sudo yum install -y sshpass
-	        elif [[ -x "$(command -v pacman)" ]]; then
-	            sudo pacman -Sy sshpass
-	        else
-	            echo "Package manager not supported. Please install sshpass manually."
-	            exit 2
-	        fi
-	    fi
-	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
+		if ! command -v sshpass &>/dev/null; then
+		    if [[ -x "$(command -v apt-get)" ]]; then
+		        apt-get update &>/dev/null && apt-get install -y sshpass &>/dev/null
+		    elif [[ -x "$(command -v dnf)" ]]; then
+		        dnf install -y sshpass &>/dev/null
+		    elif [[ -x "$(command -v yum)" ]]; then
+		        yum install -y epel-release &>/dev/null && yum install -y sshpass &>/dev/null
+		    elif [[ -x "$(command -v pacman)" ]]; then
+		        pacman -Sy sshpass &>/dev/null
+		    else
+		        exit 2
+		    fi
+		fi
+  		RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
 	else
-	    RSYNC_CMD="rsync $RSYNC_OPTS"
+	    	RSYNC_CMD="rsync $RSYNC_OPTS"
 	fi
 }
 
@@ -386,7 +384,7 @@ replace_ip_in_zones() {
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 . "$DB_CONFIG_FILE"
 
-ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
+ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST >/dev/null 2>&1
 check_install_sshpass
 get_server_ipv4
 
@@ -443,11 +441,13 @@ if [[ $EXCLUDE_MAIL -eq 0 ]]; then
     PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
     key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
-    if [ -n "$key_value" ]; then
-    	echo "Syncing /var/mail ..."
-    	eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
-        COMPOSE_START_MAIL=1
-    fi
+	if [ -n "$key_value" ]; then
+	    if [ -d /usr/local/mail/openmail ]; then
+	        echo "Syncing /var/mail ..."
+	        eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
+	        COMPOSE_START_MAIL=1
+	    fi
+	fi
 
 
 fi
@@ -491,9 +491,12 @@ if [[ $EXCLUDE_STACK -eq 0 ]]; then
 fi
 
 if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
-    echo "Syncing /root/openpanel_run_after_update ..."
-    eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    if [[ -e /root/openpanel_run_after_update ]]; then
+        echo "Syncing /root/openpanel_run_after_update ..."
+        eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    fi
 fi
+
 
 store_running_containers_for_users        # export running contianers on source and copy to dest
 restore_running_containers_for_all_users  # start containers per context on dest
