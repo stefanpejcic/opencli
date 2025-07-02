@@ -101,17 +101,10 @@ while IFS= read -r -d '' config_file_path; do
     sed -i -E "s/(DB_HOST *= *\")localhost(\")/\1$mysql_type\2/g" "$config_file_path"
     #sed -i -E "s/(DB_HOST *= *)localhost/\1mariadb/g" "$config_file_path"
     
-    # get sitename for manager
-	# Remove /wp-config.php sufix
-	site_name=${config_file_path%/wp-config.php}
-
-	# Remove /home/$current_username/ prefix
-	site_name=${site_name/#\/home\/$current_username\//}
-    
-
-
-    # Get domain name
-    domain_name="${site_name%%/*}"
+    # get sitename and domain
+    domain=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "option get siteurl 2>/dev/null")
+    site_name=$(echo "$domain" | sed -E 's~https?://~~')
+    domain_name=$(echo "$domain" | sed -E 's~https?://~~' | cut -d'/' -f1)
 
     # Check if website exists in sites table
     if check_site_already_exists_in_db "$site_name"; then
@@ -121,16 +114,6 @@ while IFS= read -r -d '' config_file_path; do
         continue
     fi
 
-    # Get admin email from wp-config.php
-    admin_email=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "option get admin_email 2>/dev/null")
-    if [[ ! "$admin_email" =~ "@" ]]; then
-        echo "  WARNING: Invalid admin email: $admin_email"
-    fi
-    
-
-    # Get WordPress version
-    version=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "core version 2>/dev/null")
-
     # Get domain ID
     domain_id=$(get_domain_id "$domain_name")
     if ! [[ "$domain_id" =~ ^[0-9]+$ ]]; then
@@ -138,7 +121,14 @@ while IFS= read -r -d '' config_file_path; do
     	exit 1
     fi
     
-     
+    # Get admin email from wp-config.php
+    admin_email=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "option get admin_email 2>/dev/null")
+    if [[ ! "$admin_email" =~ "@" ]]; then
+        echo "  WARNING: Invalid admin email: $admin_email"
+    fi
+
+    # Get WordPress version
+    version=$(run_wp_cli "$current_username" "$(dirname "$config_file_path")" "core version 2>/dev/null")
     
      echo "Adding website $site_name to Site Manager"
      echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$site_name', '$domain_id', '$admin_email', '$version', 'wordpress');" | mysql
