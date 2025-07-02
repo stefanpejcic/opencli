@@ -45,13 +45,16 @@ get_context_for_user() {
         fi
 }
 
+get_php_default_for_user() {
+	default_php_version=$(opencli php-default $username | grep -oP '\d+\.\d+')
+}
 
 #Function to run WordPress CLI commands
 run_wp_cli() {
     local username="$1"
     local path="$2"
     local command="$3"
-    docker --context $context exec "$current_username" bash -c "wp --allow-root --path=${path} ${command}"
+    docker --context $context exec "$default_php_version" bash -c "wp --allow-root --path=${path} ${command}"
 }
 
 check_site_already_exists_in_db() {
@@ -90,6 +93,7 @@ existing_installations=()
 found_count=0
 existing_count=0
 
+get_php_default_for_user
 get_mariadb_or_mysql_for_user
 
 
