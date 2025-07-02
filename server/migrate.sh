@@ -298,7 +298,7 @@ exec 3<&-
 
 copy_docker_contexts() {
 
-    eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
+    eval $RSYNC_CMD /run/user/* ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
     eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
 
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
