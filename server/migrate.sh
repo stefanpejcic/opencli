@@ -298,7 +298,7 @@ exec 3<&-
 
 copy_docker_contexts() {
 
-    eval $RSYNC_CMD /run/user/* ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
+    eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
     eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
 
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -315,6 +315,16 @@ copy_docker_contexts() {
 	    CURRENT=$((CURRENT+1))
 	    SRC="/home/$USERNAME/.docker"
 	    if [[ -d "$SRC" ]]; then
+     		eval $RSYNC_CMD /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
+		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "
+		    if [ -d /run/user/$USER_ID ]; then
+		        ls -l /run/user/$USER_ID
+		    else
+		        echo '❌ Transfer failed for /run/user/$USER_ID/'
+		        exit 1
+		    fi
+      "
+
 	        echo "Creating Docker context: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
 	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
