@@ -107,7 +107,6 @@ NAMESERVERS=("$NS1" "$NS2")
 [ -n "$NS3" ] && NAMESERVERS+=("$NS3")
 [ -n "$NS4" ] && NAMESERVERS+=("$NS4")
 
-# Main script logic
 case "$1" in
   --all)
     if [ "$2" != "-y" ]; then
@@ -119,15 +118,7 @@ case "$1" in
       fi
     done
     ;;
-
-  --all -y)
-    for zone_file in "$ZONE_DIR"/*.zone; do
-      if [ -f "$zone_file" ]; then
-        update_zone_file "$zone_file"
-      fi
-    done
-    ;;
-
+    
   "")
     print_usage
     ;;
@@ -143,6 +134,7 @@ case "$1" in
     fi
     ;;
 esac
+
 
 # Reload BIND service
 docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
