@@ -198,7 +198,7 @@ update_container_cpu() {
         if $debug; then
             echo "Updating total CPU% limit from: $Ocpu to $Ncpu"
         fi
-        command="opencli user-resources \"$container_name\" --update_ram=\"$Nram\""
+        command="opencli user-resources \"$container_name\" --update_cpu=\"$Ncpu\""
         eval $command > /dev/null
         if [ $? -eq 0 ]; then
             ((success_count++))
