@@ -75,7 +75,7 @@ edit_docker_network() {
 
 
 flush_redis_cache() {
-        docker --context=default exec -it openpanel_redis bash -c "redis-cli FLUSHALL" > /dev/null 2>&1
+        docker --context=default exec openpanel_redis bash -c "redis-cli FLUSHALL" > /dev/null 2>&1
 }
 
 
