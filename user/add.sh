@@ -1455,22 +1455,12 @@ generate_user_password_hash() {
 
 
 collect_stats() {
-	opencli docker-collect_stats $username  > /dev/null 2>&1
+  local username=$1
+  local file="/etc/openpanel/openpanel/core/users/$username/docker_usage.txt"
+  local timestamp=$(date '+%Y-%m-%d-%H-%M-%S')
+  local data='{"BlockIO":"0B / 0B","CPUPerc":"0 %","Container":"0","ID":"","MemPerc":"0 %","MemUsage":"0MiB / 0MiB","Name":"","NetIO":"0 / 0","PIDs":0}'
+  echo "$timestamp $data" > "$file"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ##########################################################
