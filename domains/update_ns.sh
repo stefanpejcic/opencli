@@ -32,7 +32,7 @@
 
 # Define the path to the configuration file
 CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-ZONE_DIR="/etc/bind"
+ZONE_DIR="/etc/bind/zones"
 BACKUP_DIR="$ZONE_DIR/backups"
 
 # Function to print usage
