@@ -54,7 +54,7 @@ run_wp_cli() {
     local username="$1"
     local path="$2"
     local command="$3"
-    docker --context=$context exec "$default_php_version" bash -c "wp --allow-root --path=${path} ${command}"
+    docker --context=$context exec "php-fpm-$default_php_version" bash -c "wp --allow-root --path=${path} ${command}"
 }
 
 check_site_already_exists_in_db() {
