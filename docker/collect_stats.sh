@@ -161,7 +161,7 @@ elif [[ "$1" == "--all" ]]; then
     
 elif [ $# -eq 1 ]; then
       if command -v repquota > /dev/null 2>&1; then
-          quotacheck -avm > /dev/null
+          quotacheck -avm > /dev/null 2>&1
           repquota -u / > /etc/openpanel/openpanel/core/users/repquota
       fi
   process_user "$1"
