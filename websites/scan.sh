@@ -103,12 +103,7 @@ while IFS= read -r -d '' config_file_path; do
     inside_container_path=$(echo "$config_file_path" | sed -E 's~^.*/_data/~\/var\/www\/html/~')
 
     echo "- Parsing file: $inside_container_path"
-    sed -i -E \
-        -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost['\"]/\\1'$mysql_type'/" \
-        -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost:3306['\"]/\\1'$mysql_type'/" \
-        -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1['\"]/\\1'$mysql_type'/" \
-        -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1:3306['\"]/\\1'$mysql_type'/" \
-        "$config_file_path"
+    sed -i -E "s/\b(localhost(:3306)?|127\.0\.0\.1(:3306)?)\b/$mysql_type/g" "$config_file_path"
     
     # get sitename and domain
 	domain=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "option get siteurl 2>/dev/null")
