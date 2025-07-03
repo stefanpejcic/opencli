@@ -143,6 +143,7 @@ fi
 Ncpu=$(get_plan_limit "$new_plan_id" "cpu")
 Nram=$(get_plan_limit "$new_plan_id" "ram")
 numNram=$(echo "$Nram" | tr -d 'g')
+Ndisk_limit=$(get_plan_limit "$new_plan_id" "disk_limit")
 numNdisk=$(echo "$Ndisk_limit" | awk '{print $1}')
 Ninodes_limit=$(get_plan_limit "$new_plan_id" "inodes_limit")
 Nbandwidth=$(get_plan_limit "$new_plan_id" "bandwidth")
