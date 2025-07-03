@@ -148,6 +148,32 @@ check_install_sshpass() {
 }
 
 
+
+check_disk_used_on_source() {
+    HOME_DIR="/home"
+    USED_HOME_ON_SOURCE=$(df --output=used "$HOME_DIR" | tail -n 1)
+    USED_HOME_ON_SOURCE_BYTES=$(($USED_HOME_ON_SOURCE * 1024)) #1K blocks
+}
+
+check_if_dest_has_space(){
+    echo "Checking available disk on destination server ..."
+
+    AVAILABLE_HOME_ON_DEST=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "df --output=avail $HOME_DIR | tail -n 1")
+
+    AVAILABLE_HOME_ON_DEST_BYTES=$(($AVAILABLE_HOME_ON_DEST * 1024)) #1K blocks
+
+    if [[ $AVAILABLE_HOME_ON_DEST_BYTES -ge $USED_HOME_ON_SOURCE_BYTES ]]; then
+        echo "There is enough disk space on destination server."
+    else
+        echo "FATAL ERROR: Not enough disk space on destination."
+        echo "Available: $AVAILABLE_HOME_ON_DEST_BYTES bytes - Needed: $USED_HOME_ON_SOURCE_BYTES bytes"
+        exit 1
+    fi
+}
+
+
+
 get_server_ipv4(){
 	# Get server ipv4
  
@@ -399,6 +425,9 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST >/dev/null 2>&1
 check_install_sshpass
 get_server_ipv4
+check_disk_used_on_source
+check_if_dest_has_space
+
 
 if [[ $FORCE -eq 0 ]]; then
 	get_users_count_on_destination
