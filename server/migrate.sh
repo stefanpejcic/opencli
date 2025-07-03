@@ -315,7 +315,13 @@ copy_docker_contexts() {
 	    CURRENT=$((CURRENT+1))
 	    SRC="/home/$USERNAME/.docker"
 	    if [[ -d "$SRC" ]]; then
+	        echo "Setting linger for: $USERNAME"
+		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		    "loginctl enable-linger" \
+		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
+     
      		eval $RSYNC_CMD /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
+
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "
 		    if [ -d /run/user/$USER_ID ]; then
 		        ls -l /run/user/$USER_ID
@@ -330,10 +336,6 @@ copy_docker_contexts() {
 	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
 	
 	        echo "Configuring docker service for: $USERNAME"
-
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "loginctl enable-linger" \
-		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
