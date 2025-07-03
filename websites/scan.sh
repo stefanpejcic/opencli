@@ -111,8 +111,15 @@ while IFS= read -r -d '' config_file_path; do
         "$config_file_path"
     
     # get sitename and domain
-    domain=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "option get siteurl 2>/dev/null")
-    site_name=$(echo "$domain" | sed -E 's~https?://~~')
+	domain=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "option get siteurl 2>/dev/null")
+	site_name=$(echo "$domain" | sed -E 's~https?://~~')
+	
+	# Validate that domain starts with http or https, else abort
+	if [[ ! "$domain" =~ ^https?:// ]]; then
+	    echo "Error: unable to get sitename from database."
+	    continue
+	fi
+
     domain_name=$(echo "$domain" | sed -E 's~https?://~~' | cut -d'/' -f1)
 
     # Check if website exists in sites table
