@@ -317,7 +317,7 @@ copy_docker_contexts() {
 	    if [[ -d "$SRC" ]]; then
 	        echo "Setting linger for: $USERNAME"
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "loginctl enable-linger" \
+		    "loginctl enable-linger $USERNAME" \
 		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
      
      		eval $RSYNC_CMD /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
