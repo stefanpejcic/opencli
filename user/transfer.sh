@@ -568,7 +568,7 @@ copy_docker_context() {
 	        echo "Configuring docker service ..."
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "loginctl enable-linger" \
+		    "loginctl enable-linger $USERNAME" \
 		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
