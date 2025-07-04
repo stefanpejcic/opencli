@@ -283,6 +283,9 @@ if [[ -z "\$mysql_database" ]]; then
   exit 1
 fi
 
+
+# TODO: CHECK IF USER EXISTS
+
 echo "📦 Looking for plan file: plan_\${USERNAME}_autoinc.sql"
 ls -l "plan_\${USERNAME}_autoinc.sql" || echo "⚠️ Plan file not found"
 
@@ -327,7 +330,6 @@ head tmp_user.sql
 
 echo "📤 Importing user into \`$mysql_database\`..."
 (echo "USE \`\$mysql_database\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
-
 
 rm tmp_user.sql
 
