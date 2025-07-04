@@ -362,7 +362,7 @@ if [[ -z "$USER_ID" ]]; then
 fi
 
 # Get plan ID
-USER_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
+PLAN_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT plan_id FROM users WHERE id = $USER_ID;")
 
 # Get plan name
