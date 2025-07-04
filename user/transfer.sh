@@ -268,7 +268,22 @@ import_mysql() {
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash <<EOF
 set -e
 
-cd "/tmp/user_import"
+source /usr/local/opencli/db.sh
+
+MYSQL_DATABASE="$mysql_database"
+CONFIG_FILE="/etc/my.cnf"
+USERNAME="$USERNAME"
+
+echo "📄 CONFIG_FILE: \$CONFIG_FILE"
+echo "🗃️ MYSQL_DATABASE: \$MYSQL_DATABASE"
+echo "👤 USERNAME: \$USERNAME"
+
+    cd "/tmp/user_import/" || { echo "❌ Directory /tmp/user_import/ not found"; exit 1; }
+
+    if [[ -z "\$MYSQL_DATABASE" ]]; then
+      echo "❌ MYSQL_DATABASE is not set"
+      exit 1
+    fi
 
 echo "Importing account info in database on destination ..."
 
@@ -281,9 +296,7 @@ if [[ -n "\$EXISTING_PLAN_ID" ]]; then
   echo "✅ Plan '\$PLAN_NAME' already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "➕ Importing new plan '\$PLAN_NAME'..."
-  mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" < "plan_${USERNAME}_autoinc.sql"
-  EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" -N -s \
-    -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
+    mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" < "plan_${USERNAME}_autoinc.sql"
 fi
 
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_${USERNAME}_autoinc.sql" > tmp_user.sql
@@ -373,13 +386,10 @@ PLAN_NAME=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
 #echo "📦 Plan: $PLAN_NAME (ID $PLAN_ID)"
 
 ### EXPORT PLAN (no ID)
-mysql --defaults-extra-file=$config_file -D $mysql_database -e "
+mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT name, description, domains_limit, websites_limit, email_limit, ftp_limit,
          disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set
-  FROM plans WHERE id = $PLAN_ID
-  INTO OUTFILE '$TMP_DIR/plan.tsv'
-  FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
-"
+  FROM plans WHERE id = $PLAN_ID;" > "$TMP_DIR/plan.tsv"
 
 awk -v table="plans" '
 BEGIN {
@@ -391,16 +401,14 @@ BEGIN {
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 }
 END { print ";" }
-' "$TMP_DIR/plan.tsv" > "plan_${USERNAME}_autoinc.sql"
+' "$TMP_DIR/plan.tsv" > "$TMP_DIR/plan_${USERNAME}_autoinc.sql"
+
 
 ### EXPORT USER (no ID)
-mysql --defaults-extra-file=$config_file -D $mysql_database -e "
+mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT username, password, email, owner, user_domains, twofa_enabled, otp_secret,
          plan, registered_date, server, plan_id
-  FROM users WHERE id = $USER_ID
-  INTO OUTFILE '$TMP_DIR/user.tsv'
-  FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
-"
+  FROM users WHERE id = $USER_ID;" > "$TMP_DIR/user.tsv"
 
 awk '
 BEGIN {
@@ -412,15 +420,12 @@ BEGIN {
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 }
 END { print ";" }
-' "$TMP_DIR/user.tsv" > "user_${USERNAME}_autoinc.sql"
+' "$TMP_DIR/user.tsv" > "$TMP_DIR/user_${USERNAME}_autoinc.sql"
 
 ### EXPORT DOMAINS (no domain_id)
-mysql --defaults-extra-file=$config_file -D $mysql_database -e "
+mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT docroot, domain_url, user_id, php_version
-  FROM domains WHERE user_id = $USER_ID
-  INTO OUTFILE '$TMP_DIR/domains.tsv'
-  FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
-"
+  FROM domains WHERE user_id = $USER_ID;" > "$TMP_DIR/domains.tsv"
 
 awk '
 BEGIN {
@@ -431,7 +436,7 @@ BEGIN {
   printf "('\''%s'\'', '\''%s'\'', %s, '\''%s'\''),\n", $1, $2, $3, $4
 }
 END { print ";" }
-' "$TMP_DIR/domains.tsv" > "domains_${USERNAME}_autoinc.sql"
+' "$TMP_DIR/domains.tsv" > "$TMP_DIR/domains_${USERNAME}_autoinc.sql"
 
 ### EXPORT SITES (if any domains exist)
 DOMAIN_IDS=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
@@ -441,12 +446,10 @@ if [[ -z "$DOMAIN_IDS" ]]; then
   :
 else
   DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-  mysql --defaults-extra-file=$config_file -D $mysql_database -e "
-    SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
-    FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST)
-    INTO OUTFILE '$TMP_DIR/sites.tsv'
-    FIELDS TERMINATED BY '\t' LINES TERMINATED BY '\n';
-  "
+	mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+	  SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
+	  FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST);" > "$TMP_DIR/sites.tsv"
+	
 
   awk '
   BEGIN {
@@ -458,14 +461,14 @@ else
     $1, $2, $3, $4, $5, $6, $7, $8
   }
   END { print ";" }
-  ' "$TMP_DIR/sites.tsv" > "sites_${USERNAME}_autoinc.sql"
+  ' "$TMP_DIR/sites.tsv" > "$TMP_DIR/sites_${USERNAME}_autoinc.sql"
 fi
 
-eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import
-eval $RSYNC_CMD $TMP_DIR/user_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import
-eval $RSYNC_CMD $TMP_DIR/domains_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import
-eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import
-[[ -f "sites_${USERNAME}_autoinc.sql" ]] && eval $RSYNC_CMD $TMP_DIR/sites_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import
+eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
+eval $RSYNC_CMD $TMP_DIR/user_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
+eval $RSYNC_CMD $TMP_DIR/domains_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
+eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
+[[ -f "sites_${USERNAME}_autoinc.sql" ]] && eval $RSYNC_CMD $TMP_DIR/sites_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
 
 }
 
