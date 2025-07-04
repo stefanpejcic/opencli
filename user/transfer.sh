@@ -52,6 +52,7 @@ while [[ $# -gt 0 ]]; do
         --password)
             REMOTE_PASS="$2"
             shift 2
+	    ;;
         --force)
             FORCE=1
             shift
