@@ -267,7 +267,8 @@ sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMO
   "mysql_database=$mysql_database USERNAME=$USERNAME bash -s" <<EOF
 set -e
 
-export mysql_database USERNAME
+export mysql_database 
+export USERNAME
 CONFIG_FILE="/etc/my.cnf"
 
 echo "📄 CONFIG_FILE: \$CONFIG_FILE"
@@ -292,6 +293,7 @@ cat "plan_\${USERNAME}_autoinc.sql"
 
 echo "🧹 Fixing trailing comma in plan SQL..."
 sed -i -E ':a;N;\$!ba;s/,\s*;\s*/;/g' "plan_\${USERNAME}_autoinc.sql"
+sed -i -E ':a;N;\$!ba;s/,\s*;\s*/;/g' "user_\${USERNAME}_autoinc.sql"
 
 PLAN_NAME=\$(awk -F"'" '/INSERT INTO plans/ {getline; print \$2; exit}' "plan_\${USERNAME}_autoinc.sql")
 echo "🔍 Extracted PLAN_NAME: \$PLAN_NAME"
@@ -324,7 +326,7 @@ echo "📁 Contents of tmp_user.sql:"
 head tmp_user.sql
 
 echo "📤 Importing user into \`$mysql_database\`..."
-(echo "USE \`$mysql_database\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
+(echo "USE \`\$mysql_database\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
 
 
 rm tmp_user.sql
