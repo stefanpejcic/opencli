@@ -296,11 +296,11 @@ if [[ -n "\$EXISTING_PLAN_ID" ]]; then
   echo "✅ Plan '\$PLAN_NAME' already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "➕ Importing new plan '\$PLAN_NAME'..."
-    mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" < "plan_${USERNAME}_autoinc.sql"
+    (echo "USE \`$MYSQL_DATABASE\`;" && cat "plan_${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="$CONFIG_FILE"    
 fi
 
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_${USERNAME}_autoinc.sql" > tmp_user.sql
-mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" < tmp_user.sql
+(echo "USE \`$MYSQL_DATABASE\`;" && cat "tmp_user.sql") | mysql --defaults-extra-file="$CONFIG_FILE"    
 rm tmp_user.sql
 
 USER_ID=\$(mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" -N -s \
@@ -320,7 +320,7 @@ while read -r line; do
   PHP_VERSION=\$(echo "\$line" | awk -F"','" '{print \$4}' | sed "s/')//")
 
   EXISTS=\$(mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" -N -s -e "SELECT COUNT(*) FROM domains WHERE domain_url = '\$DOMAIN_URL';")
-  if [[ "\$EXISTS" -eq 0 ]]; then
+  if [[ "\$EXISTS" -eq 0 ]]; then 
     mysql --defaults-extra-file="$CONFIG_FILE" -D "$MYSQL_DATABASE" -e "INSERT INTO domains (docroot, domain_url, user_id, php_version) VALUES ('\$DOCROOT', '\$DOMAIN_URL', \$USER_ID, '\$PHP_VERSION');"
     echo "✅ Domain imported: \$DOMAIN_URL"
   else
