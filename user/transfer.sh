@@ -5,7 +5,7 @@
 # Usage: opencli user-transfer -h <DESTINATION_IP> --user <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD>
 # Author: Stefan Pejcic
 # Created: 28.06.2025
-# Last Modified: 04.07.2025
+# Last Modified: 03.07.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -366,7 +366,7 @@ PLAN_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT plan_id FROM users WHERE id = $USER_ID;")
 
 # Get plan name
-PLAN_NAME=$(mysql -u "$MYSQL_USER" -p"$MYSQL_PWD" -D "$MYSQL_DB" -N -s \
+PLAN_NAME=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT name FROM plans WHERE id = $PLAN_ID;")
 
 #echo "📦 Plan: $PLAN_NAME (ID $PLAN_ID)"
@@ -440,7 +440,7 @@ if [[ -z "$DOMAIN_IDS" ]]; then
   :
 else
   DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-  mysql -u "$MYSQL_USER" -p"$MYSQL_PWD" -D "$MYSQL_DB" -e "
+  mysql --defaults-extra-file=$config_file -D $mysql_database -e "
     SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
     FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST)
     INTO OUTFILE '$TMP_DIR/sites.tsv'
