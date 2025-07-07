@@ -190,8 +190,12 @@ if [ -n "$new_service" ]; then
         exit 1
     }
 
-    cpu="${!$(normalize_service_name "$new_service")_CPU}"
-    ram="${!$(normalize_service_name "$new_service")_RAM}"
+    norm_name=$(normalize_service_name "$new_service")
+    cpu_var="${norm_name}_CPU"
+    ram_var="${norm_name}_RAM"
+    cpu="${!cpu_var}"
+    ram="${!ram_var}"
+
     ram=${ram//[gG]/}
 
     projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $cpu}")
