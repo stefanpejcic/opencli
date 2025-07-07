@@ -50,7 +50,7 @@ declare -g mysql_database config_file
 # Function to display usage information
 usage() {
     cat << EOF
-Usage: opencli user-quota <username> OR $SCRIPT_NAME --all
+Usage: opencli user-quota <username> OR opencli user-quota --all
 
 Arguments:
     username    Set quota for specific user
