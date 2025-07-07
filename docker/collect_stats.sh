@@ -31,6 +31,7 @@
 (
 flock -n 200 || { echo "Error: Another instance of the script is already running. Exiting."; exit 1; }
 output_dir="/etc/openpanel/openpanel/core/users"
+mkdir -p $output_dir
 current_datetime=$(date +'%Y-%m-%d-%H-%M-%S')
 
 usage() {
