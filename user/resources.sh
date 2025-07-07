@@ -234,5 +234,8 @@ else
     echo "Total RAM: $TOTAL_USED_RAM / $TOTAL_RAM"
 fi
 
+opencli docker-collect_stats "$context" >/dev/null 2>&1 &
+disown
+
 exit 0
 
