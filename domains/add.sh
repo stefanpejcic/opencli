@@ -509,6 +509,7 @@ vhost_files_create() {
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
+       chown $context_uid:$context_uid $vhost_in_docker_file > /dev/null 2>&1
        php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
 
 	sed -i \
