@@ -1,0 +1,241 @@
+name: ShellCheck
+
+on:
+  push:
+    paths:
+      - '**.sh'
+      - '**.bash'
+  pull_request:
+    paths:
+      - '**.sh'
+      - '**.bash'
+  workflow_dispatch:
+    inputs:
+      check_all:
+        description: 'Check all shell scripts'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+    
+    - name: Get changed files
+      id: changed-files
+      if: github.event_name != 'workflow_dispatch'
+      run: |
+        if [ "${{ github.event_name }}" = "push" ]; then
+          # For push events, compare with previous commit
+          git diff --name-only HEAD~1 HEAD | grep -E '\.(sh|bash)$' > changed_files.txt || true
+        else
+          # For PR events, compare with base branch
+          git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(sh|bash)$' > changed_files.txt || true
+        fi
+        
+        if [ -s changed_files.txt ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "Changed shell files:"
+          cat changed_files.txt
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "No shell files changed"
+        fi
+    
+    - name: Run ShellCheck on changed files
+      id: shellcheck-changed
+      if: steps.changed-files.outputs.has_changes == 'true'
+      run: |
+        echo "## ShellCheck Results for Changed Files" > shellcheck_results.md
+        echo "" >> shellcheck_results.md
+        
+        exit_code=0
+        while IFS= read -r file; do
+          if [ -f "$file" ]; then
+            echo "### Checking: $file" >> shellcheck_results.md
+            echo '```' >> shellcheck_results.md
+            if shellcheck "$file" >> shellcheck_results.md 2>&1; then
+              echo "✅ No issues found" >> shellcheck_results.md
+            else
+              exit_code=1
+            fi
+            echo '```' >> shellcheck_results.md
+            echo "" >> shellcheck_results.md
+          fi
+        done < changed_files.txt
+        
+        echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+        
+        if [ $exit_code -ne 0 ]; then
+          echo "has_issues=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_issues=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Run ShellCheck on all files
+      id: shellcheck-all
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "## ShellCheck Results for All Files" > shellcheck_results.md
+        echo "" >> shellcheck_results.md
+        
+        exit_code=0
+        
+        # Find all shell scripts
+        find . -name "*.sh" -o -name "*.bash" -o \( -type f -executable -exec grep -l '^#!/bin/bash' {} \; \) | sort -u > all_scripts.txt
+        
+        if [ -s all_scripts.txt ]; then
+          while IFS= read -r file; do
+            echo "### Checking: $file" >> shellcheck_results.md
+            echo '```' >> shellcheck_results.md
+            if shellcheck "$file" >> shellcheck_results.md 2>&1; then
+              echo "✅ No issues found" >> shellcheck_results.md
+            else
+              exit_code=1
+            fi
+            echo '```' >> shellcheck_results.md
+            echo "" >> shellcheck_results.md
+          done < all_scripts.txt
+        else
+          echo "No shell scripts found in repository." >> shellcheck_results.md
+        fi
+        
+        echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+        
+        if [ $exit_code -ne 0 ]; then
+          echo "has_issues=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_issues=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create or update issue
+      if: (steps.shellcheck-changed.outputs.has_issues == 'true' || steps.shellcheck-all.outputs.has_issues == 'true')
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Read the results
+          const results = fs.readFileSync('shellcheck_results.md', 'utf8');
+          
+          // Create issue title
+          const isManualRun = context.eventName === 'workflow_dispatch';
+          const title = isManualRun ? 
+            'ShellCheck Issues Found (Full Repository Scan)' : 
+            `ShellCheck Issues Found in ${context.payload.head_commit?.message || 'Recent Changes'}`;
+          
+          // Create issue body
+          const body = `
+          # ShellCheck Issues Report
+          
+          **Triggered by:** ${isManualRun ? 'Manual workflow run' : 'Code changes'}
+          **Repository:** ${context.repo.owner}/${context.repo.repo}
+          **Branch:** ${context.ref.replace('refs/heads/', '')}
+          **Commit:** ${context.sha.substring(0, 7)}
+          **Workflow:** [${context.runNumber}](${context.payload.repository.html_url}/actions/runs/${context.runId})
+          
+          ---
+          
+          ${results}
+          
+          ---
+          
+          **Next Steps:**
+          1. Fix the issues identified above
+          2. Test your changes locally with \`shellcheck <filename>\`
+          3. Commit and push your fixes
+          
+          *This issue was automatically created by the ShellCheck workflow.*
+          `;
+          
+          // Check if there's already an open issue
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: ['shellcheck', 'automated']
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes('ShellCheck Issues Found')
+          );
+          
+          if (existingIssue) {
+            // Update existing issue
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              title: title,
+              body: body
+            });
+            
+            console.log(`Updated existing issue #${existingIssue.number}`);
+          } else {
+            // Create new issue
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['shellcheck', 'automated', 'bug']
+            });
+            
+            console.log(`Created new issue #${issue.data.number}`);
+          }
+    
+    - name: Close issue if no problems
+      if: (steps.shellcheck-changed.outputs.has_issues == 'false' || steps.shellcheck-all.outputs.has_issues == 'false')
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // Check if there's an open shellcheck issue to close
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: ['shellcheck', 'automated']
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes('ShellCheck Issues Found')
+          );
+          
+          if (existingIssue) {
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              state: 'closed'
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: '🎉 All ShellCheck issues have been resolved! Closing this issue automatically.'
+            });
+            
+            console.log(`Closed issue #${existingIssue.number} - no more issues found`);
+          }
+    
+    - name: Fail workflow if issues found
+      if: (steps.shellcheck-changed.outputs.has_issues == 'true' || steps.shellcheck-all.outputs.has_issues == 'true')
+      run: |
+        echo "❌ ShellCheck found issues. Check the created issue for details."
+        exit 1
