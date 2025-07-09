@@ -54,7 +54,7 @@ done
 # Function to update the user's password
 update_password() {
     # Generate hashed password using Python crypt SHA-512 inside Docker
-    HASHED_PASS=$(/usr/local/admin/venv/bin/python3 -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$new_password', '\$6\$' + salt))")
+    HASHED_PASS=$(/usr/local/admin/venv/bin/python3 -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
     # Apply the new hashed password
     docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
