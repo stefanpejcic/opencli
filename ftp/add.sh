@@ -114,8 +114,11 @@ create_user() {
 	    chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data
 	    chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data     
 
-	    echo "$username|$HASHED_PASS|$directory" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
-	    echo "Success: FTP user '$username' created successfully."
+	    USER_UID=$(docker exec openadmin_ftp id -u "$username")
+	    USER_GID=$(docker exec openadmin_ftp id -g "$username")
+	
+	    echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
+	    echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
 	else
 	    if [ "$DEBUG" = true ]; then
 	        echo "ERROR: Failed to create FTP user with command:"     
