@@ -56,11 +56,11 @@ done
 
 
 check_and_start_ftp_server(){
-	if [ $(docker ps -q -f name=openadmin_ftp) ]; then
+	if [ -n "$(docker ps -q -f name=openadmin_ftp)" ]; then
 	    :
 	else
-        cd /root && docker --context default compose up -d ftp_env_generator  >/dev/null 2>&1
-	    cd /root && docker --context default compose up -d openadmin_ftp  >/dev/null 2>&1
+	    cd /root && docker --context default compose up -d ftp_env_generator >/dev/null 2>&1
+	    cd /root && docker --context default compose up -d openadmin_ftp >/dev/null 2>&1
 	fi
 }
 
@@ -82,18 +82,18 @@ create_user() {
 	relative_path="${directory##/var/www/html/}"
 	new_directory="${real_path}${relative_path}"
  
-	GID=$(grep $openpanel_username /hostfs/etc/group | cut -d: -f3)
-	GROUP=$(docker exec openadmin_ftp sh -c  "getent group $GID | cut -d: -f1")
-	if [ ! -z "$GROUP" ]; then
+	GID=$(grep "$openpanel_username" /hostfs/etc/group | cut -d: -f3)
+	GROUP=$(docker exec openadmin_ftp sh -c  "getent group \"$GID\" | cut -d: -f1")
+	if [ -n "$GROUP" ]; then
 	    GROUP_OPT="-g $GROUP"
-	elif [ ! -z "$GID" ]; then
-	    addgroup -g $GID $openpanel_username
+	elif [ -n "$GID" ]; then
+	    addgroup -g "$GID" "$openpanel_username"
 	    GROUP_OPT="-g $openpanel_username"
-	    chmod +rx /home/$openpanel_username
-	    chmod +rx /home/$openpanel_username/docker-data
-	    chmod +rx /home/$openpanel_username/docker-data/volumes
-	    chmod +rx /home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data
-	    chmod +rx /home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data
+	    chmod +rx "/home/$openpanel_username"
+	    chmod +rx "/home/$openpanel_username/docker-data"
+	    chmod +rx "/home/$openpanel_username/docker-data/volumes"
+	    chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
+	    chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
 	fi
 
 	PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
@@ -101,24 +101,23 @@ create_user() {
 	HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
  	# Create user without password
-	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}' > /dev/null 2>&1"
+	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}'" >/dev/null 2>&1
+
 
 	# Set the hashed password
-	docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
-
-	if [ $? -eq 0 ]; then
+	if docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
 	    mkdir -p "/hostfs$new_directory"
-	    chown ${openpanel_username}:${openpanel_username} "/hostfs$new_directory"
-	    chmod +rx /hostfs/home/$openpanel_username
-	    chmod +rx /hostfs/home/$openpanel_username/docker-data
-	    chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes
-	    chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data
-	    chmod +rx /hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data     
-
+	    chown "${openpanel_username}:${openpanel_username}" "/hostfs$new_directory"
+	    chmod +rx "/hostfs/home/$openpanel_username"
+	    chmod +rx "/hostfs/home/$openpanel_username/docker-data"
+	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes"
+	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
+	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
+	
 	    USER_UID=$(docker exec openadmin_ftp id -u "$username")
 	    USER_GID=$(docker exec openadmin_ftp id -g "$username")
 	
-	    echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> /etc/openpanel/ftp/users/${openpanel_username}/users.list
+	    echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${openpanel_username}/users.list"
 	    echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
 	else
 	    if [ "$DEBUG" = true ]; then
@@ -203,15 +202,15 @@ validate_data() {
 
 # check if ftp user exists
 check_user_exists() {
-    if grep -Fq "$username|" /etc/openpanel/ftp/users/${openpanel_username}/users.list; then
-        echo "ERROR: FTP User '$username' already exists."
-        exit 1
-    fi
+	if grep -Fq "$username|" "/etc/openpanel/ftp/users/${openpanel_username}/users.list"; then
+	    echo "ERROR: FTP User '$username' already exists."
+	    exit 1
+	fi
 }
 
 make_dirs() {
-	mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
-	touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
+	mkdir -p "/etc/openpanel/ftp/users/${openpanel_username}"
+	touch "/etc/openpanel/ftp/users/${openpanel_username}/users.list"
 }
 
 
