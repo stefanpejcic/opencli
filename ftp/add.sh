@@ -97,9 +97,9 @@ create_user() {
 	fi
 
 	# Generate hashed password using Python crypt with SHA-512
-	HASHED_PASS=$(/usr/local/admin/venv/bin/python3 -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
-
-	# Create user without password
+	HASHED_PASS=$(/usr/local/admin/venv/bin/python3 -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
+ 
+ 	# Create user without password
 	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}' > /dev/null 2>&1"
 
 	# Set the hashed password
