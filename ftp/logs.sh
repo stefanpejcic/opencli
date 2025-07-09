@@ -36,4 +36,4 @@ fi
 
 # Define the container name
 CONTAINER_NAME="openadmin_ftp"
-docker logs "$CONTAINER_NAME"
+docker --context=default logs "$CONTAINER_NAME"
