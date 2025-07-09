@@ -57,7 +57,8 @@ change_path() {
         docker exec openadmin_ftp sh -c "usermod -d ${path} ${username}"
         
             if [ $? -eq 0 ]; then
-                sed -i "s|^\(${username}|[^|]*|\)[^|]*|\(.*\)|\1${path}|\2|" /etc/openpanel/ftp/users/$openpanel_username/users.list
+                sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/$openpanel_username/users.list
+                
                 # TODO EDIT THIS USER FILE ALSO!
                 echo "Success: FTP path for user '$username' changed successfully."
             else
