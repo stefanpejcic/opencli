@@ -63,7 +63,7 @@ update_password() {
 
     if [ $? -eq 0 ]; then
         # Update users.list with new hashed password
-	SCAPED_HASHED_PASS=$(printf '%s' "$HASHED_PASS" | sed -e 's/[&\\]/\\&/g')
+	ESCAPED_HASHED_PASS=$(printf '%s' "$HASHED_PASS" | sed -e 's/[&\\]/\\&/g')
  	sed -i "/^${username}|/ s|^\(${username}|\)[^|]*\(.*\)$|\1${ESCAPED_HASHED_PASS}\2|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
         echo "Success: FTP user '$username' password updated successfully."
     else
