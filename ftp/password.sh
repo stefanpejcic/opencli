@@ -63,8 +63,8 @@ update_password() {
 
     if [ $? -eq 0 ]; then
         # Update users.list with new hashed password
-awk -F'|' -v newpass="$HASHED_PASS" '
-    $1 == "$username" { $2 = newpass }
+awk -F'|' -v user="$username" -v newpass="$HASHED_PASS" '
+    $1 == user { $2 = newpass }
     { print $1 "|" $2 "|" $3 "|" $4 "|" $5 }
 ' /etc/openpanel/ftp/users/$openpanel_username/users.list > /tmp/$openpanel_username.ftp_users.list.tmp && \
 mv /tmp/$openpanel_username.ftp_users.list.tmp /etc/openpanel/ftp/users/$openpanel_username/users.list
