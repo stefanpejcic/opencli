@@ -51,6 +51,33 @@ for arg in "$@"; do
     esac
 done
 
+
+# Validate the path
+validate_path() {
+    if [[ "$path" != /var/www/html/* ]]; then
+        echo "ERROR: Invalid path. It must start with /var/www/html/"
+        exit 1
+    fi
+
+    if [[ "$path" == *".."* ]]; then
+        echo "ERROR: Path traversal detected (.. is not allowed)."
+        exit 1
+    fi
+
+    if [[ "$path" == *"//"* ]]; then
+        echo "ERROR: Double slashes are not allowed in the path."
+        exit 1
+    fi
+
+    if [[ "$path" == *"|"* ]]; then
+        echo "ERROR: The path cannot contain the '|' character."
+        exit 1
+    fi
+}
+
+
+
+
 # Function to add or update the FTP path
 change_path() {
 
@@ -75,6 +102,6 @@ change_path() {
 
 # Ensure the paths.list file exists
 mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
-touch /etc/openpanel/ftp/users/${openpanel_username}/paths.list
 
+validate_path
 change_path
