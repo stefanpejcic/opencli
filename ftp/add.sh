@@ -96,9 +96,10 @@ create_user() {
 	    chmod +rx /home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data
 	fi
 
-	# Generate hashed password using Python crypt with SHA-512
-	HASHED_PASS=$(/usr/local/admin/venv/bin/python3 -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
- 
+	PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
+	
+	HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
+
  	# Create user without password
 	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}' > /dev/null 2>&1"
 
