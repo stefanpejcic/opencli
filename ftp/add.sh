@@ -135,78 +135,91 @@ create_user() {
 }
 
 
+validate_data() {
+	# user.openpanel_username
+	if [[ ! $username == *".${openpanel_username}" ]]; then
+	    echo "ERROR: FTP username must end with openpanel username, example: '$username.$openpanel_username'"
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
+	
+
+	if [[ "$directory" != /var/www/html/* ]]; then
+	echo "ERROR: Invalid path. It must start with /var/www/html/"
+	exit 1
+	fi
+	
+	if [[ "$directory" == *".."* ]]; then
+	echo "ERROR: Path traversal detected (.. is not allowed)."
+	exit 1
+	fi
+	
+	if [[ "$directory" == *"//"* ]]; then
+	echo "ERROR: Double slashes are not allowed in the path."
+	exit 1
+	fi
+	
+	if [[ "$directory" == *"|"* ]]; then
+	echo "ERROR: The path cannot contain the '|' character."
+	exit 1
+	fi
 
 
-
-
-
-# user.openpanel_username
-if [[ ! $username == *".${openpanel_username}" ]]; then
-    echo "ERROR: FTP username must end with openpanel username, example: '$username.$openpanel_username'"
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-
-# Check if password length is at least 8 characters
-if [ ${#password} -lt 8 ]; then
-    echo "ERROR: Password is too short. It must be at least 8 characters long."
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-# Check if password contains at least one uppercase letter
-if ! [[ $password =~ [A-Z] ]]; then
-    echo "ERROR: Password must contain at least one uppercase letter."
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-# Check if password contains at least one lowercase letter
-if ! [[ $password =~ [a-z] ]]; then
-    echo "ERROR: Password must contain at least one lowercase letter."
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-# Check if password contains at least one digit
-if ! [[ $password =~ [0-9] ]]; then
-    echo "ERROR: Password must contain at least one digit."
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-# Check if password contains at least one special character
-if ! [[ $password =~ [[:punct:]] ]]; then
-    echo "ERROR: Password must contain at least one special character."
-    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
-    exit 1
-fi
-
-
-# check if ftp user exists
-user_exists() {
-    local user="$1"
-    grep -Fq "$user|" /etc/openpanel/ftp/users/${openpanel_username}/users.list
+	# Check if password length is at least 8 characters
+	if [ ${#password} -lt 8 ]; then
+	    echo "ERROR: Password is too short. It must be at least 8 characters long."
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
+	
+	# Check if password contains at least one uppercase letter
+	if ! [[ $password =~ [A-Z] ]]; then
+	    echo "ERROR: Password must contain at least one uppercase letter."
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
+	
+	# Check if password contains at least one lowercase letter
+	if ! [[ $password =~ [a-z] ]]; then
+	    echo "ERROR: Password must contain at least one lowercase letter."
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
+	
+	# Check if password contains at least one digit
+	if ! [[ $password =~ [0-9] ]]; then
+	    echo "ERROR: Password must contain at least one digit."
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
+	
+	# Check if password contains at least one special character
+	if ! [[ $password =~ [[:punct:]] ]]; then
+	    echo "ERROR: Password must contain at least one special character."
+	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
+	    exit 1
+	fi
 }
 
-mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
-touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
+# check if ftp user exists
+check_user_exists() {
+    if grep -Fq "$username|" /etc/openpanel/ftp/users/${openpanel_username}/users.list; then
+        echo "ERROR: FTP User '$username' already exists."
+        exit 1
+    fi
+}
 
-# Check if user already exists
-if user_exists "$username"; then
-    echo "Error: FTP User '$username' already exists."
-    exit 1
-fi
-
-# check folder path is under the openpanel_username home folder
-if [[ $directory != /var/www/html/* ]]; then
-    echo "ERROR: Invalid folder '$directory' - folder must start with '/var/www/html/'."
-    exit 1
-fi
+make_dirs() {
+	mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
+	touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
+}
 
 
 
-
-check_and_start_ftp_server    # start ftpserver
+# main
+validate_data                 # check username, path and password
+make_dirs		      # create dir for user and users file
+check_user_exists             # check user exists
+check_and_start_ftp_server    # start ftpserver if not running
 create_user                   # create new user
+exit 0
