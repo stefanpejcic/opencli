@@ -141,41 +141,47 @@ update_bind_in_block() {
   fi
 }
 
-
-update_caddy_conf() {
+edit_domain_files() {
     local ip=$1
     local domains
     domains=$(opencli domains-user "$USERNAME")
-
-    for domain in $domains; do
-        local conf="$CADDY_CONF_PATH/$domain.conf"
-        if [ -f "$conf" ]; then
-            update_bind_in_block "$conf" "http://$domain, http://*.$domain {" "$ip"
-            update_bind_in_block "$conf" "https://$domain, https://*.$domain {" "$ip"
-
-            $DEBUG && echo "Updated Caddy bind for $domain to $ip"
-        fi
-    done
-
-    docker --context=default exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
-}
-
-
-update_dns_zone_file() {
-    local ip=$1
-    local domains
-    domains=$(opencli domains-user "$USERNAME")
+    
     local current_ip
     current_ip=$(get_current_ip)
 
+    local caddy_changed=false
+    local bind_changed=false
+    
     for domain in $domains; do
-        local zone_conf="$ZONE_FILE/$domain.zone"
-        if [ -f "$zone_conf" ]; then
-            sed -i "s/$current_ip/$ip/g" "$zone_conf"
-            $DEBUG && echo "Updated DNS zone file $zone_conf with IP $ip"
+        local caddy_conf="$CADDY_CONF_PATH/$domain.conf"
+        if [ -f "$caddy_conf" ]; then
+            update_bind_in_block "$caddy_conf" "http://$domain, http://*.$domain {" "$ip"
+            update_bind_in_block "$caddy_conf" "https://$domain, https://*.$domain {" "$ip"
+
+            $DEBUG && echo "- Updated Caddy configuration for $domain to $ip"
+            caddy_changed=true
+        fi
+        
+        local bind_conf="$ZONE_FILE/$domain.zone"
+        if [ -f "$bind_conf" ]; then
+            sed -i "s/$current_ip/$ip/g" "$bind_conf"
+            $DEBUG && echo "- Updated DNS zone file $bind_conf with IP $ip"
+            bind_changed=true
         fi
     done
+    
+    if $caddy_changed; then
+        docker --context=default exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
+        $DEBUG && echo "- Reloaded webserver"
+    fi
+
+    if $bind_changed; then
+        docker --context=default restart openpanel_bind9 >/dev/null 2>&1 || service bind9 restart >/dev/null 2>&1
+        $DEBUG && echo "- Restarted DNS server"
+    fi
 }
+
+
 
 create_ip_file() {
     local ip=$1
@@ -185,7 +191,6 @@ create_ip_file() {
 }
 
 update_firewall_rules() {
-    # Placeholder for firewall rules logic
     if command -v csf &> /dev/null; then
         :
         # TODO: implement firewall updates for dedicated IP
@@ -213,10 +218,8 @@ else
     ip_to_use="$IP"
 fi
 
-update_caddy_conf "$ip_to_use"
+edit_domain_files "$ip_to_use"
 update_firewall_rules
-update_dns_zone_file "$ip_to_use"
-
 if [ $? -eq 0 ]; then
     echo "IP successfully changed for user $USERNAME to: $ip_to_use"
 else
