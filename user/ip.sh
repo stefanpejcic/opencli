@@ -117,21 +117,29 @@ get_current_ip() {
 }
 
 
+escape_sed_regex() {
+  local str=$1
+  # escape \ / ^ $ . | ? * + ( ) [ ] { }
+  printf '%s' "$str" | sed -e 's/[\/&^$.*[]/\\&/g'
+}
+
 update_bind_in_block() {
   local conf=$1
   local block_header=$2
   local ip=$3
 
+  local esc_block_header
+  esc_block_header=$(escape_sed_regex "$block_header")
+
   # Check if bind exists immediately after block_header
-  if sed -n "\|^$block_header|{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
+  if sed -n "/^$esc_block_header/{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
     # Replace bind line
-    sed -i "\|^$block_header|{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
+    sed -i "/^$esc_block_header/{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
   else
     # Insert bind line after block_header
-    sed -i "\|^$block_header|a\    bind $ip" "$conf"
+    sed -i "/^$esc_block_header/a\    bind $ip" "$conf"
   fi
 }
-
 
 
 update_caddy_conf() {
