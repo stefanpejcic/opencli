@@ -261,8 +261,8 @@ update_dns_zone_file() {
 ensure_jq_installed
 # Check if the action is 'delete'
 if [ "$ACTION" = "delete" ]; then
-    current_ip "$USERNAME" 
     delete_ip_config
+    current_ip "$USERNAME" 
     update_caddy_conf "$USERNAME" 
     update_firewall_rules "$USERNAME"
     update_dns_zone_file "$USERNAME"
