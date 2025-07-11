@@ -116,6 +116,20 @@ get_current_ip() {
     fi
 }
 
+
+update_bind_in_block() {
+  local conf=$1
+  local block_header=$2
+  local ip=$3
+
+  if sed -n "/^$block_header/{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
+    sed -i "/^$block_header/{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
+  else
+    sed -i "/^$block_header/a\    bind $ip" "$conf"
+  fi
+}
+
+
 update_caddy_conf() {
     local ip=$1
     local domains
@@ -124,18 +138,8 @@ update_caddy_conf() {
     for domain in $domains; do
         local conf="$CADDY_CONF_PATH/$domain.conf"
         if [ -f "$conf" ]; then
-            # Update or add bind directive under HTTP and HTTPS blocks
-            sed -i "/^http:\/\/$domain, http:\/\/\*\.$domain {/ {
-                n
-                /bind /s/.*/    bind $ip/; t
-                a\    bind $ip
-            }" "$conf"
-
-            sed -i "/^https:\/\/$domain, https:\/\/\*\.$domain {/ {
-                n
-                /bind /s/.*/    bind $ip/; t
-                a\    bind $ip
-            }" "$conf"
+            update_bind_in_block "$conf" "http://$domain, http://*.$domain {" "$ip"
+            update_bind_in_block "$conf" "https://$domain, https://*.$domain {" "$ip"
 
             $DEBUG && echo "Updated Caddy bind for $domain to $ip"
         fi
@@ -143,6 +147,7 @@ update_caddy_conf() {
 
     docker --context=default exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
 }
+
 
 update_dns_zone_file() {
     local ip=$1
