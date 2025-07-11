@@ -6,8 +6,8 @@
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
 # Last Modified: 03.01.2024
-# Company: openpanel.co
-# Copyright (c) openpanel.co
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -130,43 +130,44 @@ delete_ip_config() {
 }
 
 
-update_nginx_conf() {
+
+update_caddy_conf() {
     USERNAME=$1
     JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    NGINX_CONF_PATH="/etc/nginx/sites-available"
+    CADDY_CONF_PATH="/etc/caddy/sites-available"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    ALL_DOMAINS=$(opencli domains-user $USERNAME)
+    ALL_DOMAINS=$(opencli domains-user "$USERNAME")
 
-    # Check if the JSON file for the user exists
+    # Determine IP to use
     if [ -e "$JSON_FILE" ]; then
         IP_TO_CHANGE=$(jq -r '.ip' "$JSON_FILE")
     else
         IP_TO_CHANGE="$SERVER_IP"
     fi
 
-    # Loop through Nginx configuration files for the user
-    if [ "$DEBUG" = true ]; then
-        for domain in $ALL_DOMAINS; do
-            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
-            if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
-                sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
-                echo "Server IP updated for $DOMAIN_CONF to $IP_TO_CHANGE."
-            fi
-        done
-    else
-        for domain in $ALL_DOMAINS; do
-            DOMAIN_CONF="$NGINX_CONF_PATH/$domain.conf"
-            if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
-                sed -i "s/listen [0-9.]\+/listen $IP_TO_CHANGE/g" "$DOMAIN_CONF"
-            fi
-        done
-    fi
-    
+    for domain in $ALL_DOMAINS; do
+        DOMAIN_CONF="$CADDY_CONF_PATH/$domain.caddy"
+        if [ -f "$DOMAIN_CONF" ]; then
+            # 1. Update or insert bind under HTTP block
+            sed -i "/^http:\/\/$domain, http:\/\/\*\.$domain {/ {
+                n
+                /bind /s/.*/    bind $IP_TO_CHANGE/; t
+                a\    bind $IP_TO_CHANGE
+            }" "$DOMAIN_CONF"
 
-    # Restart Nginx to apply changes
-    docker exec nginx bash -c "nginx -t && nginx -s reload" >/dev/null 2>&1 
+            # 2. Update or insert bind under HTTPS block
+            sed -i "/^https:\/\/$domain, https:\/\/\*\.$domain {/ {
+                n
+                /bind /s/.*/    bind $IP_TO_CHANGE/; t
+                a\    bind $IP_TO_CHANGE
+            }" "$DOMAIN_CONF"
+
+            [ "$DEBUG" = true ] && echo "Updated bind directives in $DOMAIN_CONF to $IP_TO_CHANGE"
+        fi
+    done
+
+    # Reload Caddy
+    docker --context=default exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
 }
 
 # Create or overwrite the JSON file
@@ -188,8 +189,6 @@ update_firewall_rules() {
 
     :
     # TODO
-    #
-    # we need to limit those ports to user ip only, and allow proxy to its nginx only.
     #
     #echo "Currently private IP will be used only for websites, other services need to be accessed via domain/shared ip."
 
@@ -278,9 +277,9 @@ fi
 current_ip "$USERNAME" 
 check_ip_validity "$IP"
 check_ip_usage "$IP" "$CONFIRM_FLAG"
-# Call the function to update Nginx configuration
+# Call the function to update configuration
 create_ip_file "$USERNAME" "$IP"
-update_nginx_conf "$USERNAME" "$IP"
+update_caddy_conf "$USERNAME" "$IP"
 update_firewall_rules "$USERNAME"
 update_dns_zone_file "$USERNAME"
 fi
