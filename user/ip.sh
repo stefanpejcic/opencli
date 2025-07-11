@@ -51,7 +51,10 @@ done
 
 # Check if username is provided
 if [ -z "$USERNAME" ]; then
-    echo "Usage: $0 <USERNAME> <ACTION> [ -y ] [--debug]"
+    echo "Usage: opencli user-ip <USERNAME> <ACTION> [ -y ] [--debug]"
+    echo ""
+    echo "Assign Dedicated IP to a user: opencli user-ip <USERNAME> <IP_ADDRESS> [ -y ] [--debug]"
+    echo "Remove Dedicated IP from user: opencli user-ip <USERNAME> delete [ -y ] [--debug]"
     exit 1
 fi
 # Print only the allowed IP addresses
@@ -270,7 +273,7 @@ else
 IP=$2
 # Check if IP is provided
 if [ -z "$IP" ]; then
-    echo "Usage: $0 <USERNAME> <ACTION> [ -y ]"
+    echo "Usage: opencli user-ip <USERNAME> <IP> [ -y ]"
     exit 1
 fi
 # Check if the IP is already used by another user
