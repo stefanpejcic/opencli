@@ -122,12 +122,16 @@ update_bind_in_block() {
   local block_header=$2
   local ip=$3
 
-  if sed -n "/^$block_header/{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
-    sed -i "/^$block_header/{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
+  # Check if bind exists immediately after block_header
+  if sed -n "\|^$block_header|{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
+    # Replace bind line
+    sed -i "\|^$block_header|{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
   else
-    sed -i "/^$block_header/a\    bind $ip" "$conf"
+    # Insert bind line after block_header
+    sed -i "\|^$block_header|a\    bind $ip" "$conf"
   fi
 }
+
 
 
 update_caddy_conf() {
