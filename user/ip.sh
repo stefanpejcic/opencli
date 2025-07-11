@@ -263,7 +263,7 @@ ensure_jq_installed
 if [ "$ACTION" = "delete" ]; then
     current_ip "$USERNAME" 
     delete_ip_config
-    update_nginx_conf "$USERNAME" 
+    update_caddy_conf "$USERNAME" 
     update_firewall_rules "$USERNAME"
     update_dns_zone_file "$USERNAME"
 else
