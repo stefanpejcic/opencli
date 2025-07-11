@@ -137,7 +137,7 @@ delete_ip_config() {
 update_caddy_conf() {
     USERNAME=$1
     JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    CADDY_CONF_PATH="/etc/caddy/sites-available"
+    CADDY_CONF_PATH="/etc/openpanel/caddy/domains"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     ALL_DOMAINS=$(opencli domains-user "$USERNAME")
 
@@ -149,7 +149,7 @@ update_caddy_conf() {
     fi
 
     for domain in $ALL_DOMAINS; do
-        DOMAIN_CONF="$CADDY_CONF_PATH/$domain.caddy"
+        DOMAIN_CONF="$CADDY_CONF_PATH/$domain.conf"
         if [ -f "$DOMAIN_CONF" ]; then
             # 1. Update or insert bind under HTTP block
             sed -i "/^http:\/\/$domain, http:\/\/\*\.$domain {/ {
