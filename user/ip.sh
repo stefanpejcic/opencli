@@ -127,8 +127,6 @@ delete_ip_config() {
     if [ -e "$JSON_FILE" ]; then
         rm -f "$JSON_FILE"
         echo "IP configuration deleted for user $USERNAME."
-    else
-        echo "No IP configuration found for user $USERNAME."
     fi
 }
 
