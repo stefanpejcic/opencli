@@ -38,6 +38,7 @@ if [[ ! -f "$DB_CONFIG" ]]; then
     exit 1
 fi
 
+# shellcheck source=/usr/local/opencli/db.sh
 source "$DB_CONFIG"
 
 # Validate email format
