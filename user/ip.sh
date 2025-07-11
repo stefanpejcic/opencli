@@ -187,7 +187,7 @@ create_ip_file() {
     local ip=$1
     local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
     echo "{ \"ip\": \"$ip\" }" > "$json_file"
-    $DEBUG && echo "Created IP file $json_file with IP $ip"
+    [ "$DEBUG" = true ] && echo "Created IP file $json_file with IP $ip"
 }
 
 update_firewall_rules() {
@@ -229,7 +229,6 @@ if [ "$ACTION" == "delete" ]; then
 else
     create_ip_file "$IP"   
 fi
-
 
 if [ $? -eq 0 ]; then
     echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
