@@ -28,28 +28,24 @@
 # THE SOFTWARE.
 ################################################################################
 
-
 USERNAME=$1
 ACTION=$2
 CONFIRM_FLAG=$3
-SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-ALL_DOMAINS=$(opencli domains-user $USERNAME)
-NGINX_CONF_PATH="/etc/nginx/sites-available/"
-JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-DEBUG=false  # Default value for DEBUG
+DEBUG=false
 
-# Check if DEBUG flag is set
+JSON_FILE_BASE="/etc/openpanel/openpanel/core/users"
+CADDY_CONF_PATH="/etc/openpanel/caddy/domains"
+ZONE_FILE="/etc/bind/zones"
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+ALLOWED_IP_ADDRESSES=$(hostname -I | tr ' ' '\n' | grep -v '^172\.' | tr '\n' ' ')
+
+# Parse flags
 for arg in "$@"; do
     case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        *)
-            ;;
+        --debug) DEBUG=true ;;
     esac
 done
 
-# Check if username is provided
 if [ -z "$USERNAME" ]; then
     echo "Usage: opencli user-ip <USERNAME> <ACTION> [ -y ] [--debug]"
     echo ""
@@ -57,238 +53,154 @@ if [ -z "$USERNAME" ]; then
     echo "Remove Dedicated IP from user: opencli user-ip <USERNAME> delete [ -y ] [--debug]"
     exit 1
 fi
-# Print only the allowed IP addresses
-ALLOWED_IP_ADDRESSES=$(hostname -I | tr ' ' '\n' | grep -v '^172\.' | tr '\n' ' '  )
 
+ensure_jq_installed() {
+    if ! command -v jq &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq jq
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q jq
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q jq
+        else
+            echo "Error: No compatible package manager found. Please install jq manually."
+            exit 1
+        fi
+        command -v jq &> /dev/null || { echo "jq installation failed."; exit 1; }
+    fi
+}
 
-# Function to check if the IP is allowed
 check_ip_validity() {
-    CHECK_IP=$1
-    if ! echo "$ALLOWED_IP_ADDRESSES" | grep -q "$CHECK_IP"; then
-        echo "Error: The provided IP address is not allowed. It must be one of the addresses $ALLOWED_IP_ADDRESSES"
+    local ip=$1
+    if ! echo "$ALLOWED_IP_ADDRESSES" | grep -qw "$ip"; then
+        echo "Error: The provided IP address is not allowed. Must be one of: $ALLOWED_IP_ADDRESSES"
         exit 1
     fi
 }
 
-
-ensure_jq_installed() {
-    # Check if jq is installed
-    if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-
-        # Check if installation was successful
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-
-# Function to check if the IP is used by another user
 check_ip_usage() {
-    CHECK_IP=$1
-    ALL_USERS=$(ls /etc/openpanel/openpanel/core/users)
-    for USER in $ALL_USERS; do
-        if [ "$USER" != "$USERNAME" ]; then
-            USER_JSON="/etc/openpanel/openpanel/core/users/$USER/ip.json"
-            if [ -e "$USER_JSON" ]; then
-                USER_IP=$(jq -r '.ip' "$USER_JSON")
-                if [ "$USER_IP" = "$CHECK_IP" ]; then
-                    if [ "$CONFIRM_FLAG" != "-y" ]; then
-                        echo "Error: The IP address is already associated with user $USER."
-
-                        read -p "Are you sure you want to continue? (y/n): " CONFIRM
-                        if [ "$CONFIRM" != "y" ]; then
-                            echo "Script aborted."
-                            exit 1
-                        fi
-                    fi
+    local ip=$1
+    local all_users
+    all_users=$(ls "$JSON_FILE_BASE")
+    for user in $all_users; do
+        [ "$user" = "$USERNAME" ] && continue
+        local user_json="$JSON_FILE_BASE/$user/ip.json"
+        if [ -f "$user_json" ]; then
+            local user_ip
+            user_ip=$(jq -r '.ip' "$user_json")
+            if [ "$user_ip" = "$ip" ]; then
+                if [ "$CONFIRM_FLAG" != "-y" ]; then
+                    echo "Error: IP $ip already assigned to user $user."
+                    read -p "Are you sure you want to continue? (y/n): " answer
+                    [[ "$answer" != "y" ]] && echo "Script aborted." && exit 1
                 fi
             fi
         fi
     done
 }
 
-#Function to delete user's IP configuration
 delete_ip_config() {
-    JSON_FILE="/etc/openpanel/openpanel/core/users/$USER/ip.json"
-    if [ -e "$JSON_FILE" ]; then
-        rm -f "$JSON_FILE"
+    local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
+    if [ -f "$json_file" ]; then
+        rm -f "$json_file"
         echo "IP configuration deleted for user $USERNAME."
     fi
 }
 
-
+get_current_ip() {
+    local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
+    if [ -f "$json_file" ]; then
+        jq -r '.ip' "$json_file"
+    else
+        echo "$SERVER_IP"
+    fi
+}
 
 update_caddy_conf() {
-    USERNAME=$1
-    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    CADDY_CONF_PATH="/etc/openpanel/caddy/domains"
-    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    ALL_DOMAINS=$(opencli domains-user "$USERNAME")
+    local ip=$1
+    local domains
+    domains=$(opencli domains-user "$USERNAME")
 
-    # Determine IP to use
-    if [ -e "$JSON_FILE" ]; then
-        IP_TO_CHANGE=$(jq -r '.ip' "$JSON_FILE")
-    else
-        IP_TO_CHANGE="$SERVER_IP"
-    fi
-
-    for domain in $ALL_DOMAINS; do
-        DOMAIN_CONF="$CADDY_CONF_PATH/$domain.conf"
-        if [ -f "$DOMAIN_CONF" ]; then
-            # 1. Update or insert bind under HTTP block
+    for domain in $domains; do
+        local conf="$CADDY_CONF_PATH/$domain.conf"
+        if [ -f "$conf" ]; then
+            # Update or add bind directive under HTTP and HTTPS blocks
             sed -i "/^http:\/\/$domain, http:\/\/\*\.$domain {/ {
                 n
-                /bind /s/.*/    bind $IP_TO_CHANGE/; t
-                a\    bind $IP_TO_CHANGE
-            }" "$DOMAIN_CONF"
+                /bind /s/.*/    bind $ip/; t
+                a\    bind $ip
+            }" "$conf"
 
-            # 2. Update or insert bind under HTTPS block
             sed -i "/^https:\/\/$domain, https:\/\/\*\.$domain {/ {
                 n
-                /bind /s/.*/    bind $IP_TO_CHANGE/; t
-                a\    bind $IP_TO_CHANGE
-            }" "$DOMAIN_CONF"
+                /bind /s/.*/    bind $ip/; t
+                a\    bind $ip
+            }" "$conf"
 
-            [ "$DEBUG" = true ] && echo "Updated bind directives in $DOMAIN_CONF to $IP_TO_CHANGE"
+            $DEBUG && echo "Updated Caddy bind for $domain to $ip"
         fi
     done
 
-    # Reload Caddy
     docker --context=default exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
 }
 
-# Create or overwrite the JSON file
+update_dns_zone_file() {
+    local ip=$1
+    local domains
+    domains=$(opencli domains-user "$USERNAME")
+    local current_ip
+    current_ip=$(get_current_ip)
+
+    for domain in $domains; do
+        local zone_conf="$ZONE_FILE/$domain.zone"
+        if [ -f "$zone_conf" ]; then
+            sed -i "s/$current_ip/$ip/g" "$zone_conf"
+            $DEBUG && echo "Updated DNS zone file $zone_conf with IP $ip"
+        fi
+    done
+}
+
 create_ip_file() {
-    USERNAME=$1
-    IP=$2
-    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    echo "{ \"ip\": \"$IP\" }" > "$JSON_FILE"
-    if [ "$DEBUG" = true ]; then
-        echo "IP file created/updated for user $USERNAME with IP $IP."
-    fi
+    local ip=$1
+    local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
+    echo "{ \"ip\": \"$ip\" }" > "$json_file"
+    $DEBUG && echo "Created IP file $json_file with IP $ip"
 }
 
 update_firewall_rules() {
-    USERNAME=$1
-
-    # Check for CSF
-    if command -v csf >/dev/null 2>&1; then
-
-    :
-    # TODO
-    #
-    #echo "Currently private IP will be used only for websites, other services need to be accessed via domain/shared ip."
-
+    # Placeholder for firewall rules logic
+    if command -v csf &> /dev/null; then
+        :
+        # TODO: implement firewall updates for dedicated IP
     else
-        echo "Danger! CSF is not installed, all user ports will be exposed to the internet, without any protection."
-    fi
-
-}
-
-current_ip () {
-    USERNAME=$1
-    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    # Check if the JSON file for the user exists
-    if [ "$DEBUG" = true ]; then
-        if [ -e "$JSON_FILE" ]; then
-            CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
-            echo "$CURRENT_IP"
-        else
-            CURRENT_IP="$SERVER_IP"
-            echo "$CURRENT_IP"
-        fi
-    else
-        if [ -e "$JSON_FILE" ]; then
-            CURRENT_IP=$(jq -r '.ip' "$JSON_FILE")
-        else
-            CURRENT_IP="$SERVER_IP"
-        fi
+        echo "Warning: CSF is not installed; user ports may be exposed without protection."
     fi
 }
-
-update_dns_zone_file() {
-    USERNAME=$1
-    JSON_FILE="/etc/openpanel/openpanel/core/users/$USERNAME/ip.json"
-    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    ALL_DOMAINS=$(opencli domains-user $USERNAME)
-    ZONE_FILE="/etc/bind/zones"
-
-    # Check if the JSON file for the user exists
-    if [ -e "$JSON_FILE" ]; then
-        IP_TO_CHANGE=$(jq -r '.ip' "$JSON_FILE")
-    else
-        IP_TO_CHANGE="$SERVER_IP"
-    fi
-
-    # Loop through Nginx configuration files for the user
-    if [ "$DEBUG" = true ]; then
-        for domain in $ALL_DOMAINS; do
-            ZONE_CONF="$ZONE_FILE/$domain.zone"
-            if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
-                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"
-                echo "Server IP updated for $ZONE_CONF to $IP_TO_CHANGE."
-            fi
-        done
-    else
-        for domain in $ALL_DOMAINS; do
-            ZONE_CONF="$ZONE_FILE/$domain.zone"
-            if [ -f "$DOMAIN_CONF" ]; then
-                # Update the server IP using sed
-                sed -i "s/$CURRENT_IP/$IP_TO_CHANGE/g" "$ZONE_CONF"        
-            fi
-        done
-    fi
-}
-
-
 
 ensure_jq_installed
-# Check if the action is 'delete'
+
 if [ "$ACTION" = "delete" ]; then
     delete_ip_config
-    current_ip "$USERNAME" 
-    update_caddy_conf "$USERNAME" 
-    update_firewall_rules "$USERNAME"
-    update_dns_zone_file "$USERNAME"
+    ip_to_use="$SERVER_IP"
 else
-# If the action is not 'delete', continue with IP update
-IP=$2
-# Check if IP is provided
-if [ -z "$IP" ]; then
-    echo "Usage: opencli user-ip <USERNAME> <IP> [ -y ]"
-    exit 1
-fi
-# Check if the IP is already used by another user
-current_ip "$USERNAME" 
-check_ip_validity "$IP"
-check_ip_usage "$IP" "$CONFIRM_FLAG"
-# Call the function to update configuration
-create_ip_file "$USERNAME" "$IP"
-update_caddy_conf "$USERNAME" "$IP"
-update_firewall_rules "$USERNAME"
-update_dns_zone_file "$USERNAME"
+    IP=$2
+    if [ -z "$IP" ]; then
+        echo "Usage: opencli user-ip <USERNAME> <IP> [ -y ]"
+        exit 1
+    fi
+
+    check_ip_validity "$IP"
+    check_ip_usage "$IP"
+    create_ip_file "$IP"
+    ip_to_use="$IP"
 fi
 
-
+update_caddy_conf "$ip_to_use"
+update_firewall_rules
+update_dns_zone_file "$ip_to_use"
 
 if [ $? -eq 0 ]; then
-    echo "IP successfully changed for user $USERNAME to: $IP_TO_CHANGE"
+    echo "IP successfully changed for user $USERNAME to: $ip_to_use"
 else
     echo "Error: Data insertion failed."
     exit 1
