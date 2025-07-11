@@ -185,7 +185,8 @@ if [ "$ACTION" = "delete" ]; then
 else
     IP=$2
     if [ -z "$IP" ]; then
-        echo $get_current_ip
+        current_ip=$(get_current_ip)
+        echo $current_ip
         exit 0
     fi
 
