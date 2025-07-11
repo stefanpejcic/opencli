@@ -188,6 +188,7 @@ create_ip_file() {
     local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
     echo "{ \"ip\": \"$ip\" }" > "$json_file"
     [ "$DEBUG" = true ] && echo "Created IP file $json_file with IP $ip"
+    return 0
 }
 
 update_firewall_rules() {
