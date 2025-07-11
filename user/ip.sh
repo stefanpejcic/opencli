@@ -185,8 +185,8 @@ if [ "$ACTION" = "delete" ]; then
 else
     IP=$2
     if [ -z "$IP" ]; then
-        echo "Usage: opencli user-ip <USERNAME> <IP> [ -y ]"
-        exit 1
+        echo $get_current_ip
+        exit 0
     fi
 
     check_ip_validity "$IP"
