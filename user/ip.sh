@@ -181,7 +181,10 @@ edit_domain_files() {
     fi
 }
 
-
+drop_redis_cache() {
+    docker --context=default exec openpanel_redis bash -c "redis-cli --raw KEYS 'flask_cache_*' | xargs -r redis-cli DEL" >/dev/null 2>&1 &
+    #docker --context=default exec openpanel_redis redis-cli FLUSHALL
+}
 
 create_ip_file() {
     local ip=$1
@@ -233,6 +236,7 @@ fi
 
 if [ $? -eq 0 ]; then
     echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
+    drop_redis_cache
 else
     echo "Failed to set dedicated IP address for user $USERNAME."
     exit 1
