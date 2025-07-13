@@ -121,11 +121,13 @@ update_resource() {
         var_name="${target}_${type^^}"
         sed -i "s/^$var_name=\".*\"/$var_name=\"$value\"/" "$env_file"
         message+="<br>Updated $type for $service_to_update_cpu_ram to: $value"
+        message+="<br>Note: disable and enable service to apply new $type limits."
     else
         var_name="TOTAL_${type^^}"
         sed -i "s/^$var_name=\".*\"/$var_name=\"$value\"/" "$env_file"
         message+="<br>Updated total $type to: $value"
     fi
+
 }
 
 # --- Service Start/Stop ---
