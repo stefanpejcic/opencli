@@ -676,8 +676,7 @@ copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "systemctl daemon-reload" 
-# set quotas
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME"
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME" # set quotas
 
 # todo: folder just for that user!
 if [ -n "$key_value" ]; then
