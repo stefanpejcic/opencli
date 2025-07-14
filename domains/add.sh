@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/add.sh
 # Description: Add a domain name for user.
-# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] --debug
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
 # Last Modified: 14.07.2025
@@ -73,6 +73,19 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo "FATAL ERROR: Missing value for --docroot"
+                exit 1
+            fi
+            ;;
+        --php_version)
+            if [[ -n "$2" ]]; then
+                php_version="$2"
+	        if [[ ! "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+	            echo "FATAL ERROR: Invalid PHP version format '$php_version'. Expected format: N.N (e.g., 8.2)"
+	            exit 1
+	        fi
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --php_version"
                 exit 1
             fi
             ;;
@@ -507,8 +520,7 @@ vhost_files_create() {
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
        chown $context_uid:$context_uid $vhost_in_docker_file > /dev/null 2>&1
-       php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
-
+       
 	sed -i \
 	  -e "s|<DOMAIN_NAME>|$domain_name|g" \
 	  -e "s|<USER>|$user|g" \
@@ -825,7 +837,9 @@ dns_stuff() {
 
 
 get_php_version() {
-	php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
+       if [[ -z "$php_version" ]]; then
+       		php_version=$(opencli php-default $user | grep -oP '\d+\.\d+')
+       fi
 }
 
 # Add domain to the database
