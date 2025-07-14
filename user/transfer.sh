@@ -155,20 +155,22 @@ get_users_count_on_destination() {
 }
 
 
+# Function to check if username already exists in the database
 check_username_exists() {
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$USERNAME'"
-    
-    username_exists_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
-    
+ 
+
+    # Check if successful
     if [ $? -ne 0 ]; then
         echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
         exit 1
     fi
 
+    # Return the count of usernames found
     echo "$username_exists_count"
 }
-
 
 
 
@@ -191,6 +193,10 @@ USER_PASSWD="/root/passwd.user"
 USER_GROUP="/root/group.user"
 USER_SHADOW="/root/shadow.user"
 
+user_exists() {
+    id "$1" &>/dev/null
+}
+
 get_used_uids() {
     getent passwd | cut -d: -f3
 }
@@ -205,25 +211,55 @@ find_free_uid() {
     echo "$uid"
 }
 
-# Add group
+# Find a free username by appending number suffix
+find_available_username() {
+    base="$1"
+    if ! user_exists "$base"; then
+        echo "$base"
+        return
+    fi
+
+    i=1
+    while user_exists "${base}${i}"; do
+        i=$((i + 1))
+    done
+    echo "${base}${i}"
+}
+
+# Add groups (same as before)
 cut -d: -f1,3 "$USER_GROUP" | while IFS=: read -r group gid; do
     if ! getent group "$group" > /dev/null; then
         groupadd -g "$gid" "$group"
     fi
 done
 
-# Read original user info, create user with next free UID
+# Read original user info, create user with new username and free UID
 while IFS=: read -r user uid gid comment home shell; do
-    free_uid=$(find_free_uid "$uid")
-    useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$home" -s "$shell" "$user"
-    # usermod -d "/home/$user" "$user"
+    orig_user="$user"
 
+    new_user=$(find_available_username "$user")
+    free_uid=$(find_free_uid "$uid")
+
+    if user_exists "$new_user"; then
+        echo "User $new_user already exists, skipping creation."
+    else
+        useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$home" -s "$shell" "$new_user"
+        
+        # Rename home if needed
+        if [ "$new_user" != "$orig_user" ]; then
+            if [ -d "$home" ]; then
+                mv "$home" "/home/$new_user"
+                usermod -d "/home/$new_user" "$new_user"
+            fi
+        fi
+    fi
 done < <(cut -d: -f1,3,4,5,6,7 "$USER_PASSWD")
 
 # Set password for the new user(s)
 cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
+    new_user=$(find_available_username "$user")
     if [ -n "$hash" ]; then
-        usermod -p "$hash" "$user"
+        usermod -p "$hash" "$new_user"
     fi
 done
 
@@ -529,18 +565,7 @@ rsync_files_for_user() {
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
-	REMOTE_UID=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	    "id -u $OP_USERNAME" 2>/dev/null)
-
-	if [[ -z "$REMOTE_UID" ]]; then
-	    echo "[ERROR] Failed to get UID for user $OP_USERNAME on remote server"
-	    exit 1
-        else
-	echo "Setting file permissions..."
- 	# todo, on flag only!
-        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "chown -R $REMOTE_UID /home/$USERNAME/"
-	fi
+        :
     else
         echo "[ERROR] Rsync failed! Output:"
         echo "$RSYNC_OUTPUT"
@@ -628,7 +653,7 @@ copy_docker_context() {
 		    "id -u $OP_USERNAME" 2>/dev/null)
 		
 		if [[ -z "$REMOTE_UID" ]]; then
-		    echo "[ERROR] Failed to get UID for user $OP_USERNAME on remote server"
+		    echo "FATAL ERROR: Failed to get UID for user $OP_USERNAME on remote server"
       		    exit 1
 		else
 		    sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -662,7 +687,7 @@ copy_docker_context() {
 restart_services_on_target() {
             echo "Reloading services on ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && docker compose compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+                "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
