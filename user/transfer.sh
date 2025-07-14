@@ -161,7 +161,6 @@ check_username_exists() {
     user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
  
-
     # Check if successful
     if [ $? -ne 0 ]; then
         echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
@@ -169,7 +168,7 @@ check_username_exists() {
     fi
 
     # Return the count of usernames found
-    echo "$username_exists_count"
+    echo "$user_count"
 }
 
 
