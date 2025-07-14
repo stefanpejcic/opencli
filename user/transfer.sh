@@ -553,8 +553,7 @@ rsync_files_for_user() {
     fi
 
     ALL_DOMAINS=$(opencli domains-user "$USERNAME")
-    for domain in $ALL_DOMAINS; do
-
+    while IFS=$'\t ' read -r domain docroot php_version; do
     whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "opencli domains-whoowns $domain")
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
@@ -611,7 +610,7 @@ EOF
 		fi
  	fi
  
- done
+ done <<< "$ALL_DOMAINS"
 
 }
 
