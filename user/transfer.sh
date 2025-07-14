@@ -701,4 +701,4 @@ restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
 
-echo "[OK] Transfer for user $USERNAME complete"
+echo "[✔] Transfer for user $USERNAME complete"
