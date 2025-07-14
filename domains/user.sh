@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/user.sh
 # Description: Lists all domain names currently owned by a specific user.
-# Usage: opencli domains-user <USERNAME>
+# Usage: opencli domains-user <USERNAME> [--docroot|--php_version]
 # Author: Stefan Pejcic
 # Created: 26.10.2023
 # Last Modified: 14.07.2025
