@@ -719,7 +719,7 @@ copy_docker_context # create context on dest, start service
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "systemctl daemon-reload" 
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME" # set quotas
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-"mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/ /etc/openpanel/openpanel/core/stats/"
+"mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/"
 
 
 # todo: folder just for that user!
@@ -731,7 +731,6 @@ fi
 
 # logs and stuff
 eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
-eval $RSYNC_CMD /etc/openpanel/openpanel/core/stats/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/stats/$USERNAME
 
 # todo: mysql data for user!!!!!
 
