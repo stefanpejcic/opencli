@@ -565,7 +565,13 @@ rsync_files_for_user() {
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
-        :
+	REMOTE_UID=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	    "id -u $OP_USERNAME" 2>/dev/null)
+
+	if [[ -z "$REMOTE_UID" ]]; then
+	    echo "[ERROR] Failed to get UID for user $OP_USERNAME on remote server"
+	    exit 1
+	fi
     else
         echo "[ERROR] Rsync failed! Output:"
         echo "$RSYNC_OUTPUT"
@@ -653,7 +659,7 @@ copy_docker_context() {
 		    "id -u $OP_USERNAME" 2>/dev/null)
 		
 		if [[ -z "$REMOTE_UID" ]]; then
-		    echo "FATAL ERROR: Failed to get UID for user $OP_USERNAME on remote server"
+		    echo "[ERROR] Failed to get UID for user $OP_USERNAME on remote server"
       		    exit 1
 		else
 		    sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
