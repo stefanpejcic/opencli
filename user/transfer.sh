@@ -340,7 +340,6 @@ for f in plan_\${USERNAME}_autoinc.sql user_\${USERNAME}_autoinc.sql domains_\${
   [[ -f "\$f" ]] && sed -i -E ':a;N;\$!ba;s/,\s*;\s*/;/g' "\$f"
 done
 
-echo "Importing plan..."
 PLAN_NAME=\$(awk -F"'" '/INSERT INTO plans/ {getline; print \$2; exit}' "plan_\${USERNAME}_autoinc.sql")
 
 EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
@@ -349,7 +348,7 @@ EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_data
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
   echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
-  echo "➕ Importing new plan..."
+  echo "Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
   EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
     -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
@@ -584,7 +583,7 @@ copy_docker_context() {
     eval $RSYNC_CMD /etc/apparmor.d/home.$USERNAME.bin.rootlesskit ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/ >/dev/null 2>&1
     # TODO!
 
-    $SSH_CMD "systemctl restart apparmor.service"
+    $SSH_CMD "systemctl restart apparmor.service" >/dev/null 2>&1
     
 	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
 
