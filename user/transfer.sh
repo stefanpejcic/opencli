@@ -320,49 +320,41 @@ export mysql_database="$mysql_database"
 export USERNAME="$USERNAME"
 CONFIG_FILE="/etc/my.cnf"
 
-echo "📄 CONFIG_FILE: \$CONFIG_FILE"
-echo "🗃️ mysql_database: \$mysql_database"
-echo "👤 USERNAME: \$USERNAME"
-
 if [[ -z "\$mysql_database" ]]; then
-  echo "❌ mysql_database is not set"
+  echo "[ERROR] mysql_database is not set"
   exit 1
 fi
 if [[ -z "\$USERNAME" ]]; then
-  echo "❌ USERNAME is not set"
+  echo "[ERROR] USERNAME is not set"
   exit 1
 fi
 
-cd "/tmp/user_import/" || { echo "❌ Directory /tmp/user_import/ not found"; exit 1; }
+cd "/tmp/user_import/" || { echo "[ERROR] Directory /tmp/user_import/ not found"; exit 1; }
 
 # Fix trailing commas in SQL
-echo "🧹 Fixing trailing commas..."
 for f in plan_\${USERNAME}_autoinc.sql user_\${USERNAME}_autoinc.sql domains_\${USERNAME}_autoinc.sql sites_\${USERNAME}_autoinc.sql; do
   [[ -f "\$f" ]] && sed -i -E ':a;N;\$!ba;s/,\s*;\s*/;/g' "\$f"
 done
 
-echo "📦 Importing plan..."
+echo "Importing plan..."
 PLAN_NAME=\$(awk -F"'" '/INSERT INTO plans/ {getline; print \$2; exit}' "plan_\${USERNAME}_autoinc.sql")
-echo "🔍 PLAN_NAME: \$PLAN_NAME"
 
 EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
   -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
-  echo "✅ Plan already exists (ID: \$EXISTING_PLAN_ID)"
+  echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "➕ Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
   EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
     -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
-  echo "🔁 Rechecked plan ID: \$EXISTING_PLAN_ID"
 fi
 
-echo "✏️ Preparing user SQL..."
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_autoinc.sql" > tmp_user.sql
 sed -i "s/'NULL'/NULL/g" tmp_user.sql
 
-echo "📥 Importing user..."
+echo "Importing user into database..."
 (echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
 rm -f tmp_user.sql
 
@@ -370,12 +362,11 @@ USER_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N 
   -e "SELECT id FROM users WHERE username = '\$USERNAME';")
 
 if [[ -z "\$USER_ID" ]]; then
-  echo "❌ Failed to import user!"
+  echo "[ERROR] Failed to import user!"
   exit 1
 fi
-echo "👤 User ID: \$USER_ID"
 
-echo "🌍 Importing domains..."
+echo "Importing domains..."
 if [[ -f "domains_\${USERNAME}_autoinc.sql" ]]; then
   grep -oP "\(.*?\)" "domains_\${USERNAME}_autoinc.sql" | while read -r line; do
     # Čisti liniju: skini zagrade i navodnike
@@ -389,11 +380,10 @@ if [[ -f "domains_\${USERNAME}_autoinc.sql" ]]; then
     DOMAIN_URL=\$(echo "\$DOMAIN_URL" | xargs)
     PHP_VERSION=\$(echo "\$PHP_VERSION" | xargs)
 
-    echo "➡️ DOCROOT=\$DOCROOT, DOMAIN_URL=\$DOMAIN_URL, PHP=\$PHP_VERSION"
 
     # Validacija
     if [[ -z "\$DOCROOT" || -z "\$DOMAIN_URL" || -z "\$PHP_VERSION" ]]; then
-      echo "❌ Skipping: Invalid domain entry (missing field)"
+      echo "[ERROR] Skipping: Invalid domain entry (missing field)"
       continue
     fi
 
@@ -404,16 +394,16 @@ if [[ -f "domains_\${USERNAME}_autoinc.sql" ]]; then
       mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO domains (docroot, domain_url, user_id, php_version)
         VALUES ('\$DOCROOT', '\$DOMAIN_URL', \$USER_ID, '\$PHP_VERSION');"
-      echo "✅ Domain imported: \$DOMAIN_URL"
+      echo "Domain imported: \$DOMAIN_URL"
     else
-      echo "⚠️ Domain already exists: \$DOMAIN_URL"
+      echo "[ERROR] Domain already exists: \$DOMAIN_URL"
     fi
   done
 else
-  echo "⚠️ No domain SQL file found."
+  echo "[ERROR] No domains to import."
 fi
 
-echo "🛰️ Importing sites..."
+echo "Importing sites..."
 if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
   tail -n +2 "sites_\${USERNAME}_autoinc.sql" | sed "s/),/)\n/g" | while read -r line; do
     clean_line=\$(echo "\$line" | sed "s/[()']//g" | sed 's/,$//')
@@ -432,13 +422,13 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
       mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
         VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
-      echo "✅ Site imported: \$SITE_NAME"
+      echo "Site imported: \$SITE_NAME"
     else
-      echo "⚠️ Domain not found for site: \$DOMAIN_URL"
+      echo "[ERROR] Domain not found for site: \$DOMAIN_URL"
     fi
   done
 else
-  echo "⚠️ No site SQL file found."
+  echo "[ERROR] No sites found to import."
 fi
 
 EOF
@@ -456,7 +446,7 @@ USER_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT id FROM users WHERE username = '$USERNAME';")
 
 if [[ -z "$USER_ID" ]]; then
-  echo "❌ No user found with username '$USERNAME'"
+  echo "[ERROR] No user found with username '$USERNAME'"
   exit 1
 fi
 
@@ -467,8 +457,6 @@ PLAN_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
 # Get plan name
 PLAN_NAME=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT name FROM plans WHERE id = $PLAN_ID;")
-
-#echo "📦 Plan: $PLAN_NAME (ID $PLAN_ID)"
 
 ### EXPORT PLAN (no ID)
 mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
