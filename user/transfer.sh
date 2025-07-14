@@ -547,14 +547,13 @@ rsync_files_for_user() {
         exit 1
     fi
 
-  CADDY_STATS="/var/log/caddy/stats/$USERNAME"
+    CADDY_STATS="/var/log/caddy/stats/$USERNAME"
     if [ -d "$CADDY_STATS" ]; then
 		eval $RSYNC_CMD $CADDY_STATS ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/stats/
     fi
 
-	ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
- 
-    while IFS=$'\t' read -r domain docroot php_version; do
+    ALL_DOMAINS=$(opencli domains-user "$USERNAME")
+    for domain in $ALL_DOMAINS; do
 
     whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "opencli domains-whoowns $domain")
@@ -611,7 +610,7 @@ EOF
 			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
 	fi
  
- done < <(echo "$ALL_DOMAINS")
+ done
 
 }
 
