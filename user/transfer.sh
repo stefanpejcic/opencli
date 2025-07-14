@@ -632,42 +632,38 @@ copy_docker_context() {
 	# Open the file on FD 3
 	exec 3</tmp/userlist.txt
 	
-	while IFS=: read -r OP_USERNAME USER_ID <&3; do
-	    CURRENT=$((CURRENT+1))
-	    SRC="/home/$OP_USERNAME/.docker"
-	    if [[ -d "$SRC" ]]; then
+    SRC="/home/$USERNAME/.docker"
+    if [[ -d "$SRC" ]]; then
+        REMOTE_UID=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            "id -u $USERNAME" 2>/dev/null)
 
-		REMOTE_UID=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "id -u $OP_USERNAME" 2>/dev/null)
-		
-		if [[ -z "$REMOTE_UID" ]]; then
-		    echo "FATAL ERROR: Failed to get UID for user $OP_USERNAME on remote server"
-      		    exit 1
-		else
-		    sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		        "docker context create $OP_USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$OP_USERNAME'" || \
-		        echo "Failed context for $OP_USERNAME"
-		fi
-  
-	        echo "Configuring docker service ..."
+        if [[ -z "$REMOTE_UID" ]]; then
+            echo "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
+            exit 1
+        else
+            echo "Creating Docker context: $USERNAME on destination ..."
+            sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+                "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" || \
+                echo "Failed context for $USERNAME"
+        fi
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "loginctl enable-linger $OP_USERNAME" \
-		    >/dev/null 2>&1 || echo "Failed to enable linger for $OP_USERNAME"
+        echo "Configuring docker service ..."
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${OP_USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-		    >/dev/null 2>&1 || echo "Failed to reload daemon for $OP_USERNAME"
+        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            "loginctl enable-linger $USERNAME" \
+            >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${OP_USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-		    >/dev/null 2>&1 || echo "Failed to restart docker for $OP_USERNAME"
-	    else
-	        echo "No .docker directory for $OP_USERNAME on destination!."
-          exit 1
-	    fi
-	done
-	
+        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
+            >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
+
+        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
+            >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
+    else
+        echo "No .docker directory for $USERNAME on source!"
+        exit 1
+    fi
 	# Close FD 3
 	exec 3<&-
 }
