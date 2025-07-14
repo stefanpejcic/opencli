@@ -698,12 +698,9 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
 check_install_sshpass
-export_mysql
-import_mysql
-
-
 get_server_ipv4
-#get_users_count_on_destination
+get_users_count_on_destination
+
 username_exists_count=$(check_username_exists)
 if [ "$username_exists_count" -gt 0 ]; then\
     if [[ $FORCE -eq 0 ]]; then
@@ -715,6 +712,8 @@ if [ "$username_exists_count" -gt 0 ]; then\
 fi
 
 
+export_mysql
+import_mysql
 copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
