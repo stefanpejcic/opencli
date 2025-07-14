@@ -552,7 +552,7 @@ rsync_files_for_user() {
 		eval $RSYNC_CMD $CADDY_STATS ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/stats/
     fi
 
-    ALL_DOMAINS=$(opencli domains-user "$USERNAME")
+    ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
     while IFS=$'\t ' read -r domain docroot php_version; do
     whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "opencli domains-whoowns $domain")
