@@ -745,6 +745,7 @@ fi
 
 # logs and stuff
 eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
+eval $RSYNC_CMD /etc/openpanel/openpanel/core/stats/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/stats/$USERNAME
 
 # todo: mysql data for user!!!!!
 
