@@ -568,13 +568,13 @@ rsync_files_for_user() {
 	ALL_DOMAINS=$(opencli domains-user "$USERNAME")
     for domain in $ALL_DOMAINS; do
         DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
-        if [ -f "$DOMAIN_CONF" ]; then
+        if [ -f "$DOMAIN_CADDY_CONF" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
 	    fi
 
 
         DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
-        if [ -f "$DOMAIN_CONF" ]; then
+        if [ -f "$DOMAIN_CADDY_LOG" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_LOG ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/domlogs/
 	    fi
 
