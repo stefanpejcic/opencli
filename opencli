@@ -175,7 +175,7 @@ execute_command() {
     binary_path=$(get_binary_path "$command")
     
     if [[ ! -f "$binary_path" ]]; then
-        echo "Error: Command '$command' not found - file '$binary_path' does not exist." >&2
+        echo "Error: Command '$command' not found." >&2
         show_usage
         show_history
         show_about
