@@ -367,9 +367,15 @@ fi
 
 echo "Importing domains..."
 if [[ -f "domains_\${USERNAME}_autoinc.sql" ]]; then
-  grep -oP "\(.*?\)" "domains_\${USERNAME}_autoinc.sql" | while read -r line; do
+  line_num=0
+  grep -oP "\(.*?\)" "domains_${USERNAME}_autoinc.sql" | while read -r line; do
+    ((line_num++))
+    if [[ $line_num -eq 1 ]]; then
+      # Skip first entry
+      continue
+    fi
     # Čisti liniju: skini zagrade i navodnike
-    clean_line=\$(echo "\$line" | sed -E "s/^[[:space:]]*\(//; s/\)[[:space:]]*\$//; s/'//g")
+    clean_line=$(echo "$line" | sed -E "s/^[[:space:]]*\(//; s/\)[[:space:]]*\$//; s/'//g")
     
     # Parsiraj polja
     IFS=',' read -r DOCROOT DOMAIN_URL USER_ID PHP_VERSION <<< "\$clean_line"
@@ -381,7 +387,7 @@ if [[ -f "domains_\${USERNAME}_autoinc.sql" ]]; then
 
 
     # Validacija
-    if [[ -z "\$DOCROOT" || -z "\$DOMAIN_URL" || -z "\$PHP_VERSION" ]]; then
+    if [ -z "$DOCROOT" ] || [ -z "$DOMAIN_URL" ] || [ -z "$PHP_VERSION" ]; then
       echo "[ERROR] Skipping: Invalid domain entry (missing field)"
       continue
     fi
@@ -432,7 +438,6 @@ fi
 
 EOF
 }
-
 
 
 export_mysql() {
