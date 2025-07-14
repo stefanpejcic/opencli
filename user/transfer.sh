@@ -304,7 +304,7 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers inside docker context on remote server ..."
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
+        "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
 # Close FD 3
@@ -577,8 +577,8 @@ EOF
 
 copy_docker_context() {
 
-    eval $RSYNC_CMD /run/user/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USERNAME
-    eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
+    eval $RSYNC_CMD /run/user/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USERNAME >/dev/null 2>&1
+    eval $RSYNC_CMD /etc/apparmor.d/home.$USERNAME.bin.rootlesskit ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/ >/dev/null 2>&1
     # TODO!
 
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
@@ -600,7 +600,7 @@ copy_docker_context() {
         else
             echo "Creating Docker context: $USERNAME on destination ..."
             sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" || \
+                "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" >/dev/null 2>&1 || \
                 echo "Failed context for $USERNAME"
         fi
 
@@ -674,7 +674,7 @@ copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "systemctl daemon-reload" 
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME" # set quotas
+sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME >/dev/null 2>&1" # set quotas
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/"
 
