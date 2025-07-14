@@ -595,29 +595,29 @@ copy_docker_context() {
 	# Open the file on FD 3
 	exec 3</tmp/userlist.txt
 	
-	while IFS=: read -r USERNAME USER_ID <&3; do
+	while IFS=: read -r OP_USERNAME USER_ID <&3; do
 	    CURRENT=$((CURRENT+1))
-	    SRC="/home/$USERNAME/.docker"
+	    SRC="/home/$OP_USERNAME/.docker"
 	    if [[ -d "$SRC" ]]; then
-	        echo "Creating Docker context: $USERNAME on destination ..."
+	        echo "Creating Docker context: $OP_USERNAME on destination ..."
 	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
+	            "docker context create $OP_USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$OP_USERNAME'" || echo "Failed context for $OP_USERNAME"
 	
 	        echo "Configuring docker service ..."
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "loginctl enable-linger $USERNAME" \
-		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
+		    "loginctl enable-linger $OP_USERNAME" \
+		    >/dev/null 2>&1 || echo "Failed to enable linger for $OP_USERNAME"
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-		    >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
+		    "machinectl shell ${OP_USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
+		    >/dev/null 2>&1 || echo "Failed to reload daemon for $OP_USERNAME"
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-		    >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
+		    "machinectl shell ${OP_USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
+		    >/dev/null 2>&1 || echo "Failed to restart docker for $OP_USERNAME"
 	    else
-	        echo "No .docker directory for $USERNAME on destination!."
+	        echo "No .docker directory for $OP_USERNAME on destination!."
           exit 1
 	    fi
 	done
