@@ -499,22 +499,6 @@ BEGIN {
 END { print ";" }
 ' "$TMP_DIR/user.tsv" > "$TMP_DIR/user_${USERNAME}_autoinc.sql"
 
-### EXPORT DOMAINS (no domain_id)
-mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
-  SELECT docroot, domain_url, user_id, php_version
-  FROM domains WHERE user_id = $USER_ID;" > "$TMP_DIR/domains.tsv"
-
-awk '
-BEGIN {
-  FS="\t";
-  print "INSERT INTO domains (docroot, domain_url, user_id, php_version) VALUES"
-}
-{
-  printf "('\''%s'\'', '\''%s'\'', %s, '\''%s'\''),\n", $1, $2, $3, $4
-}
-END { print ";" }
-' "$TMP_DIR/domains.tsv" > "$TMP_DIR/domains_${USERNAME}_autoinc.sql"
-
 ### EXPORT SITES (if any domains exist)
 DOMAIN_IDS=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
@@ -543,7 +527,6 @@ fi
 
 eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
 eval $RSYNC_CMD $TMP_DIR/user_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
-eval $RSYNC_CMD $TMP_DIR/domains_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
 eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
 [[ -f "sites_${USERNAME}_autoinc.sql" ]] && eval $RSYNC_CMD $TMP_DIR/sites_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
 
@@ -569,24 +552,37 @@ rsync_files_for_user() {
 		eval $RSYNC_CMD $CADDY_STATS ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/stats/
     fi
 
-	ALL_DOMAINS=$(opencli domains-user "$USERNAME")
-    for domain in $ALL_DOMAINS; do
+	ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
+    while IFS=$'\t' read -r domain docroot php_version; do
+
+    whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    "opencli domains-whoowns $domain")
+    owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
+
+    if [ -n "$owner" ]; then
+    	# add domain on remote
+        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
+        if [ $? -ne 0 ]; then
+	    echo "[✘] ERROR: Failed to import domain $domain"
+	    exit 1
+	fi
+    
         DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
         if [ -f "$DOMAIN_CADDY_CONF" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
-	    fi
+	fi
 
 
         DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
         if [ -f "$DOMAIN_CADDY_LOG" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_LOG ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/domlogs/
-	    fi
+	fi
 
         DOMAIN_CADDY_WAF="/var/log/caddy/coraza_waf/$domain.log"
         if [ -f "$DOMAIN_CADDY_WAF" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_WAF ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/coraza_waf/
-	    fi
-
+	fi
 
 		DOMAIN_ZONE_FILE="/etc/bind/zones/$domain.zone"
 
@@ -614,7 +610,7 @@ EOF
 			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
 	    fi
 
-    done
+    done <<< "$ALL_DOMAINS"
 
 }
 
