@@ -548,12 +548,12 @@ rsync_files_for_user() {
 		if [ -f "$DOMAIN_ZONE_FILE" ]; then
 		    eval $RSYNC_CMD "$DOMAIN_ZONE_FILE" ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/zones/
       
-        $SSH_CMD "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
+		    $SSH_CMD "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
       
-$SSH_CMD <<EOF
-  grep -q "$domain" /etc/bind/named.conf.local || \
-  echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
-EOF
+		    $SSH_CMD <<EOF > /dev/null 2>&1
+		    	grep -q "$domain" /etc/bind/named.conf.local || \
+		    	echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
+		    EOF
 		fi
 
 
