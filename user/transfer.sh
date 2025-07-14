@@ -609,8 +609,7 @@ EOF
         if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
 	    fi
-
-    done
+done
 
 }
 
