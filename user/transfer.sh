@@ -77,7 +77,8 @@ check_install_sshpass() {
 	    if ! command -v sshpass &>/dev/null; then
 	        echo "sshpass not found. Attempting to install..."
 	        if [[ -x "$(command -v apt-get)" ]]; then
-	            sudo apt-get update && sudo apt-get install -y sshpass
+	            DEBIAN_FRONTEND=noninteractive apt-get update -qq
+	            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sshpass
 	        elif [[ -x "$(command -v dnf)" ]]; then
 	            sudo dnf install -y sshpass
 	        elif [[ -x "$(command -v yum)" ]]; then
