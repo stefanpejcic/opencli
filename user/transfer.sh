@@ -554,11 +554,9 @@ rsync_files_for_user() {
         sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
             "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
       
-		    config_line="zone \"$domain\" IN { type master; file \"/etc/bind/zones/$domain.zone\"; };"
-
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<EOF
   grep -q "$domain" /etc/bind/named.conf.local || \
-  echo "$config_line" >> /etc/bind/named.conf.local
+  echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
 EOF
 		fi
 
