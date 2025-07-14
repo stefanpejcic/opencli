@@ -91,8 +91,10 @@ check_install_sshpass() {
 	        fi
 	    fi
 	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
+	    SSH_CMD="sshpass -p \"$REMOTE_PASS\" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}"
 	else
 	    RSYNC_CMD="rsync $RSYNC_OPTS"
+	    SSH_CMD="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}" # for ssh keys!
 	fi
 }
 
@@ -135,8 +137,7 @@ key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 get_users_count_on_destination() {
 	  user_count_query="SELECT COUNT(*) FROM users"
-    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-    "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
+    user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
         if [ $? -ne 0 ]; then
             echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
@@ -158,8 +159,7 @@ get_users_count_on_destination() {
 # Function to check if username already exists in the database
 check_username_exists() {
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$USERNAME'"
-    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-    "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
+    user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
  
     # Check if successful
     if [ $? -ne 0 ]; then
@@ -187,7 +187,7 @@ copy_user_account() {
     eval $RSYNC_CMD "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" ${REMOTE_USER}@${REMOTE_HOST}:/root/
     rm -rf "$TMPDIR" >/dev/null
 
-    sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
+    $SSH_CMD <<'EOF' >/dev/null 2>&1
 USER_PASSWD="/root/passwd.user"
 USER_GROUP="/root/group.user"
 USER_SHADOW="/root/shadow.user"
@@ -303,8 +303,7 @@ while IFS=: read -r username containers <&3; do
     fi
 
     echo "Starting containers inside docker context on remote server ..."
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers >/dev/null 2>&1"
+    $SSH_CMD "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
 # Close FD 3
@@ -312,7 +311,7 @@ exec 3<&-
 }
 
 import_mysql() {
-  sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -s <<EOF
+  $SSH_CMD bash -s <<EOF
 set -e
 
 export mysql_database="$mysql_database"
@@ -365,8 +364,9 @@ if [[ -z "\$USER_ID" ]]; then
   exit 1
 fi
 
-echo "Importing sites..."
+
 if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
+  echo "Importing sites..."
   tail -n +2 "sites_\${USERNAME}_autoinc.sql" | sed "s/),/)\n/g" | while read -r line; do
     clean_line=\$(echo "\$line" | sed "s/[()']//g" | sed 's/,$//')
     SITE_NAME=\$(echo "\$clean_line" | cut -d',' -f1)
@@ -390,7 +390,7 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
     fi
   done
 else
-  echo "[ERROR] No sites found to import."
+  echo "No sites found to import."
 fi
 
 EOF
@@ -511,14 +511,12 @@ rsync_files_for_user() {
 
     ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
     while IFS=$'\t ' read -r domain docroot php_version; do
-    whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-    "opencli domains-whoowns $domain")
+    whoowns_output=$($SSH_CMD "opencli domains-whoowns $domain")
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
     if [ -z "$owner" ]; then
 	    	# add domain on remote
-	        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	        "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
+	        $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
 	        if [ $? -ne 0 ]; then
 		    echo "[✘] ERROR: Failed to import domain $domain"
 		    exit 1
@@ -545,10 +543,9 @@ rsync_files_for_user() {
 		if [ -f "$DOMAIN_ZONE_FILE" ]; then
 		    eval $RSYNC_CMD "$DOMAIN_ZONE_FILE" ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/zones/
       
-        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
+        $SSH_CMD "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
       
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<EOF
+$SSH_CMD <<EOF
   grep -q "$domain" /etc/bind/named.conf.local || \
   echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
 EOF
@@ -581,8 +578,7 @@ copy_docker_context() {
     eval $RSYNC_CMD /etc/apparmor.d/home.$USERNAME.bin.rootlesskit ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/ >/dev/null 2>&1
     # TODO!
 
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"systemctl restart apparmor.service"
+    $SSH_CMD "systemctl restart apparmor.service"
     
 	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
 
@@ -591,31 +587,26 @@ copy_docker_context() {
 	
     SRC="/home/$USERNAME/.docker"
     if [[ -d "$SRC" ]]; then
-        REMOTE_UID=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "id -u $USERNAME" 2>/dev/null)
+        REMOTE_UID=$($SSH_CMD "id -u $USERNAME" 2>/dev/null)
 
         if [[ -z "$REMOTE_UID" ]]; then
             echo "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
             exit 1
         else
             echo "Creating Docker context: $USERNAME on destination ..."
-            sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" >/dev/null 2>&1 || \
+            $SSH_CMD "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" >/dev/null 2>&1 || \
                 echo "Failed context for $USERNAME"
         fi
 
         echo "Configuring docker service ..."
 
-        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "loginctl enable-linger $USERNAME" \
+        $SSH_CMD "loginctl enable-linger $USERNAME" \
             >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
 
-        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
+        $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
             >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
 
-        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-            "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
+        $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
             >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
     else
         echo "No .docker directory for $USERNAME on source!"
@@ -627,13 +618,11 @@ copy_docker_context() {
 
 restart_services_on_target() {
             echo "Reloading services on ${REMOTE_HOST} server ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+	    $SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
+            $SSH_CMD "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
 	fi
 
 	#todo: ftp, clamav 
@@ -642,8 +631,7 @@ restart_services_on_target() {
 
 refresh_quotas() {
             echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
+            $SSH_CMD "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
 }
 
 
@@ -673,11 +661,9 @@ import_mysql
 copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "systemctl daemon-reload" 
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "opencli user-quota $USERNAME >/dev/null 2>&1" # set quotas
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-"mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/"
-
+$SSH_CMD "systemctl daemon-reload" 
+$SSH_CMD "opencli user-quota $USERNAME >/dev/null 2>&1" # set quotas
+$SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/"
 
 # todo: folder just for that user!
 if [ -n "$key_value" ]; then
