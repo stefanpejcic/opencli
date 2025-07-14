@@ -691,7 +691,7 @@ if [ -n "$key_value" ]; then
 fi
 
 # logs and stuff
-eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
+eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
 
 # todo: mysql data for user!!!!!
 
