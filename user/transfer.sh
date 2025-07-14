@@ -559,7 +559,7 @@ rsync_files_for_user() {
     "opencli domains-whoowns $domain")
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
-    if [ -n "$owner" ]; then
+    if [ -z "$owner" ]; then
 	    	# add domain on remote
 	        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	        "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
