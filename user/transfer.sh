@@ -554,7 +554,7 @@ rsync_files_for_user() {
 
 	ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
  
-    while IFS=$'\t' read -r domain docroot php_version <&3; do
+    while IFS=$'\t' read -r domain docroot php_version; do
 
     whoowns_output=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "opencli domains-whoowns $domain")
@@ -609,8 +609,9 @@ EOF
         DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/certs/$domain"
         if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
-	    fi
-done 3<<< "$ALL_DOMAINS"
+	fi
+ 
+ done < <(echo "$ALL_DOMAINS")
 
 }
 
