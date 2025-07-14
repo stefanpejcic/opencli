@@ -91,9 +91,3 @@ if [ $# -lt 1 ]; then
 fi
 
 get_domains "$@"
-
-
-
-username="$1"
-
-get_domains "$username"
