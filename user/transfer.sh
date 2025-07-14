@@ -101,6 +101,19 @@ format_commands() {
 	    RSYNC_CMD="rsync $RSYNC_OPTS"
 	    SSH_CMD="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}" # for ssh keys!
 	fi
+
+	# test
+	echo "Testing SSH connection to $REMOTE_USER@$REMOTE_HOST..."
+	if $SSH_CMD "echo 'SSH connection established, starting transfer process..'" >/dev/null 2>&1; then
+	    echo "SSH connection established, starting transfer process.."
+	else
+	    echo "[✘] SSH connection to $REMOTE_HOST failed. Please check credentials or SSH keys."
+            echo ""
+	    echo "Command used:"
+     	    echo $SSH_CMD
+	    exit 1
+	fi
+ 
 }
 
 
