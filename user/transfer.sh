@@ -71,24 +71,29 @@ fi
 
 RSYNC_OPTS="-az" #--progress
 
-check_install_sshpass() {
+install_sshpass() {
+	if [[ -x "$(command -v apt-get)" ]]; then
+	    DEBIAN_FRONTEND=noninteractive apt-get update -qq
+	    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sshpass
+	elif [[ -x "$(command -v dnf)" ]]; then
+	    sudo dnf install -y sshpass
+	elif [[ -x "$(command -v yum)" ]]; then
+	    sudo yum install -y epel-release && sudo yum install -y sshpass
+	elif [[ -x "$(command -v pacman)" ]]; then
+	    sudo pacman -Sy sshpass
+	else
+	    echo "Package manager not supported. Please install sshpass manually."
+	    exit 2
+	fi
+}
+
+
+format_commands() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
 	    if ! command -v sshpass &>/dev/null; then
-	        echo "sshpass not found. Attempting to install..."
-	        if [[ -x "$(command -v apt-get)" ]]; then
-	            DEBIAN_FRONTEND=noninteractive apt-get update -qq
-	            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sshpass
-	        elif [[ -x "$(command -v dnf)" ]]; then
-	            sudo dnf install -y sshpass
-	        elif [[ -x "$(command -v yum)" ]]; then
-	            sudo yum install -y epel-release && sudo yum install -y sshpass
-	        elif [[ -x "$(command -v pacman)" ]]; then
-	            sudo pacman -Sy sshpass
-	        else
-	            echo "Package manager not supported. Please install sshpass manually."
-	            exit 2
-	        fi
+	        echo "sshpass not found. Installing..."
+	 	install_sshpass
 	    fi
 	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
 	    SSH_CMD="sshpass -p $REMOTE_PASS ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}"
@@ -97,6 +102,7 @@ check_install_sshpass() {
 	    SSH_CMD="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}" # for ssh keys!
 	fi
 }
+
 
 
 get_server_ipv4(){
@@ -641,8 +647,8 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 . "$DB_CONFIG_FILE"
 
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
-check_install_sshpass
-get_server_ipv4
+format_commands # creates rsync and sshpass commands, installs sshpass if missing
+get_server_ipv4 
 get_users_count_on_destination
 
 username_exists_count=$(check_username_exists)
