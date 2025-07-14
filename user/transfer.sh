@@ -560,29 +560,29 @@ rsync_files_for_user() {
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
     if [ -n "$owner" ]; then
-    	# add domain on remote
-        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
-        if [ $? -ne 0 ]; then
-	    echo "[✘] ERROR: Failed to import domain $domain"
-	    exit 1
-	fi
+	    	# add domain on remote
+	        sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	        "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
+	        if [ $? -ne 0 ]; then
+		    echo "[✘] ERROR: Failed to import domain $domain"
+		    exit 1
+		fi
     
-        DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
-        if [ -f "$DOMAIN_CADDY_CONF" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
-	fi
-
-
-        DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
-        if [ -f "$DOMAIN_CADDY_LOG" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_LOG ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/domlogs/
-	fi
-
-        DOMAIN_CADDY_WAF="/var/log/caddy/coraza_waf/$domain.log"
-        if [ -f "$DOMAIN_CADDY_WAF" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_WAF ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/coraza_waf/
-	fi
+	        DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
+	        if [ -f "$DOMAIN_CADDY_CONF" ]; then
+				eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
+		fi
+	
+	
+	        DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
+	        if [ -f "$DOMAIN_CADDY_LOG" ]; then
+				eval $RSYNC_CMD $DOMAIN_CADDY_LOG ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/domlogs/
+		fi
+	
+	        DOMAIN_CADDY_WAF="/var/log/caddy/coraza_waf/$domain.log"
+	        if [ -f "$DOMAIN_CADDY_WAF" ]; then
+				eval $RSYNC_CMD $DOMAIN_CADDY_WAF ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/coraza_waf/
+		fi
 
 		DOMAIN_ZONE_FILE="/etc/bind/zones/$domain.zone"
 
@@ -599,16 +599,17 @@ EOF
 		fi
 
 
-        DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
-        if [ -d "$DOMAIN_CADDY_SSL" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
-	    fi
-
-
-        DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/certs/$domain"
-        if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
-	fi
+	        DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
+	        if [ -d "$DOMAIN_CADDY_SSL" ]; then
+				eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
+		    fi
+	
+	
+	        DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/certs/$domain"
+	        if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
+				eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
+		fi
+ 	fi
  
  done
 
