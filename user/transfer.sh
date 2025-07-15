@@ -572,8 +572,7 @@ rsync_files_for_user() {
 
     if [[ "$ALL_DOMAINS" == *"No domains found for user '$username'"* ]]; then
         echo "No domains found for user $username. Skipping."
-    else
-    if [ -z "$owner" ]; then
+    elif [ -z "$owner" ]; then
 	    	# add domain on remote
 	        $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
 	        if [ $? -ne 0 ]; then
@@ -622,7 +621,6 @@ EOF
 				eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
 		fi
  	fi
- fi
  done <<< "$ALL_DOMAINS"
 
 }
