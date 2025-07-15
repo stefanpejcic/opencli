@@ -138,8 +138,6 @@ format_commands() {
 	else
 	    log "[✘] SSH connection to $REMOTE_HOST failed. Please check credentials or SSH keys."
             log ""
-	    log "Command used:"
-     	    log $SSH_CMD
 	    exit 1
 	fi
  
