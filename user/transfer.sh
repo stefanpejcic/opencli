@@ -37,8 +37,6 @@ REMOTE_HOST=""
 REMOTE_USER="root"
 REMOTE_PASS=""
 FORCE=0
-
-# Default vrednosti
 LIVE_TRANSFER=false
 
 while [[ $# -gt 0 ]]; do
