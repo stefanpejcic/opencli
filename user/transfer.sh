@@ -564,6 +564,59 @@ sync_local_dns_zone() {
     fi
 }
 
+NAMESERVERS=()
+
+get_remote_nameservers() {
+    REMOTE_CONFIG="/etc/openpanel/openpanel/conf/openpanel.config"
+    
+    echo "Checking NS configuration on remote server..."
+
+    $SSH_CMD "[ -f '$REMOTE_CONFIG' ]" || {
+        echo "[ERROR] Configuration file not found on remote: $REMOTE_CONFIG"
+        exit 1
+    }
+
+    NS1=$($SSH_CMD "grep '^ns1=' '$REMOTE_CONFIG' | cut -d'=' -f2")
+    NS2=$($SSH_CMD "grep '^ns2=' '$REMOTE_CONFIG' | cut -d'=' -f2")
+    NS3=$($SSH_CMD "grep '^ns3=' '$REMOTE_CONFIG' | cut -d'=' -f2")
+    NS4=$($SSH_CMD "grep '^ns4=' '$REMOTE_CONFIG' | cut -d'=' -f2")
+
+    if [[ -z "$NS1" || -z "$NS2" ]]; then
+        echo "[ERROR] ns1 and ns2 must be set on remote server!"
+        exit 1
+    fi
+
+    NAMESERVERS=("$NS1" "$NS2")
+    [[ -n "$NS3" ]] && NAMESERVERS+=("$NS3")
+    [[ -n "$NS4" ]] && NAMESERVERS+=("$NS4")
+
+    echo "[INFO] Remote NS: ${NAMESERVERS[*]}"
+}
+
+
+update_zone_file() {
+    local zone_file="$1"
+    local tmp_file
+    tmp_file=$(mktemp)
+
+    if [[ ! -f "$zone_file" ]]; then
+        echo "[WARNING] Zone file not found: $zone_file"
+        return
+    fi
+
+    echo "[INFO] Updating NS records in: $zone_file"
+    backup_zone_file "$zone_file"
+
+    grep -v '^[^;].*IN[[:space:]]*NS[[:space:]]*' "$zone_file" > "$tmp_file"
+
+    for ns in "${NAMESERVERS[@]}"; do
+        echo "@ IN NS $ns." >> "$tmp_file"
+    done
+
+    cat "$tmp_file" > "$zone_file"
+    rm "$tmp_file"
+}
+
 
 rsync_files_for_user() {
     log "Syncing files for user ..."
@@ -649,6 +702,8 @@ EOF
 # Ako je live transfer, uradi isto i lokalno
 if [[ "$LIVE_TRANSFER" == true ]]; then
     sync_local_dns_zone "$domain"
+    get_remote_nameservers
+    update_zone_file "/etc/bind/zones/$domain.zone"
 fi
 		fi
 
