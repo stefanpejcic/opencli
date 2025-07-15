@@ -106,14 +106,34 @@ update_webmail_domain() {
         sed -i -E "s|^redir @webmail https?://[^ ]+|redir @webmail ${proto}://${new_domain}|" "$PROXY_FILE"
    
         readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
+        readonly CADDYFILE="/etc/openpanel/caddy/Caddyfile"
+
         mkdir -p "$DOMAINS_DIR"
         touch "${DOMAINS_DIR}${new_domain}.conf" # so caddy can generate le
 
+        if [[ -f "$CADDYFILE" ]]; then
+            if grep -q "# START WEBMAIL DOMAIN #" "$CADDYFILE"; then
+                if [[ "$DEBUG" = true ]]; then
+                    echo "Updating Caddyfile webmail block to: webmail.${new_domain}"
+                fi
+        
+                # Escape dots for sed
+                escaped_domain=$(echo "$new_domain" | sed 's/\./\\./g')
+        
+                # Replace the domain inside the block
+                sed -i -E "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/ s/^webmail\.[a-zA-Z0-9.-]+/webmail.${new_domain}/" "$CADDYFILE"
+            else
+                echo "Warning: Webmail domain block not found in $CADDYFILE"
+            fi
+        else
+            echo "Warning: $CADDYFILE does not exist"
+        fi
+
         echo "Webmail domain updated to ${proto}://${new_domain}"
-    
+
         # Restart Caddy
-        docker --context default compose down caddy >/dev/null 2>&1
-        docker --context default compose up -d caddy >/dev/null 2>&1
+        cd /root && docker --context default compose down caddy >/dev/null 2>&1
+        cd /root && docker --context default compose up -d caddy >/dev/null 2>&1
         # TODO: RELOAD!
         exit 0
     else
