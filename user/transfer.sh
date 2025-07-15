@@ -554,19 +554,11 @@ eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HO
 
 sync_local_dns_zone() {
     local domain="$1"
-    local current_ip="$2"
     local zone_file="/etc/bind/zones/$domain.zone"
 
     if [[ -f "$zone_file" ]]; then
         echo "[LIVE] Updating DNS zone for $domain locally"
-
-        # Zameni IP adresu
         sed -i "s/$current_ip/$REMOTE_HOST/g" "$zone_file"
-
-        # Dodaj zonu ako nije upisana
-        if ! grep -q "$domain" /etc/bind/named.conf.local; then
-            echo "zone \"$domain\" IN { type master; file \"/etc/bind/zones/$domain.zone\"; };" >> /etc/bind/named.conf.local
-        fi
     else
         echo "[WARNING] Local DNS zone file not found for $domain"
     fi
@@ -656,15 +648,15 @@ echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' 
 EOF
 # Ako je live transfer, uradi isto i lokalno
 if [[ "$LIVE_TRANSFER" == true ]]; then
-    sync_local_dns_zone "$domain" "$current_ip"
+    sync_local_dns_zone "$domain"
 fi
 		fi
 
 
 	        DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
 	        if [ -d "$DOMAIN_CADDY_SSL" ]; then
-				eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
-		    fi
+	 		eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
+		fi
 	
 	
 	        DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/certs/$domain"
@@ -789,9 +781,9 @@ eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME/ ${REMOTE_USER}@${
 
 
 store_running_containers_for_user         # export running contianers on source and copy to dest
+opencli user-suspend $USERNAME > /dev/null 2>&1 &
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
-opencli user-suspend $USERNAME
 
 log "[✔] Transfer for user $USERNAME complete"
