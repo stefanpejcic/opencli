@@ -624,6 +624,7 @@ EOF
 		fi
  	fi
  done <<< "$ALL_DOMAINS"
+ fi
 
 }
 
