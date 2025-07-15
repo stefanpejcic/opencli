@@ -392,7 +392,7 @@ EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_data
   -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
-  echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
+  log "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
@@ -403,7 +403,7 @@ fi
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_autoinc.sql" > tmp_user.sql
 sed -i "s/'NULL'/NULL/g" tmp_user.sql
 
-echo "Importing user into database..."
+log "Importing user into database..."
 (echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
 rm -f tmp_user.sql
 
@@ -417,7 +417,7 @@ fi
 
 
 if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
-  echo "Importing sites..."
+  log "Importing sites..."
   tail -n +2 "sites_\${USERNAME}_autoinc.sql" | sed "s/),/)\n/g" | while read -r line; do
     clean_line=\$(echo "\$line" | sed "s/[()']//g" | sed 's/,$//')
     SITE_NAME=\$(echo "\$clean_line" | cut -d',' -f1)
@@ -435,13 +435,13 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
       mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
         VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
-      echo "Site imported: \$SITE_NAME"
+      log "Site imported: \$SITE_NAME"
     else
-      echo "[ERROR] Domain not found for site: \$DOMAIN_URL"
+      log "[ERROR] Domain not found for site: \$DOMAIN_URL"
     fi
   done
 else
-  echo "No sites found to import."
+  log "No sites found to import."
 fi
 
 EOF
@@ -672,7 +672,7 @@ copy_docker_context() {
                 log "Failed context for $USERNAME"
         fi
 
-        echo "Configuring docker service ..."
+        log "Configuring docker service ..."
 
         $SSH_CMD "loginctl enable-linger $USERNAME" \
             >/dev/null 2>&1 || log "Failed to enable linger for $USERNAME"
