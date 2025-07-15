@@ -38,9 +38,11 @@ REMOTE_USER="root"
 REMOTE_PASS=""
 FORCE=0
 
-# Parse arguments
+# Default vrednosti
+LIVE_TRANSFER=false
+
 while [[ $# -gt 0 ]]; do
-    case $1 in
+    case "$1" in
         -h|--host)
             REMOTE_HOST="$2"
             shift 2
@@ -52,17 +54,27 @@ while [[ $# -gt 0 ]]; do
         --password)
             REMOTE_PASS="$2"
             shift 2
-	    ;;
+            ;;
+        --host)
+            REMOTE_HOST="$2"
+            shift 2
+            ;;
         --force)
             FORCE=1
             shift
             ;;
+        --live-transfer)
+            LIVE_TRANSFER=true
+            shift
+            ;;
         *)
-            echo "Unknown option: $1"
+            echo "[ERROR] Unknown option: $1"
+            echo "Use --help to see available options"
             exit 1
             ;;
     esac
 done
+
 
 if [[ -z "$REMOTE_HOST" || -z "$USER" ]]; then
     echo "Usage: opencli user-transfer -h <remote_host> -u <OPENPANEL_USERNAME> [--password <ssh_password>] [--force]"
@@ -540,6 +552,25 @@ eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HO
 
 }
 
+sync_local_dns_zone() {
+    local domain="$1"
+    local current_ip="$2"
+    local zone_file="/etc/bind/zones/$domain.zone"
+
+    if [[ -f "$zone_file" ]]; then
+        echo "[LIVE] Updating DNS zone for $domain locally"
+
+        # Zameni IP adresu
+        sed -i "s/$current_ip/$REMOTE_HOST/g" "$zone_file"
+
+        # Dodaj zonu ako nije upisana
+        if ! grep -q "$domain" /etc/bind/named.conf.local; then
+            echo "zone \"$domain\" IN { type master; file \"/etc/bind/zones/$domain.zone\"; };" >> /etc/bind/named.conf.local
+        fi
+    else
+        echo "[WARNING] Local DNS zone file not found for $domain"
+    fi
+}
 
 
 rsync_files_for_user() {
@@ -623,6 +654,10 @@ else
 grep -q "$domain" /etc/bind/named.conf.local || \
 echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
 EOF
+# Ako je live transfer, uradi isto i lokalno
+if [[ "$LIVE_TRANSFER" == true ]]; then
+    sync_local_dns_zone "$domain" "$current_ip"
+fi
 		fi
 
 
@@ -757,5 +792,6 @@ store_running_containers_for_user         # export running contianers on source 
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
+opencli user-suspend $USERNAME
 
 log "[✔] Transfer for user $USERNAME complete"
