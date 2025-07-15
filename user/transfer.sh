@@ -402,7 +402,7 @@ EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_data
   -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
-  log "Plan already exists (ID: \$EXISTING_PLAN_ID)"
+  echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
@@ -413,7 +413,7 @@ fi
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_autoinc.sql" > tmp_user.sql
 sed -i "s/'NULL'/NULL/g" tmp_user.sql
 
-log "Importing user into database..."
+echo "Importing user into database..."
 (echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
 rm -f tmp_user.sql
 
@@ -427,7 +427,7 @@ fi
 
 
 if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
-  log "Importing sites..."
+  echo "Importing sites..."
   tail -n +2 "sites_\${USERNAME}_autoinc.sql" | sed "s/),/)\n/g" | while read -r line; do
     clean_line=\$(echo "\$line" | sed "s/[()']//g" | sed 's/,$//')
     SITE_NAME=\$(echo "\$clean_line" | cut -d',' -f1)
@@ -445,13 +445,13 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
       mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
         VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
-      log "Site imported: \$SITE_NAME"
+      echo "Site imported: \$SITE_NAME"
     else
-      log "[ERROR] Domain not found for site: \$DOMAIN_URL"
+      echo "[ERROR] Domain not found for site: \$DOMAIN_URL"
     fi
   done
 else
-  log "No sites found to import."
+  echo "No sites found to import."
 fi
 
 EOF
