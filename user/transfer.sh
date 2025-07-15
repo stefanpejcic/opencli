@@ -835,7 +835,10 @@ eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME/ ${REMOTE_USER}@${
 
 
 store_running_containers_for_user         # export running contianers on source and copy to dest
-opencli user-suspend $USERNAME > /dev/null 2>&1 &
+
+if [[ "$LIVE_TRANSFER" == true ]]; then
+	opencli user-suspend $USERNAME > /dev/null 2>&1 &
+fi
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
