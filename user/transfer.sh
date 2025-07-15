@@ -616,7 +616,7 @@ update_zone_file() {
 
 
 rsync_files_for_user() {
-    log "Syncing files for user ..."
+    log "Syncing files for user $USERNAME ..."
     RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/$USERNAME "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     log "$RSYNC_OUTPUT"
