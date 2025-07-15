@@ -240,7 +240,7 @@ cut -d: -f1,3 "$USER_GROUP" | while IFS=: read -r group gid; do
 done
 
 # Create UID map file
-> "$UID_MAP_FILE"
+touch "$UID_MAP_FILE"
 
 # Read original user info, create user with new username and free UID
 while IFS=: read -r user uid gid comment home shell; do
