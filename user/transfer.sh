@@ -210,6 +210,7 @@ copy_user_account() {
 USER_PASSWD="/root/passwd.user"
 USER_GROUP="/root/group.user"
 USER_SHADOW="/root/shadow.user"
+UID_MAP_FILE="/root/${USERNAME}_uid_map.txt"
 
 user_exists() {
     id "$1" &>/dev/null
@@ -238,16 +239,35 @@ cut -d: -f1,3 "$USER_GROUP" | while IFS=: read -r group gid; do
     fi
 done
 
+# Create UID map file
+> "$UID_MAP_FILE"
+
 # Read original user info, create user with new username and free UID
 while IFS=: read -r user uid gid comment home shell; do
 
     free_uid=$(find_free_uid "$uid")
 
+    CHOWN_HOMEDIR=false
+
     if user_exists "$user"; then
         echo "System user $user already exists, skipping creation."
     else
+        if [[ "$free_uid" != "$uid" ]]; then
+            echo "UID for $user changed from $uid to $free_uid"
+            CHOWN_HOMEDIR=true
+        fi
+
         useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$home" -s "$shell" "$user"
+	echo "$user:$uid:$free_uid:$gid:$home" >> "$UID_MAP_FILE"
+
+	
+
+        if [[ "$CHOWN_HOMEDIR" == "true" && -d "$home" ]]; then
+            echo "Changing ownership of home directory $home to $user"
+            chown -R "$user:$gid" "$home"
+        fi
     fi
+
 done < <(cut -d: -f1,3,4,5,6,7 "$USER_PASSWD")
 
 # Set password for the new user(s)
@@ -260,6 +280,9 @@ done
 rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
 
 EOF
+
+$SSH_CMD "cat /root/${USERNAME}_uid_map.txt" > "/tmp/${USERNAME}_uid_map.txt"
+$SSH_CMD "rm -f /root/${USERNAME}_uid_map.txt"
 
 }
 
@@ -491,13 +514,31 @@ rsync_files_for_user() {
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
-        :
-	#todo: chown to $free_uid only if it changed!
+        MAPPING_FILE="/tmp/${USERNAME}_uid_map.txt"
+
+        if [[ -f "$MAPPING_FILE" ]]; then
+            MAPPING_LINE=$(grep "^$USERNAME:" "$MAPPING_FILE")
+            if [[ -n "$MAPPING_LINE" ]]; then
+                IFS=':' read -r name old_uid new_uid gid home <<< "$MAPPING_LINE"
+                if [[ "$old_uid" != "$new_uid" ]]; then
+                    echo "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
+                    $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"
+                else
+                    echo "UID unchanged for $USERNAME, no chown needed."
+                fi
+            else
+                echo "[WARNING] No UID mapping found in file for $USERNAME"
+            fi
+            rm -f "$MAPPING_FILE"
+        else
+            echo "[WARNING] UID mapping file not found for $USERNAME"
+        fi
     else
         echo "[ERROR] Rsync failed! Output:"
         echo "$RSYNC_OUTPUT"
         exit 1
     fi
+
 
     CADDY_STATS="/var/log/caddy/stats/$USERNAME"
     if [ -d "$CADDY_STATS" ]; then
