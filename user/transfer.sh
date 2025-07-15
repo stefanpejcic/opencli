@@ -96,7 +96,7 @@ install_sshpass() {
 	elif [[ -x "$(command -v pacman)" ]]; then
 	    sudo pacman -Sy sshpass
 	else
-	    echo "Package manager not supported. Please install sshpass manually."
+	    log "Package manager not supported. Please install sshpass manually."
 	    exit 2
 	fi
 }
@@ -106,7 +106,7 @@ format_commands() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
 	    if ! command -v sshpass &>/dev/null; then
-	        echo "sshpass not found. Installing..."
+	        log "sshpass not found. Installing..."
 	 	install_sshpass
 	    fi
 	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
@@ -117,14 +117,14 @@ format_commands() {
 	fi
 
 	# test
-	echo "Testing SSH connection to $REMOTE_USER@$REMOTE_HOST..."
+	log "Testing SSH connection to $REMOTE_USER@$REMOTE_HOST..."
 	if $SSH_CMD "echo 'SSH connection established, starting transfer process..'" >/dev/null 2>&1; then
-	    echo "SSH connection established, starting transfer process.."
+	    log "SSH connection established, starting transfer process.."
 	else
-	    echo "[✘] SSH connection to $REMOTE_HOST failed. Please check credentials or SSH keys."
-            echo ""
-	    echo "Command used:"
-     	    echo $SSH_CMD
+	    log "[✘] SSH connection to $REMOTE_HOST failed. Please check credentials or SSH keys."
+            log ""
+	    log "Command used:"
+     	    log $SSH_CMD
 	    exit 1
 	fi
  
@@ -159,7 +159,7 @@ get_server_ipv4(){
 	    }
 
 	if ! is_valid_ipv4 "$current_ip"; then
-	        echo "Invalid or private IPv4 address: $current_ip. OpenPanel requires a public IPv4 address to bind Nginx configuration files."
+	        log "Invalid or private IPv4 address: $current_ip. OpenPanel requires a public IPv4 address to bind Nginx configuration files."
 	fi
 
 }
@@ -173,7 +173,7 @@ get_users_count_on_destination() {
     user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
         if [ $? -ne 0 ]; then
-            echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
+            log "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
             exit 1
         fi
 
@@ -181,8 +181,8 @@ get_users_count_on_destination() {
     :
     else
         if [ "$user_count" -gt 2 ]; then
-            echo "[✘] ERROR: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use."
-	          echo "If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
+            log "[✘] ERROR: OpenPanel Community edition has a limit of 3 user accounts - which should be enough for private use."
+	          log "If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
             exit 1
         fi
     fi
@@ -196,12 +196,12 @@ check_username_exists() {
  
     # Check if successful
     if [ $? -ne 0 ]; then
-        echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
+        log "[✘] Error: Unable to check username existence in the database. Is mysql running?"
         exit 1
     fi
 
     # Return the count of usernames found
-    echo "$user_count"
+    log "$user_count"
 }
 
 
@@ -209,7 +209,7 @@ check_username_exists() {
 copy_user_account() {
     USERNAME="$1"
     TMPDIR=$(mktemp -d)
-    echo "Creating system user on remote server ..."
+    log "Creating system user on remote server ..."
 
     # Pripremi passwd, group i shadow za korisnika
     awk -F: -v user="$USERNAME" '$1 == user {print}' /etc/passwd > "$TMPDIR/passwd.user"
@@ -307,7 +307,7 @@ output_file="/tmp/docker_containers_names.txt"
 
 compose_file="/home/$USERNAME/docker-compose.yml"
 if [ -f "$compose_file" ]; then
-    echo "Checking docker context ...."
+    log "Checking docker context ...."
     containers=$(docker --context="$USERNAME" ps -a --format "{{.Names}}" 2>/dev/null)
     if [ -n "$containers" ]; then
         containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
@@ -324,17 +324,17 @@ sync_openpanel_features() {
     LOCAL_FEATURES_DIR="/etc/openpanel/openpanel/features"
     REMOTE_FEATURES_DIR="/etc/openpanel/openpanel/features"
 
-    echo "Listing features on remote server ..."
+    log "Listing features on remote server ..."
     REMOTE_FILES=$($SSH_CMD "ls -1 $REMOTE_FEATURES_DIR 2>/dev/null" || true)
     REMOTE_FILE_SET=$(echo "$REMOTE_FILES" | tr '\n' ' ')
 
-    echo "Syncing features to remote server ..."
+    log "Syncing features to remote server ..."
     for file in "$LOCAL_FEATURES_DIR"/*; do
         filename=$(basename "$file")
         if [[ "$REMOTE_FILE_SET" == *" $filename "* ]]; then
-            echo "[SKIP] $filename already exists on remote"
+            log "[SKIP] $filename already exists on remote"
         else
-            echo "[COPY] $filename -> $REMOTE_HOST"
+            log "[COPY] $filename -> $REMOTE_HOST"
             eval $RSYNC_CMD "$file" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_FEATURES_DIR}/"
         fi
     done
@@ -350,11 +350,11 @@ while IFS=: read -r username containers <&3; do
     username=$(echo "$username" | xargs)
 
     if [[ -z "$username" ]] || [[ "$containers" =~ no\ containers ]]; then
-        echo "No containers running for user"
+        log "No containers running for user"
         continue
     fi
 
-    echo "Starting containers inside docker context on remote server ..."
+    log "Starting containers inside docker context on remote server ..."
     $SSH_CMD "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
@@ -458,7 +458,7 @@ USER_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT id FROM users WHERE username = '$USERNAME';")
 
 if [[ -z "$USER_ID" ]]; then
-  echo "[ERROR] No user found with username '$USERNAME'"
+  log "[ERROR] No user found with username '$USERNAME'"
   exit 1
 fi
 
@@ -543,10 +543,10 @@ eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HO
 
 
 rsync_files_for_user() {
-    echo "Syncing files for user ..."
+    log "Syncing files for user ..."
     RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/$USERNAME "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
-    echo "$RSYNC_OUTPUT"
+    log "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
         MAPPING_FILE="/tmp/${USERNAME}_uid_map.txt"
 
@@ -555,21 +555,21 @@ rsync_files_for_user() {
             if [[ -n "$MAPPING_LINE" ]]; then
                 IFS=':' read -r name old_uid new_uid gid home <<< "$MAPPING_LINE"
                 if [[ "$old_uid" != "$new_uid" ]]; then
-                    echo "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
+                    log "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
                     $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"
                 else
-                    echo "UID unchanged for $USERNAME, no chown needed."
+                    log "UID unchanged for $USERNAME, no chown needed."
                 fi
             else
-                echo "[WARNING] No UID mapping found in file for $USERNAME"
+                log "[WARNING] No UID mapping found in file for $USERNAME"
             fi
             rm -f "$MAPPING_FILE"
         else
-            echo "[WARNING] UID mapping file not found for $USERNAME"
+            log "[WARNING] UID mapping file not found for $USERNAME"
         fi
     else
-        echo "[ERROR] Rsync failed! Output:"
-        echo "$RSYNC_OUTPUT"
+        log "[ERROR] Rsync failed! Output:"
+        log "$RSYNC_OUTPUT"
         exit 1
     fi
 
@@ -582,7 +582,7 @@ rsync_files_for_user() {
     ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
         
 if [[ "$ALL_DOMAINS" == *"No domains found for user '$USERNAME'"* ]]; then
-        echo "No domains found for user $USERNAME. Skipping."
+        log "No domains found for user $USERNAME. Skipping."
 else	
     while IFS=$'\t ' read -r domain docroot php_version; do
     whoowns_output=$($SSH_CMD "opencli domains-whoowns $domain")
@@ -592,7 +592,7 @@ else
 	    	# add domain on remote
 	        $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
 	        if [ $? -ne 0 ]; then
-		    echo "[✘] ERROR: Failed to import domain $domain"
+		    log "[✘] ERROR: Failed to import domain $domain"
 		    exit 1
 		fi
     
@@ -664,26 +664,26 @@ copy_docker_context() {
         REMOTE_UID=$($SSH_CMD "id -u $USERNAME" 2>/dev/null)
 
         if [[ -z "$REMOTE_UID" ]]; then
-            echo "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
+            log "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
             exit 1
         else
-            echo "Creating Docker context: $USERNAME on destination ..."
+            log "Creating Docker context: $USERNAME on destination ..."
             $SSH_CMD "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" >/dev/null 2>&1 || \
-                echo "Failed context for $USERNAME"
+                log "Failed context for $USERNAME"
         fi
 
         echo "Configuring docker service ..."
 
         $SSH_CMD "loginctl enable-linger $USERNAME" \
-            >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
+            >/dev/null 2>&1 || log "Failed to enable linger for $USERNAME"
 
         $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-            >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
+            >/dev/null 2>&1 || log "Failed to reload daemon for $USERNAME"
 
         $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-            >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
+            >/dev/null 2>&1 || log "Failed to restart docker for $USERNAME"
     else
-        echo "No .docker directory for $USERNAME on source!"
+        log "No .docker directory for $USERNAME on source!"
         exit 1
     fi
 	# Close FD 3
@@ -691,11 +691,11 @@ copy_docker_context() {
 }
 
 restart_services_on_target() {
-            echo "Reloading services on ${REMOTE_HOST} server ..."
+            log "Reloading services on ${REMOTE_HOST} server ..."
 	    $SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
-            echo "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
+            log "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
             $SSH_CMD "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
 	fi
 
@@ -704,7 +704,7 @@ restart_services_on_target() {
 }
 
 refresh_quotas() {
-            echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
+            log "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
             $SSH_CMD "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
 }
 
@@ -722,10 +722,10 @@ get_users_count_on_destination
 username_exists_count=$(check_username_exists)
 if [ "$username_exists_count" -gt 0 ]; then\
     if [[ $FORCE -eq 0 ]]; then
-      echo "[✘] Error: Username '$USERNAME' is already taken on destination server."
+      log "[✘] Error: Username '$USERNAME' is already taken on destination server."
       exit 1
     else
-      echo "[!] Warning: Username '$USERNAME' is already taken on destination server but will be overwritten due to the --force flag."
+      log "[!] Warning: Username '$USERNAME' is already taken on destination server but will be overwritten due to the --force flag."
     fi
 fi
 
@@ -742,7 +742,7 @@ $SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/
 
 # todo: folder just for that user!
 if [ -n "$key_value" ]; then
-  echo "Syncing /var/mail ..."
+  log "Syncing /var/mail ..."
   eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
   COMPOSE_START_MAIL=1
 fi
@@ -758,4 +758,4 @@ restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
 
-echo "[✔] Transfer for user $USERNAME complete"
+log "[✔] Transfer for user $USERNAME complete"
