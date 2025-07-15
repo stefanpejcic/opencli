@@ -417,9 +417,6 @@ make_folder() {
   	# https://github.com/stefanpejcic/OpenPanel/issues/472
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
- 
-  	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/
-	chown $context_uid:$context_uid -R /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/
 }
 
 
@@ -542,7 +539,10 @@ vhost_files_create() {
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
-       chown -R $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/ > /dev/null 2>&1
+       # https://github.com/stefanpejcic/OpenPanel/issues/567
+  	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/
+	chown $context_uid:$context_uid -R /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/
+
        
 	sed -i \
 	  -e "s|<DOMAIN_NAME>|$domain_name|g" \
