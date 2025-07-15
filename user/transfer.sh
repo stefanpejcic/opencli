@@ -630,8 +630,6 @@ rsync_files_for_user() {
                 if [[ "$old_uid" != "$new_uid" ]]; then
                     log "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
                     $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"
-                else
-                    log "UID unchanged for $USERNAME, no chown needed."
                 fi
             else
                 log "[WARNING] No UID mapping found in file for $USERNAME"
