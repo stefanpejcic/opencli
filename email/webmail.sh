@@ -121,12 +121,13 @@ update_webmail_domain() {
                 escaped_domain=$(echo "$new_domain" | sed 's/\./\\./g')
         
                 # Replace the domain inside the block
-sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\
-# START WEBMAIL DOMAIN #\
-webmail.${new_domain} {\
-    reverse_proxy localhost:8080\
-}\
+sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
+# START WEBMAIL DOMAIN #\\
+webmail.${new_domain} {\\
+    reverse_proxy localhost:8080\\
+}\\
 # END WEBMAIL DOMAIN #" "$CADDYFILE"
+
 
             else
                 echo "Warning: Webmail domain block not found in $CADDYFILE"
