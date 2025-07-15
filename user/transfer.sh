@@ -196,6 +196,8 @@ copy_user_account() {
     USERNAME="$1"
     TMPDIR=$(mktemp -d)
     echo "Creating system user on remote server ..."
+
+    # Pripremi passwd, group i shadow za korisnika
     awk -F: -v user="$USERNAME" '$1 == user {print}' /etc/passwd > "$TMPDIR/passwd.user"
     awk -F: -v user="$USERNAME" 'BEGIN{gid=""}
         $1 == user {gid=$4}
@@ -203,17 +205,21 @@ copy_user_account() {
         $1 == user {print}' /etc/group > "$TMPDIR/group.user"
     grep -F -w "^$USERNAME:" /etc/shadow > "$TMPDIR/shadow.user"
 
-    eval $RSYNC_CMD "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    # Pošalji fajlove na remote
+    eval $RSYNC_CMD "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" "${REMOTE_USER}@${REMOTE_HOST}:/root/"
     rm -rf "$TMPDIR" >/dev/null
 
-    $SSH_CMD <<'EOF' >/dev/null 2>&1
+    # Udaljena komanda (heredoc BEZ navodnika da bismo interpolirali USERNAME)
+    $SSH_CMD <<EOF
+export USERNAME="$USERNAME"
+
 USER_PASSWD="/root/passwd.user"
 USER_GROUP="/root/group.user"
 USER_SHADOW="/root/shadow.user"
-UID_MAP_FILE="/root/${USERNAME}_uid_map.txt"
+UID_MAP_FILE="/root/\${USERNAME}_uid_map.txt"
 
 user_exists() {
-    id "$1" &>/dev/null
+    id "\$1" &>/dev/null
 }
 
 get_used_uids() {
@@ -222,69 +228,63 @@ get_used_uids() {
 
 # Find a free UID >= 1000 and not in use
 find_free_uid() {
-    used_uids=$(get_used_uids)
-    uid=$1
-    while echo "$used_uids" | grep -qw "$uid"; do
-        uid=$((uid + 1))
+    used_uids=\$(get_used_uids)
+    uid=\$1
+    while echo "\$used_uids" | grep -qw "\$uid"; do
+        uid=\$((uid + 1))
     done
-    echo "$uid"
+    echo "\$uid"
 }
 
-# Find a free username by appending number suffix
-
-# Add groups (same as before)
-cut -d: -f1,3 "$USER_GROUP" | while IFS=: read -r group gid; do
-    if ! getent group "$group" > /dev/null; then
-        groupadd -g "$gid" "$group"
+# Dodaj grupe
+cut -d: -f1,3 "\$USER_GROUP" | while IFS=: read -r group gid; do
+    if ! getent group "\$group" > /dev/null; then
+        groupadd -g "\$gid" "\$group"
     fi
 done
 
-# Create UID map file
-touch "$UID_MAP_FILE"
+# Kreiraj UID map fajl
+> "\$UID_MAP_FILE"
 
-# Read original user info, create user with new username and free UID
+# Kreiraj korisnika i upiši mapiranje ako treba
 while IFS=: read -r user uid gid comment home shell; do
-
-    free_uid=$(find_free_uid "$uid")
-
+    free_uid=\$(find_free_uid "\$uid")
     CHOWN_HOMEDIR=false
 
-    if user_exists "$user"; then
-        echo "System user $user already exists, skipping creation."
+    if user_exists "\$user"; then
+        echo "System user \$user already exists, skipping creation."
     else
-        if [[ "$free_uid" != "$uid" ]]; then
-            echo "UID for $user changed from $uid to $free_uid"
+        if [[ "\$free_uid" != "\$uid" ]]; then
+            echo "UID for \$user changed from \$uid to \$free_uid"
             CHOWN_HOMEDIR=true
         fi
 
-        useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$home" -s "$shell" "$user"
-	echo "$user:$uid:$free_uid:$gid:$home" >> "$UID_MAP_FILE"
+        useradd -u "\$free_uid" -g "\$gid" -c "\$comment" -d "\$home" -s "\$shell" "\$user"
+        echo "\$user:\$uid:\$free_uid:\$gid:\$home" >> "\$UID_MAP_FILE"
 
-	
-
-        if [[ "$CHOWN_HOMEDIR" == "true" && -d "$home" ]]; then
-            echo "Changing ownership of home directory $home to $user"
-            chown -R "$user:$gid" "$home"
+        if [[ "\$CHOWN_HOMEDIR" == "true" && -d "\$home" ]]; then
+            echo "Changing ownership of home directory \$home to \$user"
+            chown -R "\$user:\$gid" "\$home"
         fi
     fi
+done < <(cut -d: -f1,3,4,5,6,7 "\$USER_PASSWD")
 
-done < <(cut -d: -f1,3,4,5,6,7 "$USER_PASSWD")
-
-# Set password for the new user(s)
-cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
-    if [ -n "$hash" ]; then
-        usermod -p "$hash" "$user"
+# Postavi šifru
+cut -d: -f1,2 "\$USER_SHADOW" | while IFS=: read -r user hash; do
+    if [[ -n "\$hash" ]]; then
+        usermod -p "\$hash" "\$user"
     fi
 done
 
-rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
-
+# Obriši privremene fajlove
+rm -f "\$USER_PASSWD" "\$USER_GROUP" "\$USER_SHADOW"
 EOF
 
-$SSH_CMD "cat /root/${USERNAME}_uid_map.txt" > "/tmp/${USERNAME}_uid_map.txt"
-$SSH_CMD "rm -f /root/${USERNAME}_uid_map.txt"
-
+    # Preuzmi UID map fajl lokalno i obriši ga sa remote strane
+    $SSH_CMD "cat /root/${USERNAME}_uid_map.txt" > "/tmp/${USERNAME}_uid_map.txt"
+    $SSH_CMD "rm -f /root/${USERNAME}_uid_map.txt"
 }
+
 
 
 store_running_containers_for_user() {
