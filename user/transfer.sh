@@ -306,6 +306,26 @@ fi
 eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 }
 
+sync_openpanel_features() {
+    LOCAL_FEATURES_DIR="/etc/openpanel/openpanel/features"
+    REMOTE_FEATURES_DIR="/etc/openpanel/openpanel/features"
+
+    echo "Listing features on remote server ..."
+    REMOTE_FILES=$($SSH_CMD "ls -1 $REMOTE_FEATURES_DIR 2>/dev/null" || true)
+    REMOTE_FILE_SET=$(echo "$REMOTE_FILES" | tr '\n' ' ')
+
+    echo "Syncing features to remote server ..."
+    for file in "$LOCAL_FEATURES_DIR"/*; do
+        filename=$(basename "$file")
+        if [[ "$REMOTE_FILE_SET" == *" $filename "* ]]; then
+            echo "[SKIP] $filename already exists on remote"
+        else
+            echo "[COPY] $filename -> $REMOTE_HOST"
+            eval $RSYNC_CMD "$file" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_FEATURES_DIR}/"
+        fi
+    done
+}
+
 restore_running_containers_for_user() {
 output_file="/tmp/docker_containers_names.txt"
 
@@ -697,6 +717,7 @@ fi
 
 export_mysql
 import_mysql
+sync_openpanel_features
 copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
