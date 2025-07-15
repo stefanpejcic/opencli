@@ -605,7 +605,6 @@ update_zone_file() {
     fi
 
     echo "[INFO] Updating NS records in: $zone_file"
-    backup_zone_file "$zone_file"
 
     grep -v '^[^;].*IN[[:space:]]*NS[[:space:]]*' "$zone_file" > "$tmp_file"
 
@@ -720,6 +719,10 @@ fi
 		fi
  	fi
  done <<< "$ALL_DOMAINS"
+
+docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
+ 
  fi
 
 }
