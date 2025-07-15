@@ -114,7 +114,7 @@ update_webmail_domain() {
         if [[ -f "$CADDYFILE" ]]; then
             if grep -q "# START WEBMAIL DOMAIN #" "$CADDYFILE"; then
                 if [[ "$DEBUG" = true ]]; then
-                    echo "Updating Caddyfile webmail block to: webmail.${new_domain}"
+                    echo "Updating Caddyfile webmail block to: ${new_domain}"
                 fi
         
                 # Escape dots for sed
@@ -123,7 +123,7 @@ update_webmail_domain() {
                 # Replace the domain inside the block
 sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
 # START WEBMAIL DOMAIN #\\
-webmail.${new_domain} {\\
+${new_domain} {\\
     reverse_proxy localhost:8080\\
 }\\
 # END WEBMAIL DOMAIN #" "$CADDYFILE"
