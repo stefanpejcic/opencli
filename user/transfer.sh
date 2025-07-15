@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/transfer.sh
 # Description: Transfers a single user account from this server to another.
-# Usage: opencli user-transfer -h <DESTINATION_IP> --user <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD>
+# Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]
 # Author: Stefan Pejcic
 # Created: 28.06.2025
 # Last Modified: 15.07.2025
@@ -29,12 +29,13 @@
 ################################################################################
 
 : '
-Usage: opencli user-transfer -h <remote_host> -u <account_name> [--password <password>] [--force]
+Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]
 '
 
 USERNAME=""
 REMOTE_HOST=""
 REMOTE_USER="root"
+REMOTE_PORT="22"
 REMOTE_PASS=""
 FORCE=0
 LIVE_TRANSFER=false
@@ -46,6 +47,10 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -u|--username)
+            REMOTE_USER="$2"
+            shift 2
+            ;;
+        --account)
             USERNAME="$2"
             shift 2
             ;;
@@ -53,8 +58,8 @@ while [[ $# -gt 0 ]]; do
             REMOTE_PASS="$2"
             shift 2
             ;;
-        --host)
-            REMOTE_HOST="$2"
+        --port)
+            REMOTE_PORT="$2"
             shift 2
             ;;
         --force)
@@ -75,7 +80,7 @@ done
 
 
 if [[ -z "$REMOTE_HOST" || -z "$USER" ]]; then
-    echo "Usage: opencli user-transfer -h <remote_host> -u <OPENPANEL_USERNAME> [--password <ssh_password>] [--force]"
+    echo "Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]"
     exit 1
 fi
 
