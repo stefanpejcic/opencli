@@ -550,6 +550,9 @@ rsync_files_for_user() {
     whoowns_output=$($SSH_CMD "opencli domains-whoowns $domain")
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 
+    if [[ "$ALL_DOMAINS" == *"No domains found for user '$username'"* ]]; then
+        echo "No domains found for user $username. Skipping."
+    else
     if [ -z "$owner" ]; then
 	    	# add domain on remote
 	        $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
