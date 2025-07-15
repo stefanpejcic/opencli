@@ -269,10 +269,10 @@ while IFS=: read -r user uid gid comment home shell; do
     CHOWN_HOMEDIR=false
 
     if user_exists "\$user"; then
-        log "System user \$user already exists, skipping creation."
+        echo "System user \$user already exists, skipping creation."
     else
         if [[ "\$free_uid" != "\$uid" ]]; then
-            log "UID for \$user changed from \$uid to \$free_uid"
+            echo "UID for \$user changed from \$uid to \$free_uid"
             CHOWN_HOMEDIR=true
         fi
 
@@ -280,7 +280,7 @@ while IFS=: read -r user uid gid comment home shell; do
         echo "\$user:\$uid:\$free_uid:\$gid:\$home" >> "\$UID_MAP_FILE"
 
         if [[ "\$CHOWN_HOMEDIR" == "true" && -d "\$home" ]]; then
-            log "Changing ownership of home directory \$home to \$user"
+            echo "Changing ownership of home directory \$home to \$user"
             chown -R "\$user:\$gid" "\$home"
         fi
     fi
@@ -374,15 +374,15 @@ export USERNAME="$USERNAME"
 CONFIG_FILE="/etc/my.cnf"
 
 if [[ -z "\$mysql_database" ]]; then
-  log "[ERROR] mysql_database is not set"
+  echo "[ERROR] mysql_database is not set"
   exit 1
 fi
 if [[ -z "\$USERNAME" ]]; then
-  log "[ERROR] USERNAME is not set"
+  echo "[ERROR] USERNAME is not set"
   exit 1
 fi
 
-cd "/tmp/user_import/" || { log "[ERROR] Directory /tmp/user_import/ not found"; exit 1; }
+cd "/tmp/user_import/" || { echo "[ERROR] Directory /tmp/user_import/ not found"; exit 1; }
 
 # Fix trailing commas in SQL
 for f in plan_\${USERNAME}_autoinc.sql user_\${USERNAME}_autoinc.sql domains_\${USERNAME}_autoinc.sql sites_\${USERNAME}_autoinc.sql; do
@@ -395,9 +395,9 @@ EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_data
   -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
-  log "Plan already exists (ID: \$EXISTING_PLAN_ID)"
+  echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
-  log "Importing new plan..."
+  echo "Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
   EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
     -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
@@ -406,7 +406,7 @@ fi
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_autoinc.sql" > tmp_user.sql
 sed -i "s/'NULL'/NULL/g" tmp_user.sql
 
-log "Importing user into database..."
+echo "Importing user into database..."
 (echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
 rm -f tmp_user.sql
 
@@ -414,7 +414,7 @@ USER_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N 
   -e "SELECT id FROM users WHERE username = '\$USERNAME';")
 
 if [[ -z "\$USER_ID" ]]; then
-  log "[ERROR] Failed to import user!"
+  echo "[ERROR] Failed to import user!"
   exit 1
 fi
 
@@ -438,9 +438,9 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
       mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
         VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
-      log "Site imported: \$SITE_NAME"
+      echo "Site imported: \$SITE_NAME"
     else
-      log "[ERROR] Domain not found for site: \$DOMAIN_URL"
+      echo "[ERROR] Domain not found for site: \$DOMAIN_URL"
     fi
   done
 else
@@ -667,26 +667,26 @@ copy_docker_context() {
         REMOTE_UID=$($SSH_CMD "id -u $USERNAME" 2>/dev/null)
 
         if [[ -z "$REMOTE_UID" ]]; then
-            log "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
+            echo "FATAL ERROR: Failed to get UID for user $USERNAME on remote server"
             exit 1
         else
-            log "Creating Docker context: $USERNAME on destination ..."
+            echo "Creating Docker context: $USERNAME on destination ..."
             $SSH_CMD "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$USERNAME'" >/dev/null 2>&1 || \
-                log "Failed context for $USERNAME"
+                echo "Failed context for $USERNAME"
         fi
 
-        log "Configuring docker service ..."
+        echo "Configuring docker service ..."
 
         $SSH_CMD "loginctl enable-linger $USERNAME" \
-            >/dev/null 2>&1 || log "Failed to enable linger for $USERNAME"
+            >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
 
         $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-            >/dev/null 2>&1 || log "Failed to reload daemon for $USERNAME"
+            >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
 
         $SSH_CMD "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-            >/dev/null 2>&1 || log "Failed to restart docker for $USERNAME"
+            >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
     else
-        log "No .docker directory for $USERNAME on source!"
+        echo "No .docker directory for $USERNAME on source!"
         exit 1
     fi
 	# Close FD 3
@@ -694,11 +694,11 @@ copy_docker_context() {
 }
 
 restart_services_on_target() {
-            log "Reloading services on ${REMOTE_HOST} server ..."
+            echo "Reloading services on ${REMOTE_HOST} server ..."
 	    $SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
-            log "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
+            echo "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
             $SSH_CMD "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
 	fi
 
@@ -707,7 +707,7 @@ restart_services_on_target() {
 }
 
 refresh_quotas() {
-            log "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
+            echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
             $SSH_CMD "quotacheck -avm >/dev/null 2>&1 && repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
 }
 
@@ -725,10 +725,10 @@ get_users_count_on_destination
 username_exists_count=$(check_username_exists)
 if [ "$username_exists_count" -gt 0 ]; then\
     if [[ $FORCE -eq 0 ]]; then
-      log "[✘] Error: Username '$USERNAME' is already taken on destination server."
+      echo "[✘] Error: Username '$USERNAME' is already taken on destination server."
       exit 1
     else
-      log "[!] Warning: Username '$USERNAME' is already taken on destination server but will be overwritten due to the --force flag."
+      echo "[!] Warning: Username '$USERNAME' is already taken on destination server but will be overwritten due to the --force flag."
     fi
 fi
 
@@ -745,7 +745,7 @@ $SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/
 
 # todo: folder just for that user!
 if [ -n "$key_value" ]; then
-  log "Syncing /var/mail ..."
+  echo "Syncing /var/mail ..."
   eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
   COMPOSE_START_MAIL=1
 fi
