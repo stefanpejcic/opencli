@@ -417,7 +417,9 @@ make_folder() {
   	# https://github.com/stefanpejcic/OpenPanel/issues/472
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
-  
+ 
+  	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/
+	chown $context_uid:$context_uid -R /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/
 }
 
 
