@@ -73,7 +73,7 @@ RSYNC_OPTS="-az" #--progress
 
 timestamp="$(date +'%Y-%m-%d_%H-%M-%S')" #used by log file name
 base_name="$(basename "$USERNAME")"
-local log_dir="/var/log/openpanel/admin/transfer"
+log_dir="/var/log/openpanel/admin/transfer"
 mkdir -p $log_dir
 log_file="$log_dir/${base_name}_${timestamp}.log"
 
