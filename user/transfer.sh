@@ -242,8 +242,7 @@ check_username_exists() {
         exit 1
     fi
 
-    # Return the count of usernames found
-    log "$user_count"
+    echo "$user_count"
 }
 
 
