@@ -137,7 +137,8 @@ format_commands() {
 	    log "SSH connection established, starting transfer process.."
 	else
 	    log "[✘] SSH connection to $REMOTE_HOST failed. Please check credentials or SSH keys."
-            log ""
+	    log "Command attempted:"
+	    log "$SSH_CMD echo 'SSH connection established, starting transfer process..'"
 	    exit 1
 	fi
  
