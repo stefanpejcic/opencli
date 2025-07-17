@@ -28,6 +28,10 @@
 # THE SOFTWARE.
 ################################################################################
 
+pid=$$
+script_dir=$(dirname "$0")
+start_time=$(date +%s) #used to calculate elapsed time at the end
+
 : '
 Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]
 '
@@ -98,6 +102,23 @@ log() {
     local message="$1"
     local timestamp=$(date +'%Y-%m-%d %H:%M:%S')
     echo "[$timestamp] $message" | tee -a "$log_file"
+}
+
+
+log_paths_are() {
+    log "Log file: $log_file"
+    log "PID: $pid"
+}
+
+success_message() {
+    end_time=$(date +%s)
+    elapsed=$(( end_time - start_time ))
+    hours=$(( elapsed / 3600 ))
+    minutes=$(( (elapsed % 3600) / 60 ))
+    seconds=$(( elapsed % 60 ))
+
+    log "Elapsed time: ${hours}h ${minutes}m ${seconds}s"
+    log "SUCCESS: Transfer process for user $USERNAME completed."
 }
 
 install_sshpass() {
@@ -808,6 +829,9 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 
 ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
 format_commands # creates rsync and sshpass commands, installs sshpass if missing
+
+log_paths_are                                                              # where will we store the progress
+
 get_server_ipv4 
 get_users_count_on_destination
 
@@ -854,4 +878,4 @@ restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
 
-log "[✔] Transfer for user $USERNAME complete"
+success_message
