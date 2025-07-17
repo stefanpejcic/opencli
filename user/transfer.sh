@@ -661,10 +661,7 @@ rsync_files_for_user() {
                 IFS=':' read -r name old_uid new_uid gid home <<< "$MAPPING_LINE"
                 if [[ "$old_uid" != "$new_uid" ]]; then
                     log "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
-                    $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"
-                fi
-            else
-                log "[WARNING] No UID mapping found in file for $USERNAME"
+                    $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"fi
             fi
             rm -f "$MAPPING_FILE"
         else
@@ -804,8 +801,8 @@ copy_docker_context() {
 }
 
 restart_services_on_target() {
-            log "Reloading services on ${REMOTE_HOST} server ..."
-	    $SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+        log "Reloading services on ${REMOTE_HOST} server ..."
+	$SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             log "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
@@ -813,7 +810,6 @@ restart_services_on_target() {
 	fi
 
 	#todo: ftp, clamav 
-  
 }
 
 refresh_quotas() {
