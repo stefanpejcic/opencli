@@ -117,6 +117,10 @@ install_sshpass() {
 }
 
 
+whitelist_remote_srv() {
+	csf -ta $REMOTE_HOST &>/dev/null
+}
+
 format_commands() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
@@ -130,6 +134,9 @@ format_commands() {
 	    RSYNC_CMD="rsync $RSYNC_OPTS -e 'ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no'"
 	    SSH_CMD="ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}" # for ssh keys!
 	fi
+
+ 	# csf
+  	whitelist_remote_srv
 
 	# test
 	log "Testing SSH connection to $REMOTE_USER@$REMOTE_HOST..."
