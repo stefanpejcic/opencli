@@ -362,24 +362,24 @@ eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 }
 
 sync_openpanel_features() {
-    LOCAL_FEATURES_DIR="/etc/openpanel/openpanel/features"
-    REMOTE_FEATURES_DIR="/etc/openpanel/openpanel/features"
+    local PLAN_FEATURE_SET
+    PLAN_FEATURE_SET=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
+    
+    local FEATURE_FILE="${PLAN_FEATURE_SET}.txt"
+    local FEATURES_DIR="/etc/openpanel/openpanel/features"
 
     log "Listing features on remote server ..."
-    REMOTE_FILES=$($SSH_CMD "ls -1 $REMOTE_FEATURES_DIR 2>/dev/null" || true)
-    REMOTE_FILE_SET=$(echo "$REMOTE_FILES" | tr '\n' ' ')
+    local REMOTE_FILES
+    REMOTE_FILES=$($SSH_CMD "ls -1 \"$FEATURES_DIR\" 2>/dev/null" || true)
 
-    log "Syncing features to remote server ..."
-    for file in "$LOCAL_FEATURES_DIR"/*; do
-        filename=$(basename "$file")
-        if [[ "$REMOTE_FILE_SET" == *" $filename "* ]]; then
-            log "[SKIP] $filename already exists on remote"
-        else
-            log "[COPY] $filename -> $REMOTE_HOST"
-            eval $RSYNC_CMD "$file" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_FEATURES_DIR}/"
-        fi
-    done
+    if echo "$REMOTE_FILES" | grep -Fxq "$FEATURE_FILE"; then
+        log "Feature set '$FEATURE_FILE' already exists on remote server"
+    else
+        log "Copying feature set '$FEATURE_FILE' to remote server"
+        eval "$RSYNC_CMD \"$FEATURES_DIR/$FEATURE_FILE\" \"${REMOTE_USER}@${REMOTE_HOST}:${FEATURES_DIR}/\""
+    fi
 }
+
 
 restore_running_containers_for_user() {
 output_file="/tmp/docker_containers_names.txt"
