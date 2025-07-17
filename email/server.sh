@@ -28,7 +28,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-set -ueo pipefail
+#set -ueo pipefail
 
 APP="opencli email-server"
 REPO="https://github.com/stefanpejcic/openmail"
