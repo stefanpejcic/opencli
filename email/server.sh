@@ -188,33 +188,98 @@ process_domains_and_start() {
     local new_volumes=""
     cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak"
 
-    for file in "$CONFIG_DIR"/*.conf; do
-        [ -L "$file" ] && continue
-        local domain
-        domain=$(basename "$file" .conf)
-        local owner
-        owner=$(opencli domains-whoowns "$domain" | awk -F "Owner of '$domain': " '{print $2}')
-        [ -z "$owner" ] && continue
-        new_volumes+="      - /home/$owner/mail/$domain/:/var/mail/$domain/\n"
-    done
+  
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- MOUNT USERS HOME DIRECTORIES ------------------"
+      echo ""
+      echo "Re-mounting mail directories for all domains:"
+      echo ""
+      echo "- DOMAINS DIRECTORY: $CONFIG_DIR" 
+      echo "- MAIL SETTINGS FILE: $COMPOSE_FILE"
+      printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
+  fi
+    
+ 
+echo "Processing domains in directory: $CONFIG_DIR"
+for file in "$CONFIG_DIR"/*.conf; do
+    echo "Processing file: $file"
+    if [ ! -L "$file" ]; then
+        # Extract the username and domain from the file name
+        BASENAME=$(basename "$file" .conf)
+	whoowns_output=$(opencli domains-whoowns "$BASENAME")
+	owner=$(echo "$whoowns_output" | awk -F "Owner of '$BASENAME': " '{print $2}')
+	if [ -n "$owner" ]; then
+	        echo "Domain $BASENAME skipped. No user."
+   	else
+	        USERNAME=$owner
+	        DOMAIN=$BASENAME
+	 
+	        DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
+	        new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
+	        echo "Mount point added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
+    	fi
 
-    awk -v vols="$new_volumes" '
-    BEGIN { in_mailserver=0 }
-    /^  mailserver:/ { in_mailserver=1; print; next }
-    /^  [a-z]/ { in_mailserver=0 }
-    {
-        if (in_mailserver && $1 == "volumes:") {
-            print vols
-            while (getline > 0) {
-                if (/^[ ]{6}-[ ]+\/home/) next
-                if (!/^[ ]{6}-/) { print $0; break }
-            }
-            in_mailserver = 0
-        } else print
-    }' "$COMPOSE_FILE.bak" > "$COMPOSE_FILE"
+    fi
+    
+done
 
-    log "Starting mailserver with updated volumes..."
-    cd "$DIR" && docker compose up -d mailserver
+if [ $? -ne 0 ]; then
+    echo "Error encountered while processing $file"
+fi
+
+  
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- EMAIL DIRECTORIES ------------------"
+      echo ""
+      printf "%b" "- DEFAULT VOLUMES + VOLUMES PER DOMAIN:\n$new_volumes"
+      echo ""
+      echo "----------------- UPDATE COMPOSE ------------------"
+      echo ""
+  fi
+  
+  
+  
+  awk -v new_volumes="$new_volumes" '
+  BEGIN { in_mailserver=0; }
+  /^  mailserver:/ { in_mailserver=1; print; next; }
+  /^  [a-z]/ { in_mailserver=0; }  # End of mailserver section if a new service starts
+  {
+      if (in_mailserver) {
+          if ($1 == "volumes:") {
+              print new_volumes
+              while (getline > 0) {
+                  if (/^[ ]{6}-[ ]+\/home/) {
+                      continue
+                  }
+                  if (!/^[ ]{6}-/) {
+                      print $0
+                      break
+                  }
+              }
+              in_mailserver=0
+          } else {
+              print
+          }
+      } else {
+          print
+      }
+  }
+  ' "$COMPOSE_FILE.bak" > "$COMPOSE_FILE"
+  
+  
+  if [ "$DEBUG" = true ]; then
+  	echo "compose.yml has been updated with the new volumes."
+      echo ""
+      echo "----------------- RESTART MAILSERVER ------------------"
+      echo ""
+  	cd $DIR && docker --context default compose  up -d mailserver
+      echo ""
+  else
+  	cd $DIR && docker --context default compose up -d mailserver >/dev/null 2>&1
+  	echo "MailServer started successfully."
+  fi
 }
 
 stop_mailserver() {
