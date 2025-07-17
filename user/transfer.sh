@@ -361,7 +361,7 @@ fi
 eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 }
 
-sync_openpanel_features() {
+copy_feature_set() {
     local PLAN_FEATURE_SET
     PLAN_FEATURE_SET=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
     
@@ -844,7 +844,7 @@ fi
 
 export_mysql
 import_mysql
-sync_openpanel_features
+copy_feature_set
 copy_user_account $USERNAME
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
@@ -862,9 +862,6 @@ fi
 # logs and stuff
 eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
 
-# todo: mysql data for user!!!!!
-
-
 store_running_containers_for_user         # export running contianers on source and copy to dest
 
 if [[ "$LIVE_TRANSFER" == true ]]; then
@@ -873,5 +870,5 @@ fi
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
-
 success_message
+exit 0
