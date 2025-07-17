@@ -232,7 +232,7 @@ set_ssl_for_mailserver() {
 	
 	if [[ $current_hostname =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	    # an IP
-	    log "Configuring mailserver to use IP address for IMAP/SMTP ..."
+	    echo "Configuring mailserver to use IP address for IMAP/SMTP ..."
 	    sed -i '/^SSL_TYPE=/c\SSL_TYPE=' "$MAILSERVER_ENV"
 	    sed -i '/^SSL_CERT_PATH=/d' "$MAILSERVER_ENV"
 	    sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
@@ -242,7 +242,7 @@ set_ssl_for_mailserver() {
 		key_path="/etc/letsencrypt/live/${current_hostname}/${current_hostname}.key"
 		
 		if [[ -f "$cert_path" && -f "$key_path" ]]; then
-		    log "Configuring mailserver to use domain $current_hostname for IMAP/SMTP ..."
+		    echo "Configuring mailserver to use domain $current_hostname for IMAP/SMTP ..."
 
 		    sed -i '/^SSL_TYPE=/c\SSL_TYPE=manual' "$MAILSERVER_ENV"
 
@@ -254,9 +254,9 @@ set_ssl_for_mailserver() {
 		        && sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$MAILSERVER_ENV" \
 		        || echo "SSL_KEY_PATH=$key_path" >> "$MAILSERVER_ENV"
 		else
-		    log "Warning: Domain $current_hostname is configured for panel access but has no SSL, it will not be used for mailserver IMAP/SMTP ..."
-		    [[ ! -f "$cert_path" ]] && log "- Missing: $cert_path"
-		    [[ ! -f "$key_path" ]] && log "- Missing: $key_path"
+		    echo "Warning: Domain $current_hostname is configured for panel access but has no SSL, it will not be used for mailserver IMAP/SMTP ..."
+		    [[ ! -f "$cert_path" ]] && echo "- Missing: $cert_path"
+		    [[ ! -f "$key_path" ]] && echo "- Missing: $key_path"
 		fi
 	fi
  }
