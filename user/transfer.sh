@@ -661,7 +661,8 @@ rsync_files_for_user() {
                 IFS=':' read -r name old_uid new_uid gid home <<< "$MAPPING_LINE"
                 if [[ "$old_uid" != "$new_uid" ]]; then
                     log "UID changed for $USERNAME (from $old_uid to $new_uid), performing chown on remote host ..."
-                    $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"fi
+                    $SSH_CMD "chown -R $new_uid:$gid /home/$USERNAME"
+		fi
             fi
             rm -f "$MAPPING_FILE"
         else
