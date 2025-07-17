@@ -94,7 +94,7 @@ timestamp="$(date +'%Y-%m-%d_%H-%M-%S')" #used by log file name
 base_name="$(basename "$USERNAME")"
 log_dir="/var/log/openpanel/admin/transfers"
 mkdir -p $log_dir
-log_file="$log_dir/${base_name}_${timestamp}.log"
+log_file="$log_dir/${base_name}_${REMOTE_HOST}_${timestamp}.log"
 
 echo "Import started, log file: $log_file"
 
