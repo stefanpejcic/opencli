@@ -206,19 +206,22 @@ configure_mailserver() {
         local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
         local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
         
-        sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
-        
-        # Update or add SSL paths
-        if grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV"; then
-            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$MAILSERVER_ENV"
+        if [[ -f "$cert_path" && -f "$key_path" ]]; then
+            sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
+            # Update or add SSL paths
+            if grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV"; then
+                sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$MAILSERVER_ENV"
+            else
+                echo "SSL_CERT_PATH=$cert_path" >> "$MAILSERVER_ENV"
+            fi
+            
+            if grep -q '^SSL_KEY_PATH=' "$MAILSERVER_ENV"; then
+                sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$MAILSERVER_ENV"
+            else
+                echo "SSL_KEY_PATH=$key_path" >> "$MAILSERVER_ENV"
+            fi
         else
-            echo "SSL_CERT_PATH=$cert_path" >> "$MAILSERVER_ENV"
-        fi
-        
-        if grep -q '^SSL_KEY_PATH=' "$MAILSERVER_ENV"; then
-            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$MAILSERVER_ENV"
-        else
-            echo "SSL_KEY_PATH=$key_path" >> "$MAILSERVER_ENV"
+            log_debug "WARNING: SSL files dont exists for domain, will not be configured for mailserver!"
         fi
     fi
     
@@ -239,11 +242,17 @@ configure_roundcube() {
         sed -i 's|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|' "$ROUNDCUBE_COMPOSE"
     else
         log_debug "Configuring Roundcube for TLS/SSL authentication"
-        
-        sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
-        sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$ROUNDCUBE_COMPOSE"
-        sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
-        sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$ROUNDCUBE_COMPOSE"
+            local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
+            local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
+            
+            if [[ -f "$cert_path" && -f "$key_path" ]]; then
+                sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
+                sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$ROUNDCUBE_COMPOSE"
+                sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
+                sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$ROUNDCUBE_COMPOSE"
+            else
+                log_debug "WARNING: SSL files dont exists for domain, will not be configured for roundcube!"
+            fi
     fi
     
     log_debug "Restarting Roundcube to apply new configuration"
@@ -302,10 +311,10 @@ update_domain() {
     # Execute all update steps
     update_caddyfile || return 1
     create_mv_file || return 1
-    configure_mailserver || return 1
-    configure_roundcube || return 1
     update_redirects || return 1
     restart_services "$@" || return 1
+    configure_mailserver || return 1
+    configure_roundcube || return 1    
     show_success_message
 }
 
