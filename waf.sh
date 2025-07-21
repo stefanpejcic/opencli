@@ -40,7 +40,7 @@ usage() {
     echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
     echo "  tags                                                Display all tags from enabled sets."
     echo "  ids                                                 Display all rule IDs from enabled sets."
-    echo "  update-rules                                        Update OWASP CRS."
+    echo "  update                                              Update OWASP CRS."
     echo "  stats <country|agent|hourly|ip|request|path> Display top requests by countr, ip, path, etc."
     echo ""
     echo "Examples:"
@@ -234,7 +234,7 @@ case "$1" in
     "disable")
         disable_coraza_waf
         ;;
-    "update-rules")
+    "update")
         update_owasp_rules
         ;;        
     "stats")
