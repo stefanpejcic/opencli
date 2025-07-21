@@ -202,11 +202,11 @@ configure_mailserver() {
         sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
     else
         log_debug "Configuring mailserver for TLS/SSL authentication with domain"
-        
-        local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
-        local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
-        
-        if [[ -f "$cert_path" && -f "$key_path" ]]; then
+
+        local cert_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
+        local key_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
+
+        if [[ -f "$cert_path_on_hosts" && -f "$key_path_on_hosts" ]]; then
             sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
             # Update or add SSL paths
             if grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV"; then
@@ -242,10 +242,13 @@ configure_roundcube() {
         sed -i 's|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|' "$ROUNDCUBE_COMPOSE"
     else
         log_debug "Configuring Roundcube for TLS/SSL authentication"
-            local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
-            local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
-            
-            if [[ -f "$cert_path" && -f "$key_path" ]]; then
+            #local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
+            #local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
+
+            local cert_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
+            local key_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
+
+            if [[ -f "$cert_path_on_hosts" && -f "$key_path_on_hosts" ]]; then
                 sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
                 sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$ROUNDCUBE_COMPOSE"
                 sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
