@@ -210,7 +210,7 @@ configure_mailserver() {
             sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
             # Update or add SSL paths
             if grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV"; then
-                sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$MAILSERVER_ENV"
+                sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path_on_hosts|" "$MAILSERVER_ENV"
             else
                 echo "SSL_CERT_PATH=$cert_path" >> "$MAILSERVER_ENV"
             fi
@@ -218,7 +218,7 @@ configure_mailserver() {
             if grep -q '^SSL_KEY_PATH=' "$MAILSERVER_ENV"; then
                 sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$MAILSERVER_ENV"
             else
-                echo "SSL_KEY_PATH=$key_path" >> "$MAILSERVER_ENV"
+                echo "SSL_KEY_PATH=$key_path_on_hosts" >> "$MAILSERVER_ENV"
             fi
         else
             log_debug "WARNING: SSL files dont exists for domain, will not be configured for mailserver!"
