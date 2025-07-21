@@ -212,11 +212,11 @@ configure_mailserver() {
             if grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV"; then
                 sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path_on_hosts|" "$MAILSERVER_ENV"
             else
-                echo "SSL_CERT_PATH=$cert_path" >> "$MAILSERVER_ENV"
+                echo "SSL_CERT_PATH=$cert_path_on_hosts" >> "$MAILSERVER_ENV"
             fi
             
             if grep -q '^SSL_KEY_PATH=' "$MAILSERVER_ENV"; then
-                sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$MAILSERVER_ENV"
+                sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path_on_hosts|" "$MAILSERVER_ENV"
             else
                 echo "SSL_KEY_PATH=$key_path_on_hosts" >> "$MAILSERVER_ENV"
             fi
