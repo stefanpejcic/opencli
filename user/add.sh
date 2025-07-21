@@ -109,6 +109,7 @@ hard_cleanup() {
   rm -rf /etc/openpanel/openpanel/core/users/$username
   docker context rm $username  > /dev/null 2>&1
   quotacheck -avm >/dev/null 2>&1
+  mkdir -p /etc/openpanel/openpanel/core/users/
   repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
   exit 1
 }
@@ -1439,6 +1440,7 @@ send_email_to_new_user() {
 
 reload_user_quotas() {
     quotacheck -avm >/dev/null 2>&1
+    mkdir -p /etc/openpanel/openpanel/core/users/
     repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
 }
 
