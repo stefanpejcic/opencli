@@ -245,8 +245,8 @@ configure_roundcube() {
             #local cert_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.crt"
             #local key_path="/etc/letsencrypt/live/${new_hostname}/${new_hostname}.key"
 
-            local cert_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
-            local key_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
+            local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
+            local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
 
             if [[ -f "$cert_path_on_hosts" && -f "$key_path_on_hosts" ]]; then
                 sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$ROUNDCUBE_COMPOSE"
