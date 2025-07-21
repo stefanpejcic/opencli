@@ -343,6 +343,18 @@ parse_arguments() {
     done
 }
 
+
+check_domain_not_added_by_user(){
+  whoowns_output=$(opencli domains-whoowns "$new_hostname")
+  owner=$(echo "$whoowns_output" | awk -F "Owner of '$new_hostname': " '{print $2}')
+  
+    if [ -n "$owner" ]; then
+        echo "ERROR: Domain $new_hostname is already in used by an OpenPanel account: $owner"
+        exit 1
+    fi
+}
+
+
 # Main function
 main() {
     parse_arguments "$@"
@@ -365,6 +377,7 @@ main() {
             fi
             
             new_hostname="$2"
+            check_domain_not_added_by_user
             log_debug "Setting domain to: $new_hostname"
             update_domain "$@"
             ;;
