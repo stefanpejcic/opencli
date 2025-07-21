@@ -235,7 +235,19 @@ case "$1" in
         disable_coraza_waf
         ;;
     "update")
-        update_owasp_rules
+        if [[ -z "$2" ]]; then    
+            update_owasp_rules
+        else
+            case "$2" in
+                "log")
+                    cd /etc/openpanel/caddy/coreruleset/ && git log --oneline
+                    ;;
+                *)
+                    echo "Invalid action, available: opencli waf-update and opencli waf-update log"
+                    exit 1
+                    ;;
+            esac
+        fi      
         ;;        
     "stats")
         get_stats_from_file $2
