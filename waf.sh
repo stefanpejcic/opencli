@@ -40,6 +40,7 @@ usage() {
     echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
     echo "  tags                                                Display all tags from enabled sets."
     echo "  ids                                                 Display all rule IDs from enabled sets."
+    echo "  update-rules                                        Update OWASP CRS."
     echo "  stats <country|agent|hourly|ip|request|path> Display top requests by countr, ip, path, etc."
     echo ""
     echo "Examples:"
@@ -178,6 +179,26 @@ get_count_from_file() {
 }
 
 
+update_owasp_rules() {
+  cd /etc/openpanel/caddy/coreruleset/ || { echo "Failed to enter modsec directory: /etc/openpanel/caddy/coreruleset/"; return 1; }
+  
+  for f in rules/*.conf.disabled; do
+    original="${f%.disabled}"
+    echo "- Excluding disabled ruleset $original"
+    git update-index --assume-unchanged "$original"
+  done
+
+  echo "Updating OWASP CRS.."
+  
+  if git pull --quiet; then
+    echo "Update successful."
+  else
+    echo "Update failed."
+    return 1
+  fi
+}
+
+
 
 # MAIN
 case "$1" in
@@ -213,6 +234,9 @@ case "$1" in
     "disable")
         disable_coraza_waf
         ;;
+    "update-rules")
+        update_owasp_rules
+        ;;        
     "stats")
         get_stats_from_file $2
         ;;
