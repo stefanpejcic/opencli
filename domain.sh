@@ -345,13 +345,31 @@ parse_arguments() {
 
 
 check_domain_not_added_by_user(){
-  whoowns_output=$(opencli domains-whoowns "$new_hostname")
-  owner=$(echo "$whoowns_output" | awk -F "Owner of '$new_hostname': " '{print $2}')
-  
-    if [ -n "$owner" ]; then
-        echo "ERROR: Domain $new_hostname is already in used by an OpenPanel account: $owner"
-        exit 1
-    fi
+
+    compare_with_forbidden_domains_list() {
+        local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
+        local domain_name="$1"
+        local forbidden_domains=()
+    
+        # Check forbidden domains list
+        if [ -f "forbidden_domains.txt" ]; then
+            log "Checking domain against forbidden_domains list"
+            mapfile -t forbidden_domains < forbidden_domains.txt
+            if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
+                echo "ERROR: $domain_name is a forbidden domain."
+                exit 1
+            fi    
+        fi
+    }
+
+if opencli domains-whoowns "$new_hostname" | grep -q "not found in the database."; then
+    compare_with_forbidden_domains_list $new_hostname
+    # todo: also check https://github.com/stefanpejcic/opencli/blob/9bf6ef2567160ac8086652e70aac73e8f7bc03e2/domains/add.sh#L255
+else
+    echo "ERROR: Domain $new_hostname is already in used by an OpenPanel account."
+    exit 1
+fi
+    
 }
 
 
