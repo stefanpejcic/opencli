@@ -203,8 +203,8 @@ configure_mailserver() {
     else
         log_debug "Configuring mailserver for TLS/SSL authentication with domain"
 
-        local cert_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
-        local key_path_on_hosts=" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
+        local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.crt"
+        local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${new_hostname}/${new_hostname}.key"
 
         if [[ -f "$cert_path_on_hosts" && -f "$key_path_on_hosts" ]]; then
             sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
