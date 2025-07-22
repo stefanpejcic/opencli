@@ -39,7 +39,7 @@ run_for_user() {
         context=$username
     fi
     
-    cd /home/$context/ && docker --context=$context compose run backup backup
+    cd /home/$context/ && docker --context=$context compose run --remove-orphans --rm --entrypoint backup backup
 }
 
 # Function to process a single user
