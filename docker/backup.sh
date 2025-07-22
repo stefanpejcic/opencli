@@ -47,7 +47,7 @@ process_user() {
     local username="$1"
     local success=true
     
-    log "Processing user: $username"
+    echo "Processing user: $username"
 
     # get context and run backup
     if ! run_for_user "$username"; then
@@ -77,14 +77,14 @@ process_all_users() {
     local users user_count current_index=1
     local failed_users=()
     
-    log "Fetching list of active users..."
+    echo "Fetching list of active users..."
     
     if ! users=$(get_active_users); then
         return 1
     fi
     
     user_count=$(echo "$users" | wc -w)
-    log "Found $user_count active users to process"
+    echo "Found $user_count active users to process"
     
     # Process each user
     for user in $users; do
@@ -100,7 +100,7 @@ process_all_users() {
     
     # Report results
     if [[ ${#failed_users[@]} -eq 0 ]]; then
-        log "Successfully processed all $user_count users"
+        echo "Successfully processed all $user_count users"
     else
         log_error "Failed to process ${#failed_users[@]} users: ${failed_users[*]}"
         return 1
