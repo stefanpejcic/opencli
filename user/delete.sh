@@ -169,15 +169,15 @@ delete_ftp_users() {
     users_dir="/etc/openpanel/ftp/users"
     users_file="${users_dir}/${openpanel_username}/users.list"
 
-    # Check if the users file exists
-    if [[ -f "$users_file" ]]; then
-        echo "Checking and removing user's FTP sub-accounts"
-        # Loop through each line in the users.list file
-        while IFS='|' read -r username password directories; do
-            # Run the opencli command for each username
-            echo "Deleting FTP user: $username"
-            opencli ftp-delete "$username" "$openpanel_username"
-        done < "$users_file"
+    if [[ -d "$users_dir" ]]; then
+	    if [[ -f "$users_file" ]]; then
+		echo "Checking and removing user's FTP sub-accounts"
+		while IFS='|' read -r username password directories; do
+		    echo "Deleting FTP user: $username"
+		    opencli ftp-delete "$username" "$openpanel_username"
+		done < "$users_file"
+	    fi
+     	rm -rf $users_dir
     fi
 }
 
