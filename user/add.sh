@@ -530,7 +530,7 @@ ssh -q  $key_flag root@$node_ip_address << EOF
   if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
-    # Check for the package manager and install sshfs accordingly
+    # Check for the package manager and install accordingly
     if command -v apt-get &> /dev/null; then
       export DEBIAN_FRONTEND=noninteractive
       apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap
@@ -573,21 +573,19 @@ scp $key_flag \
     -r /etc/openpanel root@$node_ip_address:/etc/openpanel
 
     # mount home dir on master
-    if command -v sshfs &> /dev/null; then
-    	:
-    else
-	    # Check for the package manager and install sshfs accordingly
+	if ! command -v sshfs &> /dev/null; then
+	    # SSHFS is NOT installed — install it
 	    if command -v apt-get &> /dev/null; then
-	      apt-get install -y sshfs
+		apt-get install -y sshfs
 	    elif command -v dnf &> /dev/null; then
-	      dnf install -y sshfs
+		dnf install -y sshfs
 	    elif command -v yum &> /dev/null; then
-	      yum install -y sshfs
+		yum install -y sshfs
 	    else
-	      echo "[✘] ERROR: Unable to setup the slave server. Contact support."
-	      exit 1
+		echo "[✘] ERROR: Unable to setup sshfs on master server. Contact support."
+		exit 1
 	    fi
-    fi
+	fi
 
     sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
  
