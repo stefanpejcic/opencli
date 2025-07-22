@@ -542,11 +542,8 @@ ssh -q  $key_flag root@$node_ip_address << EOF
       echo "[✘] ERROR: Unable to setup the slave server. Contact support."
       exit 1
     fi
-    mkdir -p /etc/openpanel
-    git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
   fi
 EOF
-
 
 # https://docs.docker.com/engine/security/rootless/#limiting-resources
 ssh -q  $key_flag root@$node_ip_address << 'EOF'
@@ -568,9 +565,12 @@ EOF
 
 
 
-# TODO:
-#  scp -r /etc/openpanel root@$node_ip_address:/etc/openpanel
-# sync conf from master to slave!
+# todo: test
+scp $key_flag \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o BatchMode=yes \
+    -r /etc/openpanel root@$node_ip_address:/etc/openpanel
 
     # mount home dir on master
     if command -v sshfs &> /dev/null; then
