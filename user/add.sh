@@ -508,88 +508,78 @@ fi
 #
 #
 
-
 sshfs_mounts() {
     if [ -n "$node_ip_address" ]; then
 
-
-ssh -q $key_flag root@$node_ip_address << EOF
-  if [ ! -d "/etc/openpanel/openpanel" ]; then
-	echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
-	echo "AuthorizedKeysFile     .ssh/authorized_keys" >> /etc/ssh/sshd_config
-	service ssh restart
+        ssh -q $key_flag root@$node_ip_address << EOF
+if [ ! -d "/etc/openpanel/openpanel" ]; then
+    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+    echo "AuthorizedKeysFile     .ssh/authorized_keys" >> /etc/ssh/sshd_config
+    service ssh restart
 fi
 EOF
 
-	sleep 5
+        sleep 5
 
-# mount openpanel dir on slave
-
-# SSH into the slave server and check if /etc/openpanel exists
-ssh -q  $key_flag root@$node_ip_address << EOF
-  if [ ! -d "/etc/openpanel/openpanel" ]; then
+        ssh -q $key_flag root@$node_ip_address << EOF
+if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
-    # Check for the package manager and install accordingly
     if command -v apt-get &> /dev/null; then
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap
     elif command -v dnf &> /dev/null; then
-      dnf install -y systemd-container uidmap
+        dnf install -y systemd-container uidmap
     elif command -v yum &> /dev/null; then
-      yum install -y systemd-container uidmap
+        yum install -y systemd-container uidmap
     else
-      echo "[✘] ERROR: Unable to setup the slave server. Contact support."
-      exit 1
+        echo "[✘] ERROR: Unable to setup the slave server. Contact support."
+        exit 1
     fi
-  fi
+fi
 EOF
 
-# https://docs.docker.com/engine/security/rootless/#limiting-resources
-ssh -q  $key_flag root@$node_ip_address << 'EOF'
- 
-  if [ ! -d "/etc/openpanel/openpanel" ]; then
+        ssh -q $key_flag root@$node_ip_address << 'EOF'
+if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Adding permissions for users to limit CPU% - more info: https://docs.docker.com/engine/security/rootless/#limiting-resources"
-  
+
     mkdir -p /etc/systemd/system/user@.service.d
-  
+
     cat > /etc/systemd/system/user@.service.d/delegate.conf << 'INNER_EOF'
 [Service]
 Delegate=cpu cpuset io memory pids
 INNER_EOF
 
     systemctl daemon-reload
-  fi
-
+fi
 EOF
 
+        scp $key_flag \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o BatchMode=yes \
+            -r /etc/openpanel root@$node_ip_address:/etc/openpanel
 
+        # mount home dir on master
+        if ! command -v sshfs &> /dev/null; then
+            # SSHFS is NOT installed — install it
+            if command -v apt-get &> /dev/null; then
+                apt-get install -y sshfs
+            elif command -v dnf &> /dev/null; then
+                dnf install -y sshfs
+            elif command -v yum &> /dev/null; then
+                yum install -y sshfs
+            else
+                echo "[✘] ERROR: Unable to setup sshfs on master server. Contact support."
+                exit 1
+            fi
+        fi
 
-# todo: test
-scp $key_flag \
-    -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null \
-    -o BatchMode=yes \
-    -r /etc/openpanel root@$node_ip_address:/etc/openpanel
-
-    # mount home dir on master
-	if ! command -v sshfs &> /dev/null; then
-	    # SSHFS is NOT installed — install it
-	    if command -v apt-get &> /dev/null; then
-		apt-get install -y sshfs
-	    elif command -v dnf &> /dev/null; then
-		dnf install -y sshfs
-	    elif command -v yum &> /dev/null; then
-		yum install -y sshfs
-	    else
-		echo "[✘] ERROR: Unable to setup sshfs on master server. Contact support."
-		exit 1
-	    fi
-	fi
-
-    sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
- 
+        sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
+    fi
 }
+
+
 
 #Get CPU, DISK, INODES and RAM limits for the plan
 get_plan_info_and_check_requirements() {
