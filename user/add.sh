@@ -544,6 +544,7 @@ ssh -q  $key_flag root@$node_ip_address << EOF
     fi
     mkdir -p /etc/openpanel
     git clone https://github.com/stefanpejcic/OpenPanel-configuration /etc/openpanel
+  fi
 EOF
 
 
@@ -574,6 +575,8 @@ EOF
     # mount home dir on master
     if command -v sshfs &> /dev/null; then
     	:
+     	echo "[✘] ERROR: Unable to setup sshfs on master server. Contact support."
+      	exit 1
     else
 	    # Check for the package manager and install sshfs accordingly
 	    if command -v apt-get &> /dev/null; then
@@ -587,9 +590,8 @@ EOF
 	      exit 1
 	    fi
     fi
-	sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
 
-fi
+    sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
  
 }
 
