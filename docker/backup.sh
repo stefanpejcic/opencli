@@ -64,7 +64,7 @@ get_active_users() {
     users=$(opencli user-list --json 2>/dev/null | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
     
     if [[ -z "$users" ]] || [[ "$users" == "No users." ]]; then
-        log_error "No active users found in the database"
+        echo "No active users found in the database"
         return 1
     fi
     
@@ -102,7 +102,7 @@ process_all_users() {
     if [[ ${#failed_users[@]} -eq 0 ]]; then
         echo "Successfully processed all $user_count users"
     else
-        log_error "Failed to process ${#failed_users[@]} users: ${failed_users[*]}"
+        echo "Failed to process ${#failed_users[@]} users: ${failed_users[*]}"
         return 1
     fi
     
