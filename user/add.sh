@@ -181,7 +181,7 @@ check_if_default_slave_server_is_set         # we run it before parse_flags so i
 		    ;;
 		--key=*)
 	             key="${arg#*=}"
-		     key_flag="-i $key"
+		     key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
 	            ;;
 	        --sql=*)
 	            sql_type="${arg#*=}"
