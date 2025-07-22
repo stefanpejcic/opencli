@@ -575,8 +575,6 @@ scp $key_flag \
     # mount home dir on master
     if command -v sshfs &> /dev/null; then
     	:
-     	echo "[✘] ERROR: Unable to setup sshfs on master server. Contact support."
-      	exit 1
     else
 	    # Check for the package manager and install sshfs accordingly
 	    if command -v apt-get &> /dev/null; then
