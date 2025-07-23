@@ -704,6 +704,8 @@ validate_ssh_login(){
 	                ssh -i "$key_flag" "$node_ip_address" "exit" &> /dev/null
 	                if [ $? -eq 0 ]; then
 	                    log "SSH connection successfully established"
+	                    csf -a "$node_ip_address" > /dev/null 2>&1
+	                    # TODO: whitelist on remote also
 	                else
 	                    echo "ERROR: SSH connection failed to $node_ip_address"
 		     	    exit 1
