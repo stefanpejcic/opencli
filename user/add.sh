@@ -575,7 +575,8 @@ EOF
             fi
         fi
 
-        sshfs -o IdentityFile=~/.ssh/$node_ip_address root@$node_ip_address:/home/$username /home/$username
+	sshfs -o IdentityFile="/root/.ssh/$node_ip_address",StrictHostKeyChecking=no root@$node_ip_address:/home/$username /home/$username
+
     fi
 }
 
