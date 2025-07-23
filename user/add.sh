@@ -1194,13 +1194,25 @@ run_docker() {
 
     # todo: better validation!
     if validate_port "$FIRST_NEXT_AVAILABLE" && validate_port "$SECOND_NEXT_AVAILABLE" && validate_port "$THIRD_NEXT_AVAILABLE" && validate_port "$FOURTH_NEXT_AVAILABLE" && validate_port "$FIFTH_NEXT_AVAILABLE" && validate_port "$SIXTH_NEXT_AVAILABLE" && validate_port "$SEVENTH_NEXT_AVAILABLE"; then
-	port_1="$FIRST_NEXT_AVAILABLE:22"
-	port_2="$SECOND_NEXT_AVAILABLE:3306"
-	port_3="$THIRD_NEXT_AVAILABLE:7681"
-	port_4="$FOURTH_NEXT_AVAILABLE:80"
-	port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:80"
-        port_6="127.0.0.1:$SIXTH_NEXT_AVAILABLE:443"
-	port_7="127.0.0.1:$SEVENTH_NEXT_AVAILABLE:80"
+
+	if [ -n "$node_ip_address" ]; then
+		port_1="$node_ip_address:$FIRST_NEXT_AVAILABLE:22"
+		port_2="$node_ip_address:$SECOND_NEXT_AVAILABLE:3306"
+		port_3="$node_ip_address:$THIRD_NEXT_AVAILABLE:7681"
+		port_4="$node_ip_address:$FOURTH_NEXT_AVAILABLE:80"
+		port_5="$node_ip_address:$FIFTH_NEXT_AVAILABLE:80"
+	        port_6="$node_ip_address:$SIXTH_NEXT_AVAILABLE:443"
+		port_7="$node_ip_address:$SEVENTH_NEXT_AVAILABLE:80"
+	  else
+		port_1="$FIRST_NEXT_AVAILABLE:22"
+		port_2="$SECOND_NEXT_AVAILABLE:3306"
+		port_3="$THIRD_NEXT_AVAILABLE:7681"
+		port_4="$FOURTH_NEXT_AVAILABLE:80"
+		port_5="127.0.0.1:$FIFTH_NEXT_AVAILABLE:80"
+	        port_6="127.0.0.1:$SIXTH_NEXT_AVAILABLE:443"
+		port_7="127.0.0.1:$SEVENTH_NEXT_AVAILABLE:80"
+	fi
+ 
     else
 	port_1=""
 	port_2=""
