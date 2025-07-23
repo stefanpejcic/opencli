@@ -511,13 +511,14 @@ fi
 sshfs_mounts() {
     if [ -n "$node_ip_address" ]; then
 
-        ssh -q $key_flag root@$node_ip_address << EOF
+	ssh -q -o LogLevel=ERROR $key_flag root@$node_ip_address << 'EOF' 2>/dev/null
 if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
     echo "AuthorizedKeysFile     .ssh/authorized_keys" >> /etc/ssh/sshd_config
-    service ssh restart
+    service ssh restart > /dev/null 2>&1
 fi
 EOF
+
 
         sleep 5
 
