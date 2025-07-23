@@ -700,7 +700,7 @@ validate_ssh_login(){
     	if [ "$DEBUG" = true ]; then
 	        if [ -f "$key" ]; then	
 	            if [ "$(stat -c %a "$key")" -eq 600 ]; then	                
-	                ssh -i "$key" "$node_ip_address" "exit" &> /dev/null
+	                ssh -i "$key_flag" "$node_ip_address" "exit" &> /dev/null
 	                if [ $? -eq 0 ]; then
 	                    log "SSH connection successfully established"
 	                else
