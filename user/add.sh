@@ -152,7 +152,7 @@ check_if_default_slave_server_is_set() {
 		 if [[ -n "$default_ssh_key_path" ]]; then
 	              server=$default_node
 		      key=$default_ssh_key_path
-	              echo 'Using default node "$server" and ssh key path'
+	              echo "Using default node "$server" and ssh key path"
 		 fi
 	fi
 
@@ -704,7 +704,7 @@ validate_ssh_login(){
 	                if [ $? -eq 0 ]; then
 	                    log "SSH connection successfully established"
 	                else
-	                    echo 'ERROR: SSH connection failed to $node_ip_address'
+	                    echo "ERROR: SSH connection failed to $node_ip_address"
 		     	    exit 1
 	                fi
 	            else
@@ -712,7 +712,7 @@ validate_ssh_login(){
 	                chmod 600 "$key"
 	            fi
 	        else
-	            echo 'ERROR: Provided ssh key path: "$key" does not exist.'
+	            echo "ERROR: Provided ssh key path: "$key" does not exist."
 	     	# TODO: GENERATE OTHERWISE!
 		#ssh-keygen -t rsa -b 4096 -f ~/.ssh/${username}context
 		# ssh-copy-id $username@$hostname+IPPPPP      
