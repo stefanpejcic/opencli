@@ -832,32 +832,30 @@ create_user_set_quota_and_password() {
 }
 
 install_docker_and_add_user() {
-    echo "Checking if Docker is installed on $node_ip_address..."
+    log "Checking if Docker is installed on $node_ip_address..."
 
     ssh $key_flag root@"$node_ip_address" "command -v docker >/dev/null 2>&1"
     if [ $? -ne 0 ]; then
-        echo "Docker is not installed. Installing Docker on $node_ip_address..."
+        log "Docker is not installed. Installing Docker on $node_ip_address..."
         ssh $key_flag root@"$node_ip_address" bash -c "'
           set -e
           apt update
           apt install -y docker.io
           systemctl enable --now docker
         '"
-        echo "Docker installed."
+        log "Docker installed on destination server."
     else
-        echo "Docker is already installed."
+        log "Docker is already installed on destination server."
     fi
 
-    echo "Adding user '$username' to docker group on $node_ip_address..."
+    log "Adding user '$username' to docker group on $node_ip_address..."
     ssh $key_flag root@"$node_ip_address" bash -c "'
       if id -nG \"$username\" | grep -qw docker; then
-        echo \"User $username is already in docker group.\"
+        :
       else
         usermod -aG docker \"$username\" && echo \"User $username added to docker group.\"
       fi
     '"
-
-    echo "Done. The user '$username' may need to log out and back in for changes to take effect."
 }
 
 
