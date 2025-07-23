@@ -1154,25 +1154,12 @@ run_docker() {
       
       local found_ports=()
                   
-        if [ -n "$node_ip_address" ]; then
-            # TODO: Use a custom user or configure SSH instead of using root
-            ssh $key_flag "root@$node_ip_address" '
-		declare -a found_ports=()
-		for ((i=1; i<=7; i++)); do
-		    port=$((min_port + i))
-		    found_ports+=("$port")
-		done
-		        
-              echo "${found_ports[@]}"
-            '
-        else
-		declare -a found_ports=()
-		for ((i=1; i<=7; i++)); do
-		    port=$((min_port + i))
-		    found_ports+=("$port")
-		done
-            echo "${found_ports[@]}"
-        fi
+	declare -a found_ports=()
+	for ((i=1; i<=7; i++)); do
+	    port=$((min_port + i))
+	    found_ports+=("$port")
+	done
+        echo "${found_ports[@]}"
 
 
 
