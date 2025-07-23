@@ -521,23 +521,24 @@ EOF
 
         sleep 5
 
-        ssh -q $key_flag root@$node_ip_address << EOF
+	ssh -q -o LogLevel=ERROR $key_flag root@$node_ip_address << 'EOF' 2>/dev/null
 if [ ! -d "/etc/openpanel/openpanel" ]; then
     echo "Node is not yet configured to be used as an OpenPanel slave server. Configuring.."
 
     if command -v apt-get &> /dev/null; then
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap
+        apt-get update > /dev/null 2>&1 && apt-get -yq install systemd-container uidmap > /dev/null 2>&1
     elif command -v dnf &> /dev/null; then
-        dnf install -y systemd-container uidmap
+        dnf install -y systemd-container uidmap > /dev/null 2>&1
     elif command -v yum &> /dev/null; then
-        yum install -y systemd-container uidmap
+        yum install -y systemd-container uidmap > /dev/null 2>&1
     else
         echo "[✘] ERROR: Unable to setup the slave server. Contact support."
         exit 1
     fi
 fi
 EOF
+
 
         ssh -q $key_flag root@$node_ip_address << 'EOF'
 if [ ! -d "/etc/openpanel/openpanel" ]; then
@@ -652,14 +653,13 @@ setup_ssh_key(){
 	log "Setting ssh key.."
  
  	public_key=$(ssh-keygen -y -f "$key")
-ssh $key_flag root@$node_ip_address << EOF
-  mkdir -p /home/$username/.ssh/ > /dev/null 2>&1
-  touch  /home/$username/.ssh/authorized_keys > /dev/null 2>&1
-  chown $username -R /home/$username/.ssh > /dev/null 2>&1
-  if ! grep -q "$public_key" /home/$username/.ssh/authorized_keys; then
-    echo "$public_key" >> /home/$username/.ssh/authorized_keys
-  fi
-  
+ssh -q -o LogLevel=ERROR $key_flag root@$node_ip_address << EOF 2>/dev/null
+mkdir -p /home/$username/.ssh > /dev/null 2>&1
+touch /home/$username/.ssh/authorized_keys > /dev/null 2>&1
+chown $username -R /home/$username/.ssh > /dev/null 2>&1
+if ! grep -q "$public_key" /home/$username/.ssh/authorized_keys 2>/dev/null; then
+  echo "$public_key" >> /home/$username/.ssh/authorized_keys
+fi
 EOF
 
 mkdir ~/.ssh  > /dev/null 2>&1
@@ -799,13 +799,15 @@ create_remote_user() {
  	fi
   	
    	if [ -n "$node_ip_address" ]; then
-                    log "Creating user $username on server $node_ip_address"
-                    ssh $key_flag "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" #-s /bin/bash needed for sourcing 
-		    user_id=$(ssh $key_flag "root@$node_ip_address" "id -u $username")
-			if [ $? -ne 0 ]; then
-			    echo "Error: Failed creating linux user $username on node: $node_ip_address"
-			    exit 1
-			fi
+                log "Creating user $username on server $node_ip_address"
+		ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" >/dev/null 2>&1
+		
+		user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
+		
+		if [ $? -ne 0 ]; then
+		    echo "Error: Failed creating linux user $username on node: $node_ip_address"
+		    exit 1
+      		fi
 	fi
  
 
@@ -911,7 +913,7 @@ sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
 
    	if [ -n "$node_ip_address" ]; then
 log "Setting AppArmor profile.."
-ssh $key_flag root@$node_ip_address <<'EOF1'
+ssh -q -o LogLevel=ERROR $key_flag root@$node_ip_address <<'EOF1' 2>/dev/null
 
 cat > "/etc/apparmor.d/home.$username.bin.rootlesskit" <<'EOT1'
 abi <abi/4.0>,
