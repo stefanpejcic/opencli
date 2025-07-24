@@ -166,7 +166,7 @@ verify_onion_files() {
 start_tor_for_user() {
 	if [ $(docker --context $context ps -q -f name=tor) ]; then
  	    log "Tor service is already running, restarting to apply new service configuration"
-		docker --context $context restart tor >/dev/null 2>&1
+  		nohup sh -c "cd /hostfs/home/$context/ && docker --context $context restart tor" </dev/null >nohup.out 2>nohup.err &
 	else
 	    log "Starting Tor service.."
 	    nohup sh -c "cd /hostfs/home/$context/ && docker --context $context  compose up -d tor" </dev/null >nohup.out 2>nohup.err &
@@ -531,10 +531,10 @@ vhost_files_create() {
   	
    	if [ "$VARNISH" = true ]; then
 	       log "Starting $ws and Varnish containers.."
-	       docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d $ws varnish > /dev/null 2>&1 
+	       nohup sh -c "cd /hostfs/home/$context/ && docker compose -f /hostfs/home/$context/docker-compose.yml up -d $ws varnish" </dev/null >nohup.out 2>nohup.err &
        else
 	       log "Starting $ws container.."
-	       docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d $ws > /dev/null 2>&1     
+	       nohup sh -c "cd /hostfs/home/$context/ && docker compose -f /hostfs/home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
        fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
@@ -551,8 +551,7 @@ vhost_files_create() {
 	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
 	  $vhost_in_docker_file
        
-       docker --context $context restart $ws > /dev/null 2>&1
-
+       nohup sh -c "cd /hostfs/home/$context/ && docker --context $context restart $ws" </dev/null >nohup.out 2>nohup.err &
  
 }
 
