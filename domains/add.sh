@@ -170,7 +170,7 @@ start_tor_for_user() {
 	else
 	    log "Starting Tor service.."
 	    nohup sh -c "cd /hostfs/home/$context/ && docker --context $context  compose up -d tor" </dev/null >nohup.out 2>nohup.err &
-     	fi  
+     	fi
 }
 
 
@@ -531,18 +531,9 @@ vhost_files_create() {
   	
 	if [ "$VARNISH" = true ]; then
 	    log "Starting $ws and Varnish containers.."
-	    (
-	        cd "/hostfs/home/$context/" || exit 1
-	        /usr/bin/nohup docker compose -f "docker-compose.yml" up -d "$ws" varnish \
-	            > nohup.out 2> nohup.err < /dev/null &
-	    )
+            nohup sh -c "docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d ${ws} varnish" </dev/null >nohup.out 2>nohup.err &
 	else
-	    log "Starting $ws container.."
-	    (
-	        cd "/hostfs/home/$context/" || exit 1
-	        /usr/bin/nohup docker compose -f "docker-compose.yml" up -d "$ws" \
-	            > nohup.out 2> nohup.err < /dev/null &
-	    )
+            nohup sh -c "docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d ${ws}" </dev/null >nohup.out 2>nohup.err &
 	fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
