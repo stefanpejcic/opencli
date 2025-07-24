@@ -822,7 +822,7 @@ create_mail_mountpoint(){
         if [ -f "$COMPOSE_FILE" ]; then
             log "Creating directory $DOMAIN_DIR for emails"
             mkdir -p "$DOMAIN_DIR"
-            log "Adding mountpoint to the mail-server in background"
+            log "Creating mail folders in background.."
             volume_to_add="      - $DOMAIN_DIR:/var/mail/$domain_name/"
 
             # Check if the volume is already in the compose file
