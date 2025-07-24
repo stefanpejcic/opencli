@@ -529,13 +529,21 @@ vhost_files_create() {
 	
  	get_varnish_for_user
   	
-   	if [ "$VARNISH" = true ]; then
-	       log "Starting $ws and Varnish containers.."
-	       nohup sh -c "cd /hostfs/home/$context/ && docker compose -f /hostfs/home/$context/docker-compose.yml up -d $ws varnish" </dev/null >nohup.out 2>nohup.err &
-       else
-	       log "Starting $ws container.."
-	       nohup sh -c "cd /hostfs/home/$context/ && docker compose -f /hostfs/home/$context/docker-compose.yml up -d $ws" </dev/null >nohup.out 2>nohup.err &
-       fi
+	if [ "$VARNISH" = true ]; then
+	    log "Starting $ws and Varnish containers.."
+	    (
+	        cd "/hostfs/home/$context/" || exit 1
+	        /usr/bin/nohup docker compose -f "docker-compose.yml" up -d "$ws" varnish \
+	            > nohup.out 2> nohup.err < /dev/null &
+	    )
+	else
+	    log "Starting $ws container.."
+	    (
+	        cd "/hostfs/home/$context/" || exit 1
+	        /usr/bin/nohup docker compose -f "docker-compose.yml" up -d "$ws" \
+	            > nohup.out 2> nohup.err < /dev/null &
+	    )
+	fi
 
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
