@@ -648,6 +648,38 @@ get_plan_info_and_check_requirements() {
 
 
 
+download_images() {
+    local sql_type=""
+    local ws_type=""
+    local env_file="/home/$username/.env"
+
+    if [[ ! -f "$env_file" ]]; then
+        echo "Error: $env_file not found"
+        return 1
+    fi
+
+    get_env_value() {
+        local key=$1
+        grep -E "^$key=" "$env_file" | cut -d '=' -f2- | sed -E 's/^["'"'"']?(.*?)["'"'"']?$/\1/'
+    }
+
+    sql_type=$(get_env_value "MYSQL_TYPE")
+    if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
+        echo "Error: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
+        return 1
+    fi
+
+    ws_type=$(get_env_value "WEB_SERVER")
+    if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
+        echo "Error: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
+        return 1
+    fi
+
+    echo "Starting $ws_type and $sql_type image download in background..."
+    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >nohup.out 2>nohup.err &    
+}
+
+
 
 setup_ssh_key(){
      if [ -n "$node_ip_address" ]; then
@@ -1504,6 +1536,7 @@ run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
 generate_user_password_hash
 copy_skeleton_files                          # get webserver, php version and mysql type for user
+download_images
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # save user to mysql db
 collect_stats                                # must be after insert in db
