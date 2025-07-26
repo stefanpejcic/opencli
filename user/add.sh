@@ -1308,7 +1308,6 @@ if [[ -n "$sql_type" ]]; then
         log "Setting $sql_type as MySQL server type for the user.."
         sed -i -e "s|MYSQL_TYPE=\"[^\"]*\"|MYSQL_TYPE=\"$sql_type\"|g" \
             "/home/$username/.env"
-	nohup sh -c "cd /root && docker --context default compose pull $sql_type" </dev/null >nohup.out 2>nohup.err &
     else
         log "Warning: Invalid SQL server type selected: $sql_type. Must be 'mysql' or 'mariadb'. Using the default instead.."
     fi
