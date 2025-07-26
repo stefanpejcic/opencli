@@ -657,11 +657,19 @@ download_images() {
         echo "Error: $env_file not found"
         return 1
     fi
+	
+	get_env_value() {
+	    local key=$1
+	    local val
+	    val=$(grep -E "^$key=" "$env_file" | cut -d '=' -f2-)
+	    # Remove leading and trailing quotes (single or double)
+	    val="${val%\"}"   # Remove trailing double quote
+	    val="${val#\"}"   # Remove leading double quote
+	    val="${val%\'}"   # Remove trailing single quote
+	    val="${val#\'}"   # Remove leading single quote
+	    echo "$val"
+	}
 
-    get_env_value() {
-        local key=$1
-        grep -E "^$key=" "$env_file" | cut -d '=' -f2- | sed -E 's/^["'"'"']?(.*?)["'"'"']?$/\1/'
-    }
 
     sql_type=$(get_env_value "MYSQL_TYPE")
     if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
