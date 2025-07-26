@@ -1459,7 +1459,6 @@ reload_user_quotas() {
 
 
 download_images() {
-    local username="$1"
     local sql_type=""
     local ws_type=""
 
