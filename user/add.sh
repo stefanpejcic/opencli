@@ -1458,26 +1458,6 @@ reload_user_quotas() {
 }
 
 
-download_images() {
-    local sql_type=""
-    local ws_type=""
-
-    sql_type=$(grep -E '^MYSQL_TYPE=' "$env_file" | cut -d '=' -f2 | tr -d '[:space:]' | tr -d '"\'')
-    if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
-        echo "Error: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
-        return 1
-    fi
-
-    ws_type=$(grep -E '^WEB_SERVER=' "$env_file" | cut -d '=' -f2 | tr -d '[:space:]' | tr -d '"\'')
-    if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
-        echo "Error: WEB_SERVER must be 'nginx' or 'apache' or 'openresty', got '$ws_type'"
-        return 1
-    fi
-    
-    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >nohup.out 2>nohup.err &
-
-}
-
 
 generate_user_password_hash() {
     if [ "$password" = "generate" ]; then
@@ -1526,7 +1506,6 @@ generate_user_password_hash
 copy_skeleton_files                          # get webserver, php version and mysql type for user
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # save user to mysql db
-download_images                              # pre-download webserver and mysql images in background
 collect_stats                                # must be after insert in db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 )200>/var/lock/openpanel_user_add.lock
