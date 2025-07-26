@@ -1474,7 +1474,8 @@ download_images() {
         return 1
     fi
     
-    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >"/home/$username/nohup.out" 2>"/home/$username/nohup.err" &
+    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >nohup.out 2>nohup.err &
+
 }
 
 
