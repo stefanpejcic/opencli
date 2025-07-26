@@ -837,6 +837,7 @@ create_user_set_quota_and_password() {
 }
 
 install_docker_and_add_user() {
+if [ -n "$node_ip_address" ]; then
     log "Checking if Docker is installed on $node_ip_address..."
 
     ssh $key_flag root@"$node_ip_address" "command -v docker >/dev/null 2>&1"
@@ -861,6 +862,7 @@ install_docker_and_add_user() {
         usermod -aG docker \"$username\" && echo \"User $username added to docker group.\"
       fi
     '"
+fi
 }
 
 
