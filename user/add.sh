@@ -673,13 +673,13 @@ download_images() {
 
     sql_type=$(get_env_value "MYSQL_TYPE")
     if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
-        echo "Error: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
+        echo "Warning: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
         return 1
     fi
 
     ws_type=$(get_env_value "WEB_SERVER")
     if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
-        echo "Error: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
+        echo "Warning: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
         return 1
     fi
 
