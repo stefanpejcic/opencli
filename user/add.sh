@@ -1381,23 +1381,23 @@ get_php_version() {
 
 
 start_panel_service() {
-	# from 0.2.5 panel service is not started until acc is created
-	log "Checking if OpenPanel service is already running, or starting it in background.."
+    # from 0.2.5 panel service is not started until account is created
+    if docker --contet=default compose -f /root/docker-compose.yml ps --services --filter "status=running" | grep -q "^openpanel$"; then
+        log "OpenPanel service is already running."
+    else
+        log "OpenPanel service is not running. Starting it now..."
         nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >nohup.out 2>nohup.err &
+        log "OpenPanel service has been started in the background."
+    fi
 }
 
 
+
 create_context() {
-
-    if [ -n "$node_ip_address" ]; then
-
-	docker context create $username \
-	  --docker "host=ssh://$username" \
-	  --description "$username"
+   if [ -n "$node_ip_address" ]; then
+	docker context create $username --docker "host=ssh://$username" --description "$username"
    else
-   	docker context create $username \
-			  --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" \
-		   	  --description "$username"
+   	docker context create $username --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" --description "$username"
    fi
 }
 
@@ -1433,15 +1433,6 @@ save_user_to_db() {
 
 }
 
-create_backup_dirs_for_each_index() {
-    log "Creating backup jobs directories for the user"
-    for dir in /etc/openpanel/openadmin/config/backups/index/*/; do
-      mkdir -p "${dir}${username}"
-    done
-}
-
-
-
 
 send_email_to_new_user() {
     if $SEND_EMAIL; then
@@ -1464,6 +1455,26 @@ reload_user_quotas() {
     repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
 }
 
+
+download_images() {
+    local username="$1"
+    local sql_type=""
+    local ws_type=""
+
+    sql_type=$(grep -E '^MYSQL_TYPE=' "/home/$username/.env" | cut -d '=' -f2 | tr -d '[:space:]')
+    if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
+        echo "Error: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
+        return 1
+    fi
+
+    ws_type=$(grep -E '^WEB_SERVER=' "/home/$username/.env" | cut -d '=' -f2 | tr -d '[:space:]')    
+    if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
+        echo "Error: WEB_SERVER must be 'nginx' or 'apache' or 'openresty', got '$ws_type'"
+        return 1
+    fi
+    
+    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >"/home/$username/nohup.out" 2>"/home/$username/nohup.err" &
+}
 
 
 generate_user_password_hash() {
@@ -1511,9 +1522,9 @@ run_docker                                   # run docker container
 reload_user_quotas                           # refresh their quotas
 generate_user_password_hash
 copy_skeleton_files                          # get webserver, php version and mysql type for user
-create_backup_dirs_for_each_index            # added in 0.3.1 so that new users immediately show with 0 backups in :2087/backups#restore
 start_panel_service                          # start user panel if not running
 save_user_to_db                              # save user to mysql db
+download_images                              # pre-download webserver and mysql images in background
 collect_stats                                # must be after insert in db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 )200>/var/lock/openpanel_user_add.lock
