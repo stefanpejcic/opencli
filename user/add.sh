@@ -40,6 +40,7 @@ password="$2"
 email="$3"
 plan_name="$4"
 DEBUG=false             # Default value for DEBUG
+SKIP_IMAGE_PULL=false
 SEND_EMAIL=false        # Don't send email by default
 server=""               # Default value for context
 key_flag=""
@@ -173,6 +174,9 @@ check_if_default_slave_server_is_set         # we run it before parse_flags so i
 	        --send-email)
 	            SEND_EMAIL=true
 	            ;;
+	        --skip-images)
+	            SKIP_IMAGE_PULL=true
+	            ;;	     
 	        --reseller=*)
 	            reseller="${arg#*=}"
 		    ;;
@@ -649,77 +653,81 @@ get_plan_info_and_check_requirements() {
 
 
 download_images() {
-    local sql_type=""
-    local ws_type=""
-    local php_version=""
-    local env_file="/home/$username/.env"
-
-    if [[ ! -f "$env_file" ]]; then
-        echo "Error: $env_file not found"
-        return 1
-    fi
+	if [ "$SKIP_IMAGE_PULL" = false ]; then
 	
-	get_env_value() {
-	    local key=$1
-	    local val
-	    val=$(grep -E "^$key=" "$env_file" | cut -d '=' -f2-)
-	    # Remove leading and trailing quotes (single or double)
-	    val="${val%\"}"   # Remove trailing double quote
-	    val="${val#\"}"   # Remove leading double quote
-	    val="${val%\'}"   # Remove trailing single quote
-	    val="${val#\'}"   # Remove leading single quote
-	    echo "$val"
-	}
-
-php_version=$(get_env_value "DEFAULT_PHP_VERSION")
-php_image=""
-if [[ -n "$php_version" ]]; then
-    if [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
-        php_image="php-fpm-$php_version"
-    else
-        echo "Warning: DEFAULT_PHP_VERSION must be N.N format, got '$php_version'"
-    fi
-else
-    echo "Warning: DEFAULT_PHP_VERSION is not set"
-fi
-
-sql_type=$(get_env_value "MYSQL_TYPE")
-valid_sql_types=("mysql" "mariadb")
-if [[ -n "$sql_type" ]]; then
-    if [[ ! " ${valid_sql_types[*]} " =~ " $sql_type " ]]; then
-        echo "Warning: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
-        sql_type=""
-    fi
-else
-    echo "Warning: MYSQL_TYPE is not set"
-    sql_type=""
-fi
-
-ws_type=$(get_env_value "WEB_SERVER")
-valid_ws_types=("nginx" "apache" "openresty")
-if [[ -n "$ws_type" ]]; then
-    if [[ ! " ${valid_ws_types[*]} " =~ " $ws_type " ]]; then
-        echo "Warning: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
-        ws_type=""
-    fi
-else
-    echo "Warning: WEB_SERVER is not set"
-    ws_type=""
-fi
-
-images_to_pull=()
-[[ -n "$ws_type" ]] && images_to_pull+=("$ws_type")
-[[ -n "$sql_type" ]] && images_to_pull+=("$sql_type")
-[[ -n "$php_image" ]] && images_to_pull+=("$php_image")
-
-if [[ ${#images_to_pull[@]} -eq 0 ]]; then
-    echo "Warning: No valid images to pull."
-    return 1
-fi
-
-echo "Starting pull for images: ${images_to_pull[*]} in background..."
-nohup sh -c "cd /home/$username/ && docker --context=$username compose pull ${images_to_pull[*]}" </dev/null >nohup.out 2>nohup.err &
-  
+	    local sql_type=""
+	    local ws_type=""
+	    local php_version=""
+	    local env_file="/home/$username/.env"
+	
+	    if [[ ! -f "$env_file" ]]; then
+	        echo "Warning: $env_file not found"
+	        return 1
+	    fi
+		
+		get_env_value() {
+		    local key=$1
+		    local val
+		    val=$(grep -E "^$key=" "$env_file" | cut -d '=' -f2-)
+		    # Remove leading and trailing quotes (single or double)
+		    val="${val%\"}"   # Remove trailing double quote
+		    val="${val#\"}"   # Remove leading double quote
+		    val="${val%\'}"   # Remove trailing single quote
+		    val="${val#\'}"   # Remove leading single quote
+		    echo "$val"
+		}
+	
+	php_version=$(get_env_value "DEFAULT_PHP_VERSION")
+	php_image=""
+	if [[ -n "$php_version" ]]; then
+	    if [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+	        php_image="php-fpm-$php_version"
+	    else
+	        echo "Warning: DEFAULT_PHP_VERSION must be N.N format, got '$php_version'"
+	    fi
+	else
+	    echo "Warning: DEFAULT_PHP_VERSION is not set"
+	fi
+	
+	sql_type=$(get_env_value "MYSQL_TYPE")
+	valid_sql_types=("mysql" "mariadb")
+	if [[ -n "$sql_type" ]]; then
+	    if [[ ! " ${valid_sql_types[*]} " =~ " $sql_type " ]]; then
+	        echo "Warning: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
+	        sql_type=""
+	    fi
+	else
+	    echo "Warning: MYSQL_TYPE is not set"
+	    sql_type=""
+	fi
+	
+	ws_type=$(get_env_value "WEB_SERVER")
+	valid_ws_types=("nginx" "apache" "openresty")
+	if [[ -n "$ws_type" ]]; then
+	    if [[ ! " ${valid_ws_types[*]} " =~ " $ws_type " ]]; then
+	        echo "Warning: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
+	        ws_type=""
+	    fi
+	else
+	    echo "Warning: WEB_SERVER is not set"
+	    ws_type=""
+	fi
+	
+	images_to_pull=()
+	[[ -n "$ws_type" ]] && images_to_pull+=("$ws_type")
+	[[ -n "$sql_type" ]] && images_to_pull+=("$sql_type")
+	[[ -n "$php_image" ]] && images_to_pull+=("$php_image")
+	
+	if [[ ${#images_to_pull[@]} -eq 0 ]]; then
+	    echo "Warning: No valid images to pull."
+	    return 1
+	fi
+	
+	echo "Starting pull for images: ${images_to_pull[*]} in background..."
+	nohup sh -c "cd /home/$username/ && docker --context=$username compose pull ${images_to_pull[*]}" </dev/null >nohup.out 2>nohup.err &
+	else
+	    echo "Skipping image pull due to the '--skip-images' flag."
+	fi  
 }
 
 
