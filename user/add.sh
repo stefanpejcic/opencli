@@ -1462,13 +1462,13 @@ download_images() {
     local sql_type=""
     local ws_type=""
 
-    sql_type=$(grep -E '^MYSQL_TYPE=' "/home/$username/.env" | cut -d '=' -f2 | tr -d '[:space:]')
+    sql_type=$(grep -E '^MYSQL_TYPE=' "$env_file" | cut -d '=' -f2 | tr -d '[:space:]' | tr -d '"\'')
     if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
         echo "Error: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
         return 1
     fi
 
-    ws_type=$(grep -E '^WEB_SERVER=' "/home/$username/.env" | cut -d '=' -f2 | tr -d '[:space:]')    
+    ws_type=$(grep -E '^WEB_SERVER=' "$env_file" | cut -d '=' -f2 | tr -d '[:space:]' | tr -d '"\'')
     if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
         echo "Error: WEB_SERVER must be 'nginx' or 'apache' or 'openresty', got '$ws_type'"
         return 1
