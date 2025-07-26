@@ -651,6 +651,7 @@ get_plan_info_and_check_requirements() {
 download_images() {
     local sql_type=""
     local ws_type=""
+    local php_version=""
     local env_file="/home/$username/.env"
 
     if [[ ! -f "$env_file" ]]; then
@@ -670,21 +671,55 @@ download_images() {
 	    echo "$val"
 	}
 
+php_version=$(get_env_value "DEFAULT_PHP_VERSION")
+php_image=""
+if [[ -n "$php_version" ]]; then
+    if [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        php_image="php-fpm-$php_version"
+    else
+        echo "Warning: DEFAULT_PHP_VERSION must be N.N format, got '$php_version'"
+    fi
+else
+    echo "Warning: DEFAULT_PHP_VERSION is not set"
+fi
 
-    sql_type=$(get_env_value "MYSQL_TYPE")
-    if [[ "$sql_type" != "mysql" && "$sql_type" != "mariadb" ]]; then
+sql_type=$(get_env_value "MYSQL_TYPE")
+valid_sql_types=("mysql" "mariadb")
+if [[ -n "$sql_type" ]]; then
+    if [[ ! " ${valid_sql_types[*]} " =~ " $sql_type " ]]; then
         echo "Warning: MYSQL_TYPE must be 'mysql' or 'mariadb', got '$sql_type'"
-        return 1
+        sql_type=""
     fi
+else
+    echo "Warning: MYSQL_TYPE is not set"
+    sql_type=""
+fi
 
-    ws_type=$(get_env_value "WEB_SERVER")
-    if [[ "$ws_type" != "nginx" && "$ws_type" != "apache" && "$ws_type" != "openresty" ]]; then
+ws_type=$(get_env_value "WEB_SERVER")
+valid_ws_types=("nginx" "apache" "openresty")
+if [[ -n "$ws_type" ]]; then
+    if [[ ! " ${valid_ws_types[*]} " =~ " $ws_type " ]]; then
         echo "Warning: WEB_SERVER must be 'nginx', 'apache', or 'openresty', got '$ws_type'"
-        return 1
+        ws_type=""
     fi
+else
+    echo "Warning: WEB_SERVER is not set"
+    ws_type=""
+fi
 
-    echo "Starting $ws_type and $sql_type image download in background..."
-    nohup sh -c "cd /home/$username/ && docker --context=$username compose pull $ws_type $sql_type" </dev/null >nohup.out 2>nohup.err &    
+images_to_pull=()
+[[ -n "$ws_type" ]] && images_to_pull+=("$ws_type")
+[[ -n "$sql_type" ]] && images_to_pull+=("$sql_type")
+[[ -n "$php_image" ]] && images_to_pull+=("$php_image")
+
+if [[ ${#images_to_pull[@]} -eq 0 ]]; then
+    echo "Warning: No valid images to pull."
+    return 1
+fi
+
+echo "Starting pull for images: ${images_to_pull[*]} in background..."
+nohup sh -c "cd /home/$username/ && docker --context=$username compose pull ${images_to_pull[*]}" </dev/null >nohup.out 2>nohup.err &
+  
 }
 
 
