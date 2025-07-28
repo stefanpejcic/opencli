@@ -308,6 +308,11 @@ log "Checking if domain already exists on the server"
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     compare_with_forbidden_domains_list            # dont allow admin-defined domains
     compare_with_system_domains                    # hostname, ns or webmail takeover
+    if [[ "$is_subdomain" == true ]]; then
+	:
+ 	#OVDE
+    fi
+    
 else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
