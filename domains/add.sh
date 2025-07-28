@@ -268,7 +268,7 @@ if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
     verify_onion_files
 else
     tld="${domain_name##*.}"
-    tld_upper=$(echo "$tld" | tr '[:lower:]' '[:upper:]')
+    tld_lower=$(echo "$tld" | tr '[:upper:]' '[:lower:]')
     tld_file="/etc/openpanel/openpanel/conf/public_suffix_list.dat"
     update_tlds=false
     if [[ ! -f "$tld_file" ]]; then
@@ -287,8 +287,8 @@ else
         fi
     fi
 
-    if grep -qx "$tld_upper" "$tld_file"; then
-        log "Valid domain with recognized TLD: .$tld_upper"
+    if grep -qx "$tld_lower" "$tld_file"; then
+        log "Valid domain with recognized TLD: .$tld_lower"
 
     	domain_base="${domain_name%.*}"
     	if [[ "$domain_base" == *.* ]]; then
@@ -300,7 +300,7 @@ else
 	    log "Domain '$domain_base' is a subdomain of '$apex_domain'."
     	fi
     else
-	echo "ERROR: Invalid domain or unrecognized TLD: .$tld_upper"
+	echo "ERROR: Invalid domain or unrecognized TLD: .$tld_lower"
 	exit 1
     fi
 fi
