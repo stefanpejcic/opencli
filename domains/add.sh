@@ -314,7 +314,7 @@ if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."
 	  whoowns_output=$(opencli domains-whoowns "$apex_domain")
 	  existing_user=$(echo "$whoowns_output" | awk -F "Owner of '$apex_domain': " '{print $2}')
 	  if [ -n "$existing_user" ]; then
-	    if [ "$existing_user" == "$username" ]; then
+	    if [ "$existing_user" == "$user" ]; then
 	        log "User $existing_user already owns the apex domain $apex_domain - adding subdomain.."
 	 	USE_PARENT_DNS_ZONE=true
 	    else
