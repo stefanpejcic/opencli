@@ -101,7 +101,8 @@ create_user() {
 	HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
  	# Create user without password
-	docker exec openadmin_ftp sh -c "adduser --uid $USER_UID --gid $USER_GID -h '${new_directory}' -s /sbin/nologin --disabled-password --gecos '' '${username}'"
+	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}'"
+
 
 
 	# Set the hashed password
