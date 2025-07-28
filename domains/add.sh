@@ -58,6 +58,7 @@ SKIP_DNS_ZONE=false
 SKIP_STARTING_CONTAINERS=false
 REMOTE_SERVER=""
 PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+USE_PARENT_DNS_ZONE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -289,11 +290,14 @@ else
     if grep -qx "$tld_upper" "$tld_file"; then
         log "Valid domain with recognized TLD: .$tld_upper"
 
-	# Subdomain check
     	domain_base="${domain_name%.*}"
     	if [[ "$domain_base" == *.* ]]; then
-		log "Domain '$domain_base' is a subdomain."
-		is_subdomain=true
+	    is_subdomain=true
+	    apex_domain="${domain_name##*.}"                           # TLD
+	    second_level="${domain_name%.*}"                           # Remove TLD
+	    second_level="${second_level##*.}"                         # Extract SLD
+	    apex_domain="${second_level}.${tld}"                       # Combine SLD + TLD
+	    log "Domain '$domain_base' is a subdomain of '$apex_domain'."
     	fi
     else
 	echo "ERROR: Invalid domain or unrecognized TLD: .$tld_upper"
@@ -307,10 +311,20 @@ if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."
     compare_with_forbidden_domains_list            # dont allow admin-defined domains
     compare_with_system_domains                    # hostname, ns or webmail takeover
     if [[ "$is_subdomain" == true ]]; then
-	:
- 	#OVDE
+	  whoowns_output=$(opencli domains-whoowns "$apex_domain")
+	  existing_user=$(echo "$whoowns_output" | awk -F "Owner of '$apex_domain': " '{print $2}')
+	  if [ -n "$existing_user" ]; then
+	    if [ "$existing_user" == "$username" ]; then
+	        log "User $existing_user already owns the apex domain $apex_domain - adding subdomain.."
+	 	USE_PARENT_DNS_ZONE=true
+	    else
+	        echo "Another user owns the domain: $apex_domain - can't add subdomain: $domain_name"
+	        exit 1
+	    fi
+	  else
+	      echo "Apex domain: $apex_domain does not exist on this server. "
+	  fi
     fi
-    
 else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
