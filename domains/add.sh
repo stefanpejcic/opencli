@@ -776,7 +776,7 @@ create_zone_file() {
     
 	if $USE_PARENT_DNS_ZONE; then 
 		log "Adding records to existing DNS zone for apex domain: $ZONE_FILE_DIR$apex_domain.zone"
-    		echo "$domain_name    14400     IN      A       $current_ip" > "$ZONE_FILE_DIR$apex_domain.zone"
+    		echo "$domain_name    14400     IN      A       $current_ip" >> "$ZONE_FILE_DIR$apex_domain.zone"
 
 		if [ "$IPV4" == "yes" ]; then
     			echo "$domain_name    14400     IN      TXT       'v=spf1 ip4:$current_ip +a +mx ~all'" >> "$ZONE_FILE_DIR$apex_domain.zone"
