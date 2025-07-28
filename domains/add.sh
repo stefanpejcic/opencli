@@ -413,7 +413,11 @@ make_folder() {
 	mkdir -p $full_path && \
  	chown $context_uid:$context_uid $full_path && chmod -R g+w $full_path
 
- 	# when it is first domain!
+	local ws_files="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
+	mkdir -p $ws_files && \
+ 	chown $context_uid:$context_uid $ws_files && chmod -R g+w $ws_files
+  
+  	# when it is first domain!
   	# https://github.com/stefanpejcic/OpenPanel/issues/472
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
 	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
