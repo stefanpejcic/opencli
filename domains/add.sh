@@ -51,6 +51,42 @@ if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
     onion_domain=true
     log ".onion address - Tor will be configured.."
     verify_onion_files
+else
+    tld="${domain_name##*.}"
+    tld_upper=$(echo "$tld" | tr '[:lower:]' '[:upper:]')
+    tld_file="/etc/openpanel/openpanel/conf/public_suffix_list.dat"
+    update_tlds=false
+    if [[ ! -f "$tld_file" ]]; then
+        log "TLD list not found, downloading from IANA..."
+        update_tlds=true
+    elif [[ $(find "$tld_file" -mtime +6 2>/dev/null) ]]; then
+        log "TLD list older than 7 days, refreshing from IANA..."
+        update_tlds=true
+    fi
+
+    if [[ "$update_tlds" == true ]]; then
+        mkdir -p "$(dirname "$tld_file")"
+        wget -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
+        if [[ $? -ne 0 ]]; then
+            log "Failed to download TLD list from IANA"
+        fi
+    fi
+
+    if grep -qx "$tld_upper" "$tld_file"; then
+        log "Valid domain with recognized TLD: .$tld_upper"
+
+	# Subdomain check
+    	domain_base="${domain_name%.*}"
+    	if [[ "$domain_base" == *.* ]]; then
+		log "Domain '$domain_base' appears to be a subdomain."
+		is_subdomain=true
+    	else
+		log "Domain '$domain_base' is not a subdomain."
+		is_subdomain=false
+    	fi
+    else
+        log "Invalid domain or unrecognized TLD: .$tld_upper"
+    fi
 fi
 
 hs_ed25519_public_key=""
@@ -268,6 +304,17 @@ compare_with_system_domains() {
 
 # Check if domain already exists
 log "Checking if domain already exists on the server"
+
+
+if [[ "$is_subdomain" == true ]]; then
+log "Checking if apex domain already exists on the server"
+log "Handling subdomain-specific logic for '$domain_name'..."
+# Add your subdomain-specific logic here
+else
+log "Handling root domain logic for '$domain_name'..."
+# Add your root domain-specific logic here
+fi
+
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     compare_with_forbidden_domains_list            # dont allow admin-defined domains
     compare_with_system_domains                    # hostname, ns or webmail takeover
