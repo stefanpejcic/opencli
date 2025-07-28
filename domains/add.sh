@@ -46,49 +46,6 @@ if ! [[ "$domain_name" =~ ^(xn--[a-z0-9-]+\.[a-z0-9-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{
     exit 1
 fi
 
-
-if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
-    onion_domain=true
-    log ".onion address - Tor will be configured.."
-    verify_onion_files
-else
-    tld="${domain_name##*.}"
-    tld_upper=$(echo "$tld" | tr '[:lower:]' '[:upper:]')
-    tld_file="/etc/openpanel/openpanel/conf/public_suffix_list.dat"
-    update_tlds=false
-    if [[ ! -f "$tld_file" ]]; then
-        log "TLD list not found, downloading from IANA..."
-        update_tlds=true
-    elif [[ $(find "$tld_file" -mtime +6 2>/dev/null) ]]; then
-        log "TLD list older than 7 days, refreshing from IANA..."
-        update_tlds=true
-    fi
-
-    if [[ "$update_tlds" == true ]]; then
-        mkdir -p "$(dirname "$tld_file")"
-        wget -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
-        if [[ $? -ne 0 ]]; then
-            log "Failed to download TLD list from IANA"
-        fi
-    fi
-
-    if grep -qx "$tld_upper" "$tld_file"; then
-        log "Valid domain with recognized TLD: .$tld_upper"
-
-	# Subdomain check
-    	domain_base="${domain_name%.*}"
-    	if [[ "$domain_base" == *.* ]]; then
-		log "Domain '$domain_base' appears to be a subdomain."
-		is_subdomain=true
-    	else
-		log "Domain '$domain_base' is not a subdomain."
-		is_subdomain=false
-    	fi
-    else
-        log "Invalid domain or unrecognized TLD: .$tld_upper"
-    fi
-fi
-
 hs_ed25519_public_key=""
 hs_ed25519_secret_key=""
 
@@ -303,17 +260,50 @@ compare_with_system_domains() {
 
 
 # Check if domain already exists
-log "Checking if domain already exists on the server"
-
-
-if [[ "$is_subdomain" == true ]]; then
-log "Checking if apex domain already exists on the server"
-log "Handling subdomain-specific logic for '$domain_name'..."
-# Add your subdomain-specific logic here
+check_subdomain_existing_onion() {
+if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
+    onion_domain=true
+    log ".onion address - Tor will be configured.."
+    verify_onion_files
 else
-log "Handling root domain logic for '$domain_name'..."
-# Add your root domain-specific logic here
+    tld="${domain_name##*.}"
+    tld_upper=$(echo "$tld" | tr '[:lower:]' '[:upper:]')
+    tld_file="/etc/openpanel/openpanel/conf/public_suffix_list.dat"
+    update_tlds=false
+    if [[ ! -f "$tld_file" ]]; then
+        log "TLD list not found, downloading from IANA..."
+        update_tlds=true
+    elif [[ $(find "$tld_file" -mtime +6 2>/dev/null) ]]; then
+        log "TLD list older than 7 days, refreshing from IANA..."
+        update_tlds=true
+    fi
+
+    if [[ "$update_tlds" == true ]]; then
+        mkdir -p "$(dirname "$tld_file")"
+        wget -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
+        if [[ $? -ne 0 ]]; then
+            log "Failed to download TLD list from IANA"
+        fi
+    fi
+
+    if grep -qx "$tld_upper" "$tld_file"; then
+        log "Valid domain with recognized TLD: .$tld_upper"
+
+	# Subdomain check
+    	domain_base="${domain_name%.*}"
+    	if [[ "$domain_base" == *.* ]]; then
+		log "Domain '$domain_base' appears to be a subdomain."
+		is_subdomain=true
+    	else
+		log "Domain '$domain_base' is not a subdomain."
+		is_subdomain=false
+    	fi
+    else
+        log "Invalid domain or unrecognized TLD: .$tld_upper"
+    fi
 fi
+
+log "Checking if domain already exists on the server"
 
 if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."; then
     compare_with_forbidden_domains_list            # dont allow admin-defined domains
@@ -322,7 +312,7 @@ else
     echo "ERROR: Domain $domain_name already exists."
     exit 1
 fi
-
+}
 
 # get user ID from the database
 get_user_info() {
@@ -344,17 +334,10 @@ result=$(get_user_info "$user")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
-#echo "User ID: $user_id"
-#echo "Context: $context"
-
-
-
 if [ -z "$user_id" ]; then
     echo "FATAL ERROR: user $user does not exist."
     exit 1
 fi
-
-
 
 
 
@@ -984,6 +967,6 @@ add_domain() {
     fi
 }
 
-
+check_subdomain_existing_onion
 get_php_version
 add_domain "$user_id" "$domain_name"
