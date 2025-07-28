@@ -115,13 +115,9 @@ create_user() {
 	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
 	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
 	
-	USER_UID=$(grep "^$openpanel_username:" /hostfs/etc/passwd | cut -d: -f3)
+	USER_UID=$(docker exec openadmin_ftp id -u "$username")
 	USER_GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
 	
-	if [ -z "$USER_UID" ] || [ -z "$USER_GID" ]; then
-	    echo "ERROR: Could not retrieve UID/GID for '$openpanel_username'."
-	    exit 1
-	fi
 	
 	    echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${openpanel_username}/users.list"
 	    echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
