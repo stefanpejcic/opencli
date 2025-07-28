@@ -190,8 +190,8 @@ setup_tor_for_user() {
 	cp $hs_public_key $tor_dir/$folder_name/hs_ed25519_public_key
 	cp $hs_secret_key $tor_dir/$folder_name/hs_ed25519_secret_key
 
- 	chown $context_uid:$context_uid /hostfs/home/$context/tor
-	chmod 0600 /hostfs/home/$context/tor/torrc
+ 	chown $context_uid:$context_uid "/hostfs/home/$context/tor"
+	chmod 0600 "/hostfs/home/$context/tor/torrc"
 
 	if [ "$VARNISH" = true ]; then
 		proxy_ws="varnish"
@@ -452,21 +452,19 @@ make_folder() {
  	context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
 
 	if [ -z "$context_uid" ]; then
-	log "Warning: failed detecting user id, permissions issue!"
+		log "Warning: failed detecting user id, permissions issue!"
+	else
+		local full_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
+		mkdir -p "$full_path" && chown $context_uid:$context_uid "$full_path" && chmod -R g+w "$full_path"
+	
+		local ws_files="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
+		mkdir -p "$ws_files" && chown $context_uid:$context_uid "$ws_files" && chmod -R g+w "$ws_files"
+	  
+	  	# when it is first domain!
+	  	# https://github.com/stefanpejcic/OpenPanel/issues/472
+		chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
+		chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
 	fi
- 
-	local full_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
-	mkdir -p $full_path && \
- 	chown $context_uid:$context_uid $full_path && chmod -R g+w $full_path
-
-	local ws_files="/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
-	mkdir -p $ws_files && \
- 	chown $context_uid:$context_uid $ws_files && chmod -R g+w $ws_files
-  
-  	# when it is first domain!
-  	# https://github.com/stefanpejcic/OpenPanel/issues/472
-	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/
-	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/
 }
 
 
@@ -589,8 +587,8 @@ vhost_files_create() {
        log "Creating ${domain_name}.conf" #$vhost_in_docker_file
        cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
        # https://github.com/stefanpejcic/OpenPanel/issues/567
-  	chown $context_uid:$context_uid /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/
-	chown $context_uid:$context_uid -R /hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/
+  	chown $context_uid:$context_uid "/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/"
+	chown $context_uid:$context_uid -R "/hostfs/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 
        
 	sed -i \
