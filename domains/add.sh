@@ -292,14 +292,12 @@ else
 	# Subdomain check
     	domain_base="${domain_name%.*}"
     	if [[ "$domain_base" == *.* ]]; then
-		log "Domain '$domain_base' appears to be a subdomain."
+		log "Domain '$domain_base' is a subdomain."
 		is_subdomain=true
-    	else
-		log "Domain '$domain_base' is not a subdomain."
-		is_subdomain=false
     	fi
     else
-        log "Invalid domain or unrecognized TLD: .$tld_upper"
+	echo "ERROR: Invalid domain or unrecognized TLD: .$tld_upper"
+	exit 1
     fi
 fi
 
