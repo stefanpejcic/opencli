@@ -772,14 +772,26 @@ create_zone_file() {
     
     ZONE_FILE_DIR='/etc/bind/zones/'
     CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+    mkdir -p "$ZONE_FILE_DIR"
+    
+	if $USE_PARENT_DNS_ZONE; then 
+		log "Adding records to existing DNS zone for apex domain: $ZONE_FILE_DIR$apex_domain.zone"
+    		echo "$domain_name    14400     IN      A       $current_ip" > "$ZONE_FILE_DIR$apex_domain.zone"
 
-	if [ "$IPV4" == "yes" ]; then
- 		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
-    		log "Creating DNS zone file with A records: $ZONE_FILE_DIR$domain_name.zone"
+		if [ "$IPV4" == "yes" ]; then
+    			echo "$domain_name    14400     IN      TXT       'v=spf1 ip4:$current_ip +a +mx ~all'" >> "$ZONE_FILE_DIR$apex_domain.zone"
+		else
+    			echo "$domain_name    14400     IN      TXT       'v=spf1 ip6:$current_ip +a +mx ~all'" >> "$ZONE_FILE_DIR$apex_domain.zone"
+		fi     
 	else
-  		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template_ipv6.txt'
-        	log "Creating DNS zone file with AAAA records: $ZONE_FILE_DIR$domain_name.zone"
-	fi
+		if [ "$IPV4" == "yes" ]; then
+	 		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template.txt'
+	    		log "Creating DNS zone file with A records: $ZONE_FILE_DIR$domain_name.zone"
+		else
+	  		ZONE_TEMPLATE_PATH='/etc/openpanel/bind9/zone_template_ipv6.txt'
+	        	log "Creating DNS zone file with AAAA records: $ZONE_FILE_DIR$domain_name.zone"
+		fi
+
 
    zone_template=$(<"$ZONE_TEMPLATE_PATH")
    
@@ -823,10 +835,8 @@ create_zone_file() {
                                            -e "s|YYYYMMDD|$timestamp|g")
     fi
 
- 
-    mkdir -p "$ZONE_FILE_DIR"
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
-
+  fi
 
 
     # Reload BIND service
@@ -843,8 +853,10 @@ create_zone_file() {
 
 notify_slave(){
 
+if $USE_PARENT_DNS_ZONE; then
+:
+else
     echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
-
 ssh -T root@$SLAVE_IP <<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
@@ -854,6 +866,8 @@ ssh -T root@$SLAVE_IP <<EOF
         echo "Zone $domain_name already exists on the slave server."
     fi
 EOF
+fi
+
 
 
 }
