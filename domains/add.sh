@@ -288,8 +288,7 @@ else
     fi
 
     if grep -qx "$tld_lower" "$tld_file"; then
-        log "Valid domain with recognized TLD: .$tld_lower"
-
+        #log "Valid domain with recognized TLD: .$tld_lower"
     	domain_base="${domain_name%.*}"
     	if [[ "$domain_base" == *.* ]]; then
 	    is_subdomain=true
@@ -552,10 +551,10 @@ start_default_php_fpm_service() {
 
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ $enabled_modules_line == *"php"* ]]; then  
-        log "Starting container for the default PHP version ${php_version}"
+        log "Starting container for the PHP version ${php_version}"
  	nohup sh -c "docker --context $context compose -f /hostfs/home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
     else
-        log "'php' module is disabled, skip starting container for the default PHP version ${php_version}"
+        log "'php' module is disabled, skip starting container for the PHP version ${php_version}"
     fi
 
  
@@ -750,19 +749,22 @@ get_slave_dns_option() {
 update_named_conf() {
     ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
-    log "Adding the newly created zone file to the DNS server"
-   
-    local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
-
-    # Check if the domain already exists in named.conf.local
-    # fix for: https://github.com/stefanpejcic/OpenPanel/issues/95
-    if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
-        log "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
-        return
+    if $USE_PARENT_DNS_ZONE; then
+	    if grep -q "zone \"$apex_domain\"" "$NAMED_CONF_LOCAL"; then
+	        return
+	    fi
+	    local config_line="zone \"$apex_domain\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
+	    echo "$config_line" >> "$NAMED_CONF_LOCAL"
+    else
+	    log "Adding the newly created zone file to the DNS server"
+	    local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
+	    # fix for: https://github.com/stefanpejcic/OpenPanel/issues/95
+	    if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
+	        log "Domain '$domain_name' already exists in $NAMED_CONF_LOCAL"
+	        return
+	    fi
+	    echo "$config_line" >> "$NAMED_CONF_LOCAL"
     fi
-
-    # Append the new zone configuration to named.conf.local
-    echo "$config_line" >> "$NAMED_CONF_LOCAL"
 }
 
 
