@@ -85,14 +85,11 @@ create_user() {
     # Get GID of openpanel_username from host
     GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
 
-    # Check if group with this GID exists inside container, get its name
-    GROUP_NAME=$(docker exec openadmin_ftp getent group "$GID" | cut -d: -f1)
+    # Remove existing group with that name inside container (ignore errors)
+    docker exec openadmin_ftp groupdel "$openpanel_username" 2>/dev/null || true
 
-    if [ -z "$GROUP_NAME" ]; then
-        # Create group inside container with this GID and name = openpanel_username
-        docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
-        GROUP_NAME="$openpanel_username"
-    fi
+    # Create group with exact GID inside container
+    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
 
     # Fix permissions on host for directories
     chmod +rx "/home/$openpanel_username"
@@ -108,7 +105,7 @@ create_user() {
     HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
     # Create user inside container with GID by group name, UID auto-assigned
-    docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin -g '${GROUP_NAME}' --disabled-password --gecos '' '${username}'"
+    docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin -g '${openpanel_username}' --disabled-password --gecos '' '${username}'"
 
     # Set user password hash inside container
     if docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
@@ -120,9 +117,9 @@ create_user() {
         chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
         chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
 
-        # Get assigned UID inside container
+        # Get assigned UID and GID inside container
         USER_UID=$(docker exec openadmin_ftp id -u "$username")
-        USER_GID="$GID"
+        USER_GID=$(docker exec openadmin_ftp id -g "$username")
 
         echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${openpanel_username}/users.list"
         echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
@@ -130,7 +127,7 @@ create_user() {
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to create FTP user with command:"
             echo ""
-            echo "docker exec openadmin_ftp sh -c 'adduser -h $new_directory -s /sbin/nologin -g $GROUP_NAME --disabled-password --gecos \"\" $username'"
+            echo "docker exec openadmin_ftp sh -c 'adduser -h $new_directory -s /sbin/nologin -g $openpanel_username --disabled-password --gecos \"\" $username'"
             echo ""
             echo "Run the command manually to check for errors."
         else
@@ -139,6 +136,7 @@ create_user() {
         exit 1
     fi
 }
+
 
 
 
