@@ -48,6 +48,7 @@ readonly EXCLUDE_PATTERNS=(
     "aliases.txt"
     "send_mail.sh"
     "enterprise.sh"
+    "ip_servers.sh"
     "LICENSE.md"
     "README.md"
     "*README.md"
