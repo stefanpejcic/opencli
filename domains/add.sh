@@ -361,7 +361,7 @@ fi
 get_server_ipv4_or_ipv6() {
 
 	# IP SERVERS
-	SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+	SCRIPT_PATH="/usr/local/opencli/ip_servers.sh"
  	log "Checking IPv4 address for the account"
 	if [ -f "$SCRIPT_PATH" ]; then
 	    source "$SCRIPT_PATH"
