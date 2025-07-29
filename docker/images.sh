@@ -89,7 +89,7 @@ run_for_context() {
     fi
 
     # Define the output directory
-    local output_dir="/hostfs/home/$ctx/docker-data/cup"
+    local output_dir="/home/$ctx/docker-data/cup"
     # Check if the directory is writable
     if ! mkdir -p "$output_dir" || ! [ -w "$output_dir" ]; then
         echo "Error: Cannot write to output directory $output_dir."
