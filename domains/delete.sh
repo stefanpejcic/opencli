@@ -89,7 +89,7 @@ clear_cache_for_user() {
 
 remove_onion_files() {
     if $onion_domain; then
-        hostfs_path="/hostfs/home/$context/tor"
+        hostfs_path="/home/$context/tor"
         onion_dir=$(grep -rlE '\.onion$' "$hostfs_path" | grep '/hostname$' | xargs -n1 dirname)
         for dir in $onion_dir; do
             dir_name=$(basename "$dir")
