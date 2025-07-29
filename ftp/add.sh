@@ -77,33 +77,34 @@ get_docker_context_for_user(){
 # Function to read users from users.list files and create them
 create_user() {
 	get_docker_context_for_user
- 
+
 	real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
 	relative_path="${directory##/var/www/html/}"
 	new_directory="${real_path}${relative_path}"
- 
-	GID=$(grep "$openpanel_username" /hostfs/etc/group | cut -d: -f3)
-	GROUP=$(docker exec openadmin_ftp sh -c  "getent group \"$GID\" | cut -d: -f1")
-	if [ -n "$GROUP" ]; then
-	    GROUP_OPT="-g $GROUP"
-	elif [ -n "$GID" ]; then
-	    addgroup -g "$GID" "$openpanel_username"
-	    GROUP_OPT="-g $openpanel_username"
-	    chmod +rx "/home/$openpanel_username"
-	    chmod +rx "/home/$openpanel_username/docker-data"
-	    chmod +rx "/home/$openpanel_username/docker-data/volumes"
-	    chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
-	    chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
+
+	GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
+
+	# Ensure group with that GID exists inside container
+	if docker exec openadmin_ftp getent group "$GID" >/dev/null 2>&1; then
+	    GROUP_OPT="-g $GID"
+	else
+	    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
+	    GROUP_OPT="-g $GID"
 	fi
 
+	# Fix permissions on host for target path
+	chmod +rx "/home/$openpanel_username"
+	chmod +rx "/home/$openpanel_username/docker-data"
+	chmod +rx "/home/$openpanel_username/docker-data/volumes"
+	chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
+	chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
+
 	PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
-	
+
 	HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
- 	# Create user without password
+	# Create user with auto-assigned UID, explicitly setting GID
 	docker exec openadmin_ftp sh -c "adduser -h '${new_directory}' -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos '' '${username}'"
-
-
 
 	# Set the hashed password
 	if docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
@@ -114,22 +115,21 @@ create_user() {
 	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes"
 	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
 	    chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
-	
-	USER_UID=$(docker exec openadmin_ftp id -u "$username")
-	USER_GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
-	
-	
+
+	    USER_UID=$(docker exec openadmin_ftp id -u "$username")
+	    USER_GID="$GID"
+
 	    echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${openpanel_username}/users.list"
 	    echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
 	else
 	    if [ "$DEBUG" = true ]; then
-	        echo "ERROR: Failed to create FTP user with command:"     
+	        echo "ERROR: Failed to create FTP user with command:"
 	        echo ""
-	        echo "docker exec openadmin_ftp sh -c 'adduser -h $new_directory -s /sbin/nologin $username'"
+	        echo "docker exec openadmin_ftp sh -c 'adduser -h $new_directory -s /sbin/nologin ${GROUP_OPT} --disabled-password --gecos \"\" $username'"
 	        echo ""
 	        echo "Run the command manually to check for errors."
 	    else
-	        echo "ERROR: Failed to create FTP user. To debug run this command on terminal: opencli ftp-add $username $password '$new_directory' $openpanel_username --debug"  
+	        echo "ERROR: Failed to create FTP user. To debug run this command on terminal: opencli ftp-add $username $password '$new_directory' $openpanel_username --debug"
 	    fi
 	    exit 1
 	fi
