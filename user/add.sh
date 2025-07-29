@@ -1543,12 +1543,20 @@ reload_user_quotas() {
 
 
 generate_user_password_hash() {
-    if [ "$password" = "generate" ]; then
-        password=$(openssl rand -base64 12)
-        log "Generated password: $password" 
-    fi
+	if [ "$password" = "generate" ]; then
+		password=$(openssl rand -base64 12)
+		log "Generated password: $password" 
+	fi
 
-    hashed_password=$("/usr/local/admin/venv/bin/python3" -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+	# Hash password
+	hashed_password=$(docker --context=default compose run --rm -e PASSWORD="$password" hash)
+	
+	if [[ $hashed_password == scrypt* ]]; then
+	  :
+	else
+	  # deprecated and works ONLY outside of container!
+	  hashed_password=$(/usr/local/admin/venv/bin/python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$password'))")
+	fi
 }
 
 
