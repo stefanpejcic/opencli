@@ -33,7 +33,7 @@ set -euo pipefail
 # Configuration
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly WHMCS_URL="https://my.openpanel.com/modules/servers/licensing/verify.php"
-readonly IP_SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+readonly IP_SCRIPT_PATH="/usr/local/opencli/ip_servers.sh"
 
 # Colors
 readonly GREEN='\033[0;32m'
