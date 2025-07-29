@@ -81,13 +81,14 @@ create_user() {
     real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
     relative_path="${directory##/var/www/html/}"
     new_directory="${real_path}${relative_path}"
-
-    # Get GID of openpanel_username from host
-    GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
-
-    # Recreate group inside container with exact GID
-    docker exec openadmin_ftp groupdel "$openpanel_username" 2>/dev/null || true
-    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
+	
+	# Get GID of openpanel_username from host
+	GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
+	
+	# If GID is NOT a number, run fallback command
+	if ! [[ "$GID" =~ ^[0-9]+$ ]]; then
+	    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
+	fi
 
     # Fix permissions for shared group access on host
     chmod +rx "/home/$openpanel_username"
