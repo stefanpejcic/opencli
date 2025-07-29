@@ -55,8 +55,8 @@ if [ -n "$owner" ]; then
     api_key=""
   else
     api_key=$(cat /etc/openpanel/openpanel/service/pagespeed.api)
-    user_key_path="/hostfs/home/$context/docker-data/volumes/${context}_html_data/_data/pagespeed_api_key.txt"
-    global_key_path="/hostfs/etc/openpanel/openpanel/service/pagespeed.api"
+    user_key_path="/home/$context/docker-data/volumes/${context}_html_data/_data/pagespeed_api_key.txt"
+    global_key_path="/etc/openpanel/openpanel/service/pagespeed.api"
     
     if [[ -s "$user_key_path" ]]; then
       api_key=$(cat "$user_key_path")
