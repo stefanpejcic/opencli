@@ -58,7 +58,7 @@ WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain pro
 
 
 # ENTERPRISE
-ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
+ENTERPRISE="/usr/local/opencli/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 PROXY_FILE="/etc/openpanel/caddy/redirects.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
