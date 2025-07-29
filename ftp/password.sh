@@ -58,8 +58,11 @@ update_password() {
 	PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
 	HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
-    # Apply the new hashed password
-    docker exec openadmin_ftp sh -c "usermod -p \"'$HASHED_PASS'\" '$username'"
+    # Encode password safely
+    HASHED_B64=$(echo "$HASHED_PASS" | base64)
+
+    # Inside container: decode and set password
+    docker exec openadmin_ftp sh -c "usermod -p \$(echo '$HASHED_B64' | base64 -d) '$username'"
 
     if [ $? -eq 0 ]; then
         # Update users.list with new hashed password
