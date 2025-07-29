@@ -60,9 +60,15 @@ update_password() {
     # Generate hashed password (SHA512)
     HASHED_PASS=$($PYTHON_PATH -W ignore -c "import crypt, random, string; salt = ''.join(random.choices(string.ascii_letters + string.digits, k=16)); print(crypt.crypt('$password', '\$6\$' + salt))")
 
-    # Inside container: decode and set password
-    HASHED_B64=$(echo "$HASHED_PASS" | base64)
-    docker exec openadmin_ftp sh -c "usermod -p \$(echo '$HASHED_B64' | base64 -d) '$username'"
+    # Write it to a temp file (host side)
+    echo "$HASHED_PASS" > /tmp/hashed.pass
+    
+    # Copy the password to the container
+    docker cp /tmp/hashed.pass openadmin_ftp:/tmp/hashed.pass
+    
+    # Apply it inside container (read cleanly from file)
+    docker exec openadmin_ftp bash -c "usermod -p \$(cat /tmp/hashed.pass) '$username' && rm /tmp/hashed.pass"
+
     if [ $? -eq 0 ]; then
         # Update users.list with new hashed password
 awk -F'|' -v user="$username" -v newpass="$HASHED_PASS" '
