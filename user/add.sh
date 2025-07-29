@@ -1467,7 +1467,7 @@ get_php_version() {
 
 start_panel_service() {
     # from 0.2.5 panel service is not started until account is created
-    if docker --contet=default compose -f /root/docker-compose.yml ps --services --filter "status=running" | grep -q "^openpanel$"; then
+    if docker --context=default compose -f /root/docker-compose.yml ps --services --filter "status=running" | grep -q "^openpanel$"; then
         log "OpenPanel service is already running."
     else
         log "OpenPanel service is not running. Starting it now..."
