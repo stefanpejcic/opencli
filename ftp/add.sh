@@ -111,20 +111,20 @@ create_user() {
     # Set password inside container
     if docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
         # Create directory on host side if it doesn't exist
-        mkdir -p "/hostfs$new_directory"
+        mkdir -p "$new_directory"
 
         # Set owner and group on directory (important!)
-        chown -R "$openpanel_username:$openpanel_username" "/hostfs$new_directory"
+        chown -R "$openpanel_username:$openpanel_username" "$new_directory"
 
         # Set proper permissions: read/write for group, +setgid for inheritance
-        chmod -R 2775 "/hostfs$new_directory"
+        chmod -R 2775 "$new_directory"
 
         # Fix execute permissions for traversing up the tree
-        chmod +rx "/hostfs/home/$openpanel_username"
-        chmod +rx "/hostfs/home/$openpanel_username/docker-data"
-        chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes"
-        chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
-        chmod +rx "/hostfs/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
+        chmod +rx "/home/$openpanel_username"
+        chmod +rx "/home/$openpanel_username/docker-data"
+        chmod +rx "/home/$openpanel_username/docker-data/volumes"
+        chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data"
+        chmod +rx "/home/$openpanel_username/docker-data/volumes/${openpanel_username}_html_data/_data"
 
         # Get UID and GID from container
         USER_UID=$(docker exec openadmin_ftp id -u "$username")
