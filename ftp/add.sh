@@ -87,7 +87,7 @@ create_user() {
  	EXISTING_GROUP=$(docker exec openadmin_ftp sh -c "getent group '$GID' | cut -d: -f1")
 	
 	# If GID is NOT a number, run fallback command
-	if [[ -n "$EXISTING_GROUP" ]]; then
+	if [[ -z "$EXISTING_GROUP" ]]; then
 	    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
 	fi
 
