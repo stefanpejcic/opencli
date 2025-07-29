@@ -87,10 +87,10 @@ apply_permissions_in_container() {
                 path="${path#/var/www/html/}"
             fi
     
-            directory="/hostfs/home/${context}/docker-data/volumes/${context}_html_data/_data/$path"
+            directory="/home/${context}/docker-data/volumes/${context}_html_data/_data/$path"
             fake_directory="/var/www/html/$path"
         else   
-            directory="/hostfs/home/${context}/docker-data/volumes/${context}_html_data/_data/"     
+            directory="/home/${context}/docker-data/volumes/${context}_html_data/_data/"     
             fake_directory="/var/www/html/"
         fi
     
