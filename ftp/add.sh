@@ -84,11 +84,13 @@ create_user() {
 	
 	# Get GID of openpanel_username from host
 	GID=$(grep "^$openpanel_username:" /hostfs/etc/group | cut -d: -f3)
+ 	EXISTING_GROUP=$(docker exec openadmin_ftp sh -c "getent group '$GID' | cut -d: -f1")
 	
 	# If GID is NOT a number, run fallback command
-	if ! [[ "$GID" =~ ^[0-9]+$ ]]; then
+	if [[ -n "$EXISTING_GROUP" ]]; then
 	    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
 	fi
+
 
     # Fix permissions for shared group access on host
     chmod +rx "/home/$openpanel_username"
