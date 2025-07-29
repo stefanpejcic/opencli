@@ -45,7 +45,7 @@ RESET='\033[0m'
 
 
 # IP SERVERS
-SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
+SCRIPT_PATH="/usr/local/opencli/ip_servers.sh"
 if [ -f "$SCRIPT_PATH" ]; then
     source "$SCRIPT_PATH"
 else
@@ -617,7 +617,7 @@ case "$1" in
         
         case "$command" in
             check)
-                bash  /usr/local/admin/service/notifications.sh
+                bash  /usr/local/opencli/notifications.sh
                 exit 0
                 ;;
             get)
