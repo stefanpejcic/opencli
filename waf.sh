@@ -57,7 +57,7 @@ usage() {
 
 check_domain() {
     local domain="$1"
-    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    local file="/etc/openpanel/caddy/domains/${domain}.conf"
     
     if [[ ! -f "$file" ]]; then
         echo "Domain not found!"
@@ -90,7 +90,7 @@ reload_caddy_now() {
 
 enable_coraza_waf_for_domain() {
     local domain="$1"
-    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    local file="/etc/openpanel/caddy/domains/${domain}.conf"
     
     if [[ ! -f "$file" ]]; then
         echo "Domain not found!"
@@ -110,7 +110,7 @@ enable_coraza_waf_for_domain() {
 
 disable_coraza_waf_for_domain() {
     local domain="$1"
-    local file="/hostfs/etc/openpanel/caddy/domains/${domain}.conf"
+    local file="/etc/openpanel/caddy/domains/${domain}.conf"
     
     if [[ ! -f "$file" ]]; then
         echo "Domain not found!"
@@ -161,12 +161,12 @@ get_stats_from_file() {
 }
 
 list_all_tags() {
-    grep -oP "tag:\s*['\"]\K[^'\"]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | grep -v "OWASP_CRS" | sort -u
+    grep -oP "tag:\s*['\"]\K[^'\"]+" /etc/openpanel/caddy/coreruleset/rules/*.conf | grep -v "OWASP_CRS" | sort -u
 }
 
 
 list_all_ids() {
-    grep -oP "id:\K[0-9]+" /hostfs/etc/openpanel/caddy/coreruleset/rules/*.conf | sort -u
+    grep -oP "id:\K[0-9]+" /etc/openpanel/caddy/coreruleset/rules/*.conf | sort -u
 }
 
 
