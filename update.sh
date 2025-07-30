@@ -555,13 +555,7 @@ run_update_immediately() {
         log_error "Failed to pull Docker image"
         return 1
     fi
-    
-    # Update version in .env file
-    log "Updating version in /root/.env"
-    if [[ -f /root/.env ]]; then
-        sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
-    fi
-    
+
     # Update OpenCLI
     log "Updating OpenCLI"
     if [[ -d /usr/local/opencli ]]; then
@@ -594,6 +588,12 @@ run_update_immediately() {
     # Clean up old images
     log "Cleaning up old Docker images"
     purge_previous_images
+
+    # Update version in .env file
+    log "Updating version in /root/.env"
+    if [[ -f /root/.env ]]; then
+        sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
+    fi
     
     # Run version-specific scripts
     run_version_specific_script "$version"
