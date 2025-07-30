@@ -91,7 +91,7 @@ create_user() {
 	    docker exec openadmin_ftp addgroup -g "$GID" "$openpanel_username"
 	fi
 
-
+    mkdir -p "$new_directory"
     # Fix permissions for shared group access on host
     chmod +rx "/home/$openpanel_username"
     chmod +rx "/home/$openpanel_username/docker-data"
