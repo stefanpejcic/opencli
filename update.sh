@@ -600,15 +600,21 @@ run_update_immediately() {
     run_version_specific_script "$version"
     
     # System updates
-    log "Updating system packages"
-    install_required_tools
-    update_system_packages
-    remove_old_kernels
-    check_reboot_required
+    #
+    # TODO: add flags, run periodically for major v only
+    #
+    #log "Updating system packages"
+    #install_required_tools
+    #update_system_packages
+    #remove_old_kernels
+    #check_reboot_required
     
     # Update Docker Compose
-    log "Updating Docker Compose"
-    update_docker_compose
+    #
+    # TODO: add flags, run periodically for major v only
+    #
+    #log "Updating Docker Compose"
+    #update_docker_compose
     
     # Run custom post-update script
     log "Checking for custom post-update scripts"
