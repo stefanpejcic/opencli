@@ -275,7 +275,7 @@ else
         log "TLD list not found, downloading from IANA..."
         update_tlds=true
     elif [[ $(find "$tld_file" -mtime +6 2>/dev/null) ]]; then
-        log "TLD list older than 7 days, refreshing from IANA..."
+        #log "TLD list older than 7 days, refreshing from IANA..."
         update_tlds=true
     fi
 
