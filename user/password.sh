@@ -85,15 +85,14 @@ fi
 #Insert data into the database
 
 # Hash password
-hashed_password=$(docker --context=default compose run --rm -e PASSWORD="$new_password" hash)
-
-if [[ $hashed_password == scrypt* ]]; then
-  :
-else
-  # deprecated and works ONLY outside of container!
+if command -v python3 &>/dev/null; then
+  hashed_password=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$new_password'))")
+elif [ -x /usr/local/admin/venv/bin/python3 ]; then
   hashed_password=$(/usr/local/admin/venv/bin/python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('$new_password'))")
+else
+  echo "Warning: No Python 3 interpreter found. Please install Python 3 or check the virtual environment."
+  exit 1
 fi
-
 
 
 # Insert hashed password into MySQL database
