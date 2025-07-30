@@ -1558,6 +1558,9 @@ generate_user_password_hash() {
 	fi
 }
 
+permisisons_do() {
+	chown -R $username:$username /home/$username/ >/dev/null 2>&1
+}
 
 collect_stats() {
   local file="/etc/openpanel/openpanel/core/users/$username/docker_usage.txt"
@@ -1599,4 +1602,5 @@ start_panel_service                          # start user panel if not running
 save_user_to_db                              # save user to mysql db
 collect_stats                                # must be after insert in db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
+permisisons_do
 )200>/var/lock/openpanel_user_add.lock
