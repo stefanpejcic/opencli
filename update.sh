@@ -568,10 +568,11 @@ run_update_immediately() {
     if [[ -d /usr/local/admin ]]; then
         cd /usr/local/admin
         # https://github.com/stefanpejcic/openadmin/branches
-        default_branch=$(git remote show origin | awk '/HEAD branch/ {print $NF}') 
-        git fetch origin
-        git reset --hard origin/"$default_branch"
-        git pull origin "$default_branch" 2>&1 | tee -a "$log_file"
+        #default_branch=$(git remote show origin | awk '/HEAD branch/ {print $NF}') 
+        #git fetch origin
+        #git reset --hard origin/"$default_branch"
+        #git pull origin "$default_branch" 2>&1 | tee -a "$log_file"
+        git pull
     fi
     
     # Restart OpenPanel service
