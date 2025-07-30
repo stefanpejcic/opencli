@@ -74,7 +74,7 @@ check_domain() {
 }
 
 check_coraza_status() {
-  local env_file="/hostfs/root/.env"
+  local env_file="/root/.env"
   local custom_image='CADDY_IMAGE="openpanel/caddy-coraza"'
   
   if grep -q "^$custom_image" "$env_file"; then
