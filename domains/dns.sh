@@ -171,6 +171,34 @@ delete_dns_zone(){
 
 
 
+add_subdomains_to_zone() {
+  local apex_domain="$1"
+  local zone_file="/etc/bind/zones/$apex_domain.zone"
+
+  if [[ ! -f "$zone_file" ]]; then
+    echo "Zone file not found: $zone_file"
+    return
+  fi
+
+  SERVER_IP=$(curl --silent --max-time 2 -4 https://ip.openpanel.com || echo "127.0.0.1")
+
+  subdomains=$(mysql -Nse "SELECT domain_url FROM domains WHERE domain_url LIKE '%.${apex_domain}';")
+
+  if [[ -z "$subdomains" ]]; then
+    echo "No subdomains found for $apex_domain"
+    return
+  fi
+
+  echo "Adding subdomains to DNS zone: $apex_domain"
+
+  for sub in $subdomains; do
+    echo -e "$sub\t14400\tIN\tA\t$SERVER_IP" >> "$zone_file"
+    echo -e "$sub\t14400\tIN\tTXT\t\"v=spf1 ip4:$SERVER_IP +a +mx ~all\"" >> "$zone_file"
+  done
+
+  # Reload BIND zone
+  docker --context default exec openpanel_dns rndc reload "$apex_domain"
+}
 
 
 
@@ -192,6 +220,7 @@ restore_zone_to_default(){
   
   # todo: add cron to crear zones daily, older than 24hrs.
   create_dns_zone_for_domain "$domain_name"
+  add_subdomains_to_zone "$domain_name"
 
   }
 
