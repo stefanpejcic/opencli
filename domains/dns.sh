@@ -221,7 +221,6 @@ restore_zone_to_default(){
   # todo: add cron to crear zones daily, older than 24hrs.
   create_dns_zone_for_domain "$domain_name"
   add_subdomains_to_zone "$domain_name"
-
   }
 
   
@@ -425,6 +424,7 @@ while [[ $# -gt 0 ]]; do
       ;; 
     create)
       create_dns_zone_for_domain "$2"
+      add_subdomains_to_zone "$2"
       shift 2
       ;; 
     reload)
