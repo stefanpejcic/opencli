@@ -267,8 +267,8 @@ if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
     log ".onion address - Tor will be configured.."
     verify_onion_files
 else
-    tld="${domain_name##*.}"
-    tld_lower=$(echo "$tld" | tr '[:upper:]' '[:lower:]')
+    domain_lower=$(echo "$domain_name" | tr '[:upper:]' '[:lower:]')
+
     tld_file="/etc/openpanel/openpanel/conf/public_suffix_list.dat"
     update_tlds=false
     if [[ ! -f "$tld_file" ]]; then
@@ -287,21 +287,41 @@ else
         fi
     fi
 
-    if grep -qx "$tld_lower" "$tld_file"; then
-        #log "Valid domain with recognized TLD: .$tld_lower"
-    	domain_base="${domain_name%.*}"
-    	if [[ "$domain_base" == *.* ]]; then
-	    is_subdomain=true
-	    apex_domain="${domain_name##*.}"                           # TLD
-	    second_level="${domain_name%.*}"                           # Remove TLD
-	    second_level="${second_level##*.}"                         # Extract SLD
-	    apex_domain="${second_level}.${tld}"                       # Combine SLD + TLD
-	    log "Domain '$domain_base' is a subdomain of '$apex_domain'."
-    	fi
-    else
-	echo "ERROR: Invalid domain or unrecognized TLD: .$tld_lower"
-	exit 1
-    fi
+	suffixes=$(grep -v '^//' "$tld_file" | grep -v '^$')
+	
+	matched_suffix=""
+	max_match_len=0
+	
+	# Loop through each suffix and find the longest match
+	while read -r suffix; do
+	    # Escape dots for pattern matching
+	    suffix_pattern=".$suffix"
+	    if [[ ".$domain_lower" == *"$suffix_pattern" ]]; then
+	        suffix_len=${#suffix}
+	        if (( suffix_len > max_match_len )); then
+	            matched_suffix="$suffix"
+	            max_match_len=$suffix_len
+	        fi
+	    fi
+	done <<< "$suffixes"
+	
+	if [[ -n "$matched_suffix" ]]; then
+	    log "Detected public suffix (TLD): .$matched_suffix"
+	    # Extract the rest of the domain (the registrable part)
+	    apex_domain="${domain_lower%.$matched_suffix}"
+	    sld="${apex_domain##*.}"
+	    apex_domain="${sld}.${matched_suffix}"
+	
+	    # If anything remains, it's a subdomain
+	    if [[ "$domain_lower" != "$apex_domain" ]]; then
+	        is_subdomain=true
+	        log "Domain '$domain_lower' is a subdomain of '$apex_domain'."
+	    fi
+	else
+	    echo "ERROR: Invalid domain or unrecognized TLD for '$domain_name'"
+	    exit 1
+	fi
+
 fi
 
 log "Checking if domain already exists on the server"
