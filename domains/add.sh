@@ -215,18 +215,22 @@ log() {
     fi
 }
 
-if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
-    echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
-    exit 1
-fi
 
-if [[ -n "$docroot" ]]; then
-    log "Using document root: $docroot"
-else
-    docroot="/var/www/html/$domain_name"
-    log "No document root specified, using /var/www/html/$domain_name"
-fi
 
+verify_docroot() {
+	if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
+	    echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
+	    exit 1
+	fi
+	
+	if [[ -n "$docroot" ]]; then
+	    #log "Using document root: $docroot"
+	    :
+	else
+	    docroot="/var/www/html/$domain_name"
+	    log "No document root specified, using /var/www/html/$domain_name"
+	fi
+}
 
 # added in 0.3.8 so admin can disable some domains!
 compare_with_forbidden_domains_list() {
@@ -1025,4 +1029,5 @@ add_domain() {
 
 check_subdomain_existing_onion
 get_php_version
+verify_docroot
 add_domain "$user_id" "$domain_name"
