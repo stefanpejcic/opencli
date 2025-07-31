@@ -304,7 +304,12 @@ else
 	        fi
 	    fi
 	done <<< "$suffixes"
-	
+
+	if [[ "$domain_lower" == "$matched_suffix" ]]; then
+	    echo "ERROR: '$domain_lower' is a public suffix and cannot be used as a domain."
+	    exit 1
+	fi
+ 
 	if [[ -n "$matched_suffix" ]]; then
 	    log "Detected public suffix (TLD): .$matched_suffix"
 	    # Extract the rest of the domain (the registrable part)
