@@ -339,7 +339,6 @@ create_dns_zone_for_domain(){
     # Reload BIND service
     docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
     cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
-  exit 0
 
 }
 
