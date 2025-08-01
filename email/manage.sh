@@ -39,7 +39,7 @@ fi
 
 
 # added in 0.2.5
-ENTERPRISE="/usr/local/admin/core/scripts/enterprise.sh"
+ENTERPRISE="/usr/local/opencli/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
