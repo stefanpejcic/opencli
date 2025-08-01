@@ -495,6 +495,8 @@ make_folder() {
 	local skip_permissions=0
 	local ftp_line
 	local abs_docroot="/var/www/html/$stripped_docroot"
+ 	chown "$context_uid:$context_uid" "$ws_files"
+	chmod -R g+w "$ws_files"
 
 	while read -r ftp_line; do
 		# Skip header and empty lines
