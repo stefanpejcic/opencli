@@ -117,6 +117,7 @@ get_userid_from_db() {
 
 
     reload_user_quotas() {
+    	touch /etc/openpanel/openpanel/core/users/repquota
     	quotacheck -avm >/dev/null 2>&1
     	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
     }
