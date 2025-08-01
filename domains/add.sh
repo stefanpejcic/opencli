@@ -477,55 +477,27 @@ clear_cache_for_user() {
 
 make_folder() {
 	log "Creating document root directory $docroot"
-	local stripped_docroot="${docroot#/var/www/html/}"
-	local context_uid
-	context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
+ 	local stripped_docroot="${docroot#/var/www/html/}"
+ 	context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
+
 
 	if [ -z "$context_uid" ]; then
 		log "Warning: failed detecting user id, permissions issue!"
-		return
-	fi
 
-	local full_path="/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
-	local ws_files="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
-	mkdir -p "$full_path"
-	mkdir -p "$ws_files"
-
-	# Check for FTP sub-user docroot conflict
-	local skip_permissions=0
-	local ftp_line
-	local abs_docroot="/var/www/html/$stripped_docroot"
- 	chown "$context_uid:$context_uid" "$ws_files"
-	chmod -R g+w "$ws_files"
-
-	while read -r ftp_line; do
-		# Skip header and empty lines
-		[[ "$ftp_line" == FTP\ sub-users* || -z "$ftp_line" ]] && continue
-
-		# Parse FTP path (second column)
-		local ftp_path
-		ftp_path=$(echo "$ftp_line" | cut -d'|' -f2 | xargs)
-
-		# Check if FTP path is the same, a parent, or a subpath of the docroot
-		if [[ "$ftp_path" == "$abs_docroot" || "$ftp_path" == "$abs_docroot/"* || "$abs_docroot" == "$ftp_path/"* ]]; then
-			log "FTP account uses path '$ftp_path' which conflicts with '$abs_docroot'. Skipping permission changes."
-			skip_permissions=1
-			break
-		fi
-	done < <(opencli ftp-list "$context")
-
-	if [[ "$skip_permissions" -eq 0 ]]; then
-		log "No FTP docroot conflict found. Applying ownership and permissions."
-		chown "$context_uid:$context_uid" "$full_path" "$ws_files"
-		chmod -R g+w "$full_path" "$ws_files"
-
-		chown "$context_uid:$context_uid" \
-			"/home/$context/docker-data/volumes/${context}_html_data/" \
-			"/home/$context/docker-data/volumes/${context}_html_data/_data/"
 	else
-		log "Permission changes skipped due to FTP path overlap."
+		local full_path="/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
+		mkdir -p "$full_path" && chown $context_uid:$context_uid "$full_path" && chmod -R g+w "$full_path"
+	
+		local ws_files="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
+		mkdir -p "$ws_files" && chown $context_uid:$context_uid "$ws_files" && chmod -R g+w "$ws_files"
+	  
+	  	# when it is first domain!
+	  	# https://github.com/stefanpejcic/OpenPanel/issues/472
+		chown $context_uid:$context_uid /home/$context/docker-data/volumes/${context}_html_data/
+		chown $context_uid:$context_uid /home/$context/docker-data/volumes/${context}_html_data/_data/
 	fi
 }
+
 
 
 
