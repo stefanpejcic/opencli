@@ -149,15 +149,14 @@ uninstall_av() {
 
 
 start_av() {
-  echo "Starting webserver..."
   pkill -u _imunify -f "php -S 127.0.0.1:9000" 2>/dev/null || true
 
   chown -R _imunify /etc/sysconfig/imunify360/
   if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
     nohup sudo -u _imunify php -S 127.0.0.1:9000 -t /etc/sysconfig/imunify360/ > /var/log/imunify-php-server.log 2>&1 &
-    echo "Webserver started."
+    echo "ImunifyAV GUI started."
   else
-    echo "Webserver already running."
+    echo "ImunifyAV GUI already running."
   fi
 }
 
