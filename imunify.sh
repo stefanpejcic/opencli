@@ -58,6 +58,54 @@ status_av() {
   fi
 }
 
+
+
+
+configure_av_limits_and_email() {
+# NOTIFICATIONS
+wget -O /etc/sysconfig/imunify360/iav_hook.sh https://gist.githubusercontent.com/stefanpejcic/2318eae67c6833bb313eae7476aaa22f/raw/04bb0b6b4af7ff4515d17abaed891c50ff4f36d4/imav_email.sh
+chmod +x /etc/sysconfig/imunify360/iav_hook.sh
+imunify-antivirus notifications-config update '{"rules": {"USER_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/opt/iav/iav_hook.sh"], "enabled": true}}}}'
+imunify-antivirus notifications-config update '{"rules": {"CUSTOM_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/opt/iav/iav_hook.sh"], "enabled": true}}}}'
+
+
+# https://docs.imunifyav.com/config_file_description/
+imunify-antivirus config update '{"MALWARE_SCANNING": {"hyperscan": true}}'
+
+# ionice
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"cpu": 2}}'
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"io": 2}}'
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"ram": 1024}}'
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"user_scan_cpu": 2}}'
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"user_scan_io": 2}}'
+imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"user_scan_ram": 1024}}'
+
+imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"cpu_limit": 1}}'
+imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"io_limit": 1}}'
+imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"ram_limit": 500}}'
+
+# cron
+#imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"day_of_month": 1}}'
+#imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"hour": 3}}'
+#imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"interval": "none"}}'
+#imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
+
+
+
+
+# exclude paths!
+
+cat <<\EOT >> /etc/sysconfig/imunify360/malware-filters-admin-conf/ignored.txt
+^/home/(.*)/docker-data/containers/(.*)
+^/home/(.*)/docker-data/image/(.*)
+^/home/(.*)/docker-data/overlay2/(.*)
+EOT
+
+
+imunify360-agent malware rebuild patterns
+}
+
+
 install_av() {
 
 echo "Creating directories..."
@@ -117,6 +165,11 @@ if ! grep -q "# Deployed by imav-deploy" "$DEPLOY_SCRIPT"; then
 else
   echo "Deploy script already executed or invalid, skipping..."
 fi
+
+
+
+echo "Setting limits for ImunifyAV service and configuring alerts to 'OpenAdmin > Settings > Notifications'..."
+configure_av_limits_and_email
 
 echo "Installing PHP if not present..."
 if ! command -v php >/dev/null 2>&1; then
