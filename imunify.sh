@@ -62,17 +62,19 @@ status_av() {
 
 
 configure_av_limits_and_email() {
-# NOTIFICATIONS
+
+echo "Configuring ImunifyAV notifications to use 'OpenAdmin > Settings > Notifications'..."
 wget -O /etc/sysconfig/imunify360/iav_hook.sh https://gist.githubusercontent.com/stefanpejcic/2318eae67c6833bb313eae7476aaa22f/raw/04bb0b6b4af7ff4515d17abaed891c50ff4f36d4/imav_email.sh
 chmod +x /etc/sysconfig/imunify360/iav_hook.sh
-imunify-antivirus notifications-config update '{"rules": {"USER_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/opt/iav/iav_hook.sh"], "enabled": true}}}}'
-imunify-antivirus notifications-config update '{"rules": {"CUSTOM_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/opt/iav/iav_hook.sh"], "enabled": true}}}}'
+imunify-antivirus notifications-config update '{"rules": {"USER_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/etc/sysconfig/imunify360/iav_hook.sh"], "enabled": true}}}}'
+imunify-antivirus notifications-config update '{"rules": {"CUSTOM_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/etc/sysconfig/imunify360/iav_hook.sh"], "enabled": true}}}}'
 
 
 # https://docs.imunifyav.com/config_file_description/
 imunify-antivirus config update '{"MALWARE_SCANNING": {"hyperscan": true}}'
 
 # ionice
+echo "Setting 2CPU and 1GB Memory limits for ImunifyAV service.."
 imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"cpu": 2}}'
 imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"io": 2}}'
 imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"ram": 1024}}'
@@ -91,9 +93,8 @@ imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"ram_limit": 500}}'
 #imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
 
 
-
-
 # exclude paths!
+echo "Adding Containers, Images and writable filesystems to ignored files list.."
 
 cat <<\EOT >> /etc/sysconfig/imunify360/malware-filters-admin-conf/ignored.txt
 ^/home/(.*)/docker-data/containers/(.*)
@@ -168,7 +169,6 @@ fi
 
 
 
-echo "Setting limits for ImunifyAV service and configuring alerts to 'OpenAdmin > Settings > Notifications'..."
 configure_av_limits_and_email
 
 echo "Installing PHP if not present..."
