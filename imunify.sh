@@ -137,6 +137,7 @@ service_name = imunify360-deny
 
 [integration_scripts]
 panel_info = /etc/sysconfig/imunify360/get-panel-info.sh
+admins = /etc/sysconfig/imunify360/get_admins.sh
 users = /usr/local/opencli/user/list.sh --json
 domains = /usr/local/opencli/domains/all.sh --json
 
@@ -173,6 +174,13 @@ fi
 
 
 configure_av_limits_and_email
+
+echo "Allowing users to initiate a scan.."
+wget -O /etc/sysconfig/imunify360/get_admins.sh https://gist.githubusercontent.com/stefanpejcic/2318eae67c6833bb313eae7476aaa22f/raw/9cccb43656c6d16eea184e9f8f9a65a2bc378e33/get_admins.sh
+chmod +x /etc/sysconfig/imunify360/get_admins.sh
+imunify360-agent config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
+imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
+
 
 echo "Installing PHP if not present..."
 if ! command -v php >/dev/null 2>&1; then
