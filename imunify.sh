@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: imunify.sh
 # Description: Install and manage ImunifyAV service.
-# Usage: opencli imunify [status|start|stop|install|uninstall]
+# Usage: opencli imunify [status|start|stop|install|update|uninstall]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
@@ -126,6 +126,41 @@ else
   echo "PHP already installed."
 fi
 
+
+
+# add it to openadmin > services > status
+FILE="/etc/openpanel/openadmin/config/services.json"
+
+NEW_SERVICE='    {
+        "name": "ImunifyAV",
+        "type": "system",
+        "real_name": "imunify-antivirus"
+    }'
+
+# Check if file ends with a closing array bracket
+if tail -n 1 "$FILE" | grep -q '\]'; then
+    # Remove the last line (closing bracket)
+    head -n -1 "$FILE" > "$FILE.tmp"
+    
+    # Add comma to the last existing object if needed
+    if tail -n 1 "$FILE.tmp" | grep -vq '},'; then
+        sed -i '$s/}/},/' "$FILE.tmp"
+    fi
+
+    # Append the new service and closing bracket
+    echo "$NEW_SERVICE" >> "$FILE.tmp"
+    echo "]" >> "$FILE.tmp"
+
+    # Replace the original file
+    mv "$FILE.tmp" "$FILE"
+
+    echo "New service added successfully."
+else
+    echo "Invalid JSON format in $FILE"
+fi
+
+
+
 echo "Install completed!"
 }
 
@@ -142,6 +177,17 @@ uninstall_av() {
   if id "_imunify" >/dev/null 2>&1; then
     echo "User '_imunify' exists. Not removing automatically to avoid breaking dependencies."
     echo "→ If you're sure, run: userdel _imunify"
+  fi
+
+  echo "Removing ImunifyAV from OpenAdmin > Services Status..."
+  FILE="/etc/openpanel/openadmin/config/services.json"
+  TMP_FILE="services.tmp.json"
+  if jq 'map(select(.name != "ImunifyAV"))' "$FILE" > "$TMP_FILE"; then
+      mv "$TMP_FILE" "$FILE"
+      echo "Service 'ImunifyAV' removed successfully."
+  else
+      echo "Failed to parse or update $FILE. Check JSON format."
+      rm -f "$TMP_FILE"
   fi
 
   echo "Uninstall complete."
@@ -161,18 +207,29 @@ start_av() {
 }
 
 stop_av() {
-  echo "Stopping webserver..."
   pkill -f "php -S 127.0.0.1:9000"
   if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
-    echo "Webserver stopped."
+    echo "ImunifyAV GUI disabled."
   else
-    echo "Failed to stop webserver."
+    echo "Failed to disable ImunifyAV GUI."
   fi
 }
 
 
 
-
+update_av() {
+  # https://docs.imunify360.com/imunifyav/#update-instructions
+  echo "Updating ImunifyAV..."
+  if command -v apt-get >/dev/null 2>&1; then
+      apt-get update
+      apt-get install --only-upgrade -y imunify-antivirus
+  elif command -v yum >/dev/null 2>&1; then
+      yum update -y imunify-antivirus
+  else
+      echo "Unsupported package manager. Only apt-get and yum are supported."
+      exit 1
+  fi
+}
 
 # MAIN
 case "$1" in
@@ -202,8 +259,12 @@ case "$1" in
         stop_av
         exit 0
         ;;
+    update)
+        update_av
+        exit 0
+        ;;
     *)
-        echo "Usage: opencli imunify {install|uninstall|start|stop}"
+        echo "Usage: opencli imunify {install|update|uninstall|start|stop}"
         exit 1
         ;;
 esac
