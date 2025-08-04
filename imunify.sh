@@ -50,9 +50,9 @@ EOF
 }
 
 status_av() {
-  if pgrep -u _imunify -f "php -S 0.0.0.0:9000" >/dev/null; then
+  if pgrep -u _imunify -f "php -S 127.0.0.1:9000" >/dev/null; then
     echo "Imunify GUI is running."
-    ps -u _imunify -f | grep "php -S 0.0.0.0:9000"
+    ps -u _imunify -f | grep "php -S 127.0.0.1:9000"
   else
     echo "Imunify GUI is not running."
   fi
@@ -150,11 +150,11 @@ uninstall_av() {
 
 start_av() {
   echo "Starting webserver..."
-  pkill -u _imunify -f "php -S 0.0.0.0:9000" 2>/dev/null || true
+  pkill -u _imunify -f "php -S 127.0.0.1:9000" 2>/dev/null || true
 
   chown -R _imunify /etc/sysconfig/imunify360/
-  if ! pgrep -f "php -S 0.0.0.0:9000" >/dev/null; then
-    nohup sudo -u _imunify php -S 0.0.0.0:9000 -t /etc/sysconfig/imunify360/ > /var/log/imunify-php-server.log 2>&1 &
+  if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
+    nohup sudo -u _imunify php -S 127.0.0.1:9000 -t /etc/sysconfig/imunify360/ > /var/log/imunify-php-server.log 2>&1 &
     echo "Webserver started."
   else
     echo "Webserver already running."
@@ -163,8 +163,8 @@ start_av() {
 
 stop_av() {
   echo "Stopping webserver..."
-  pkill -f "php -S 0.0.0.0:9000"
-  if ! pgrep -f "php -S 0.0.0.0:9000" >/dev/null; then
+  pkill -f "php -S 127.0.0.1:9000"
+  if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
     echo "Webserver stopped."
   else
     echo "Failed to stop webserver."
