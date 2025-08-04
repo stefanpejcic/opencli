@@ -178,7 +178,6 @@ stop_av() {
 # MAIN
 case "$1" in
     status)
-        echo "Checking status for $SERVICE_NAME GUI..."
         status_av
         exit 0
         ;;
