@@ -137,6 +137,8 @@ service_name = imunify360-deny
 
 [integration_scripts]
 panel_info = /etc/sysconfig/imunify360/get-panel-info.sh
+users = /usr/local/opencli/user/list.sh --json
+domains = /usr/local/opencli/domains/all.sh --json
 
 [malware]
 basedir = /home
