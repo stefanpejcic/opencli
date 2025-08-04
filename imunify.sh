@@ -100,6 +100,7 @@ cat <<\EOT >> /etc/sysconfig/imunify360/malware-filters-admin-conf/ignored.txt
 ^/home/(.*)/docker-data/containers/(.*)
 ^/home/(.*)/docker-data/image/(.*)
 ^/home/(.*)/docker-data/overlay2/(.*)
+^/home/(.*)/bin/(.*)
 EOT
 
 
