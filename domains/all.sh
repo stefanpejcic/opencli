@@ -126,11 +126,31 @@ get_all_domains() {
 
             esc_domain=$(echo "$domain" | sed 's/"/\\"/g')
             esc_docroot=$(echo "$docroot" | sed 's/"/\\"/g')
-            esc_php_version=$(echo "$php_version" | sed 's/"/\\"/g')
-
+            php_version_id="$php_version"
+            php_ver_num=$(echo "$php_version" | grep -oE '[0-9]+' | tr -d '\n\r ' || echo "")
+            
+            if [[ "$php_ver_num" =~ ^([0-9])([0-9])$ ]]; then
+                php_version_formatted="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+            else
+                php_version_formatted="$php_ver_num"
+            fi
+            
+            # Also clean ini_path in case
+            ini_path=""
+            if [ -n "$server" ] && [ -n "$php_version_formatted" ]; then
+                ini_path="/home/$server/php.ini/${php_version_formatted}.ini"
+                ini_path=$(echo "$ini_path" | tr -d '\n\r ')
+            fi
+            
             echo -n "\"$esc_domain\":{"
             echo -n "\"document_root\":\"$esc_docroot\","
-            echo -n "\"php_version\":\"$esc_php_version\","
+            echo -n "\"php\":{"
+            echo -n "\"php_version_id\":\"$php_version_id\","
+            echo -n "\"version\":\"$php_version_formatted\","
+            echo -n "\"ini_path\":\"$ini_path\","
+            echo -n "\"is_native\":true,"
+            echo -n "\"handler\":\"php-fpm\""
+            echo -n "},"
             echo -n "\"is_main\":$is_main,"
             if [ "$owner" = "null" ]; then
                 echo -n "\"owner\":null"
@@ -138,6 +158,7 @@ get_all_domains() {
                 echo -n "\"owner\":\"$owner\""
             fi
             echo -n "}"
+
         done <<< "$domains"
 
         echo '}, "metadata": {"result": "ok"}}'
