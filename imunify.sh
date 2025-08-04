@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: imunify.sh
 # Description: Install and manage ImunifyAV service.
-# Usage: opencli imunify [start|stop|install|uninstall]
+# Usage: opencli imunify [status|start|stop|install|uninstall]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
@@ -49,6 +49,14 @@ opencli_version=$(opencli version)
 EOF
 }
 
+status_av() {
+  if pgrep -u _imunify -f "php -S 0.0.0.0:9000" >/dev/null; then
+    echo "Imunify GUI is running."
+    ps -u _imunify -f | grep "php -S 0.0.0.0:9000"
+  else
+    echo "Imunify GUI is not running."
+  fi
+}
 
 install_av() {
 
@@ -169,6 +177,11 @@ stop_av() {
 
 # MAIN
 case "$1" in
+    status)
+        echo "Checking status for $SERVICE_NAME GUI..."
+        status_av
+        exit 0
+        ;;
     install)
         echo "Installing $SERVICE_NAME..."
         install_av
