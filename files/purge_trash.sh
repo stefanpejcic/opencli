@@ -98,7 +98,7 @@ if $FORCE_PURGE; then
   else
     freed=$(du -sb "$trash_dir" 2>/dev/null | cut -f1)
     shopt -s dotglob nullglob
-    rm -rf -- "$trash_dir"/*
+    rm -rf -- "${trash_dir:?}"/*
     shopt -u dotglob
     touch "$restore_file"
   fi
@@ -136,7 +136,8 @@ fi
       else
         rm -rf -- "$trash_file"
         # Remove line from .trash_restore (exact match)
-        grep -Fxv -- "$line" "$restore_file" > "$restore_file.tmp" || true
+        tmpfile="${restore_file}.tmp"
+        grep -Fxv -- "$line" "$restore_file" > "$tmpfile" || true
         mv "$restore_file.tmp" "$restore_file"
       fi
     fi
