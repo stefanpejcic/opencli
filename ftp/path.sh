@@ -3,7 +3,7 @@
 # Script Name: ftp/path.sh
 # Description: Change FTP path for a user.
 # Usage: opencli ftp-path <username> <path> <openpanel_username> [--debug]
-# Docs: https://docs.openpanel.co/
+# Docs: https://docs.openpanel.com/
 # Author: Stefan Pejcic
 # Created: 10.09.2024
 # Last Modified: 08.08.2025
