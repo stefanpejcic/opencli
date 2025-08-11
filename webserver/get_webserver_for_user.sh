@@ -35,8 +35,8 @@ determine_web_server() {
         echo "apache"
     elif [[ "$container_name" == *"openresty"* ]]; then
         echo "openresty"
-    elif [[ "$container_name" == *"litespeed"* ]]; then
-        echo "litespeed"
+    elif [[ "$container_name" == *"openlitespeed"* ]]; then
+        echo "openlitespeed"
     else
         echo "unknown"
     fi
