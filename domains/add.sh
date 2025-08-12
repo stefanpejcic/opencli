@@ -650,7 +650,6 @@ create_domain_file() {
  	local waf_dir="/var/log/caddy/coraza_waf"
 	mkdir -p $logs_dir && touch $logs_dir/access.log
 	mkdir -p $waf_dir && touch $waf_dir/${domain_name}.log
-	#docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $user) #from 025 ips are not used
  
 	local env_file="/home/${context}/.env"
  	source $env_file
@@ -1009,20 +1008,19 @@ add_domain() {
  	if $onion_domain; then
 		setup_tor_for_user		     # create conf files
 		start_tor_for_user		     # actually run service
-    	else
+    else
 		
-	     	if $SKIP_CADDY_CREATE; then 
-	      		log "Skipping Reverse Proxy file creation due to '--skip_caddy' flag."
-	      	else
-	           	create_domain_file                   # create file on host
-	        fi
+		if $SKIP_CADDY_CREATE; then 
+			log "Skipping Reverse Proxy file creation due to '--skip_caddy' flag."
+		else
+			create_domain_file                   # create file on host
+		fi
 
-
-	     	if $SKIP_DNS_ZONE; then 
-	      		log "Skipping DNS zone file creation due to '--skip_dns' flag."
-	      	else
-	           	dns_stuff
-	        fi
+		if $SKIP_DNS_ZONE; then 
+			log "Skipping DNS zone file creation due to '--skip_dns' flag."
+		else
+			dns_stuff
+		fi
   	
  	fi
   
@@ -1030,7 +1028,7 @@ add_domain() {
 		log "Skipping starting PHP service due to '--skip_containers' flag."
 	else
 		if [[ $ws == *apache* ]] || [[ $ws == *nginx* ]] || [[ $ws == *openresty* ]]; then
-		    start_default_php_fpm_service                # sdont start it for litespeed!
+		    start_default_php_fpm_service                # skip for litespeed!
 		fi
 	fi
 	
