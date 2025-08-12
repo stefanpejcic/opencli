@@ -655,7 +655,7 @@ create_domain_file() {
 
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
-	        echo "Warning: .env file not found!"
+	        echo "Warning: $env_file file not found!"
 	        return 1
 	    fi
 	
