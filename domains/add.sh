@@ -379,11 +379,10 @@ result=$(get_user_info "$user")
 user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
-if [ -z "$user_id" ]; then
-    echo "FATAL ERROR: user $user does not exist."
+if [ -z "$user_id" ] || [ -z "$context" ]; then
+    echo "FATAL ERROR: Missing user ID or context for user $user."
     exit 1
 fi
-
 
 
 
@@ -656,7 +655,7 @@ create_domain_file() {
 
 	    # Check if the file exists
 	    if [[ ! -f "$env_file" ]]; then
-	        echo "Error: .env file not found for user $username"
+	        echo "Warning: .env file not found!"
 	        return 1
 	    fi
 	
@@ -667,14 +666,13 @@ create_domain_file() {
  		ip_format_for_nginx="$current_ip"
    	else
 		ip_format_for_nginx="[$current_ip]"
-    	fi
+    fi
 
      # todo: include only if dedi ip in caddy file!
-
-mkdir -p /etc/openpanel/caddy/domains/
-
-domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
-touch $domains_file
+	mkdir -p /etc/openpanel/caddy/domains/
+	
+	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
+	touch $domains_file
 
 
 
