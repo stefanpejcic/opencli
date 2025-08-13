@@ -74,6 +74,7 @@ get_webserver_for_user(){
         case "$output" in
         *nginx*) ws="nginx" ;;
         *apache*) ws="apache" ;;
+        *openlitespeed*) ws="openlitespeed" ;;
         *openresty*) ws="openresty" ;;
         *) exit 1 ;;
         esac
