@@ -616,7 +616,7 @@ vhost_files_create() {
  	get_varnish_for_user
   	
 	if [ "$VARNISH" = true ]; then
-	    log "Starting $ws and Varnish containers.."
+	    log "Starting $ws and varnish containers.."
             nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d ${ws} varnish" </dev/null >nohup.out 2>nohup.err &
 	else
             nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d ${ws}" </dev/null >nohup.out 2>nohup.err &
