@@ -27,7 +27,7 @@ determine_web_server() {
 
 
     
-    # Check which container is running nginx, apache, or litespeed
+    # Check which container is running nginx, apache, or openlitespeed
     container_name=$(docker --context "$context" ps --filter "status=running" --format "{{.Names}}")
     if [[ "$container_name" == *"nginx"* ]]; then
         echo "nginx"
