@@ -66,6 +66,10 @@ get_webserver_for_user(){
 	        ws="nginx"
 	    elif [[ $output == *apache* ]]; then
 	        ws="apache"
+	    elif [[ $output == *openresty* ]]; then
+	        ws="openresty"
+	    elif [[ $output == *openlitespeed* ]]; then
+	        ws="openlitespeed"
 	    else
 	        exit 1
 	    fi
