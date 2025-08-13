@@ -274,6 +274,7 @@ check_files() {
     
     check_file "/home/$context/default.vcl" "default.vcl missing - Varnish Caching can not be configured via UI."
     check_file "/home/$context/httpd.conf" "httpd.conf missing - Apache web server can not be configured via UI."
+    check_file "/home/$context/openlitespeed.conf" "openlitespeed.conf missing - OpenLitespeed web server can not be configured via UI."
     check_file "/home/$context/nginx.conf" "nginx.conf missing - Nginx web server can not be configured via UI."
     check_file "/home/$context/openresty.conf" "openresty.conf missing - OpenResty web server can not be configured via UI."
     check_file "/home/$context/pma.php" "pma.php missing - phpMyAdmin autologin from UI is not working."
