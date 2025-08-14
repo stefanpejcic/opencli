@@ -103,7 +103,7 @@ apply_permissions_in_container() {
         
         # FILES
         #find $directory -type f -print0 | xargs -0 chmod $verbose 644
-        find $directory -type f -print0 | xargs -0 chmod $verbose 755 > /dev/null 2>&1
+        find $directory -type f -print0 | xargs -0 chmod $verbose 775 > /dev/null 2>&1
         files_result=$?
         
         # FOLDERS
