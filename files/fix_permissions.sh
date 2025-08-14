@@ -102,15 +102,13 @@ apply_permissions_in_container() {
         owner_result=$?
         
         # FILES
-        #find $directory -type f -print0 | xargs -0 chmod $verbose 644
-        find $directory -type f -print0 | xargs -0 chmod $verbose 775 > /dev/null 2>&1
+        find $directory -type f -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
         files_result=$?
         
         # FOLDERS
-        #find $directory -type d -print0 | xargs -0 chmod $verbose 775
-        find $directory -type d -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
+        find $directory -type d -print0 | xargs -0 chmod $verbose 775
         folders_result=$?
-        
+
         # CHECK ALL 4
             if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
                 echo "Permissions applied successfully to $fake_directory"
