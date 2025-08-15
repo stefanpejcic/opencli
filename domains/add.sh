@@ -1044,7 +1044,36 @@ add_domain() {
     fi
 }
 
+check_and_fix_FTP_permissions() {
+
+    # Get only the FTP list rows (skip the header)
+    real_path="/home/${user}/docker-data/volumes/${user}_html_data/_data/"
+    relative_path="${directory##/var/www/html/}"
+    new_directory="${real_path}${relative_path}"
+    # Check if docroot exists in the list
+	if opencli ftp-list "$user" \
+	    | tail -n +2 \
+	    | cut -d'|' -f2 \
+	    | sed 's/^ *//;s/ *$//' \
+	    | grep -Fxq "$docroot"; then
+
+        chown -R "$user:$user" "$new_directory"
+
+        chmod +rx "/home/$user"
+        chmod +rx "/home/$user/docker-data"
+        chmod +rx "/home/$user/docker-data/volumes"
+        chmod +rx "/home/$user/docker-data/volumes/${user}_html_data"
+        chmod +rx "/home/$user/docker-data/volumes/${user}_html_data/_data"
+
+        echo "[*] Permissions fixed."
+    else
+        echo "[!] Docroot not found in FTP list. No changes made."
+    fi
+}
+
+
 check_subdomain_existing_onion
 get_php_version
 verify_docroot
 add_domain "$user_id" "$domain_name"
+check_and_fix_FTP_permissions
