@@ -1064,10 +1064,6 @@ check_and_fix_FTP_permissions() {
         chmod +rx "/home/$user/docker-data/volumes"
         chmod +rx "/home/$user/docker-data/volumes/${user}_html_data"
         chmod +rx "/home/$user/docker-data/volumes/${user}_html_data/_data"
-
-        echo "[*] Permissions fixed."
-    else
-        echo "[!] Docroot not found in FTP list. No changes made."
     fi
 }
 
