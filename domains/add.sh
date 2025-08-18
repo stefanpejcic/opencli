@@ -1034,7 +1034,7 @@ add_domain() {
  	fi
   
 	if $SKIP_STARTING_CONTAINERS; then 
-		log "Skipping starting PHP service due to '--skip_containers' flag."
+		log "Skipping starting PHP service."
 	else
 		if [[ $ws == *apache* ]] || [[ $ws == *nginx* ]] || [[ $ws == *openresty* ]]; then
 		    start_default_php_fpm_service                # skip for litespeed!
