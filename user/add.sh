@@ -1267,7 +1267,7 @@ run_docker() {
 	}
 
     # Find available ports
-    log "Checking available ports to use for the docker container"
+    log "Checking available ports to use for the user"
     AVAILABLE_PORTS=$(find_available_ports)
 
     # Split the ports into variables
