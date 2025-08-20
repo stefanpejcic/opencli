@@ -94,6 +94,7 @@ check_and_fix_FTP_permissions() {
               "/home/$user/docker-data/volumes" \
               "/home/$user/docker-data/volumes/${user}_html_data" \
               "/home/$user/docker-data/volumes/${user}_html_data/_data"
+    docker restart openadmin_ftp
 }
 
 
