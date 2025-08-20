@@ -610,6 +610,7 @@ vhost_files_create() {
 	elif [[ $ws == *openlitespeed* ]]; then
 		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openlitespeed_domain.conf"
 		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+  		docroot=$stripped_docroot # for ls file we need just part after html/
 	fi
 
 	
