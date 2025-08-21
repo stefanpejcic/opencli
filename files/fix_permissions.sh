@@ -139,10 +139,12 @@ apply_permissions_in_container() {
         fi
     
 
+        # get uid first!
+        uid="$(grep -E "^${context}:" /hostfs/etc/passwd | cut -d: -f3)"
 
         # USERNAME OWNER
         chown -R $verbose $context:$context $directory
-        find $directory -print0 | xargs -0 chown $verbose $context:$context > /dev/null 2>&1
+        find $directory -print0 | xargs -0 chown $verbose $uid:$uid > /dev/null 2>&1
         owner_result=$?
         
         # FILES
@@ -154,11 +156,11 @@ apply_permissions_in_container() {
         folders_result=$?
 
         # CHECK ALL 4
-            if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
-                echo "Permissions applied successfully to $fake_directory"
-            else
-                echo "Error applying permissions to $fake_directory"
-            fi
+        if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ]; then
+            echo "Permissions applied successfully to $fake_directory"
+        else
+            echo "Error applying permissions to $fake_directory"
+        fi
 }
 
 
