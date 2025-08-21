@@ -82,7 +82,7 @@ check_and_fix_FTP_permissions() {
 
             if [ -d "$new_directory" ]; then
                 echo "[*] Fixing ownership for $new_directory"
-                chown -R "$user:$user" "$new_directory"
+                chown -R "$uid:$uid" "$new_directory"
             else
                 echo "[!] Directory $new_directory not found, skipping..."
             fi
@@ -143,7 +143,7 @@ apply_permissions_in_container() {
         uid="$(grep -E "^${context}:" /hostfs/etc/passwd | cut -d: -f3)"
 
         # USERNAME OWNER
-        chown -R $verbose $context:$context $directory
+        #chown -R $verbose $uid:$uid $directory
         find $directory -print0 | xargs -0 chown $verbose $uid:$uid > /dev/null 2>&1
         owner_result=$?
         
