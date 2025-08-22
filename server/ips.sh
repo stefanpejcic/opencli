@@ -75,6 +75,7 @@ get_webserver_for_user(){
         *nginx*) ws="nginx" ;;
         *apache*) ws="apache" ;;
         *openlitespeed*) ws="openlitespeed" ;;
+        *litespeed*) ws="litespeed" ;;
         *openresty*) ws="openresty" ;;
         *) exit 1 ;;
         esac
