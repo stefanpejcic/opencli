@@ -69,16 +69,8 @@ create_ip_file() {
 
 get_webserver_for_user(){
         local USER=$1
-        output=$(opencli webserver-get_webserver_for_user "$USER")
-
-        case "$output" in
-        *nginx*) ws="nginx" ;;
-        *apache*) ws="apache" ;;
-        *openlitespeed*) ws="openlitespeed" ;;
-        *litespeed*) ws="litespeed" ;;
-        *openresty*) ws="openresty" ;;
-        *) exit 1 ;;
-        esac
+		output=$(opencli webserver-get_webserver_for_user "$USER")
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 }
 
 
