@@ -126,7 +126,8 @@ make_folder() {
 
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
-	    ws=$(opencli webserver-get_webserver_for_user $user)
+	    output=$(opencli webserver-get_webserver_for_user $user)		
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 }
 
 
