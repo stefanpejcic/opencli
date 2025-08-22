@@ -344,11 +344,15 @@ if opencli domains-whoowns "$domain_name" | grep -q "not found in the database."
 	  if [ -n "$existing_user" ]; then
 	    if [ "$existing_user" == "$user" ]; then
 	        log "User $existing_user already owns the apex domain $apex_domain - adding subdomain.."
-	 	USE_PARENT_DNS_ZONE=true
+	 		USE_PARENT_DNS_ZONE=true
 	    else
-	        echo "Another user owns the domain: $apex_domain - can't add subdomain: $domain_name"
-	        exit 1
-	    fi
+			if [[ "$allow_subdomain_sharing" == true ]]; then
+				log "WARNING: Another user owns the apex domain: $apex_domain - adding subdomain as a separate addon on this account."
+			else
+				echo "Another user owns the domain: $apex_domain - can't add subdomain: $domain_name"
+				exit 1
+			fi
+		fi
 	  else
 	      echo "Apex domain: $apex_domain does not exist on this server. "
 	  fi
@@ -801,8 +805,19 @@ create_zone_file() {
     ns2=$(get_config_value 'ns2')
     ns3=$(get_config_value 'ns3')
 	rpemail=$(get_config_value 'email')
+ 	allow_subdomain_sharing=$(get_config_value 'permit_subdomain_sharing')
     
 	# fallbacks
+ 	allow_subdomain_sharing=false
+    if [ -z "$allow_subdomain_sharing" ]; then
+        allow_subdomain_sharing=false
+	else
+	    if [ "$allow_subdomain_sharing" = "yes" ]; then
+	        allow_subdomain_sharing=true
+	    fi 
+    fi
+
+
     if [ -z "$ns1" ]; then
         ns1='ns1.openpanel.org'
     fi
