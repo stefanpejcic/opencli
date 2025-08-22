@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy --skip_vhost --skip_containers --skip_dns] --debug
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 22.08.2025
+# Last Modified: 21.08.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -540,19 +540,9 @@ http {
 
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
-	    output=$(opencli webserver-get_webserver_for_user $user)
-	    if [[ $output == *nginx* ]]; then
-	        ws="nginx"
-	 	check_and_create_default_file
-	    elif [[ $output == *openresty* ]]; then
-	        ws="openresty"
-	    elif [[ $output == *apache* ]]; then
-	        ws="apache"
-	    elif [[ $output == *openlitespeed* ]]; then
-	        ws="openlitespeed"
-	    else
-	        ws="unknown"
-	    fi
+		output=$(opencli webserver-get_webserver_for_user "$user")
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' || echo "unknown")
+		[[ $ws == "nginx" ]] && check_and_create_default_file
 }
 
 
@@ -598,48 +588,23 @@ start_default_php_fpm_service() {
 
 vhost_files_create() {
 	
-	if [[ $ws == *apache* ]]; then
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_apache_domain.conf"
-	elif [[ $ws == *nginx* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_nginx_domain.conf"
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-	elif [[ $ws == *openresty* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openresty_domain.conf"
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-	elif [[ $ws == *openlitespeed* ]]; then
-		vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_openlitespeed_domain.conf"
-		vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-	fi
-
-	
+	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
+ 	vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_${ws}_domain.conf" # todo litespeed file!
  	get_varnish_for_user
-  	
 
+	$SKIP_STARTING_CONTAINERS && log "Skipping starting ${ws} container." || {
+	    services="$ws"
+	    [[ $VARNISH == true ]] && services="$services varnish"
+	    log "Starting $services containers.."
+	    nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
+	}
 
-
-	if $SKIP_STARTING_CONTAINERS; then 
-		log "Skipping starting ${ws} container."
-	else
-		if [ "$VARNISH" = true ]; then
-		    log "Starting $ws and varnish containers.."
-	            nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d ${ws} varnish" </dev/null >nohup.out 2>nohup.err &
-		else
-	            nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d ${ws}" </dev/null >nohup.out 2>nohup.err &
-		fi
-	fi
-
-
-
-
-
-       log "Creating ${domain_name}.conf" #$vhost_in_docker_file
-       cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
-       # https://github.com/stefanpejcic/OpenPanel/issues/567
-  	chown $context_uid:$context_uid "/home/$context/docker-data/volumes/${context}_webserver_data/"
+	log "Creating ${domain_name}.conf" #$vhost_in_docker_file
+	cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
+	# https://github.com/stefanpejcic/OpenPanel/issues/567
+	chown $context_uid:$context_uid "/home/$context/docker-data/volumes/${context}_webserver_data/"
 	chown $context_uid:$context_uid -R "/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 
-       
 	sed -i \
 	  -e "s|<DOMAIN_NAME>|$domain_name|g" \
 	  -e "s|<USER>|$user|g" \
@@ -647,13 +612,8 @@ vhost_files_create() {
 	  -e "s|<DOCUMENT_ROOT>|$docroot|g" \
 	  $vhost_in_docker_file
        
-       nohup sh -c "cd /home/$context/ && docker --context $context restart $ws" </dev/null >nohup.out 2>nohup.err &
- 
+     ! $SKIP_STARTING_CONTAINERS && nohup sh -c "cd /home/$context/ && docker --context $context restart $ws" </dev/null >nohup.out 2>nohup.err &
 }
-
-
-
-
 
 create_domain_file() {
 	local logs_dir="/var/log/caddy/domlogs/${domain_name}"
@@ -664,14 +624,14 @@ create_domain_file() {
 	local env_file="/home/${context}/.env"
  	source $env_file
 
-	    # Check if the file exists
-	    if [[ ! -f "$env_file" ]]; then
-	        echo "Warning: .env file not found!"
-	        return 1
-	    fi
+	# Check if the file exists
+	if [[ ! -f "$env_file" ]]; then
+		echo "Warning: .env file not found!"
+		return 1
+	fi
 	
-	    non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
-	    ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
+	non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
+	ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
 
 	if [ "$IPV4" == "yes" ]; then
  		ip_format_for_nginx="$current_ip"
@@ -681,36 +641,30 @@ create_domain_file() {
 
      # todo: include only if dedi ip in caddy file!
 	mkdir -p /etc/openpanel/caddy/domains/
-	
 	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 	touch $domains_file
 
 
-
-
 sed_values_in_domain_conf() {
 
-if [ "$REMOTE_SERVER" == "yes" ]; then
-	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
-                                           -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
-                                           -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
- 
-else
-	domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
-                                           -e "s|<SSL_PORT>|$ssl_port|g" \
-                                           -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
-fi
-        echo "$domain_conf" > "$domains_file"
-
+	if [ "$REMOTE_SERVER" == "yes" ]; then
+		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
+	                                           -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
+	                                           -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
+	 
+	else
+		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
+	                                           -e "s|<SSL_PORT>|$ssl_port|g" \
+	                                           -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
+	fi
+    echo "$domain_conf" > "$domains_file"
 
    	if [ "$VARNISH" = true ]; then
-    	    log "Enabling Varnish cache for the domain.."
+    	log "Enabling Varnish cache for the domain.."
 	    #opencli domains-varnish $domain_name on #> /dev/null 2>&1
 	    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^/#/' "$domains_file"
 	    sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$domains_file"
        fi
-
-
 }
 
 
@@ -719,7 +673,6 @@ ENV_FILE="/root/.env"
 if [ -f "$ENV_FILE" ]; then
     # Extract the value of CADDY_IMAGE from the .env file
     CADDY_IMAGE=$(grep -oP '^CADDY_IMAGE=\K.*' "$ENV_FILE" | sed 's/^"\(.*\)"$/\1/')
-
     if [[ "$CADDY_IMAGE" == "openpanel/caddy-coraza" ]]; then
         conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
         log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
@@ -742,7 +695,7 @@ fi
 check_and_add_to_enabled() {
     # Validate the Caddyfile
     if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
-        # Wait for validation to finish before proceeding
+        # Wait
         docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
@@ -750,27 +703,23 @@ check_and_add_to_enabled() {
     fi
 }
 
-
-
- 	# Check if the 'caddy' container is running
+	# Check if the 'caddy' container is running
 	if [ $(docker --context default ps -q -f name=caddy) ]; then
- 	    log "Caddy is running, validating new domain configuration"
-
-                ########check_and_add_to_enabled
+		log "Caddy is running, validating new domain configuration"
+	
+				########check_and_add_to_enabled
 		docker --context default restart caddy >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
-		    log "Domain successfully added and Caddy reloaded."
+			log "Domain successfully added and Caddy reloaded."
 		else
-		    log "Failed to add domain configuration, changes reverted."
+			log "Failed to add domain configuration, changes reverted."
 		fi
 	else
-	    log "Caddy is not running, starting in background.."
-	    nohup sh -c "cd /root && docker --context default compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
-     	fi
+		log "Caddy is not running, starting in background.."
+		nohup sh -c "cd /root && docker --context default compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
+	fi
 
 }
-
-
 
 
 get_slave_dns_option() {
@@ -779,7 +728,7 @@ get_slave_dns_option() {
 	
 	ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
 	ALLOW_UPDATE=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
-	
+
 	# Check if both values are non-empty and equal
 	if [[ -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" && "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" ]]; then
 	    SLAVE_IP=$ALLOW_TRANSFER
@@ -1036,8 +985,8 @@ add_domain() {
 	if $SKIP_STARTING_CONTAINERS; then 
 		log "Skipping starting PHP service."
 	else
-		if [[ $ws == *apache* ]] || [[ $ws == *nginx* ]] || [[ $ws == *openresty* ]]; then
-		    start_default_php_fpm_service                # skip for litespeed!
+		if [[ $ws != *litespeed* ]]; then
+		    start_default_php_fpm_service    # skip for litespeed!
 		fi
 	fi
 	
