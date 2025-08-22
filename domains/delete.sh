@@ -128,14 +128,7 @@ restart_tor_for_user() {
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
 	    output=$(opencli webserver-get_webserver_for_user $user)		
-		case "$output" in
-		    *nginx*)        ws="nginx" ;;
-		    *apache*)       ws="apache" ;;
-		    *openresty*)    ws="openresty" ;;
-		    *openlitespeed*) ws="openlitespeed" ;;
-		    *litespeed*)    ws="litespeed" ;;
-		    *) exit 1 ;;
-		esac
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 }
 
 
