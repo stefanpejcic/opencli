@@ -5,7 +5,7 @@
 # Usage: opencli user-varnish <USERNAME> [on|off]
 # Author: Stefan Pejcic
 # Created: 20.03.2025
-# Last Modified: 22.08.2025
+# Last Modified: 21.08.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -61,18 +61,16 @@ check_status() {
 
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
-	    output=$(opencli webserver-get_webserver_for_user $USER)
-	    if [[ $output == *nginx* ]]; then
-	        ws="nginx"
-	    elif [[ $output == *apache* ]]; then
-	        ws="apache"
-	    elif [[ $output == *openresty* ]]; then
-	        ws="openresty"
-	    elif [[ $output == *openlitespeed* ]]; then
-	        ws="openlitespeed"
-	    else
-	        exit 1
-	    fi
+		output=$(opencli webserver-get_webserver_for_user "$USER")
+		
+		case "$output" in
+		    *nginx*)        ws="nginx" ;;
+		    *apache*)       ws="apache" ;;
+		    *openresty*)    ws="openresty" ;;
+		    *openlitespeed*) ws="openlitespeed" ;;
+		    *litespeed*)    ws="litespeed" ;;
+		    *) exit 1 ;;
+		esac
 }
 
 
