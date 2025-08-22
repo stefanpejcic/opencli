@@ -541,7 +541,7 @@ http {
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
 		output=$(opencli webserver-get_webserver_for_user "$user")
-		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' || echo "unknown")
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 		[[ $ws == "nginx" ]] && check_and_create_default_file
 }
 
