@@ -869,7 +869,7 @@ if $USE_PARENT_DNS_ZONE; then
 :
 else
     echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
-ssh -T root@$SLAVE_IP <<EOF
+timeout 10 ssh -T -o ConnectTimeout=10 root@$SLAVE_IP <<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
         touch /etc/bind/zones/$domain_name.zone
