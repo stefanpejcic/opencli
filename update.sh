@@ -566,12 +566,9 @@ run_update_immediately() {
     log "Updating OpenAdmin"
     if [[ -d /usr/local/admin ]]; then
         cd /usr/local/admin
-        # https://github.com/stefanpejcic/openadmin/branches
-        #default_branch=$(git remote show origin | awk '/HEAD branch/ {print $NF}') 
-        #git fetch origin
-        #git reset --hard origin/"$default_branch"
-        #git pull origin "$default_branch" 2>&1 | tee -a "$log_file"
-        git pull
+        current_branch=$(git rev-parse --abbrev-ref HEAD)
+        git fetch origin 2>&1 | tee -a "$log_file"
+        git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
     fi
     
     # ---------------------- 6. RUN VERSION-SPECIFIC FILE IF EXISTS
