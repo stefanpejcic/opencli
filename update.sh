@@ -535,7 +535,10 @@ run_update_immediately() {
     # ---------------------- 3. DOWNLOAD NEW IMAGE FROM DOCKER HUB
     log "Updating OpenPanel Docker image"
     if ! timeout 60 docker image pull "${IMAGE_NAME}:${version}" 2>&1 | tee -a "$log_file"; then
-        log_error "Failed to pull Docker image or command timed out"
+        log_error "Failed to pull Docker image or command timed out: docker image pull ${IMAGE_NAME}:${version}"
+        remove_notifications_by_pattern "OpenPanel update started MESSAGE"
+        write_notification "OpenPanel update failed!" "OpenPanel failed to update to version $version - Log file: $log_file"
+        log "Update failed!"       
         return 1
     else
         log "Updating version in /root/.env"     # ------------------ 3.1 UPDATE TAG
