@@ -261,7 +261,7 @@ detect_system() {
     elif command_exists yum; then
         echo "yum"
     else
-        log_error "Unsupported Linux distribution"
+        log_error "[✘] Unsupported Linux distribution"
         exit 1
     fi
 }
@@ -358,13 +358,13 @@ check_reboot_required() {
     case $distro in
         debian)
             if [[ -f /var/run/reboot-required ]]; then
-                log_warn "Reboot required!"
+                log_warn "[!]  Reboot required!"
                 [[ -f /var/run/reboot-required.pkgs ]] && cat /var/run/reboot-required.pkgs >> "$log_file"
             fi
             ;;
         dnf|yum)
             if command_exists needs-restarting && ! needs-restarting -r &>/dev/null; then
-                log_warn "Reboot required!"
+                log_warn "[!] Reboot required!"
                 needs-restarting >> "$log_file" 2>&1
             fi
             ;;
@@ -391,7 +391,6 @@ purge_previous_images() {
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
 update_docker_compose() {
     log_info "Checking Docker Compose version"
-    
     local dest="$HOME/.docker/cli-plugins/docker-compose"
     local backup="${dest}.bak"
     local local_version="0.0.0"
@@ -403,14 +402,12 @@ update_docker_compose() {
     fi
     
     log_debug "Local Docker Compose version: $local_version"
-    
-    # Get latest version from GitHub
     local latest_version
     latest_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest \
         | jq -r '.tag_name' 2>/dev/null | sed 's/^v//')
     
     if [[ -z "$latest_version" ]]; then
-        log_warn "Could not fetch latest Docker Compose version"
+        log_warn "[!] Could not fetch latest Docker Compose version"
         return 1
     fi
     
@@ -420,7 +417,6 @@ update_docker_compose() {
     if [[ "$(printf "%s\n%s" "$latest_version" "$local_version" | sort -V | tail -n1)" != "$local_version" ]]; then
         log_info "Updating Docker Compose to $latest_version"
         
-        # Determine architecture
         local arch
         arch=$(uname -m)
         local binary
@@ -440,35 +436,32 @@ update_docker_compose() {
         
         local url="https://github.com/docker/compose/releases/download/v${latest_version}/${binary}"
         
-        # Backup current version if it exists
         if [[ -f "$dest" ]]; then
             log_debug "Backing up current Docker Compose binary"
             cp "$dest" "$backup"
         fi
         
-        # Download and install
         mkdir -p "$(dirname "$dest")"
         if curl -L "$url" -o "$dest" && chmod +x "$dest"; then
-            # Test if new version works
             if docker compose version &>/dev/null; then
-                log_info "Docker Compose updated successfully"
+                log_info "[✔] Docker Compose updated successfully"
                 [[ -f "$backup" ]] && rm -f "$backup"
             else
-                log_error "Docker Compose update failed! Reverting"
+                log_error "[✘] Docker Compose update failed! Reverting"
                 if [[ -f "$backup" ]]; then
                     mv "$backup" "$dest"
-                    log_info "Reverted to previous version"
+                    log_info "[!] Reverted to previous version"
                 else
-                    log_error "Backup not found. Manual intervention required"
+                    log_error "[✘] Backup not found. Manual intervention required"
                     return 1
                 fi
             fi
         else
-            log_error "Failed to download Docker Compose"
+            log_error "[!] Failed to download Docker Compose"
             return 1
         fi
     else
-        log_info "Docker Compose is already up to date"
+        log_info "[✔] Docker Compose is already up to date"
     fi
 }
 
@@ -477,7 +470,7 @@ run_custom_postupdate_script() {
     local script_path="/root/openpanel_run_after_update"
     
     if [[ -f "$script_path" ]]; then
-        log_info "Running custom post-update script: $script_path"
+        log_info "[!] Running custom post-update script: $script_path"
         log_info "Documentation: https://dev.openpanel.com/customize.html#After-update"
         bash "$script_path" 2>&1 | tee -a "$log_file"
     fi
@@ -491,17 +484,17 @@ run_version_specific_script() {
     if wget --spider -q "$url" 2>/dev/null; then
         log_info "Downloading and executing version-specific script: $url"
         if timeout "$UPDATE_TIMEOUT" bash -c "wget -q -O - '$url' | bash" &>> "$log_file"; then
-            log_info "Version-specific script executed successfully"
+            log_info "[✔] Version-specific script executed successfully"
         else
             local exit_code=$?
             if [[ $exit_code -eq 124 ]]; then
-                log_error "Version-specific script timed out after ${UPDATE_TIMEOUT} seconds"
+                log_error "[!] Version-specific script timed out after ${UPDATE_TIMEOUT} seconds"
             else
-                log_error "Version-specific script failed with exit code: $exit_code"
+                log_error "[!] Version-specific script failed with exit code: $exit_code"
             fi
         fi
     else
-        log_info "No version-specific script found"
+        log_info "[✔] No version-specific script"
     fi
 }
 
@@ -541,6 +534,8 @@ run_update_immediately() {
         log "Update failed!"       
         return 1
     else
+        log "[✔] docker image ${IMAGE_NAME}:${version} downloaded successfully"
+
         log "Updating version in /root/.env"     # ------------------ 3.1 UPDATE TAG
         if [[ -f /root/.env ]]; then
             sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
@@ -561,6 +556,13 @@ run_update_immediately() {
     if [[ -d /usr/local/opencli ]]; then
         rm -f /usr/local/opencli/aliases.txt
         cd /usr/local/opencli && git reset --hard origin/main && git pull 2>&1 | tee -a "$log_file"
+        latest_commit=$(git rev-parse origin/main)
+        current_commit=$(git rev-parse HEAD)
+        if [[ "$current_commit" == "$latest_commit" ]]; then
+            log "[✔] OpenCLI is up-to-date"
+        else
+            log_error "OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
+        fi       
         log "Generating list of OpenCLI commands for auto-complete"
         opencli commands &>/dev/null || true
     fi
@@ -572,6 +574,14 @@ run_update_immediately() {
         current_branch=$(git rev-parse --abbrev-ref HEAD)
         git fetch origin 2>&1 | tee -a "$log_file"
         git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
+
+        latest_commit=$(git rev-parse origin/"$current_branch")
+        current_commit=$(git rev-parse HEAD)
+        if [[ "$current_commit" == "$latest_commit" ]]; then
+            log "[✔] OpenAdmin is up-to-date"
+        else
+            log_error "OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
+        fi
     fi
     
     # ---------------------- 6. RUN VERSION-SPECIFIC FILE IF EXISTS
@@ -589,7 +599,7 @@ run_update_immediately() {
         log "Updating Docker Compose"
         update_docker_compose
     else
-        log "Minor update - skipping system and Docker Compose updates"
+        log "[✔] Minor update - skipping system and Docker Compose updates"
     fi
 
     # ---------------------- 8. RUN POST-UPDATE HOOK IF EXISTS        
@@ -603,8 +613,12 @@ run_update_immediately() {
     log "Update completed successfully!"
 
     # ---------------------- 10. RESTART ADMIN PANEL
-    log "Restarting OpenAdmin service"
-    systemctl restart admin 2>&1 | tee -a "$log_file" || true
+    if systemctl is-active --quiet admin; then
+        log "'OpenAdmin' service is running, restarting..."
+        systemctl restart admin 2>&1 | tee -a "$log_file" || true
+    else
+        echo "[!] Service 'admin' is not running, skipping restart." | tee -a "$log_file"
+    fi
 }
 
 # Main update check and execution
@@ -613,7 +627,7 @@ check_update() {
     
     if [[ "$1" == "--force" ]]; then
         force_update=true
-        log_info "Forcing update, ignoring autopatch and autoupdate settings"
+        log_info "[!] Forcing update, ignoring autopatch and autoupdate settings"
     fi
     
     ensure_jq_installed
@@ -627,7 +641,7 @@ check_update() {
     fi
     
     if [[ "$autopatch" != "on" && "$autoupdate" != "on" && "$force_update" != "true" ]]; then
-        log_info "Autopatch and Autoupdate are both disabled. No updates will be installed automatically."
+        log_info "[!] Autopatch and Autoupdate are both disabled. No updates will be installed automatically."
         return 0
     fi
     
@@ -641,7 +655,7 @@ check_update() {
     fi
     
     if is_version_skipped "$remote_version"; then
-        log_info "Version $remote_version is skipped due to skip_versions configuration"
+        log_info "[!] Version $remote_version is skipped due to skip_versions configuration"
         return 0
     fi
     
@@ -657,7 +671,7 @@ check_update() {
         
         run_update_immediately "$remote_version"
     else
-        log_info "No update needed"
+        log_info "[✔] No update needed"
     fi
 }
 
@@ -678,7 +692,7 @@ main() {
             usage
             ;;
         *)
-            log_error "Unknown argument: $1"
+            log_error "[!] Unknown argument: $1"
             usage
             ;;
     esac
