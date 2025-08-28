@@ -702,7 +702,7 @@ download_images() {
 	fi
 	
 	ws_type=$(get_env_value "WEB_SERVER")
-	valid_ws_types=("nginx" "apache" "openresty" "openlitespeed", "litespeed")
+	valid_ws_types=("nginx" "apache" "openresty" "openlitespeed" "litespeed")
 	if [[ -n "$ws_type" ]]; then
 	    if [[ ! " ${valid_ws_types[*]} " =~ " $ws_type " ]]; then
 	        echo "Warning: WEB_SERVER must be 'nginx', 'apache', 'openlitespeed', 'litespeed', or 'openresty', got '$ws_type'"
