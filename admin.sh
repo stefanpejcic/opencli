@@ -162,10 +162,9 @@ get_admin_url() {
         ip=$(get_public_ip)
         admin_url="http://${ip}:2087/"
     else
-	    if [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; then
-			admin_url="https://${domain}:2087/"
-        elif [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; then
-            admin_url="https://${domain}:2087/"
+		if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || \
+		   { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
+		    admin_url="https://${domain}:2087/"
         else
             ip=$(get_public_ip)
             admin_url="http://${ip}:2087/"
