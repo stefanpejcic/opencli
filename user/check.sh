@@ -284,7 +284,7 @@ check_files() {
     quota_output=$(quota -u "$context" 2>/dev/null)
     
     if echo "$quota_output" | grep -q "none"; then
-        print_result "FAIL" "No quota set for user."
+        print_result "WARN" "No quota set for user."
     else
         line=$(echo "$quota_output" | grep '^[[:space:]]*/')
         if [ -z "$line" ]; then
