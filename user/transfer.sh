@@ -733,16 +733,15 @@ if [[ "$LIVE_TRANSFER" == true ]]; then
 fi
 		fi
 
-
-	        DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
-	        if [ -d "$DOMAIN_CADDY_SSL" ]; then
-	 		eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
+		DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
+		if [ -d "$DOMAIN_CADDY_SSL" ]; then
+		eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
 		fi
-	
-	
-	        DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/certs/$domain"
-	        if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
-				eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/certs/
+
+
+		DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/custom/$domain"
+		if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
+			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/custom/
 		fi
  	fi
  done <<< "$ALL_DOMAINS"
@@ -853,7 +852,7 @@ rsync_files_for_user
 copy_docker_context # create context on dest, start service
 $SSH_CMD "systemctl daemon-reload" 
 $SSH_CMD "opencli user-quota $USERNAME >/dev/null 2>&1" # set quotas
-$SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/openpanel/core/users/"
+$SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/caddy/ssl/custom/ /etc/openpanel/openpanel/core/users/"
 
 # todo: folder just for that user!
 if [ -n "$key_value" ]; then
