@@ -143,20 +143,19 @@ cat_certificate_files() {
 
 	 		local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.crt"
         	local fallback_key_path="/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.key"
-      	if [[ -f "$cert" && -f "$key" ]]; then
-            log_debug "Using Let's Encrypt certs for $DOMAIN"
-        elif [[ -f "$fallback_cert_path" && -f "$fallback_key_path" ]]; then
-            log_debug "Using custom certs for $DOMAIN"
-            cert="$fallback_cert_path"
-            key="$fallback_key_path"
-		fi
-      		if [ -f "$cert" ]; then
-			cat $cert
-		fi
-      		if [ -f "$key" ]; then
-			cat $key
-		fi
-
+	      	if [[ -f "$cert" && -f "$key" ]]; then
+	            log_debug "Using Let's Encrypt certs for $DOMAIN"
+	        elif [[ -f "$fallback_cert_path" && -f "$fallback_key_path" ]]; then
+	            log_debug "Using custom certs for $DOMAIN"
+	            cert="$fallback_cert_path"
+	            key="$fallback_key_path"
+			fi
+	      		if [ -f "$cert" ]; then
+				cat $cert
+			fi
+	      		if [ -f "$key" ]; then
+				cat $key
+			fi
     	fi    
 }
 
