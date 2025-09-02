@@ -47,8 +47,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 
-hostfs_domain_tls_dir="/etc/openpanel/caddy/ssl/$DOMAIN"
-domain_tls_dir="/data/caddy/certificates/$DOMAIN"
+hostfs_domain_tls_dir="/etc/openpanel/caddy/ssl/custom/$DOMAIN"
+domain_tls_dir="/data/caddy/certificates/custom/$DOMAIN"
 
 get_user() {
   whoowns_output=$(opencli domains-whoowns "$DOMAIN")
