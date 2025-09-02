@@ -132,6 +132,7 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 }
 
 
+
 cat_certificate_files() {
     	if grep -q "fullchain.pem" "$CONFIG_FILE" && grep -q "key.pem" "$CONFIG_FILE"; then
     		cat $hostfs_domain_tls_dir/fullchain.pem
@@ -139,6 +140,16 @@ cat_certificate_files() {
     	else
     		local cert="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt"
           	local key="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key"
+
+	 		local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.crt"
+        	local fallback_key_path="/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.key"
+      	if [[ -f "$cert" && -f "$key" ]]; then
+            log_debug "Using Let's Encrypt certs for $DOMAIN"
+        elif [[ -f "$fallback_cert_path" && -f "$fallback_key_path" ]]; then
+            log_debug "Using custom certs for $DOMAIN"
+            cert="$fallback_cert_path"
+            key="$fallback_key_path"
+		fi
       		if [ -f "$cert" ]; then
 			cat $cert
 		fi
