@@ -5,7 +5,7 @@
 # Usage: opencli domains-varnish <DOMAIN-NAME> [on|off] [--short]
 # Author: Stefan Pejcic
 # Created: 20.03.2025
-# Last Modified: 11.09.2025
+# Last Modified: 08.09.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -52,8 +52,6 @@ if [[ ! -f "$CONF_FILE" ]]; then
     exit 1
 fi
 
-
-
 if grep -q "^#.*reverse_proxy https://127.0.0.1" "$CONF_FILE"; then    
         if $JSON_OUTPUT; then
             echo "on"
@@ -69,7 +67,6 @@ else
 fi
 
 ACTION="$2"
-
 
 get_context() {
 	get_domain_owner=$(opencli domains-whoowns "$DOMAIN" --context)
