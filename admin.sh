@@ -121,7 +121,7 @@ backup=yes
 update=yes
 login=yes
 services=panel,admin,nginx,docker,mysql,named,csf,certbot
-load=20
+load=10
 cpu=90
 ram=85
 du=85
@@ -163,8 +163,6 @@ get_admin_url() {
 
 get_public_ip() {
     ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
-        
-    # Check if IP is empty or not a valid IPv4
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
