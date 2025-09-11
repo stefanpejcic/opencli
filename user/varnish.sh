@@ -84,12 +84,6 @@ start_webserver(){
 
 
 
-: '
-# TODO
-for domain in user domains run:
-opencli domains-varnish <DOMAIN-NAME> [on|off]
-'
-
 if [ -n "$ACTION" ]; then
 
     get_webserver_for_user
