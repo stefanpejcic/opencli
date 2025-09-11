@@ -126,23 +126,9 @@ cpu=90
 ram=85
 du=85
 swap=40
-
-
-
-
-    
+   
 }
 
-read_config() {
-    config=$(awk -F '=' '/\[DEFAULT\]/{flag=1; next} /\[/{flag=0} flag{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); print $1 "=" $2}' $CONFIG_FILE_PATH)
-    echo "$config"
-}
-
-get_ssl_status() {
-    config=$(read_config)
-    ssl_status=$(echo "$config" | grep -i 'ssl' | cut -d'=' -f2)
-    [[ "$ssl_status" == "yes" ]] && echo true || echo false
-}
 
 get_admin_url() {
     caddyfile="/etc/openpanel/caddy/Caddyfile"
