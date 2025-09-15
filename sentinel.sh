@@ -1,23 +1,19 @@
 #!/bin/bash
-VERSION="20.250.801"
-# Record the process ID of the script
+VERSION="20.250.915"
 PID=$$
+DEBUG=false
 
-# Script should be run with SUDO
+
 if [ "$EUID" -ne 0 ]
   then echo "[Error] - This script must be run with sudo or as the root user."
   exit 1
 fi
 
 
-DEBUG=false  # Default value for DEBUG
+
 if [ "$1" = "--debug" ]; then
     DEBUG=true
 fi
-
-
-
-
 
 # counters
 STATUS=0
@@ -59,14 +55,7 @@ show_execution_time() {
     echo "Memory usage: ${memory_usage} KB"
 }
 
-# Trap the EXIT signal to call show_execution_time function
 trap show_execution_time EXIT
-# TODO: make it work with progress script
-
-
-# TODO: Check if running under cron
-
-
 
 
 # Check if the INI file exists
@@ -84,31 +73,22 @@ generate_random_token() {
 generate_random_token_one_time_only() {
     TOKEN_ONE_TIME="$(generate_random_token)"
     local new_value="mail_security_token=$TOKEN_ONE_TIME"
-    # Use sed to replace the line in the file
     sed -i "s|^mail_security_token=.*$|$new_value|" "$CONF_FILE"
 }
 
-# Function to check if a value is a number between 1 and 100
+# 1-100%
 is_valid_number() {
   local value="$1"
   [[ "$value" =~ ^[1-9][0-9]?$|^100$ ]]
 }
 
-# Extract email address from the configuration file
 EMAIL_ALERT=$(awk -F'=' '/^email/ {print $2}' "$CONF_FILE")
-
-# If email address is found, set EMAIL_ALERT to "yes" and set EMAIL to that address
 if [ -n "$EMAIL_ALERT" ]; then
     EMAIL=$EMAIL_ALERT
     EMAIL_ALERT=yes
 else
-    # If no email address is found, set EMAIL_ALERT to "no" by default
     EMAIL_ALERT=no
 fi
-
-
-
-# Read values from the INI file or set fallback values
 
 REBOOT=$(awk -F'=' '/^reboot/ {print $2}' "$INI_FILE")
 REBOOT=${REBOOT:-yes}
@@ -811,8 +791,7 @@ check_swap_usage() {
 
         echo "Current SWAP usage ($SWAP_USAGE_NO_DECIMALS) is higher than treshold value ($SWAP_THRESHOLD). Writing notification."        
         write_notification "$title" "Current SWAP usage: $SWAP_USAGE_NO_DECIMALS Starting the cleanup process now... you will get a new notification once everything is completed..."
-        # create when we start
-        touch "$LOCK_FILE"
+        touch "$LOCK_FILE" # create when we start
         
         echo 3 >/proc/sys/vm/drop_caches
         swapoff -a
@@ -826,20 +805,17 @@ check_swap_usage() {
             echo -e "The Sentinel service has completed clearing SWAP on server $HOSTNAME! \n THANK YOU FOR USING THIS SERVICE! PLEASE REPORT ALL BUGS AND ERRORS TO sentinel@openpanel.co"
             write_notification "$title_ok" "The Sentinel service has completed clearing SWAP on server $HOSTNAME!"
             echo -e "SWAP Usage was abnormal, healing completed, notification sent! This SWAP check was performed at: $TIME"
-            # delete after success
-            rm -f "$LOCK_FILE"
+            rm -f "$LOCK_FILE" # delete after success
         else
-                    ((FAIL++))
+            ((FAIL++))
             STATUS=2
-
-             echo -e "\e[31m[✘]\e[0m URGENT! SWAP could not be cleared on $HOSTNAME"
+            echo -e "\e[31m[✘]\e[0m URGENT! SWAP could not be cleared on $HOSTNAME"
             write_notification "$title_not_ok" "The Sentinel service detected abnormal SWAP usage at $TIME and tried clearing the space but SWAP usage is still above the $swap_usage_no_decimals treshold."
         fi
     else
     ((PASS++))
         echo -e "\e[32m[✔]\e[0m Current SWAP usage is $SWAP_USAGE_NO_DECIMALS (bellow the ${SWAP_THRESHOLD}% treshold) - SWAP check was performed at: $TIME "
-        # delete if failed but on next run it is ok
-        rm -f "$LOCK_FILE"
+        rm -f "$LOCK_FILE" # delete if failed but on next run it is ok
     fi
 }
 
@@ -1142,15 +1118,8 @@ elif [ "$1" == "--report" ]; then
 else
   print_header
   check_for_debug_and_print_info
-
-  # Check service statuses and write notifications if needed
-
   echo "Checking health for monitored services:"
   echo ""
-
-
-
-###### def funkcije
 
 
 ######
@@ -1163,34 +1132,23 @@ else
 
 
 check_services() {
-  if echo "$SERVICES" | grep -q "caddy"; then
-    docker_containers_status "caddy" "Caddy container is not active. Users' websites are not working!"
-  fi
+  declare -A service_checks=(
+    [caddy]="docker_containers_status 'caddy' 'Caddy container is not active. Users' websites are not working!'"
+    [csf]="check_service_status 'csf' 'ConfigService Firewall (CSF) is not active. Server and websites are not protected!'"
+    [admin]="check_service_status 'admin' 'Admin service is not active. OpenAdmin service is not accessible!'"
+    [docker]="check_service_status 'docker' 'Docker service is not active. User websites are down!'"
+    [panel]="docker_containers_status 'openpanel' 'OpenPanel docker container is not running. Users are unable to access the OpenPanel interface!'"
+    [mysql]="mysql_docker_containers_status"
+    [named]="docker_containers_status 'openpanel_dns' 'Named (BIND9) service is not active. DNS resolving of domains is not working!'"
+  )
 
-  if echo "$SERVICES" | grep -q "csf"; then
-    check_service_status "csf" "ConfigService Firewall (CSF) is not active. Server and websites are not protected!"
-  fi
-  
-  if echo "$SERVICES" | grep -q "admin"; then
-      check_service_status "admin" "Admin service is not active. OpenAdmin service is not accessible!"
-  fi
-
-  if echo "$SERVICES" | grep -q "docker"; then
-    check_service_status "docker" "Docker service is not active. User websites are down!"
-  fi
-
-  if echo "$SERVICES" | grep -q "panel"; then
-    docker_containers_status "openpanel" "OpenPanel docker container is not running. Users are unable to access the OpenPanel interface!"
-  fi
-
-  if echo "$SERVICES" | grep -q "mysql"; then
-    mysql_docker_containers_status
-  fi
-
-  if echo "$SERVICES" | grep -q "named"; then
-    docker_containers_status "openpanel_dns" "Named (BIND9) service is not active. DNS resolving of domains is not working!"
-  fi
+  for svc in "${!service_checks[@]}"; do
+    if echo "$SERVICES" | grep -q "$svc"; then
+      eval "${service_checks[$svc]}"
+    fi
+  done
 }
+
 
 start_login_section() {
   printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
@@ -1255,21 +1213,15 @@ summary(){
 
 
 # Progress bar script
-
 PROGRESS_BAR_URL="https://raw.githubusercontent.com/pollev/bash_progress_bar/master/progress_bar.sh"
 PROGRESS_BAR_FILE="progress_bar.sh"
-
 wget -4 "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
-
 if [ ! -f "$PROGRESS_BAR_FILE" ]; then
     echo "Failed to download progress_bar.sh"
     exit 1
 fi
-
-# Source the progress bar script
 source "$PROGRESS_BAR_FILE"
 
-# Dsiplay progress bar
 FUNCTIONS=(
   # SERVICES
   check_services
@@ -1278,8 +1230,6 @@ FUNCTIONS=(
   start_login_section
   check_new_logins
   check_ssh_logins
-
-  #check_user_panel_logins
 
   #USAGE
   check_resources_section
@@ -1293,7 +1243,6 @@ FUNCTIONS=(
   check_dns_section
   check_if_panel_domain_and_ns_resolve_to_server
 
-  # kraj
   summary
 )
 
@@ -1308,21 +1257,15 @@ update_progress() {
 }
 
 main() {
-    # Make sure that the progress bar is cleaned up when user presses ctrl+c
     enable_trapping
-    
-    # Create progress bar
     setup_scroll_area
     for func in "${FUNCTIONS[@]}"
     do
-        # Execute each function
         $func
         update_progress
     done
     destroy_scroll_area
 }
-
-
 
   main
   # TODO: add no of services, alerts notified and emailed.
