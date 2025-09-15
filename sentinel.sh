@@ -1,7 +1,12 @@
 #!/bin/bash
-VERSION="20.250.915"
 PID=$$
 DEBUG=false
+
+
+# ======================================================================
+# Constants
+VERSION="20.250.915"
+
 
 
 if [ "$EUID" -ne 0 ]
@@ -15,15 +20,14 @@ if [ "$1" = "--debug" ]; then
     DEBUG=true
 fi
 
-# counters
+# ======================================================================
+# Counters
 STATUS=0
 PASS=0
 WARN=0
 FAIL=0
 
-# notifications conf file
 CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-# swap lock file to not repeat cleanup
 LOCK_FILE="/tmp/swap_cleanup.lock"
 TIME=$(date +%s%3N)
 INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
@@ -65,7 +69,12 @@ if [ ! -f "$INI_FILE" ]; then
 fi
 
 
-# helper function to generate random token
+
+
+
+# ======================================================================
+# Helper functions
+
 generate_random_token() {
     tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 64
 }
@@ -76,11 +85,126 @@ generate_random_token_one_time_only() {
     sed -i "s|^mail_security_token=.*$|$new_value|" "$CONF_FILE"
 }
 
-# 1-100%
 is_valid_number() {
   local value="$1"
   [[ "$value" =~ ^[1-9][0-9]?$|^100$ ]]
 }
+
+get_last_message_content() {
+  tail -n 1 "$LOG_FILE" 2>/dev/null
+}
+
+is_unread_message_present() {
+  local unread_message_content="$1"
+  grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
+}
+
+
+ensure_dig_installed() {
+    if ! command -v dig &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y -qq bind-utils > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q bind-utils > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q bind-utils > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install dig command (bind-utils) manually and try again."
+            exit 1
+        fi
+
+        if ! command -v dig &> /dev/null; then
+            echo "Error: dig command installation failed. Please install bind-utils manually and try again."
+            exit 1
+        fi
+    fi
+}
+
+ensure_bc_installed() {
+    if ! command -v bc &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update > /dev/null 2>&1
+            sudo apt-get install -y -qq bc > /dev/null 2>&1
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y -q bc > /dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q bc > /dev/null 2>&1
+        else
+            echo "Error: No compatible package manager found. Please install bc command manually and try again."
+            exit 1
+        fi
+
+        # Check if installation was successful
+        if ! command -v bc &> /dev/null; then
+            echo "Error: bc command installation failed. Please install bc manually and try again."
+            exit 1
+        fi
+    fi
+}
+
+# Send an email alert
+email_notification() {
+  local title="$1"
+  local message="$2"
+
+  generate_random_token_one_time_only
+  TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "$CONF_FILE")
+
+  DOMAIN=$(opencli domain)
+  
+  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+    PROTOCOL="https"
+  else
+    PROTOCOL="http"
+  fi
+
+  admin_conf_file="/etc/openpanel/openadmin/config/admin.ini"
+  AUTH_OPTION=""
+  
+  if grep -q '^basic_auth=yes' "$admin_conf_file"; then
+      username=$(grep '^basic_auth_username=' "$admin_conf_file" | cut -d'=' -f2)
+      password=$(grep '^basic_auth_password=' "$admin_conf_file" | cut -d'=' -f2)
+      AUTH_OPTION="--user ${username}:${password}"
+  fi
+
+
+  response=$(curl -4 --max-time 5 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" \
+    $AUTH_OPTION \
+    -F "transient=$TRANSIENT" \
+    -F "recipient=$EMAIL" \
+    -F "subject=$title" \
+    -F "body=$message" 2>/dev/null)
+
+
+  if echo "$response" | grep -q '"error"'; then
+    echo "Error: Failed to send email. Response: $response"
+  elif echo "$response" | grep -q '"sent successfully"'; then
+    echo "Email sent successfully."
+  fi
+}
+
+
+write_notification() {
+  local title="$1"
+  local message="$2"
+  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
+  local last_message_content=$(get_last_message_content)
+  if [ "$message" != "$last_message_content" ] && ! is_unread_message_present "$title"; then
+    echo "$current_message" >> "$LOG_FILE"
+    if [ "$EMAIL_ALERT" == "no" ]; then
+      echo "Email alerts are disabled."
+    else
+      email_notification "$title" "$message"
+    fi
+
+  fi
+}
+
+
+
+# ======================================================================
+# What to check
 
 EMAIL_ALERT=$(awk -F'=' '/^email/ {print $2}' "$CONF_FILE")
 if [ -n "$EMAIL_ALERT" ]; then
@@ -133,157 +257,12 @@ SWAP_THRESHOLD=$(awk -F'=' '/^swap/ {print $2}' "$INI_FILE")
 SWAP_THRESHOLD=${SWAP_THRESHOLD:-40}
 is_valid_number "$SWAP_THRESHOLD" || SWAP_THRESHOLD=40
 
+# ====================================================================== #
+#                             MAIN FUNCTIONS                             #
 
 
 
-
-# Function to get the last message content from the log file
-get_last_message_content() {
-  tail -n 1 "$LOG_FILE" 2>/dev/null
-}
-
-# Function to check if an unread message with the same content exists in the log file
-is_unread_message_present() {
-  local unread_message_content="$1"
-  grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
-}
-
-# Send an email alert
-email_notification() {
-  local title="$1"
-  local message="$2"
-
-
-  #set random token
-  generate_random_token_one_time_only
-
-  # use the token
-  TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "$CONF_FILE")
-
-  # FOR DEBUG ONLY OTHERWISE IT CAN BE SEEN IN LOGS!!!!!!!
-  #
-  # echo $TRANSIENT
-  #
-  # curl -k -X POST   https://127.0.0.1:2087/send_email  -F 'transient=z3t5LPt4HirqpmW1KHbZdEXtgNR4Rl4bIw6xv4irUZIxXkIXZ8SJHjduOhjvDEe8' -F 'recipient=stefan@pejcic.rs' -F 'subject=proba sa servera' -F 'body=Da li je dosao mejl? Hvala.'
-
-
-# Check for SSL
-DOMAIN=$(opencli domain)
-
-if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
-  PROTOCOL="https"
-else
-  PROTOCOL="http"
-fi
-
-
-
-
-admin_conf_file="/etc/openpanel/openadmin/config/admin.ini"
-AUTH_OPTION=""
-
-if grep -q '^basic_auth=yes' "$admin_conf_file"; then
-    username=$(grep '^basic_auth_username=' "$admin_conf_file" | cut -d'=' -f2)
-    password=$(grep '^basic_auth_password=' "$admin_conf_file" | cut -d'=' -f2)
-    AUTH_OPTION="--user ${username}:${password}"
-fi
-
-
-response=$(curl -4 --max-time 5 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" \
-  $AUTH_OPTION \
-  -F "transient=$TRANSIENT" \
-  -F "recipient=$EMAIL" \
-  -F "subject=$title" \
-  -F "body=$message" 2>/dev/null)
-
-
-if echo "$response" | grep -q '"error"'; then
-  echo "Error: Failed to send email. Response: $response"
-elif echo "$response" | grep -q '"sent successfully"'; then
-  echo "Email sent successfully."
-fi
-
-
-
-}
-
-
-
-
-# Check if DEBUG is true before printing debug messages
-
-
-# helper: make sure dig is available
-ensure_dig_installed() {
-    if ! command -v dig &> /dev/null; then
-        # Detect the package manager and install bind-utils
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq bind-utils > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q bind-utils > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q bind-utils > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install dig command (bind-utils) manually and try again."
-            exit 1
-        fi
-
-        # Check if installation was successful
-        if ! command -v dig &> /dev/null; then
-            echo "Error: dig command installation failed. Please install bind-utils manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-ensure_bc_installed() {
-    if ! command -v bc &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq bc > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q bc > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q bc > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install bc command manually and try again."
-            exit 1
-        fi
-
-        # Check if installation was successful
-        if ! command -v bc &> /dev/null; then
-            echo "Error: bc command installation failed. Please install bc manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-
-
-# Function to write notification to log file if it's different from the last message content
-write_notification() {
-  local title="$1"
-  local message="$2"
-  local current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
-  local last_message_content=$(get_last_message_content)
-
-  # Check if the current message content is the same as the last one and has "UNREAD" status
-  if [ "$message" != "$last_message_content" ] && ! is_unread_message_present "$title"; then
-    echo "$current_message" >> "$LOG_FILE"
-    if [ "$EMAIL_ALERT" == "no" ]; then
-      echo "Email alerts are disabled."
-    else
-      email_notification "$title" "$message"
-    fi
-
-  fi
-}
-
-
-
-
-# Function to perform startup action (system reboot notification)
+# ====== ON REBOOT
 perform_startup_action() {
   if [ "$REBOOT" != "no" ]; then
     local title="SYSTEM REBOOT!"
@@ -296,72 +275,49 @@ perform_startup_action() {
   fi
 }
 
-
-
-
-
+# ====== CHECK SSH LOGINS
 check_ssh_logins() {
     local title="Suspicious SSH login detected"
     local message_to_check_in_file="Suspicious SSH login detected"
 
-    # Check if there is an unread notification
     if is_unread_message_present "$message_to_check_in_file"; then
       ((WARN++))
       echo -e "\e[38;5;214m[!]\e[0m Unread SSH login notification already exists. Skipping."
       return
     fi
 
-    # Get IP addresses from the 'who' command
     ssh_ips=$(who | grep 'pts' | awk '{print $5}' | sed -E 's/[():]//g' | cut -d':' -f1)
 
-    # Check if there are any IPs currently logged to SSH
     if [ -z "$ssh_ips" ]; then
-        #echo "No active SSH sessions found."
         ((PASS++))
         echo -e "\e[32m[✔]\e[0m No currently logged in SSH users detected."
         return
     fi
 
-  # Get IP addresses from the login log file
-  login_ips=$(awk '{print $NF}' /var/log/openpanel/admin/login.log)
+    login_ips=$(awk '{print $NF}' /var/log/openpanel/admin/login.log)
 
-    #avoid alerts when user installed openpanel, but not yet logged to admin!
     if [ -z "$login_ips" ]; then
     ((WARN++))
     echo -e "\e[38;5;214m[!]\e[0m Detected logged-in SSH user, but login checks will be postponed until OpenAdmin interface is ready."
         return
     fi
 
-
-
-  # Initialize counter and array to store unmatched IPs
   counter=0
   safe_counter=0
   suspecious_ips=()
   safe_ips=()
 
-  # Loop through each IP from the 'who' command
   for ip in $ssh_ips; do
-      # Check if the IP is not in the login log
       if ! echo "$login_ips" | grep -q "$ip"; then
-          # Increment counter
           ((counter++))
-          # Add IP to the array of unmatched IPs
           suspecious_ips+=("$ip")
       else
-          # Increment counter
           ((safe_counter++))
-          # Add IP to the array of matched IPs
           safe_ips+=("$ip")
       fi
   done
 
-  # Output the unmatched IPs
   if [ $counter -gt 0 ]; then
-
-      #echo "Number of IPs in the SSH sessions but not in the login log file: $counter"
-
-      #message="$counter ${result[1]} "
       for unmatched_ip in "${suspecious_ips[@]}"; do
           message+="  $unmatched_ip"
       done
@@ -373,19 +329,14 @@ check_ssh_logins() {
     write_notification "$title" "$message"
 
   else
-      #echo "No unmatched IPs found."
       ((PASS++))
       echo -e "\e[32m[✔]\e[0m Detected $safe_counter currently active SSH user(s), but marked as safe since the IP address has previously logged into the OpenAdmin interface."
-
-      # Prepare the message
       message=""
       for ip in "${safe_ips[@]}"; do
           message+="${ip}    "
       done
       echo -e "    Currently active IP addresses: $message"
-
   fi
-
 
 }
 
@@ -394,52 +345,39 @@ check_ssh_logins() {
 
 
 
-
-# Notify when admin account is accessed from new IP address
+# ====== ADMIN LOGINS
 check_new_logins() {
   if [ "$LOGIN" != "no" ]; then
     touch /var/log/openpanel/admin/login.log
-
-    # Check if the file is empty
     if [ ! -s "$LOG_FILE" ]; then
         ((PASS++))
         echo -e "\e[32m[✔]\e[0m No new logins to OpenAdmin detected."
     else
 
-
-
-    # Extract the last line from the login log file
     last_login=$(tail -n 1 /var/log/openpanel/admin/login.log)
-        
-    # Skip empty lines
     if [ -z "$last_login" ]; then
       ((PASS++))
       echo -e "\e[32m[✔]\e[0m No new logins to OpenAdmin detected."
       return 1
     fi
 
-    # Parse username and IP address from the last login entry
     username=$(echo "$last_login" | awk '{print $3}')
     ip_address=$(echo "$last_login" | awk '{print $4}')
 
-    # Validate IP address format
     if [[ ! $ip_address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       echo "Invalid IP address format: $ip_address"
       return 1
     fi
 
-    # Exclude 127.0.0.1
     if [[ $ip_address == "127.0.0.1" ]]; then
       echo "IP address 127.0.0.1 is not allowed."
       return 1
     fi
 
-    # Check if the username appears more than once in the log file
     if [ $(grep -c $username /var/log/openpanel/admin/login.log) -eq 1 ]; then
       ((PASS++))
       echo -e "\e[32m[✔]\e[0m First time login detected for user: $username from IP address: $ip_address."
     else
-      # Check if the combination of username and IP address has appeared before
       if ! grep -q "$username $ip_address" <(sed '$d' /var/log/openpanel/admin/login.log); then
         echo -e "\e[31m[✘]\e[0m Admin account $username accessed from new IP address $ip_address"
         ((FAIL++))
@@ -452,11 +390,7 @@ check_new_logins() {
         echo -e "\e[32m[✔]\e[0m Admin account $username accessed from previously logged IP address: $ip_address"
       fi
     fi
-
-
-
     fi
-
   else
     ((WARN++))
     echo -e "\e[38;5;214m[!]\e[0m New login detected for admin user: $username from IP: $ip_address, but notifications are disabled by admin user. Skipping logging."
@@ -465,12 +399,9 @@ check_new_logins() {
 
 
 
-
+# ====== MYSQL SERVICE
 mysql_docker_containers_status() {
-
-      # Check if the MySQL Docker container is running
       if docker --context=default ps --format "{{.Names}}" | grep -q "openpanel_mysql"; then
-
         if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
         ((PASS++))
           echo -e "\e[32m[✔]\e[0m MySQL container is active and service running."
@@ -478,20 +409,15 @@ mysql_docker_containers_status() {
           echo -e "\e[31m[✘]\e[0m MySQL container is running but not responding correctly, initiating restart.."
           cd /root && docker --context default compose up -d openpanel_mysql 2>/dev/null
         fi
-
       else
-
         ((FAIL++))
         STATUS=2
         echo -e "\e[31m[✘]\e[0m MySQL Docker container is not active, initiating restart.." #Writing notification to log file."
-
         cd /root && docker --context default compose up -d openpanel_mysql 2>/dev/null
 
         title="MySQL service is not active. Users are unable to log into OpenPanel!"
         message="MySQL container is running, but is not respond to queries. Sentinel failed to restart mysql and users are unable to login to OpenPanel, please check ASAP."
-
         sleep 5
-
         if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
           ((FAIL--))
           STATUS=1
@@ -501,82 +427,66 @@ mysql_docker_containers_status() {
         else
           echo "    Error: MySQL restared but still not responding to queries!"
         fi
-
         write_notification "$title" "$message"
-
       fi
 }
 
 
+
+# ====== ANY CONTAINER NAME
 docker_containers_status() {
     service_name="$1"
     title="$2"
 
-
-
     check_status_after_restart(){
-                if docker --context=default ps --format "{{.Names}}" | grep -wq "$service_name"; then
-                    echo -e "\e[32m[✔]\e[0m $service_name docker container successfully restarted."
-                    ((WARN--))
-                else
-                    echo -e "\e[31m[✘]\e[0m $service_name docker container failed to restart."
-                    
-                  ((FAIL++))
-                  STATUS=2
-
-                    # Log the error and write notification
-                    error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
-                    write_notification "$title" "$error_log"
-                fi
+        if docker --context=default ps --format "{{.Names}}" | grep -wq "$service_name"; then
+            echo -e "\e[32m[✔]\e[0m $service_name docker container successfully restarted."
+            ((WARN--))
+        else
+            echo -e "\e[31m[✘]\e[0m $service_name docker container failed to restart."
+            ((FAIL++))
+            STATUS=2
+            error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
+            write_notification "$title" "$error_log"
+        fi
     }
 
+    check_caddy_health() {
+        local url="http://localhost/check"
+        local status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "$url")
 
 
-      check_caddy_health() {
-          local url="http://localhost/check"
-          local status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "$url")
+      if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 404 ]; then
+        ((PASS++))
+        echo -e "\e[32m[✔]\e[0m $service_name docker container is active (status code: $status_code)."
+      else
+        start_caddy
+      fi
+    }
 
-
-        if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 404 ]; then
-          ((PASS++))
-          echo -e "\e[32m[✔]\e[0m $service_name docker container is active (status code: $status_code)."
+    start_caddy() {
+        ((WARN++))
+        echo -e "\e[38;5;214m[!]\e[0m $service_name docker container is not running."
+  
+        echo "  - Checking if domains exist and if caddy service should be started..."
+        if ls /etc/openpanel/caddy/domains > /dev/null 2>&1; then
+            echo "  - Domains are hosted on this server, starting caddy service.."
+            cd /root && docker --context=default compose up -d caddy > /dev/null 2>&1
+            check_status_after_restart
         else
-          start_caddy
+            ((WARN--))
+            echo "  - No domains detected. Caddy is not yet needed."
         fi
       }
 
-
-      start_caddy() {
-            ((WARN++))
-            echo -e "\e[38;5;214m[!]\e[0m $service_name docker container is not running."
-
-            echo "  - Checking if domains exist and if caddy service should be started..."
-            if ls /etc/openpanel/caddy/domains > /dev/null 2>&1; then
-                echo "  - Domains are hosted on this server, starting caddy service.."
-                cd /root && docker --context=default compose up -d caddy > /dev/null 2>&1
-                check_status_after_restart
-            else
-                ((WARN--))
-                echo "  - No domains detected. Caddy is not yet needed."
-            fi
-        }
-
-
-
     if docker --context=default ps --format "{{.Names}}" | grep -wq "$service_name"; then
-
       if [ "$service_name" == "caddy" ]; then
-
-      check_caddy_health
-
+        check_caddy_health
       else
         ((PASS++))
         echo -e "\e[32m[✔]\e[0m $service_name docker container is active."
       fi
-
     else 
-
-
         if [ "$service_name" == "openpanel" ]; then
             echo "  - Checking if users exist and if openpanel service should be started..."
             users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
@@ -601,7 +511,6 @@ docker_containers_status() {
         elif [ "$service_name" == "caddy" ]; then
             check_caddy_health
         else
-
             docker --context=default restart "$service_name"  > /dev/null 2>&1
             check_status_after_restart
         fi
@@ -611,7 +520,7 @@ docker_containers_status() {
 
 
 
-# Function to check service status and write notification if not active
+# ====== CHECK ANY SERVICE
 check_service_status() {
   local service_name="$1"
   local title="$2"
@@ -628,23 +537,20 @@ check_service_status() {
 
       ((FAIL++))
       STATUS=2
-    echo -e "\e[31m[✘]\e[0m $service_name is not active." #Writing notification to log file."
+    echo -e "\e[31m[✘]\e[0m $service_name is not active."
     local error_log=""
 
       error_log=$(journalctl -n 5 -u "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
 
-      # Check if there's an error log and include it in the message
       if [ -n "$error_log" ]; then
         write_notification "$title" "$error_log"
       else
         echo "no logs."
       fi
 
-      # Restart the service if it's not running
       echo -e "\e[33m[⚠️]\e[0m Restarting $service_name..."
       systemctl restart "$service_name"
 
-      # Verify if the restart was successful
       if systemctl is-active --quiet "$service_name"; then
         echo -e "\e[32m[✔]\e[0m $service_name has been restarted and is now active."
       else
@@ -652,16 +558,12 @@ check_service_status() {
       fi
       
     fi
-    
-
   fi
 }
 
 
-
-# Generate system crash report (optimized/refactored)
+# ====== GENERATE CRASH REPORT IF NEEDED
 generate_crashlog_report() {
-  # Prepare variables
   local crashlog_dir="/var/log/openpanel/admin/crashlog"
   local filename=$(date +%s)
   generated_report="${crashlog_dir}/${filename}.txt"
@@ -671,7 +573,6 @@ generate_crashlog_report() {
 
   mkdir -p "$crashlog_dir" || return 1
 
-  # Capture all command outputs up front
   local current_load
   current_load=$(awk -F'load average:' '{print $2}' < <(uptime) | sed 's/^ *//')
 
@@ -702,7 +603,6 @@ generate_crashlog_report() {
     io="I/O tools not available."
   fi
 
-  # Write report to file
   {
     printf "%s\n GENERAL INFO\n%s\n\n- Hostname: %s\n- Date: %s\n\n" "$break_line" "$break_line" "$hostname" "$formatted_date"
     printf "%s\n CURRENT LOAD\n%s\n\nLoad average:%s\n\n" "$break_line" "$break_line" "$current_load"
@@ -720,15 +620,11 @@ generate_crashlog_report() {
 
 
 
-
-# Function to check system load and write notification if it exceeds the threshold
+# ====== CHECK LOAD
 check_system_load() {
   local title="High System Load!"
-
   current_load=$(uptime | awk -F'average:' '{print $2}' | awk -F', ' '{print $1}')
-
   ensure_bc_installed
-
   if (( $(echo "$current_load > $LOAD_THRESHOLD" | bc -l) )); then
       ((FAIL++))
       STATUS=2
@@ -743,39 +639,23 @@ check_system_load() {
 
 
 
-
+# ====== CHECK SWAP
 check_swap_usage() {
     local title="High SWAP usage!"
-
-    # Run the 'free' command and capture the output
     free_output=$(free -t)
-
-    # Extract the used and total swap values
     swap_used=$(echo "$free_output" | awk 'FNR == 3 {print $3}')
     swap_total=$(echo "$free_output" | awk 'FNR == 3 {print $2}')
-
-    # Check if swap_total is greater than 0 to avoid division by zero
     if [ "$swap_total" -gt 0 ]; then
-        # Calculate swap usage percentage
         SWAP_USAGE=$(awk "BEGIN {print ($swap_used / $swap_total) * 100}")
     else
-        # If swap_total is 0, set SWAP_USAGE to 0 or handle it as appropriate
         SWAP_USAGE=0
         ((PASS++))
         echo -e "\e[32m[✔]\e[0m Total SWAP is $SWAP_USAGE (skipping swap check for ${SWAP_THRESHOLD}% treshold)"
-        #echo "SWAP check was performed at: $TIME "
         return
     fi
 
-
-
-
     SWAP_USAGE_NO_DECIMALS=$(printf %.0f $SWAP_USAGE)
-    
-    #Execute check
     if [ "$SWAP_USAGE_NO_DECIMALS" -gt "$SWAP_THRESHOLD" ]; then
-
-      # Check if the lock file exists and is older than 6 hours, then delete it
       if [ -f "$LOCK_FILE" ]; then
           file_age=$(($(date +%s) - $(date -r "$LOCK_FILE" +%s)))
           if [ "$file_age" -gt 21600 ]; then
@@ -787,7 +667,6 @@ check_swap_usage() {
               exit 0
           fi
       fi
-
 
         echo "Current SWAP usage ($SWAP_USAGE_NO_DECIMALS) is higher than treshold value ($SWAP_THRESHOLD). Writing notification."        
         write_notification "$title" "Current SWAP usage: $SWAP_USAGE_NO_DECIMALS Starting the cleanup process now... you will get a new notification once everything is completed..."
