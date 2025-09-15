@@ -27,27 +27,16 @@ PASS=0
 WARN=0
 FAIL=0
 
-CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-LOCK_FILE="/tmp/swap_cleanup.lock"
+readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+readonly LOCK_FILE="/tmp/swap_cleanup.lock"
 TIME=$(date +%s%3N)
-INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
+readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
 HOSTNAME=$(hostname)
-LOG_FILE="/var/log/openpanel/admin/notifications.log"
+readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 LOG_DIR=$(dirname "$LOG_FILE")
 
-# Function to create folder and file if they do not exist
-create_folder_and_file() {
-  if [ ! -d "$LOG_DIR" ]; then
-    mkdir -p "$LOG_DIR"
-  fi
-
-  if [ ! -f "$LOG_FILE" ]; then
-    touch "$LOG_FILE"
-  fi
-}
-
-
-create_folder_and_file
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
 
 show_execution_time() {
     end_time=$(date +%s%3N)
@@ -61,8 +50,6 @@ show_execution_time() {
 
 trap show_execution_time EXIT
 
-
-# Check if the INI file exists
 if [ ! -f "$INI_FILE" ]; then
     echo "Error: INI file not found: $INI_FILE"
     exit 1
@@ -74,6 +61,56 @@ fi
 
 # ======================================================================
 # Helper functions
+
+print_header() {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo -e ""
+    echo -e " _____               _    _               _ "
+    echo -e "/  ___|             | |  (_)             | |"
+    echo -e "\\ \`--.   ___  _ __  | |_  _  _ __    ___ | |"
+    echo -e " \`--. \\ / _ \\| \`_ \\ | __|| || \`_ \\  / _ \\| |"
+    echo -e "/\\__/ /|  __/| | | || |_ | || | | ||  __/| |"
+    echo -e "\\____/  \\___||_| |_| \\__||_||_| |_| \\___||_|"
+    echo -e ""
+    echo -e "            version: $VERSION"
+    echo -e ""
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+}
+
+check_for_debug_and_print_info(){
+  if [ "$DEBUG" = true ]; then
+      echo ""
+      echo "----------------- DEBUG INFORMATION ------------------"
+      echo "HOSTNAME:       $HOSTNAME"
+      echo "VERSION:        $VERSION"
+      echo "PID:            $PID"
+      echo "TIME:           $TIME"
+      echo "CONF_FILE:      $CONF_FILE"
+      echo "LOCK_FILE:      $LOCK_FILE"
+      echo "INI_FILE:       $INI_FILE"
+      echo "LOG_FILE:       $LOG_FILE"
+      echo "LOG_DIR:        $LOG_DIR"
+      echo ""
+      echo "----------------- CONFIGURATIONS ------------------"
+      echo ""
+      echo "EMAIL_ALERT:     $EMAIL_ALERT"
+      echo "EMAIL:           $EMAIL"
+      echo "REBOOT:          $REBOOT"
+      echo "LOGIN:           $LOGIN"
+      echo "ATTACK:          $ATTACK"
+      echo "LIMIT:           $LIMIT"
+      echo "UPDATE:          $UPDATE"
+      echo "SERVICES:        $SERVICES"
+      echo "LOAD_THRESHOLD:  $LOAD_THRESHOLD"
+      echo "CPU_THRESHOLD:   $CPU_THRESHOLD"
+      echo "RAM_THRESHOLD:   $RAM_THRESHOLD"
+      echo "DISK_THRESHOLD:  $DISK_THRESHOLD"
+      echo "SWAP_THRESHOLD:  $SWAP_THRESHOLD"
+      echo "------------------------------------------------------"
+      echo ""
+  fi
+}
+
 
 generate_random_token() {
     tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 64
@@ -135,7 +172,6 @@ ensure_bc_installed() {
             exit 1
         fi
 
-        # Check if installation was successful
         if ! command -v bc &> /dev/null; then
             echo "Error: bc command installation failed. Please install bc manually and try again."
             exit 1
@@ -143,7 +179,6 @@ ensure_bc_installed() {
     fi
 }
 
-# Send an email alert
 email_notification() {
   local title="$1"
   local message="$2"
@@ -257,6 +292,11 @@ SWAP_THRESHOLD=$(awk -F'=' '/^swap/ {print $2}' "$INI_FILE")
 SWAP_THRESHOLD=${SWAP_THRESHOLD:-40}
 is_valid_number "$SWAP_THRESHOLD" || SWAP_THRESHOLD=40
 
+
+
+
+
+
 # ====================================================================== #
 #                             MAIN FUNCTIONS                             #
 
@@ -340,11 +380,6 @@ check_ssh_logins() {
 
 }
 
-
-
-
-
-
 # ====== ADMIN LOGINS
 check_new_logins() {
   if [ "$LOGIN" != "no" ]; then
@@ -397,8 +432,6 @@ check_new_logins() {
   fi
 }
 
-
-
 # ====== MYSQL SERVICE
 mysql_docker_containers_status() {
       if docker --context=default ps --format "{{.Names}}" | grep -q "openpanel_mysql"; then
@@ -430,8 +463,6 @@ mysql_docker_containers_status() {
         write_notification "$title" "$message"
       fi
 }
-
-
 
 # ====== ANY CONTAINER NAME
 docker_containers_status() {
@@ -517,9 +548,6 @@ docker_containers_status() {
     fi
 }
 
-
-
-
 # ====== CHECK ANY SERVICE
 check_service_status() {
   local service_name="$1"
@@ -561,8 +589,7 @@ check_service_status() {
   fi
 }
 
-
-# ====== GENERATE CRASH REPORT IF NEEDED
+# ====== GENERATE CRASH REPORT
 generate_crashlog_report() {
   local crashlog_dir="/var/log/openpanel/admin/crashlog"
   local filename=$(date +%s)
@@ -699,7 +726,7 @@ check_swap_usage() {
 }
 
 
-# Function to check RAM usage and write notification if it exceeds the threshold
+# ====== CHECK RAM
 check_ram_usage() {
   local title="High Memory Usage!"
   local total_ram=$(free -m | awk '/^Mem:/{print $2}')
@@ -709,7 +736,6 @@ check_ram_usage() {
   local message="Used RAM: $used_ram MB, Total RAM: $total_ram MB, Usage: $ram_percentage%"
   local message_to_check_in_file="Used RAM"
 
-  # Check if there is an unread RAM notification
   if is_unread_message_present "$message_to_check_in_file"; then
     ((WARN++))
     echo -e "\e[38;5;214m[!]\e[0m Unread RAM usage notification already exists. Skipping."
@@ -728,6 +754,7 @@ check_ram_usage() {
   fi
 }
 
+# ====== CHECK CPU
 function check_cpu_usage() {
   local title="High CPU Usage!"
 
@@ -745,19 +772,18 @@ else
 fi
 }
 
+# ====== CHECK DISK USAGE
 function check_disk_usage() {
   local title="Running out of Disk Space!"
 
   local disk_percentage=$(df -h --output=pcent / | tail -n 1 | tr -d '%')
-
   if [ "$disk_percentage" -gt "$DISK_THRESHOLD" ]; then
 
-  # Check if there is an unread DU notification
-  if is_unread_message_present "$title"; then
-    ((WARN++))
-    echo -e "\e[38;5;214m[!]\e[0m Unread DU notification already exists. Skipping."
-    return
-  fi
+    if is_unread_message_present "$title"; then
+      ((WARN++))
+      echo -e "\e[38;5;214m[!]\e[0m Unread DU notification already exists. Skipping."
+      return
+    fi
               ((FAIL++))
             STATUS=2
     echo -e "\e[31m[✘]\e[0m Disk usage ($disk_percentage) is higher than the treshold value $DISK_THRESHOLD. Writing notification."
@@ -769,61 +795,40 @@ function check_disk_usage() {
   fi
 }
 
-
-
-
-
-
-
+# ====== CHECK DNS
 check_if_panel_domain_and_ns_resolve_to_server (){
+  RESULT=$(opencli domain)
+  
+  if [[ "$RESULT" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+      FORCED_DOMAIN=$RESULT
+      CHECK_DOMAIN_ALSO="yes"
+  else
+      CHECK_DOMAIN_ALSO="no"
+  fi
 
-# Extract force domain address from the configuration file
-RESULT=$(opencli domain)
-
-if [[ "$RESULT" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-    # If it's a valid domain, use it
-    FORCED_DOMAIN=$RESULT
-    CHECK_DOMAIN_ALSO="yes"
-else
-    # If it's not a valid domain (could be an IP or invalid), do not proceed
-    CHECK_DOMAIN_ALSO="no"
-fi
-
-# Extract NS1 from the configuration file
-NS1_SET=$(awk -F'=' '/^ns1/ {print $2}' "$CONF_FILE")
-
-# Check if NS1_SET is not empty and is a valid domain
-if [ -n "$NS1_SET" ]; then
-    if [[ "$NS1_SET" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-        #echo "NS1_SET is a valid domain: $NS1_SET"
-        NS1=$NS1_SET
-        CHECK_NS_ALSO="yes"
-
-        #check ns2 only if ns1 is set!
-        NS2_SET=$(awk -F'=' '/^ns2/ {print $2}' "$CONF_FILE")
-        NS2=$NS2_SET
-
-    else
-        echo "NS1 '$NS1_SET' is not a valid domain."
-        CHECK_NS_ALSO="no"
-    fi
-else
-    #echo "NS1_SET is empty or not found in $CONF_FILE."
-    CHECK_NS_ALSO="no"
-fi
-
+  NS1_SET=$(awk -F'=' '/^ns1/ {print $2}' "$CONF_FILE")
+  
+  if [ -n "$NS1_SET" ]; then
+      if [[ "$NS1_SET" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+          NS1=$NS1_SET
+          CHECK_NS_ALSO="yes"
+          NS2_SET=$(awk -F'=' '/^ns2/ {print $2}' "$CONF_FILE")
+          NS2=$NS2_SET
+  
+      else
+          echo "NS1 '$NS1_SET' is not a valid domain."
+          CHECK_NS_ALSO="no"
+      fi
+  else
+      CHECK_NS_ALSO="no"
+  fi
 
 if [ "$CHECK_DOMAIN_ALSO" == "no" ] && [ "$CHECK_NS_ALSO" == "no" ]; then
     ((WARN++))
     echo -e "\e[38;5;214m[!]\e[0m Missing or invalid custom domain and nameservers, skipping DNS checks.."
 else
 
-  # Google's DNS servers
   GOOGLE_DNS_SERVER="8.8.8.8"
-
-  # Get server ipv4
-
-  # IP SERVERS
   SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
   if [ -f "$SCRIPT_PATH" ]; then
       source "$SCRIPT_PATH"
@@ -831,42 +836,32 @@ else
       IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
   fi
 
-
   SERVER_IP=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget -4 --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
 
-  # If server IP is not available from external service, use local IP
   if [ -z "$SERVER_IP" ]; then
       SERVER_IP=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
   fi
 
-  # Run checks only if either domain or nameserver is set
   if [ "$CHECK_DOMAIN_ALSO" == "yes" ] || [ "$CHECK_NS_ALSO" == "yes" ]; then
-      # Check if FORCE_DOMAIN resolves to this server IP
       if [ "$CHECK_DOMAIN_ALSO" == "no" ]; then
           ((WARN++))
           echo -e "\e[38;5;214m[!]\e[0m Domain is not set for accessing OpenPanel, skip checking DNS."
       else
           if [ -n "$FORCED_DOMAIN" ]; then
-              #echo "Checking if $FORCED_DOMAIN resolves to this server IP ($SERVER_IP).."
-
               ensure_dig_installed
-              
               domain_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$FORCED_DOMAIN")
               
-
               if [ "$domain_ip" == "$SERVER_IP" ]; then
               ((PASS++))
                   echo -e "\e[32m[✔]\e[0m $FORCED_DOMAIN resolves to $SERVER_IP"
               else
-                  # Check if Cloudflare proxy
                   ns_records=$(dig +short @"$GOOGLE_DNS_SERVER" NS "$FORCED_DOMAIN")
 
                   if echo "$ns_records" | grep -q 'cloudflare'; then
                      ((WARN++))
                      echo -e "\e[38;5;214m[!]\e[0m $FORCED_DOMAIN does not resolve to $SERVER_IP, but it is using Cloudflare DNS, so it is possible that proxy option is enabled. Skipping."
                   else
-                      #echo "$FORCED_DOMAIN is not using Cloudflare DNS."
-                                  ((FAIL++))
+                      ((FAIL++))
             STATUS=2
                       echo -e "\e[31m[✘]\e[0m $FORCED_DOMAIN does not resolve to $SERVER_IP"
                       local title="$FORCED_DOMAIN does not resolve to $SERVER_IP"
@@ -877,7 +872,6 @@ else
           fi
       fi
 
-      # Check if NS1 and NS2 resolve to this server IP
       if [ "$CHECK_NS_ALSO" == "no" ]; then
       ((PASS++))
           echo -e "\e[32m[✔]\e[0m Skip checking nameservers as they are not set."
@@ -910,60 +904,15 @@ fi
 
 }
 
-
-
-
-
-
-
-# logo
-print_header() {
-    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-    echo -e ""
-    echo -e " _____               _    _               _ "
-    echo -e "/  ___|             | |  (_)             | |"
-    echo -e "\\ \`--.   ___  _ __  | |_  _  _ __    ___ | |"
-    echo -e " \`--. \\ / _ \\| \`_ \\ | __|| || \`_ \\  / _ \\| |"
-    echo -e "/\\__/ /|  __/| | | || |_ | || | | ||  __/| |"
-    echo -e "\\____/  \\___||_| |_| \\__||_||_| |_| \\___||_|"
-    echo -e ""
-    echo -e "            version: $VERSION"
-    echo -e ""
-    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-}
-
-
-check_for_debug_and_print_info(){
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- DEBUG INFORMATION ------------------"
-      echo "HOSTNAME:       $HOSTNAME"
-      echo "VERSION:        $VERSION"
-      echo "PID:            $PID"
-      echo "TIME:           $TIME"
-      echo "CONF_FILE:      $CONF_FILE"
-      echo "LOCK_FILE:      $LOCK_FILE"
-      echo "INI_FILE:       $INI_FILE"
-      echo "LOG_FILE:       $LOG_FILE"
-      echo "LOG_DIR:        $LOG_DIR"
-      echo ""
-      echo "----------------- CONFIGURATIONS ------------------"
-      echo ""
-      echo "EMAIL_ALERT:     $EMAIL_ALERT"
-      echo "EMAIL:           $EMAIL"
-      echo "REBOOT:          $REBOOT"
-      echo "LOGIN:           $LOGIN"
-      echo "ATTACK:          $ATTACK"
-      echo "LIMIT:           $LIMIT"
-      echo "UPDATE:          $UPDATE"
-      echo "SERVICES:        $SERVICES"
-      echo "LOAD_THRESHOLD:  $LOAD_THRESHOLD"
-      echo "CPU_THRESHOLD:   $CPU_THRESHOLD"
-      echo "RAM_THRESHOLD:   $RAM_THRESHOLD"
-      echo "DISK_THRESHOLD:  $DISK_THRESHOLD"
-      echo "SWAP_THRESHOLD:  $SWAP_THRESHOLD"
-      echo "------------------------------------------------------"
-      echo ""
+# ====== DAILY REPORT
+email_daily_report() {
+  local title="Daily Usage Report"
+  local message="Daily Usage Report"
+  if [ "$EMAIL_ALERT" != "no" ]; then
+    echo "Generating daily usage report.."
+    email_notification "$title" "$message"
+  else
+      echo "Email alerts are disabled - daily usage report will not be generated."
   fi
 }
 
@@ -972,24 +921,16 @@ check_for_debug_and_print_info(){
 
 
 
+# ======================================================================
+# Got flags?
+: '
+script can be run:
 
-email_daily_report() {
-  local title="Daily Usage Report"
-  local message="Daily Usage Report"
-    if [ "$EMAIL_ALERT" != "no" ]; then
-    echo "Generating daily usage report.."
-      email_notification "$title" "$message"
-    else
-      echo "Email alerts are disabled - daily usage report will not be generated."
-    fi
-}
+  opencli sentinel --reboot     - sends reboot alert 
+  opencli sentinel              - checks what admin configured
+  opencli sentinel --report     - generates daily usage report
+'
 
-
-
-
-
-
-# Check for flags
 if [ "$1" == "--startup" ]; then
   perform_startup_action
 elif [ "$1" == "--report" ]; then
@@ -999,153 +940,114 @@ else
   check_for_debug_and_print_info
   echo "Checking health for monitored services:"
   echo ""
+  
+  check_services() {
+    declare -A service_checks=(
+      [caddy]="docker_containers_status 'caddy' 'Caddy container is not active. Users' websites are not working!'"
+      [csf]="check_service_status 'csf' 'ConfigService Firewall (CSF) is not active. Server and websites are not protected!'"
+      [admin]="check_service_status 'admin' 'Admin service is not active. OpenAdmin service is not accessible!'"
+      [docker]="check_service_status 'docker' 'Docker service is not active. User websites are down!'"
+      [panel]="docker_containers_status 'openpanel' 'OpenPanel docker container is not running. Users are unable to access the OpenPanel interface!'"
+      [mysql]="mysql_docker_containers_status"
+      [named]="docker_containers_status 'openpanel_dns' 'Named (BIND9) service is not active. DNS resolving of domains is not working!'"
+    )
+  
+    for svc in "${!service_checks[@]}"; do
+      if echo "$SERVICES" | grep -q "$svc"; then
+        eval "${service_checks[$svc]}"
+      fi
+    done
+  }
 
+  
+  start_login_section() {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "Checking SSH and OpenAdmin logins:"
+    echo ""
+  }
+  
+  
+  check_resources_section(){
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "Checking server resource usage:"
+    echo ""
+  }
+  
+  
+  check_dns_section() {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "Checking DNS:"
+    echo ""
+  }
 
-######
-
-
-
-
-
-
-
-
-check_services() {
-  declare -A service_checks=(
-    [caddy]="docker_containers_status 'caddy' 'Caddy container is not active. Users' websites are not working!'"
-    [csf]="check_service_status 'csf' 'ConfigService Firewall (CSF) is not active. Server and websites are not protected!'"
-    [admin]="check_service_status 'admin' 'Admin service is not active. OpenAdmin service is not accessible!'"
-    [docker]="check_service_status 'docker' 'Docker service is not active. User websites are down!'"
-    [panel]="docker_containers_status 'openpanel' 'OpenPanel docker container is not running. Users are unable to access the OpenPanel interface!'"
-    [mysql]="mysql_docker_containers_status"
-    [named]="docker_containers_status 'openpanel_dns' 'Named (BIND9) service is not active. DNS resolving of domains is not working!'"
-  )
-
-  for svc in "${!service_checks[@]}"; do
-    if echo "$SERVICES" | grep -q "$svc"; then
-      eval "${service_checks[$svc]}"
+  
+  summary(){
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+  
+    if [[ $STATUS == 0 ]]; then
+        echo -en "\e[32mAll Tests Passed!\e[0m\n"
+    elif [[ $STATUS == 1 ]]; then
+        echo -en "\e[93mSome non-critical tests failed.  Please review these items.\e[0m\e[0m\n"
+    else
+        echo -en "\e[41mOne or more tests failed.  Please review these items.\e[0m\n"
     fi
-  done
-}
-
-
-start_login_section() {
-  printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-  echo "Checking SSH and OpenAdmin logins:"
-  echo ""
-}
-
-
-check_resources_section(){
-  printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-  echo "Checking server resource usage:"
-  echo ""
-}
-
-
-check_dns_section() {
-  printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-  echo "Checking DNS:"
-  echo ""
-}
-
-
-summary(){
-  # Summary
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-
-  if [[ $STATUS == 0 ]]; then
-      echo -en "\e[32mAll Tests Passed!\e[0m\n"
-  elif [[ $STATUS == 1 ]]; then
-      echo -en "\e[93mSome non-critical tests failed.  Please review these items.\e[0m\e[0m\n"
-  else
-      echo -en "\e[41mOne or more tests failed.  Please review these items.\e[0m\n"
-  fi
-    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-  echo -en "\e[1m${PASS} Tests PASSED\e[0m\n"
-  echo -en "\e[1m${WARN} WARNINGS\e[0m\n"
-  echo -en "\e[1m${FAIL} Tests FAILED\e[0m\n"
+    echo -en "\e[1m${PASS} Tests PASSED\e[0m\n"
+    echo -en "\e[1m${WARN} WARNINGS\e[0m\n"
+    echo -en "\e[1m${FAIL} Tests FAILED\e[0m\n"
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
     show_execution_time
-}
+  }
 
 
+  
+  
+  # Progress bar script
+  PROGRESS_BAR_URL="https://raw.githubusercontent.com/pollev/bash_progress_bar/master/progress_bar.sh"
+  PROGRESS_BAR_FILE="progress_bar.sh"
+  wget -4 "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
+  if [ ! -f "$PROGRESS_BAR_FILE" ]; then
+      echo "Failed to download progress_bar.sh"
+      exit 1
+  fi
+    source "$PROGRESS_BAR_FILE"
+    
+    FUNCTIONS=(
+      check_services
+      start_login_section
+      check_new_logins
+      check_ssh_logins
+      check_resources_section
+      check_disk_usage
+      check_system_load
+      check_ram_usage
+      check_cpu_usage
+      check_swap_usage
+      check_dns_section
+      check_if_panel_domain_and_ns_resolve_to_server
+      summary
+    )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Progress bar script
-PROGRESS_BAR_URL="https://raw.githubusercontent.com/pollev/bash_progress_bar/master/progress_bar.sh"
-PROGRESS_BAR_FILE="progress_bar.sh"
-wget -4 "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
-if [ ! -f "$PROGRESS_BAR_FILE" ]; then
-    echo "Failed to download progress_bar.sh"
-    exit 1
-fi
-source "$PROGRESS_BAR_FILE"
-
-FUNCTIONS=(
-  # SERVICES
-  check_services
-
-  #LOGINS
-  start_login_section
-  check_new_logins
-  check_ssh_logins
-
-  #USAGE
-  check_resources_section
-  check_disk_usage
-  check_system_load
-  check_ram_usage
-  check_cpu_usage
-  check_swap_usage
-
-  #DNS
-  check_dns_section
-  check_if_panel_domain_and_ns_resolve_to_server
-
-  summary
-)
-
-
-TOTAL_STEPS=${#FUNCTIONS[@]}
-CURRENT_STEP=0
-
-update_progress() {
-    CURRENT_STEP=$((CURRENT_STEP + 1))
-    PERCENTAGE=$(($CURRENT_STEP * 100 / $TOTAL_STEPS))
-    draw_progress_bar $PERCENTAGE
-}
-
-main() {
-    enable_trapping
-    setup_scroll_area
-    for func in "${FUNCTIONS[@]}"
-    do
-        $func
-        update_progress
-    done
-    destroy_scroll_area
-}
-
-  main
-  # TODO: add no of services, alerts notified and emailed.
-fi
+  
+    TOTAL_STEPS=${#FUNCTIONS[@]}
+    CURRENT_STEP=0
+    
+    update_progress() {
+        CURRENT_STEP=$((CURRENT_STEP + 1))
+        PERCENTAGE=$(($CURRENT_STEP * 100 / $TOTAL_STEPS))
+        draw_progress_bar $PERCENTAGE
+    }
+  
+    main() {
+        enable_trapping
+        setup_scroll_area
+        for func in "${FUNCTIONS[@]}"
+        do
+            $func
+            update_progress
+        done
+        destroy_scroll_area
+    }
+  
+    main
+  fi
