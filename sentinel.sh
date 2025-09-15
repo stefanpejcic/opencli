@@ -136,44 +136,26 @@ is_unread_message_present() {
   grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
 }
 
+ensure_installed() {
+    local cmd="$1"
+    local pkg="$2"
+    pkg="${pkg:-$cmd}"
 
-ensure_dig_installed() {
-    if ! command -v dig &> /dev/null; then
+    if ! command -v "$cmd" &> /dev/null; then
         if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq bind-utils > /dev/null 2>&1
+            sudo apt-get update -qq > /dev/null 2>&1
+            sudo apt-get install -y -qq "$pkg" > /dev/null 2>&1
         elif command -v yum &> /dev/null; then
-            sudo yum install -y -q bind-utils > /dev/null 2>&1
+            sudo yum install -y -q "$pkg" > /dev/null 2>&1
         elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q bind-utils > /dev/null 2>&1
+            sudo dnf install -y -q "$pkg" > /dev/null 2>&1
         else
-            echo "Error: No compatible package manager found. Please install dig command (bind-utils) manually and try again."
+            echo "Error: No compatible package manager found. Please install $cmd manually."
             exit 1
         fi
 
-        if ! command -v dig &> /dev/null; then
-            echo "Error: dig command installation failed. Please install bind-utils manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-ensure_bc_installed() {
-    if ! command -v bc &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get update > /dev/null 2>&1
-            sudo apt-get install -y -qq bc > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y -q bc > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q bc > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install bc command manually and try again."
-            exit 1
-        fi
-
-        if ! command -v bc &> /dev/null; then
-            echo "Error: bc command installation failed. Please install bc manually and try again."
+        if ! command -v "$cmd" &> /dev/null; then
+            echo "Error: $cmd installation failed. Please install $pkg manually."
             exit 1
         fi
     fi
@@ -184,10 +166,9 @@ email_notification() {
   local message="$2"
 
   generate_random_token_one_time_only
-  TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "$CONF_FILE")
 
+  TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "$CONF_FILE")
   DOMAIN=$(opencli domain)
-  
   if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
     PROTOCOL="https"
   else
@@ -196,13 +177,11 @@ email_notification() {
 
   admin_conf_file="/etc/openpanel/openadmin/config/admin.ini"
   AUTH_OPTION=""
-  
   if grep -q '^basic_auth=yes' "$admin_conf_file"; then
       username=$(grep '^basic_auth_username=' "$admin_conf_file" | cut -d'=' -f2)
       password=$(grep '^basic_auth_password=' "$admin_conf_file" | cut -d'=' -f2)
       AUTH_OPTION="--user ${username}:${password}"
   fi
-
 
   response=$(curl -4 --max-time 5 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" \
     $AUTH_OPTION \
@@ -211,14 +190,12 @@ email_notification() {
     -F "subject=$title" \
     -F "body=$message" 2>/dev/null)
 
-
   if echo "$response" | grep -q '"error"'; then
     echo "Error: Failed to send email. Response: $response"
   elif echo "$response" | grep -q '"sent successfully"'; then
     echo "Email sent successfully."
   fi
 }
-
 
 write_notification() {
   local title="$1"
@@ -232,7 +209,6 @@ write_notification() {
     else
       email_notification "$title" "$message"
     fi
-
   fi
 }
 
@@ -651,7 +627,7 @@ generate_crashlog_report() {
 check_system_load() {
   local title="High System Load!"
   current_load=$(uptime | awk -F'average:' '{print $2}' | awk -F', ' '{print $1}')
-  ensure_bc_installed
+  ensure_installed bc
   if (( $(echo "$current_load > $LOAD_THRESHOLD" | bc -l) )); then
       ((FAIL++))
       STATUS=2
@@ -848,7 +824,7 @@ else
           echo -e "\e[38;5;214m[!]\e[0m Domain is not set for accessing OpenPanel, skip checking DNS."
       else
           if [ -n "$FORCED_DOMAIN" ]; then
-              ensure_dig_installed
+              ensure_installed dig bind-utils
               domain_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$FORCED_DOMAIN")
               
               if [ "$domain_ip" == "$SERVER_IP" ]; then
