@@ -156,11 +156,7 @@ else
 fi
 
 PANEL_INFO_JSON="/etc/sysconfig/imunify360/get-panel-info.json"
-if [ ! -f "$PANEL_INFO_JSON" ]; then
-  update_version
-else
-  echo "$PANEL_INFO_JSON already exists, skipping..."
-fi
+update_version
 
 DEPLOY_SCRIPT="imav-deploy.sh"
 if [ ! -f "$DEPLOY_SCRIPT" ]; then
