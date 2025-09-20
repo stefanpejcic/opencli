@@ -53,6 +53,7 @@ JSON
 EOF
 
   chmod 0755 "$PANEL_INFO_SH"
+  chmod +x "$PANEL_INFO_SH"
 }
 
 status_av() {
