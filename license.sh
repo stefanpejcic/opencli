@@ -331,7 +331,7 @@ main() {
         "delete")
             delete_license
             ;;
-        "enterprise"|"noc"|"lifetime")
+        enterprise-*|noc-*|lifetime-)
             verify_and_save_license "$command"
             ;;
         *)
