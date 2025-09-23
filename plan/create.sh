@@ -99,7 +99,8 @@ insert_plan() {
             existing_plan=$(check_plan_exists "$name")
             if [ -n "$existing_plan" ]; then
                 tmpfile=$(mktemp)
-                jq --argjson plan "$existing_plan" \
+
+                jq --arg plan "$existing_plan" \
                    '.allowed_plans |= (if index($plan) then . else . + [$plan] end)' \
                    "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
             else
