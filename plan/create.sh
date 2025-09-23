@@ -96,11 +96,11 @@ insert_plan() {
   if [ $? -eq 0 ]; then
         # if reseller, allow them the new plan id
         if [[ "$CHECK_PLAN_ID" == true ]]; then
-            existing_plan=$(check_plan_exists "$name")
-            if [ -n "$existing_plan" ]; then
+            plan_id=$(check_plan_exists "$name")
+            if [ -n "$plan_id" ]; then
                 tmpfile=$(mktemp)
 
-                jq --arg plan "$existing_plan" \
+                jq --arg plan "$plan_id" \
                    '.allowed_plans |= (if index($plan) then . else . + [$plan] end)' \
                    "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
             else
