@@ -79,8 +79,8 @@ insert_plan() {
   local bandwidth="${12}"
   local feature_set="${13}"
   
-# Format disk_limit with 'GB' 
-disk_limit="${disk_limit} GB"
+  # Format disk_limit with 'GB' 
+  disk_limit="${disk_limit} GB"
 
   if [ "$inodes_limit" -lt 0 ]; then
     inodes_limit=0
@@ -96,7 +96,7 @@ disk_limit="${disk_limit} GB"
   if [ $? -eq 0 ]; then
         # if reseller, allow them the new plan id
         if [[ "$CHECK_PLAN_ID" == true ]]; then
-            existing_plan=$(check_plan_id_by_name "$name")
+            existing_plan=$(check_plan_exists "$name")
             if [ -n "$existing_plan" ]; then
                 tmpfile=$(mktemp)
                 jq --argjson plan "$existing_plan" \
@@ -107,9 +107,9 @@ disk_limit="${disk_limit} GB"
             fi
         fi
 
-    echo "Plan $name created successfully."
+    echo "Plan ${name} created successfully."
   else
-    echo "Failed to create plan: $name"
+    echo "Failed to create plan: ${name}"
   fi
 }
 
@@ -315,22 +315,15 @@ check_available_ram "$ram"
 # Function to check if the plan name already exists in the database
 check_plan_exists() {
   local name="$1"
-  local sql="SELECT name FROM plans WHERE name='$name';"
-  local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
-  echo "$result"
-}
-
-check_plan_id_by_name() {
-  local id="$1"
-  local sql="SELECT id FROM plans WHERE name='$id';"
+  local sql="SELECT name FROM plans WHERE name='${name}';"
   local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
   echo "$result"
 }
 
 # Check if the plan name already exists in the database
-existing_plan=$(check_plan_exists "$name")
+existing_plan=$(check_plan_exists "${name}")
 if [ -n "$existing_plan" ]; then
-  echo "Plan name '$name' already exists. Please choose another name."
+  echo "Plan name '${name}' already exists. Please choose another name."
   exit 1
 fi
 
