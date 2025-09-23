@@ -322,7 +322,7 @@ check_plan_exists() {
 
 check_plan_id_by_name() {
   local id="$1"
-  local sql="SELECT id FROM plans WHERE name='$name';"
+  local sql="SELECT id FROM plans WHERE name='$id';"
   local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
   echo "$result"
 }
