@@ -159,8 +159,10 @@ restart_services() {
     fi
     
     service admin restart > /dev/null
-    docker --context default ps -q -f name=openpanel | grep -q . && \
-        docker --context default restart openpanel > /dev/null &
+    if docker --context default ps -q -f name=openpanel | grep -q .; then
+        docker --context default restart openpanel &> /dev/null &
+    fi
+        
     echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
 }
 
