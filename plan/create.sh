@@ -211,9 +211,9 @@ validate_fields_first() {
 
 
 check_reseller_user() {
-    reseller_file="/etc/openpanel/openadmin/resellers/${reseller}.json"
+    reseller_file="/etc/openpanel/openadmin/resellers/${reseller_user}.json"
 
-    if [[ -z "$reseller" ]]; then
+    if [[ -z "$reseller_user" ]]; then
         return 1
     fi
 
