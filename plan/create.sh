@@ -316,7 +316,7 @@ check_available_ram "$ram"
 # Function to check if the plan name already exists in the database
 check_plan_exists() {
   local name="$1"
-  local sql="SELECT name FROM plans WHERE name='${name}';"
+  local sql="SELECT id FROM plans WHERE name='${name}';"
   local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
   echo "$result"
 }
