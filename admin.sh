@@ -397,7 +397,11 @@ delete_existing_users() {
         
             local reseller_limits_file="/etc/openpanel/openadmin/resellers/$username.json"
 			rm $reseller_limits_file  > /dev/null 2>&1
-        
+
+            local reseller_features="/etc/openpanel/features/$username"
+			# todo: check and also delete plans assigned to the user and no-one else!
+			rm -rf $reseller_features  > /dev/null 2>&1
+		
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
             echo "User '$username' deleted successfully."
         fi
