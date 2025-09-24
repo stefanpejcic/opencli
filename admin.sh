@@ -285,16 +285,12 @@ update_username() {
         if [ "$new_user_exists" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Username '$new_username' already taken."
         else
-       
             sqlite3 $db_file_path "UPDATE user SET username='$new_username' WHERE username='$old_username';"
-	    
-	    sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log   > /dev/null 2>&1
-     
             echo "User '$old_username' renamed to '$new_username'."
-            
-            local reseller_limits_dir="/etc/openpanel/openadmin/resellers"
-	    mv $reseller_limits_dir/$old_username.json $reseller_limits_dir/$new_username.json  > /dev/null 2>&1
-   
+	    	sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log   > /dev/null 2>&1
+			# for resellers
+			mv /etc/openpanel/features/$old_username /etc/openpanel/features/$username  > /dev/null 2>&1
+	    	mv /etc/openpanel/openadmin/resellers/$old_username.json /etc/openpanel/openadmin/resellers/$new_username.json  > /dev/null 2>&1   
         fi
     else
         echo -e "${RED}Error${RESET}: User '$old_username' not found."
