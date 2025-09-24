@@ -66,7 +66,7 @@ usage() {
     echo "  list                                          List all current admin users."
     echo "  new <user> <pass>                             Add a new user with the specified username and password."
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
-    echo "  update <user> --allowed_plans=[] --max_accounts=<int> Assign plans and set limits for reseller."
+    echo "  update <user> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 Assign plans and set limits for reseller."
 	echo "  rename <old> <new>                            Change the admin username."
     echo "  suspend <user>                                Suspend admin user."
     echo "  unsuspend <user>                              Unsuspend admin user."
@@ -243,7 +243,7 @@ update_reseller_account() {
     local username="$1"
     local allowed_plans="$2"
     local max_accounts="$3"
-
+	local max_disk_blocks="$4"
     local resellers_dir="/etc/openpanel/openadmin/resellers"
     local reseller_file="$resellers_dir/$username.json"
 
@@ -253,7 +253,11 @@ update_reseller_account() {
     fi
 
     if [[ -z "$max_accounts" ]]; then
-        max_accounts="unlimited"
+        max_accounts=0
+    fi
+	
+    if [[ -z "$max_disk_blocks" ]]; then
+        max_disk_blocks=0
     fi
 
     allowed_plans="${allowed_plans%,}"
@@ -265,9 +269,15 @@ update_reseller_account() {
         plans_json="[]"
     fi
 
-    jq --arg max_accounts "$max_accounts" --argjson allowed_plans "$plans_json" \
-       '.max_accounts = $max_accounts | .allowed_plans = $allowed_plans' \
-       "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
+    #jq --arg max_accounts "$max_accounts" --argjson allowed_plans "$plans_json" \
+    #   '.max_accounts = $max_accounts | .allowed_plans = $allowed_plans' \
+    #   "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
+
+	jq --argjson max_accounts "$max_accounts" \
+	   --argjson allowed_plans "$plans_json" \
+	   --argjson max_disk_blocks "$max_disk_blocks" \
+	   '.max_accounts = $max_accounts | .allowed_plans = $allowed_plans | .max_disk_blocks = $max_disk_blocks' \
+	   "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
 
     echo "Reseller $username updated successfully."
 }
@@ -609,7 +619,8 @@ case "$1" in
         username="$2"
         allowed_plans="${3#--allowed_plans=}"
         max_accounts="${4#--max_accounts=}"
-        update_reseller_account "$username" "$allowed_plans" "$max_accounts"
+		max_disk_blocks="${4#--max_disk_blocks=}"
+        update_reseller_account "$username" "$allowed_plans" "$max_accounts" "$max_disk_blocks"
         ;;   
 	"suspend")
         # List users
