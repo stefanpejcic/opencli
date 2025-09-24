@@ -400,6 +400,7 @@ delete_existing_users() {
 
             local reseller_features="/etc/openpanel/features/$username"
 			# todo: check and also delete plans assigned to the user and no-one else!
+			#         SELECT 1         FROM plans         WHERE feature_set = %s         LIMIT 1;
 			rm -rf $reseller_features  > /dev/null 2>&1
 		
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"            
