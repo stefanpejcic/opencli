@@ -266,7 +266,7 @@ function open_port_csf() {
         # Open port
       if [ "$DEBUG" = true ]; then
           echo ""
-          echo "Opening port on ConfigServer Firewall"
+          echo "Opening port on Sentinel Firewall"
           echo ""
           sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
           echo ""
