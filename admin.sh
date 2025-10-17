@@ -621,14 +621,10 @@ case "$1" in
         # List users
         list_current_users
         ;;
-    "update")
-        # Set reseller limits
-        username="$2"
-        allowed_plans="${3#--allowed_plans=}"
-        max_accounts="${4#--max_accounts=}"
-		max_disk_blocks="${4#--max_disk_blocks=}"
-        update_reseller_account "$username" "$allowed_plans" "$max_accounts" "$max_disk_blocks"
-        ;;   
+	"update")
+	    shift 1
+	    update_reseller_account "$@"
+	    ;;
 	"suspend")
         # List users
         username="$2"
