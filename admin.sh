@@ -262,15 +262,12 @@ update_reseller_account() {
     # Defaults
     [[ -z "$max_accounts" ]] && max_accounts=0
     [[ -z "$max_disk_blocks" ]] && max_disk_blocks=0
+    [[ -z "$allowed_plans" ]] && allowed_plans="[]"
 
     # Normalize allowed_plans
-    if [[ -z "$allowed_plans" || "$allowed_plans" == "[]" ]]; then
-        plans_json="[]"
-    elif [[ "$allowed_plans" =~ ^\[.*\]$ ]]; then
-        plans_json="$allowed_plans"
-    else
+    if [[ "$allowed_plans" != \[*\] ]]; then
         IFS=',' read -r -a plans_array <<< "$allowed_plans"
-        plans_json=$(printf '%s\n' "${plans_array[@]}" | jq -R . | jq -s .)
+        allowed_plans=$(printf '%s\n' "${plans_array[@]}" | jq -R . | jq -s .)
     fi
 
     local reseller_file="/etc/openpanel/openadmin/resellers/$username.json"
@@ -279,15 +276,17 @@ update_reseller_account() {
         return 1
     fi
 
-    jq \
-        ".max_accounts = $max_accounts
-         | .allowed_plans = $plans_json
-         | .max_disk_blocks = $max_disk_blocks" \
-        "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
+    # Update JSON
+    jq --argjson max_accounts "$max_accounts" \
+       --argjson max_disk_blocks "$max_disk_blocks" \
+       --arg plans_json "$allowed_plans" \
+       '.max_accounts = $max_accounts
+        | .max_disk_blocks = $max_disk_blocks
+        | .allowed_plans = ($plans_json | fromjson)' \
+       "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
 
     echo "Reseller $username updated successfully."
 }
-
 
 
 
