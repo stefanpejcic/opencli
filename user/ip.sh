@@ -5,7 +5,7 @@
 # Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y] [--debug]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 17.10.2025
+# Last Modified: 16.10.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -225,19 +225,19 @@ edit_domain_files "$ip_to_use"
 update_firewall_rules
 
 if [ "$ACTION" == "delete" ]; then
-    local json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
+    json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
     if [ -f "$json_file" ]; then
         rm -rf "$json_file"
     fi
     echo "IP successfully changed for user $USERNAME to shared IP address: $ip_to_use"
+    drop_redis_cache 
 else
-    create_ip_file "$IP"   
-fi
-
-if [ $? -eq 0 ]; then
-    echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
-    drop_redis_cache
-else
-    echo "Failed to set dedicated IP address for user $USERNAME."
-    exit 1
+    create_ip_file "$IP"
+    if [ $? -eq 0 ]; then
+        echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
+        drop_redis_cache
+    else
+        echo "Failed to set dedicated IP address for user $USERNAME."
+        exit 1
+    fi
 fi
