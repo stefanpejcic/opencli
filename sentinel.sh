@@ -790,7 +790,10 @@ check_if_panel_domain_and_ns_resolve_to_server (){
           CHECK_NS_ALSO="yes"
           NS2_SET=$(awk -F'=' '/^ns2/ {print $2}' "$CONF_FILE")
           NS2=$NS2_SET
-  
+          NS3_SET=$(awk -F'=' '/^ns3/ {print $2}' "$CONF_FILE")
+          NS3=$NS3_SET
+          NS4_SET=$(awk -F'=' '/^ns4/ {print $2}' "$CONF_FILE")
+          NS4=$NS4_SET
       else
           echo "NS1 '$NS1_SET' is not a valid domain."
           CHECK_NS_ALSO="no"
@@ -852,23 +855,50 @@ else
       ((PASS++))
           echo -e "\e[32m[✔]\e[0m Skip checking nameservers as they are not set."
       else
+          local_fail=0
           if [ -n "$NS1" ] && [ -n "$NS2" ]; then
               ns1_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$NS1")
               ns2_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$NS2")
+              [ -n "$NS3" ] && ns3_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$NS3")
+              [ -n "$NS4" ] && ns4_ip=$(dig +short @"$GOOGLE_DNS_SERVER" "$NS4")
+              
               all_server_ips=$(hostname -I)
+              failed_nameservers=()
+                        
+              for ns in NS1 NS2; do
+                  ip_var="${ns,,}_ip"
+                  ip_val="${!ip_var}"
+                  if ! echo "$all_server_ips" | grep -qw "$ip_val"; then
+                      ((local_fail++))
+                      failed_nameservers+=("$ns resolves to $ip_val (expected one of: $all_server_ips)")
+                  fi
+              done
+              # optional
+              for ns in NS3 NS4; do
+                  if [ -n "${!ns}" ]; then
+                      ip_var="${ns,,}_ip"
+                      ip_val="${!ip_var}"
+                      if ! echo "$all_server_ips" | grep -qw "$ip_val"; then
+                          ((local_fail++))
+                          failed_nameservers+=("$ns resolves to $ip_val (expected one of: $all_server_ips)")
+                      fi
+                  fi
+              done
 
-              if echo "$all_server_ips" | grep -qw "$ns1_ip" && echo "$all_server_ips" | grep -qw "$ns2_ip"; then
+              if [ $local_fail -eq 0 ]; then
                   ((PASS++))
-                  echo -e "\e[32m[✔]\e[0m $NS1 and $NS2 both resolve to local IPs ($(hostname -I))"
+                  echo -e "\e[32m[✔]\e[0m All configured nameservers resolve to local IPs ($(hostname -I))"
               else
-                  ((FAIL++))
                   STATUS=2
                   echo -e "\e[31m[✘]\e[0m Nameservers do not resolve correctly:"
-                  echo "    $NS1 resolves to $ns1_ip (expected one of: $all_server_ips)"
-                  echo "    $NS2 resolves to $ns2_ip (expected one of: $all_server_ips)"
+                  for fail_msg in "${failed_nameservers[@]}"; do
+                      echo "    $fail_msg"
+                  done
                   local title="Configured nameservers do not resolve to local IPs"
-                  local message="$NS1 resolves to $ns1_ip (expected one of: $all_server_ips) | $NS2 resolves to $ns2_ip (expected one of: $all_server_ips)"
+                  local message
+                  message=$(IFS=' | '; echo "${failed_nameservers[*]}")
                   write_notification "$title" "$message"
+                  ((FAIL++))
               fi
           else 
             ((WARN++))
