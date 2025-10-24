@@ -330,6 +330,8 @@ check_ssh_logins() {
   safe_ips=()
 
   for ip in $ssh_ips; do
+    # make sure we get ip!
+    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
       if ! echo "$login_ips" | grep -q "$ip"; then
           ((counter++))
           suspecious_ips+=("$ip")
@@ -337,6 +339,7 @@ check_ssh_logins() {
           ((safe_counter++))
           safe_ips+=("$ip")
       fi
+    fi
   done
 
   if [ $counter -gt 0 ]; then
