@@ -168,7 +168,10 @@ fi
 
 if ! grep -q "# Deployed by imav-deploy" "$DEPLOY_SCRIPT"; then
   echo "Running deploy script..."
-  bash "$DEPLOY_SCRIPT"
+  if ! bash "$DEPLOY_SCRIPT"; then
+    echo "Installing ImunifyAV failed - please check the above output." >&2
+    exit 1
+  fi
 else
   echo "Deploy script already executed or invalid, skipping..."
 fi
