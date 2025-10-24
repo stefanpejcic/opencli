@@ -730,10 +730,10 @@ download_images() {
 	    return 1
 	fi
 	
-	echo "Starting pull for images: ${images_to_pull[*]} in background..."
+	log "Starting pull for images: ${images_to_pull[*]} in background..."
 	nohup sh -c "cd /home/$username/ && docker --context=$username compose pull ${images_to_pull[*]}" </dev/null >nohup.out 2>nohup.err &
 	else
-	    echo "Skipping image pull due to the '--skip-images' flag."
+	    log "Skipping image pull due to the '--skip-images' flag."
 	fi  
 }
 
