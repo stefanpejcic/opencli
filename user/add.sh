@@ -1003,8 +1003,9 @@ sed -i "s/USERNAME/$username/g" /home/$username/.config/docker/daemon.json
 		
 mkdir -p /home/$username/bin > /dev/null 2>&1
 chmod 755 -R /home/$username/ >/dev/null 2>&1
-sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
-
+if [ -f "/home/$username/.bashrc" ]; then
+	sed -i '1i export PATH=/home/'"$username"'/bin:$PATH' /home/"$username"/.bashrc
+fi
 
    	if [ -n "$node_ip_address" ]; then
 log "Setting AppArmor profile.."
