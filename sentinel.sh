@@ -5,7 +5,7 @@ DEBUG=false
 
 # ======================================================================
 # Constants
-VERSION="20.250.915"
+VERSION="20.251.027"
 
 
 
@@ -955,8 +955,10 @@ script can be run:
 
 if [ "$1" == "--startup" ]; then
   perform_startup_action
+  exit 0
 elif [ "$1" == "--report" ]; then
   email_daily_report
+  exit 0
 else
   print_header
   check_for_debug_and_print_info
