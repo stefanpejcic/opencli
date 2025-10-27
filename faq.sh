@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# ======================================================================
+# Constants
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
@@ -36,7 +38,8 @@ NC='\033[0m' #reset
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly service_name="admin"
 
-# IP SERVERS
+# ======================================================================
+# Helper functions
 SCRIPT_PATH="/usr/local/opencli/ip_servers.sh"
 if [ -f "$SCRIPT_PATH" ]; then
     source "$SCRIPT_PATH"
@@ -111,6 +114,9 @@ get_openpanel_openadmin_links() {
 
 get_openpanel_openadmin_links
 
+
+# ======================================================================
+# Q
 questions=(
     "What is the login link for admin panel?"
     "What is the login link for user panel?"
@@ -125,6 +131,8 @@ questions=(
     "How to enable detailed logs?"
 )
 
+# ======================================================================
+# A
 answers=(
     "LINK: ${GREEN}${admin_url}${NC}"
     "LINK: ${GREEN}${user_url}${NC}"
@@ -139,6 +147,10 @@ answers=(
     "- ${GREEN}opencli config update dev_mode yes${NC}"
 )
 
+
+
+# ======================================================================
+# Output
 echo -e "\nFrequently Asked Questions\n"
 
 for i in "${!questions[@]}"; do
