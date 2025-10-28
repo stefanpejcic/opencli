@@ -95,9 +95,7 @@ fi
 
 #4. remove loc file on exit
 cleanup() {
-  #echo "[✘] Script failed. Cleaning up..."
   rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
-  exit 1
 }
 trap cleanup EXIT
 
@@ -1645,4 +1643,5 @@ update_accounts_for_reseller                 # update current_accounts for resel
 collect_stats                                # must be after insert in db
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 permisisons_do
+exit 0
 )200>/var/lock/openpanel_user_add.lock
