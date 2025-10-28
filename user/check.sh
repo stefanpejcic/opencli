@@ -222,8 +222,8 @@ check_daemon_security() {
     fi
 
     # dns
-    if grep -q '8.8.8.8' "/home/$context/.config/docker/daemon.json"; then
-        print_result "PASS" "Google DNS resolvers are configured"
+    if grep -q 'dns' "/home/$context/.config/docker/daemon.json"; then
+        print_result "PASS" "Custom DNS resolvers are configured"
     else
         print_result "FAIL" "Custom resolvers are NOT configured - this will cause dns issues"
     fi
