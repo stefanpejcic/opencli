@@ -735,15 +735,29 @@ check_and_add_to_enabled() {
 
 get_slave_dns_option() {
 	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
-	
-	ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
-	ALLOW_UPDATE=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
 
-	if [[ -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" && "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" ]]; then
-	    SLAVE_IP=$ALLOW_TRANSFER
-     	MASTER_IP=$current_ip
-     	notify_slave
-	fi
+    # 1. check if cluster enabled, if it is, both lines are uncommented!
+    if ! grep -qP '^(?!\s*//).*allow-transfer\s+\{[^}]*\}' "$BIND_CONFIG_FILE" \
+        || ! grep -qP '^(?!\s*//).*also-notify\s+\{[^}]*\}' "$BIND_CONFIG_FILE"; then
+        return
+    fi
+
+	# 2. get IP(s) for slave servers, line formats are: allow-transfer {EXAMPLE;ANOTHER;};  AND also-notify {EXAMPLE;ANOTHER;};
+    ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^}]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+    ALSO_NOTIFY=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^}]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+
+    IFS=';' read -r -a ALLOW_TRANSFER_IPS <<< "$ALLOW_TRANSFER"
+    IFS=';' read -r -a ALSO_NOTIFY_IPS <<< "$ALSO_NOTIFY"
+
+    # 3. For each slave server we execute notify_slave()
+    for ip in "${ALLOW_TRANSFER_IPS[@]}"; do
+        [[ -z "$ip" ]] && continue
+        if [[ " ${ALSO_NOTIFY_IPS[*]} " == *" $ip "* ]]; then
+            SLAVE_IP=$ip
+            MASTER_IP=$current_ip
+            notify_slave
+        fi
+    done
 }
 
 
@@ -866,7 +880,7 @@ notify_slave(){
 if $USE_PARENT_DNS_ZONE; then
 :
 else
-    echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
+    echo "Notifying Slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
 	timeout 10 ssh -T -o ConnectTimeout=10 root@$SLAVE_IP <<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
