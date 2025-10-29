@@ -734,17 +734,15 @@ check_and_add_to_enabled() {
 
 
 get_slave_dns_option() {
-	# Path to the named.conf.options file
 	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
 	
 	ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
 	ALLOW_UPDATE=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^;]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
 
-	# Check if both values are non-empty and equal
 	if [[ -n "$ALLOW_TRANSFER" && -n "$ALLOW_UPDATE" && "$ALLOW_TRANSFER" == "$ALLOW_UPDATE" ]]; then
 	    SLAVE_IP=$ALLOW_TRANSFER
-     	    MASTER_IP=$current_ip
-     	    notify_slave
+     	MASTER_IP=$current_ip
+     	notify_slave
 	fi
 }
 
@@ -854,10 +852,10 @@ create_zone_file() {
     # Reload BIND service
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, adding the zone"
-	docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+		docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-	log "DNS is enabled but the DNS service is not yet started, starting now.."
- 	nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
+		log "DNS is enabled but the DNS service is not yet started, starting now.."
+ 		nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 }
 
@@ -869,7 +867,7 @@ if $USE_PARENT_DNS_ZONE; then
 :
 else
     echo "Notifying Slave DNS server ($SLAVE_IP): Adding new zone for domain $domain_name"
-timeout 10 ssh -T -o ConnectTimeout=10 root@$SLAVE_IP <<EOF
+	timeout 10 ssh -T -o ConnectTimeout=10 root@$SLAVE_IP <<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
         touch /etc/bind/zones/$domain_name.zone
@@ -879,8 +877,6 @@ timeout 10 ssh -T -o ConnectTimeout=10 root@$SLAVE_IP <<EOF
     fi
 EOF
 fi
-
-
 
 }
 
