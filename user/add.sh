@@ -1368,7 +1368,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|POSTGRES_PORT=\"[^\"]*\"|POSTGRES_PORT=\"127.0.0.1:$port_3\"|g" \
     -e "s|PMA_PORT=\"[^\"]*\"|PMA_PORT=\"$port_4\"|g" \
     -e "s|POSTGRES_PASSWORD=\"[^\"]*\"|POSTGRES_PASSWORD=\"$postgres_password\"|g" \
-    -e "s|PGADMIN_PASS=[^\"]*|PGADMIN_PASS=$pg_admin_password|g" \
+    -e "s|PGADMIN_PW=[^\"]*|PGADMIN_PW=$pg_admin_password|g" \
     -e "s|OPENSEARCH_INITIAL_ADMIN_PASSWORD=\"[^\"]*\"|OPENSEARCH_INITIAL_ADMIN_PASSWORD=\"$pg_admin_password\"|g" \
     -e "s|PGADMIN_MAIL=[^\"]*|PGADMIN_MAIL=$email|g" \
     -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:$port_2\"|g" \
