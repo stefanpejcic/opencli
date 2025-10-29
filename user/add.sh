@@ -1376,6 +1376,8 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
     -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|#PROXY_HTTP_PORT=\"$port_7\"|g" \
     "/home/$username/.env"
+sed -i 's/^PGADMIN_MAIL="\([^"]*\)"/PGADMIN_MAIL=\1/' /home/$username/.env
+sed -i 's/^PGADMIN_PASS="\([^"]*\)"/PGADMIN_PASS=\1/' /home/$username/.env
 
 if [[ -n "$webserver" ]]; then
     # Check for varnish+nginx or varnish+apache, and extract the web server part
