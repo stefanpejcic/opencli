@@ -883,7 +883,7 @@ if $USE_PARENT_DNS_ZONE; then
 :
 else
     echo "Notifying Slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
-	timeout 5 ssh -q -o LogLevel=ERROR -T ConnectTimeout=10 root@$SLAVE_IP <<EOF
+	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP<<EOF
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
         echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
         touch /etc/bind/zones/$domain_name.zone
@@ -893,7 +893,7 @@ else
     fi
 EOF
 
-	timeout 5 ssh -q -o LogLevel=ERROR -T ConnectTimeout=10 root@$SLAVE_IP <<EOF
+	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP<<EOF
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
         log "Reloading DNS service on slave server.."
 		docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
