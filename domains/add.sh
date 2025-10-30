@@ -895,10 +895,10 @@ EOF
 
 	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP<<EOF
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
-        log "Reloading DNS service on slave server.."
+        echo "Reloading DNS service on slave server.."
 		docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-		log "Starting DNS service on slave server.."
+		echo "Starting DNS service on slave server.."
  		nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 EOF
