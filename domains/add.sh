@@ -862,7 +862,10 @@ create_zone_file() {
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
   fi
 
+}
 
+
+reload_bind_after_slaves(){
     # Reload BIND service
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, adding the zone"
@@ -872,7 +875,6 @@ create_zone_file() {
  		nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
     fi
 }
-
 
 
 notify_slave(){
@@ -938,6 +940,7 @@ dns_stuff() {
 	    create_zone_file                             # create zone
 	    get_slave_dns_option                         # create zone on slave before include on master
 	    update_named_conf                            # include zone 
+		reload_bind_after_slaves                     # relaod at the end
     else
         log "DNS module is disabled - skipping creating DNS records"
     fi
