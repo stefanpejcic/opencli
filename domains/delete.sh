@@ -28,10 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-
 [ $# -lt 1 ] && { echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"; exit 1; }
-
 
 # ======================================================================
 # Constants
@@ -45,13 +42,13 @@ debug_mode=false
 
 [[ $2 == --debug ]] && debug_mode=true
 
-
+# ======================================================================
+# Functions
 log() {
     if $debug_mode; then
         echo "$1"
     fi
 }
-
 
 pre_flight_checks() {
     log "Checking owner for domain $domain_name"
