@@ -408,13 +408,12 @@ delete_domain_from_mysql(){
 
 
 dns_stuff() {
-    enabled_features_line=$(grep '^enabled_features=' "$PANEL_CONFIG_FILE")
+    enabled_features_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ $enabled_features_line == *"dns"* ]]; then  
         delete_zone_file                             # create zone
         update_named_conf                            # include zone
 		get_slave_dns_option                         # slaves
     fi
-
 }
 
 
