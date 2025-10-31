@@ -296,15 +296,10 @@ remove_dns_entries_from_apex_zone() {
             zone_file="/etc/bind/zones/${apex_domain}.zone"
             if [[ -f "$zone_file" ]]; then
                 log "Removing DNS records for subdomain $subdomain from $zone_file"
-		# Escape domain name for sed
-		escaped_domain_name=$(printf '%s' "$domain_name" | sed 's/[.[\*^$/]/\\&/g')
-		
-		# Delete all lines that start with the subdomain, with or without trailing dot
-		sed -i "/^${escaped_domain_name}[[:space:]]/d" "$zone_file"
-		sed -i "/^${escaped_domain_name}\.[[:space:]]/d" "$zone_file"
+				escaped_domain_name=$(printf '%s' "$domain_name" | sed 's/[.[\*^$/]/\\&/g')
+				sed -i "/^${escaped_domain_name}[[:space:]]/d" "$zone_file"
+				sed -i "/^${escaped_domain_name}\.[[:space:]]/d" "$zone_file"
 
-
-                # Reload BIND if container is running
                 if docker ps -q -f name=openpanel_dns >/dev/null 2>&1; then
                     log "Reloading BIND DNS to apply changes"
                     docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
