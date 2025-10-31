@@ -30,25 +30,22 @@
 
 
 
-# Check if the correct number of arguments are provided
-if [ "$#" -lt 1 ]; then
-    echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"
-    exit 1
-fi
+[ $# -lt 1 ] && { echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"; exit 1; }
 
-# Parameters
+
+# ======================================================================
+# Constants
+readonly PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+
+# ======================================================================
+# Variables
 domain_name="$1"
 onion_domain=false
 debug_mode=false
-PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
+
+[[ $2 == --debug ]] && debug_mode=true
 
 
-if [[ "$2" == "--debug" ]]; then
-    debug_mode=true
-fi
-
-
-# used for flask route to show progress..
 log() {
     if $debug_mode; then
         echo "$1"
@@ -56,31 +53,25 @@ log() {
 }
 
 
-log "Checking owner for domain $domain_name"
-whoowns_output=$(opencli domains-whoowns "$domain_name")
-owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain_name': " '{print $2}')
+pre_flight_checks() {
+    log "Checking owner for domain $domain_name"
+    owner=$(opencli domains-whoowns "$domain_name" | awk -F "Owner of '$domain_name': " '{print $2}')
+    if [[ -z "$owner" ]]; then
+        echo "❌ No owner found for '$domain_name'. Ensure the domain is assigned and MySQL is running."
+        exit 1
+    fi
 
-if [ -n "$owner" ]; then
-    user="$owner"
-else
-    echo "No username received from command 'opencli domains-whoowns $domain_name' - make sure that domain is assigned to user and mysql service is running."
-    exit 1
-fi
+    domain_id=$(mysql -Nse "SELECT domain_id FROM domains WHERE domain_url = '$domain_name';")
+    if [[ -z "$domain_id" ]]; then
+        echo "❌ Domain ID not found for '$domain_name'. Ensure it exists and MySQL is running."
+        exit 1
+    fi
 
-
-domain_id=$(mysql -se "SELECT domain_id FROM domains WHERE domain_url = '$domain_name';")
-if [[ -z "$domain_id" ]]; then
-    echo "Domain ID not found in the database for domain $domain_name' - make sure that domain exists on the server and mysql service is running."
-  exit 1
-fi
-
-
-if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
-    onion_domain=true
-    log ".onion address - Tor website will be removed from the configuration.."
-fi
-
-
+    if [[ "$domain_name" =~ ^[a-zA-Z0-9]{16}\.onion$ ]]; then
+        onion_domain=true
+        log "Detected .onion address — Tor website will be removed from configuration."
+    fi
+}
 
 clear_cache_for_user() {
 	log "Purging cached list of domains for the account"
@@ -434,27 +425,25 @@ delete_domain() {
     local user="$1"
     local domain_name="$2"
     
-    delete_websites $domain_name                   # delete sites associated with domain id
+    delete_websites $domain_name                     # delete sites associated with domain id
     # TODO: delete pm2 apps associated with it.
     delete_domain_from_mysql $domain_name            # delete
 
-    # Verify if the domain was deleted successfully
-    local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
+	local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
     local result=$(mysql -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
         clear_cache_for_user                         # rm cached file for ui
         get_webserver_for_user                       #
         vhost_files_delete                           # delete file in container
-	remove_dns_entries_from_apex_zone	     # subdomain-specific DNS cleanup
-
-	if $onion_domain; then
-		remove_onion_files		     # delete conf files
-		restart_tor_for_user		     # restart if running
- 	else
-	        delete_domain_file                   # remove caddy files
-	 	dns_stuff			     # remove dns files
- 	fi
+		remove_dns_entries_from_apex_zone	         # subdomain-specific DNS cleanup
+		if $onion_domain; then
+			remove_onion_files		                 # delete conf files
+			restart_tor_for_user		             # restart if running
+	 	else
+		    delete_domain_file                       # remove caddy files
+		 	dns_stuff			                     # remove dns files
+	 	fi
         delete_mail_mountpoint                       # delete mountpoint to mailserver
         delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
@@ -466,5 +455,7 @@ delete_domain() {
 }
 
 
-
+# ======================================================================
+# Main
+pre_flight_checks
 delete_domain "$user" "$domain_name"
