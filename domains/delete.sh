@@ -52,8 +52,8 @@ log() {
 
 pre_flight_checks() {
     log "Checking owner for domain $domain_name"
-    owner=$(opencli domains-whoowns "$domain_name" | awk -F "Owner of '$domain_name': " '{print $2}')
-    if [[ -z "$owner" ]]; then
+    user=$(opencli domains-whoowns "$domain_name" | awk -F "Owner of '$domain_name': " '{print $2}')
+    if [[ -z "$user" ]]; then
         echo "❌ No owner found for '$domain_name'. Ensure the domain is assigned and MySQL is running."
         exit 1
     fi
