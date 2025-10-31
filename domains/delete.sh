@@ -307,6 +307,21 @@ remove_dns_entries_from_apex_zone() {
             else
                 log "Zone file for apex domain $apex_domain not found."
             fi
+		else
+            zone_file="/etc/bind/zones/${domain_name}.zone"
+            if [[ -f "$zone_file" ]]; then
+                log "Removing DNS records for domain $domain_name from $zone_file"
+				escaped_domain_name=$(printf '%s' "$domain_name" | sed 's/[.[\*^$/]/\\&/g')
+				sed -i "/^${escaped_domain_name}[[:space:]]/d" "$zone_file"
+				sed -i "/^${escaped_domain_name}\.[[:space:]]/d" "$zone_file"
+
+                if docker ps -q -f name=openpanel_dns >/dev/null 2>&1; then
+                    log "Reloading BIND DNS to apply changes"
+                    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+                fi
+            else
+                log "Zone file for domain $domain_name not found."
+            fi
         fi
     else
         echo "ERROR: Invalid domain or unrecognized TLD: .$tld_lower"
