@@ -123,16 +123,11 @@ restart_tor_for_user() {
 }
 
 
-
-
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
 	    output=$(opencli webserver-get_webserver_for_user $user)		
 		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 }
-
-
-
 
 rm_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
@@ -144,7 +139,46 @@ rm_domain_to_clamav_list(){
  	fi
 }
 
+get_slave_dns_option() {
+	BIND_CONFIG_FILE="/etc/bind/named.conf.options"
 
+    # 1. check if cluster enabled, if it is, both lines are uncommented!
+    if ! grep -qP '^(?!\s*//).*allow-transfer\s+\{[^}]*\}' "$BIND_CONFIG_FILE" \
+        || ! grep -qP '^(?!\s*//).*also-notify\s+\{[^}]*\}' "$BIND_CONFIG_FILE"; then
+        return
+    fi
+
+	# 2. get IP(s) for slave servers, line formats are: allow-transfer {EXAMPLE;ANOTHER;};  AND also-notify {EXAMPLE;ANOTHER;};
+    ALLOW_TRANSFER=$(grep -oP '^(?!\s*//).*allow-transfer\s+\{\s*\K[^}]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+    ALSO_NOTIFY=$(grep -oP '^(?!\s*//).*also-notify\s+\{\s*\K[^}]*' "$BIND_CONFIG_FILE" | tr -d '[:space:]')
+
+    IFS=';' read -r -a ALLOW_TRANSFER_IPS <<< "$ALLOW_TRANSFER"
+    IFS=';' read -r -a ALSO_NOTIFY_IPS <<< "$ALSO_NOTIFY"
+
+    # 3. For each slave server we execute notify_slave()
+    for ip in "${ALLOW_TRANSFER_IPS[@]}"; do
+        [[ -z "$ip" ]] && continue
+        if [[ " ${ALSO_NOTIFY_IPS[*]} " == *" $ip "* ]]; then
+            SLAVE_IP=$ip
+            notify_slave
+        fi
+    done
+}
+
+notify_slave(){
+	echo "Notifying Slave DNS server ($SLAVE_IP) to remove zone for domain $domain_name"
+	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
+    if grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
+        sed -i "/zone \"$domain_name\" {/,/};/d" /etc/bind/named.conf.local
+		rm -f "/etc/bind/zones/$domain_name.zone"
+        echo "Zone $domain_name deleted from slave server."
+    fi
+EOF
+
+	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
+    docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+EOF
+}
 
 
 get_user_info() {
@@ -390,6 +424,7 @@ dns_stuff() {
     if [[ $enabled_features_line == *"dns"* ]]; then  
         delete_zone_file                             # create zone
         update_named_conf                            # include zone
+		get_slave_dns_option                         # slaves
     fi
 
 }
