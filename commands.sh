@@ -116,7 +116,7 @@ display_command_info() {
     
     extract_script_info "$script" script_info
     
-    echo -e "${GREEN}${full_alias}${RESET} # for ${script}"
+    echo -e "${GREEN}${full_alias}${RESET}"
     
     if [[ -n "${script_info[description]:-}" ]]; then
         echo "Description: ${script_info[description]}"
@@ -174,7 +174,7 @@ main() {
     check_scripts_directory
     initialize_alias_file
     process_scripts
-    show_summary
+    #show_summary
 }
 
 # Script entry point
