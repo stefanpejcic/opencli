@@ -217,13 +217,9 @@ write_notification() {
 # ======================================================================
 # What to check
 
-EMAIL_ALERT=$(awk -F'=' '/^email/ {print $2}' "$CONF_FILE")
-if [ -n "$EMAIL_ALERT" ]; then
-    EMAIL=$EMAIL_ALERT
-    EMAIL_ALERT=yes
-else
-    EMAIL_ALERT=no
-fi
+EMAIL=$(awk -F'=' '/^email/ {print $2}' "$CONF_FILE")
+EMAIL_ALERT=$([[ -n "$EMAIL" ]] && echo "yes" || echo "no")
+
 
 REBOOT=$(awk -F'=' '/^reboot/ {print $2}' "$INI_FILE")
 REBOOT=${REBOOT:-yes}
