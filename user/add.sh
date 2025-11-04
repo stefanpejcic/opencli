@@ -1538,7 +1538,7 @@ send_email_to_new_user() {
 					fi
 				  fi
 
-                  curl -4 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" -F "transient=$TRANSIENT" -F "recipient=$EMAIL" -F "subject=$title" -F "body=$message" --max-time 15
+                  curl -4 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" -F "transient=$TRANSIENT" -F "recipient=$email" -F "subject=$title" -F "body=$message" --max-time 15
                 }
 
 
