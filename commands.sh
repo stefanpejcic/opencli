@@ -44,6 +44,7 @@ readonly EXCLUDE_PATTERNS=(
     "db.sh"
     "enterprise.sh"
     "ip_servers.sh"
+    "progress_bar.sh"
 )
 
 # Functions
