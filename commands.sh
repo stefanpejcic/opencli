@@ -127,8 +127,15 @@ process_scripts() {
         commands_list+=("$full_alias")
         
     done < <(find "$SCRIPTS_DIR" -type f -name "*.sh" "${exclude_args[@]}" -print0)
-    
-    if [[ ${#commands_list[@]} -gt 0 ]]; then
+
+    # special case
+    echo -e "${GREEN}opencli error${RESET}"
+    echo "Description: Displays information for specific error ID received in OpenPanel UI."
+    echo "Usage: opencli error <ID_HERE>"
+    echo "------------------------"
+    commands_list+=("opencli error")
+
+    if [[ ${#commands_list[@]} -gt 1 ]]; then
         printf '%s\n' "${commands_list[@]}" | sort > "$ALIAS_FILE"
     fi
 }
