@@ -1530,17 +1530,17 @@ send_email_to_new_user() {
                   local message="$2"
                   generate_random_token_one_time_only
                   TRANSIENT=$(awk -F'=' '/^mail_security_token/ {print $2}' "${CONFIG_FILE}")				  
-				  PROTOCOL="http"
-				  DOMAIN=$(opencli domain)
-				  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
-					if [ -f "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key" ] || [ -f "/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.key" ]; then
-					    PROTOCOL="https"
-					fi
-				  fi
-
                   curl -4 -k -X POST "$PROTOCOL://$DOMAIN:2087/send_email" -F "transient=$TRANSIENT" -F "recipient=$email" -F "subject=$title" -F "body=$message" --max-time 15
                 }
 
+				  DOMAIN=$(opencli domain)
+				  if [[ "$DOMAIN" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+					if [ -f "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key" ] || [ -f "/etc/openpanel/caddy/ssl/custom/$DOMAIN/$DOMAIN.key" ]; then
+						PROTOCOL="https"
+					else
+						PROTOCOL="http"
+					fi
+				  fi
 
 				port="$(opencli port)"
 				login_url="$PROTOCOL://$DOMAIN:$port/login"
