@@ -40,13 +40,10 @@ readonly RESET='\033[0m'
 readonly EXCLUDE_PATTERNS=(
     ".git/*"
     ".github/*"
-    "error.py"
+    "ftp/users.sh"
     "db.sh"
-    "aliases.txt"
     "enterprise.sh"
     "ip_servers.sh"
-    "LICENSE.md"
-    "README.md"
 )
 
 # Functions
@@ -129,7 +126,7 @@ process_scripts() {
         display_command_info "$full_alias" "$script"
         commands_list+=("$full_alias")
         
-    done < <(find "$SCRIPTS_DIR" -type f \( -name "*.sh" -o -name "*.py" \) "${exclude_args[@]}" -print0)
+    done < <(find "$SCRIPTS_DIR" -type f -name "*.sh" "${exclude_args[@]}" -print0)
     
     if [[ ${#commands_list[@]} -gt 0 ]]; then
         printf '%s\n' "${commands_list[@]}" | sort > "$ALIAS_FILE"
