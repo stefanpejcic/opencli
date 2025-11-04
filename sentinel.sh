@@ -5,15 +5,7 @@ DEBUG=false
 
 # ======================================================================
 # Constants
-VERSION="20.251.027"
-
-
-
-if [ "$EUID" -ne 0 ]
-  then echo "[Error] - This script must be run with sudo or as the root user."
-  exit 1
-fi
-
+VERSION="20.251.104"
 
 
 if [ "$1" = "--debug" ]; then
