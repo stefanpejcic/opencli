@@ -229,6 +229,9 @@ write_notification() {
       echo "Email alerts are disabled."
     else
       email_notification "$title" "$message"
+      if command -v notify-send &>/dev/null; then
+          notify-send "$title" "$message"
+      fi
     fi
   fi
 }
