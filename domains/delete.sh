@@ -275,7 +275,7 @@ remove_dns_entries_from_apex_zone() {
 
     if [[ "$update_tlds" == true ]]; then
         mkdir -p "$(dirname "$tld_file")"
-        wget -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
+        wget --timeout=5 --tries=3 -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
         if [[ $? -ne 0 ]]; then
             log "Failed to download TLD list from IANA"
         fi
