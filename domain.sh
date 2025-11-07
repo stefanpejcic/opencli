@@ -49,7 +49,6 @@ readonly IP_SERVERS=(
     "https://ifconfig.me"
 )
 
-# Utility functions
 log_debug() {
     if [[ "$DEBUG" == true ]]; then
         echo "$1"
@@ -67,15 +66,10 @@ log_info() {
 # IPv4 validation
 is_valid_ipv4() {
     local ip="$1"
-    
-    # Check if it's a valid IPv4 format
     [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
-    
-    # Check if it's not a private IP
     [[ $ip =~ ^10\. ]] && return 1
     [[ $ip =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]] && return 1
     [[ $ip =~ ^192\.168\. ]] && return 1
-    
     return 0
 }
 
@@ -83,24 +77,20 @@ is_valid_ipv4() {
 get_server_ipv4() {
     local current_ip=""
     
-    # Try each IP service
     for service in "${IP_SERVERS[@]}"; do
-        # Try curl first
-        current_ip=$(curl --silent --max-time 2 -4 "$service" 2>/dev/null)
+        current_ip=$(curl --silent --max-time 1 -4 "$service" 2>/dev/null)
         if is_valid_ipv4 "$current_ip"; then
             echo "$current_ip"
             return 0
         fi
         
-        # Try wget as fallback
-        current_ip=$(wget --timeout=2 -qO- "$service" 2>/dev/null)
+        current_ip=$(wget --timeout=1 --tries=1 -qO- "$service" 2>/dev/null)
         if is_valid_ipv4 "$current_ip"; then
             echo "$current_ip"
             return 0
         fi
     done
     
-    # Fallback to local IP detection
     current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
     
     if is_valid_ipv4 "$current_ip"; then
