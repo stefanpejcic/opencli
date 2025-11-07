@@ -49,7 +49,7 @@ setup_progress_bar_script(){
 
 	# Check if wget is available
 	if command -v wget &> /dev/null; then
-	    wget --timeout=5 --inet4-only "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
+	    wget --timeout=5 --tries=3 --inet4-only "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
 	    if [ $? -ne 0 ]; then
 	        echo "ERROR: wget failed or timed out after 5 seconds while downloading from github"
 	        exit 1
