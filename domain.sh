@@ -91,8 +91,12 @@ get_server_ipv4() {
         fi
     done
     
-    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
-    
+	if command -v ip >/dev/null 2>&1; then
+	    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+	else
+	    current_ip=$(hostname -I | awk '{print $1}')
+	fi
+	
     if is_valid_ipv4 "$current_ip"; then
         echo "$current_ip"
         return 0
