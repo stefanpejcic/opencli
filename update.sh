@@ -483,7 +483,7 @@ run_version_specific_script() {
     log_info "Checking for version-specific update script"
     if wget --spider -q "$url" 2>/dev/null; then
         log_info "Downloading and executing version-specific script: $url"
-        if timeout "$UPDATE_TIMEOUT" bash -c "wget -q -O - '$url' | bash" &>> "$log_file"; then
+        if timeout "$UPDATE_TIMEOUT" bash -c "wget --timeout=1 --tries=1 -q -O - '$url' | bash" &>> "$log_file"; then
             log_info "[✔] Version-specific script executed successfully"
         else
             local exit_code=$?
