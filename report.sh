@@ -158,7 +158,7 @@ run_opencli() {
 
 run_csf_rules() {
   if [ "$csf_flag" = true ]; then
-    echo "=== Firewall Rules ===" >> "$output_file"
+    echo "=== Sentinel Firewall Rules ===" >> "$output_file"
     run_command "csf -l" "Collecting Firewall Rules"
   fi
 }
@@ -170,7 +170,7 @@ check_services_status() {
   run_command "docker --context=default compose ls" "Listing OpenPanel Stack"
   run_command "systemctl status admin" "Checking status of OpenAdmin service"
   run_command "systemctl status docker" "Checking status of Docker service"
-  run_command "systemctl status csf" "Checking if CSF is running"
+  run_command "systemctl status csf" "Checking if Sentinel Firewall (CSF) is running"
 }
 
 # Function to display OpenPanel settings
@@ -203,8 +203,6 @@ list_user_services() {
       user=$(basename "$dir")
       if [[ -f "$file" ]]; then
         run_command "echo '- User: $user' && echo '' && docker --context=$user compose -f  $dir/docker-compose.yml config --services" "Listing services for user: $user"
-      else
-        run_command "echo 'Most likely not an OpenPanel user'" "Skipping services for folder: $user"
       fi
   done
 }
