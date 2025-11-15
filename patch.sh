@@ -60,14 +60,17 @@ if ! curl -4sSfL --max-redirs 5 -o "${TMPFILE}" "${URL}"; then
   exit 3
 fi
 
-DESCRIPTION="$(awk '{
-  if ($0 ~ /^[[:space:]]*#/) {
-    sub(/^[[:space:]]*#[[:space:]]?/,"")
-    print
-  } else {
-    exit
+DESCRIPTION="$(awk '
+  {
+    # Match lines starting with "#" but NOT "#!"
+    if ($0 ~ /^[[:space:]]*#[[:space:]]*[^!]/) {
+      sub(/^[[:space:]]*#[[:space:]]?/, "")
+      print
+    } else {
+      exit
+    }
   }
-}' "${TMPFILE}")"
+' "${TMPFILE}")"
 
 if [ -z "${DESCRIPTION}" ]; then
   echo
