@@ -494,7 +494,7 @@ docker_containers_status() {
             ((FAIL++))
             STATUS=2
             error_log=$(docker --context=default logs --tail 10 "$service_name" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n", $0}')
-            write_notification "$title" "Log: $error_log"
+            write_notification "$title" "$error_log"
         fi
     }
 
@@ -510,7 +510,7 @@ docker_containers_status() {
         ((WARN--))
         ((FAIL++))
         error_log=$(docker --context=default logs --tail 10 "$service_name" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n", $0}')
-        write_notification "$title" "Log: $error_log"
+        write_notification "$title" "$error_log"
       fi
     }
 
