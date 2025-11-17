@@ -493,8 +493,8 @@ docker_containers_status() {
             echo -e "\e[31m[✘]\e[0m $service_name docker container failed to restart."
             ((FAIL++))
             STATUS=2
-            error_log=$(docker --context=default logs --tail 1 "$service_name")
-            write_notification "$title" "$error_log"
+            error_log=$(docker --context=default logs --tail 1 "$service_name" | sed ':a;N;$!ba;s/\n/\\n/g')
+            write_notification "$title" "Log: $error_log"
         fi
     }
 
@@ -509,8 +509,8 @@ docker_containers_status() {
         echo -e "\e[31m[✘]\e[0m Caddy service restart failed. The container appears to be running, but the service is unresponsive. Please review the Caddy container logs."
         ((WARN--))
         ((FAIL++))
-        error_log=$(docker --context=default logs --tail 1 "$service_name")
-        write_notification "$title" "$error_log"
+        error_log=$(docker --context=default logs --tail 1 "$service_name" | sed ':a;N;$!ba;s/\n/\\n/g')
+        write_notification "$title" "Log: $error_log"
       fi
     }
 
@@ -1013,7 +1013,7 @@ else
   
   check_services() {
     declare -A service_checks=(
-      [caddy]="docker_containers_status 'caddy' 'Caddy container is not active. Users websites are not working!'"
+      [caddy]="docker_containers_status 'caddy' 'Caddy is not active. Users websites are not working!'"
       [csf]="check_service_status 'csf' 'ConfigService Firewall (CSF) is not active. Server and websites are not protected!'"
       [admin]="check_service_status 'admin' 'Admin service is not active. OpenAdmin service is not accessible!'"
       [docker]="check_service_status 'docker' 'Docker service is not active. User websites are down!'"
