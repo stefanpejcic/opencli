@@ -498,11 +498,23 @@ docker_containers_status() {
         fi
     }
 
+
+    check_caddy_health_after_restart() {
+        local url="http://localhost/check"
+        local status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "$url")
+      if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 404 ]; then
+        ((PASS++))
+        echo -e "\e[32m[✔]\e[0m $service_name docker container is active (status code: $status_code)."
+      elif [ "$status_code" = "000" ]; then
+        error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
+        write_notification "$title" "$error_log"
+      fi
+    }
+
+
     check_caddy_health() {
         local url="http://localhost/check"
         local status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "$url")
-
-
       if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 404 ]; then
         ((PASS++))
         echo -e "\e[32m[✔]\e[0m $service_name docker container is active (status code: $status_code)."
@@ -519,7 +531,7 @@ docker_containers_status() {
         if ls /etc/openpanel/caddy/domains > /dev/null 2>&1; then
             echo "  - Domains are hosted on this server, starting caddy service.."
             cd /root && docker --context=default compose up -d caddy > /dev/null 2>&1
-            check_status_after_restart
+            check_caddy_health_after_restart
         else
             ((WARN--))
             echo "  - No domains detected. Caddy is not yet needed."
