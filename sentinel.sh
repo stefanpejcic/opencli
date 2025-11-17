@@ -493,7 +493,7 @@ docker_containers_status() {
             echo -e "\e[31m[✘]\e[0m $service_name docker container failed to restart."
             ((FAIL++))
             STATUS=2
-            error_log=$(docker --context=default logs --tail 10 "$service_name" | awk '{printf "%s\\n", $0}')
+            error_log=$(docker --context=default logs --tail 1 "$service_name" 2>/dev/null)
             write_notification "$title" "$error_log"
         fi
     }
@@ -509,7 +509,7 @@ docker_containers_status() {
         echo -e "\e[31m[✘]\e[0m Caddy service restart failed. The container appears to be running, but the service is unresponsive. Please review the Caddy container logs."
         ((WARN--))
         ((FAIL++))
-        error_log=$(docker --context=default logs --tail 10 "$service_name" | awk '{printf "%s\\n", $0}')
+        error_log=$(docker --context=default logs --tail 1 "$service_name" 2>/dev/null)
         write_notification "$title" "$error_log"
       fi
     }
