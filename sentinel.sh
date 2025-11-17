@@ -493,7 +493,7 @@ docker_containers_status() {
             echo -e "\e[31m[✘]\e[0m $service_name docker container failed to restart."
             ((FAIL++))
             STATUS=2
-            error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
+            error_log=$(docker --context=default logs --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
             write_notification "$title" "$error_log"
         fi
     }
@@ -509,7 +509,7 @@ docker_containers_status() {
         echo -e "\e[31m[✘]\e[0m $service_name is running but not responding, check service log."
         ((WARN--))
         ((FAIL++))
-        error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
+        error_log=$(docker --context=default logs --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
         write_notification "$title" "$error_log"
       fi
     }
