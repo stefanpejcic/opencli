@@ -504,8 +504,11 @@ docker_containers_status() {
         local status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "$url")
       if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 404 ]; then
         ((PASS++))
-        echo -e "\e[32m[✔]\e[0m $service_name docker container is active (status code: $status_code)."
+        echo -e "\e[32m[✔]\e[0m $service_name is now up and running (status code: $status_code)."
       elif [ "$status_code" = "000" ]; then
+        echo -e "\e[31m[✘]\e[0m $service_name is running but not responding, check service log."
+        ((WARN--))
+        ((FAIL++))
         error_log=$(docker --context=default logs -f --tail 10 "$service_name" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
         write_notification "$title" "$error_log"
       fi
