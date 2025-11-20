@@ -469,7 +469,7 @@ update_docker_compose() {
 run_custom_postupdate_script() {
     local script_path="/root/openpanel_run_after_update"
     
-    if [[ -f "$script_path" ]]; then
+    if [[ -s "$script_path" ]]; then
         log_info "[!] Running custom post-update script: $script_path"
         log_info "Documentation: https://dev.openpanel.com/customize.html#After-update"
         bash "$script_path" 2>&1 | tee -a "$log_file"
