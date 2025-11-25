@@ -75,7 +75,9 @@ Usage: opencli update [OPTION]
 Options:
     --check             Check if update is available
     --force             Force update even when autopatch/autoupdate is disabled
-    (no argument)       Run update if autopatch/autoupdate is enabled
+    (no argument)       Update if autopatch/autoupdate is enabled
+    --admin             Update OpenAdmin only
+    --cli               Update OpenCLI only
     -h, --help          Show this help message
 
 Examples:
@@ -552,38 +554,11 @@ run_update_immediately() {
     fi
 
     # ---------------------- 4. DOWNLOAD BASH SCRIPTS FROM GITHUB
-    log "Updating OpenCLI"
-    if [[ -d /usr/local/opencli ]]; then
-        rm -f /usr/local/opencli/aliases.txt
-        cd /usr/local/opencli && git reset --hard origin/main && git pull 2>&1 | tee -a "$log_file"
-        latest_commit=$(git rev-parse origin/main)
-        current_commit=$(git rev-parse HEAD)
-        if [[ "$current_commit" == "$latest_commit" ]]; then
-            log "[✔] OpenCLI is up-to-date"
-        else
-            log_error "OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
-        fi       
-        log "Generating list of OpenCLI commands for auto-complete"
-        opencli commands &>/dev/null || true
-    fi
-    
-    # ---------------------- 5. DOWNLOAD OPENADMIN FILES FROM GITHUB
-    log "Updating OpenAdmin"
-    if [[ -d /usr/local/admin ]]; then
-        cd /usr/local/admin
-        current_branch=$(git rev-parse --abbrev-ref HEAD)
-        git fetch origin 2>&1 | tee -a "$log_file"
-        git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
+    update_opencli
 
-        latest_commit=$(git rev-parse origin/"$current_branch")
-        current_commit=$(git rev-parse HEAD)
-        if [[ "$current_commit" == "$latest_commit" ]]; then
-            log "[✔] OpenAdmin is up-to-date"
-        else
-            log_error "OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
-        fi
-    fi
-    
+    # ---------------------- 5. DOWNLOAD OPENADMIN FILES FROM GITHUB
+    update_openadmin
+
     # ---------------------- 6. RUN VERSION-SPECIFIC FILE IF EXISTS
     run_version_specific_script "$version"
 
@@ -618,6 +593,45 @@ run_update_immediately() {
         systemctl restart admin 2>&1 | tee -a "$log_file" || true
     else
         echo "[!] Service 'admin' is not running, skipping restart." | tee -a "$log_file"
+    fi
+}
+
+
+update_openadmin() {
+    log "Updating OpenAdmin"
+    if [[ -d /usr/local/admin ]]; then
+        cd /usr/local/admin
+        current_branch=$(git rev-parse --abbrev-ref HEAD)
+        [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
+        [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
+        latest_commit=$(git rev-parse origin/"$current_branch")
+        current_commit=$(git rev-parse HEAD)
+        if [[ "$current_commit" == "$latest_commit" ]]; then
+            log "[✔] OpenAdmin is up-to-date"
+        else
+            log_error "OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
+        fi
+    fi
+}
+
+
+update_opencli() {    
+    log "Updating OpenCLI"
+    if [[ -d /usr/local/opencli ]]; then
+        rm -f /usr/local/opencli/aliases.txt
+        cd /usr/local/opencli
+        git reset --hard origin/main
+        [[ "$1" == "--no-log" ]] && git reset --hard origin/main 2>&1 || git reset --hard origin/main 2>&1 | tee -a "$log_file"
+        [[ "$1" == "--no-log" ]] && git pull 2>&1 || git pull 2>&1 | tee -a "$log_file"
+        latest_commit=$(git rev-parse origin/main)
+        current_commit=$(git rev-parse HEAD)
+        if [[ "$current_commit" == "$latest_commit" ]]; then
+            log "[✔] OpenCLI is up-to-date"
+        else
+            log_error "OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
+        fi       
+        log "Generating list of OpenCLI commands for auto-complete"
+        [[ "$1" == "--no-log" ]] && opencli commands || opencli commands &>/dev/null
     fi
 }
 
@@ -691,6 +705,14 @@ main() {
             ;;
         --force)
             check_update --force
+            ;;
+        --admin)
+            update_openadmin --no-log
+            exit 0
+            ;;
+        --cli)
+            update_opencli
+            exit 0
             ;;
         -h|--help)
             usage
