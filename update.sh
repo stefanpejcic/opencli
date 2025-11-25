@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force]
+# Usage: opencli update [--check | --force | --admin | --cli]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 25.11.2025
@@ -588,17 +588,12 @@ run_update_immediately() {
     log "Update completed successfully!"
 
     # ---------------------- 10. RESTART ADMIN PANEL
-    if systemctl is-active --quiet admin; then
-        log "'OpenAdmin' service is running, restarting..."
-        systemctl restart admin 2>&1 | tee -a "$log_file" || true
-    else
-        echo "[!] Service 'admin' is not running, skipping restart." | tee -a "$log_file"
-    fi
+    restart_admin
 }
 
 
 update_openadmin() {
-    log "Updating OpenAdmin"
+    [[ "$1" == "--no-log" ]] && echo "Updating OpenAdmin" || log "Updating OpenAdmin"
     if [[ -d /usr/local/admin ]]; then
         cd /usr/local/admin
         current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -607,16 +602,30 @@ update_openadmin() {
         latest_commit=$(git rev-parse origin/"$current_branch")
         current_commit=$(git rev-parse HEAD)
         if [[ "$current_commit" == "$latest_commit" ]]; then
-            log "[✔] OpenAdmin is up-to-date"
+            [[ "$1" == "--no-log" ]] && echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
         else
-            log_error "OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
+            message="OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
+            [[ "$1" == "--no-log" ]] && echo ${message} || log_error ${message}
         fi
     fi
 }
 
 
+restart_admin() {
+    if systemctl is-active --quiet admin; then
+        message="'OpenAdmin' service is running, restarting..."
+        [[ "$1" == "--no-log" ]] && echo $message || log $message
+        [[ "$1" == "--no-log" ]] && systemctl restart admin || systemctl restart admin 2>&1 | tee -a "$log_file"
+    else
+        message="[!] Service 'admin' is not running, skipping restart."
+        [[ "$1" == "--no-log" ]] && echo $message || echo $message | tee -a "$log_file"
+    fi
+}
+
+
 update_opencli() {    
-    log "Updating OpenCLI"
+    message="Updating OpenCLI"
+    [[ "$1" == "--no-log" ]] && echo $message || log $message
     if [[ -d /usr/local/opencli ]]; then
         rm -f /usr/local/opencli/aliases.txt
         cd /usr/local/opencli
@@ -626,12 +635,15 @@ update_opencli() {
         latest_commit=$(git rev-parse origin/main)
         current_commit=$(git rev-parse HEAD)
         if [[ "$current_commit" == "$latest_commit" ]]; then
-            log "[✔] OpenCLI is up-to-date"
+            message="[✔] OpenCLI is up-to-date"
+            [[ "$1" == "--no-log" ]] && echo $message || log  $message
         else
-            log_error "OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
-        fi       
-        log "Generating list of OpenCLI commands for auto-complete"
-        [[ "$1" == "--no-log" ]] && opencli commands || opencli commands &>/dev/null
+            message="OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
+            [[ "$1" == "--no-log" ]] && echo $message || log_error  $message
+        fi    
+        message="Generating list of OpenCLI commands for auto-complete"
+        [[ "$1" == "--no-log" ]] && echo $message || log  $message
+        opencli commands &>/dev/null
     fi
 }
 
@@ -708,11 +720,9 @@ main() {
             ;;
         --admin)
             update_openadmin --no-log
-            exit 0
             ;;
         --cli)
-            update_opencli
-            exit 0
+            update_opencli --no-log
             ;;
         -h|--help)
             usage
