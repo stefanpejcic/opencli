@@ -37,7 +37,6 @@ CONTAINER=openadmin_mailserver                         # DMS container name
 TIMEOUT=3600                                           # for graceful stop
 DOCKER_COMPOSE="docker compose"                        # compose plugin
 
-set -ueo pipefail
 
     ensure_jq_installed() {
         # Check if jq is installed
