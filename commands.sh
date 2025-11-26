@@ -140,8 +140,22 @@ process_scripts() {
     echo "Description: Install locales (Languages) for OpenPanel UI."
     echo "Usage: opencli locale <CODE>"
     echo "------------------------"
-    commands_list+=("opencli error")
+    commands_list+=("opencli locale")
 
+    : '
+    echo -e "${GREEN}opencli terms${RESET}"
+    echo "Description: View OpenPanel Terms and Conditions."
+    echo "Usage: opencli terms"
+    echo "------------------------"
+    commands_list+=("opencli terms")
+
+    echo -e "${GREEN}opencli eula${RESET}"
+    echo "Description: End User License Agreement (EULA)."
+    echo "Usage: opencli eula"
+    echo "------------------------"
+    commands_list+=("opencli eula")
+    '
+    
     if [[ ${#commands_list[@]} -gt 1 ]]; then
         printf '%s\n' "${commands_list[@]}" | sort > "$ALIAS_FILE"
     fi
