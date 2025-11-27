@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: admin.sh
 # Description: Manage OpenAdmin service and Administrators.
-# Usage: opencli admin <setting_name> 
+# Usage: opencli admin <command> [options]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 27.11.2025
