@@ -44,7 +44,7 @@ admin_failed_login_log="/var/log/openpanel/admin/failed_login.log"
 notifications_file="/etc/openpanel/openadmin/config/notifications.ini"
 admin_crons_log="/var/log/openpanel/admin/cron.log"
 db_file_path="/etc/openpanel/openadmin/users.db"
-
+ENTERPRISE="/usr/local/opencli/enterprise.sh"
 
 
 
@@ -257,11 +257,10 @@ validate_password_and_username() {
 
 
 check_edition() {
-	ENTERPRISE="/usr/local/opencli/enterprise.sh"
 	key_value=$(grep "^key=" $CONFIG_FILE_PATH | cut -d'=' -f2-)
 
 	if [ -z "$key_value" ]; then
-	    echo "Error: OpenPanel Community edition does not support reseller accounts. Please consider purchasing the Enterprise version that allows unlimited number of reseller accounts."
+	    echo -e "${RED}Error${RESET}: The OpenPanel Community Edition does not support Reseller users. To create multiple Administrator and Reseller accounts, please upgrade to the Enterprise Edition."
 	    source $ENTERPRISE
 	    echo "$ENTERPRISE_LINK"
 	    exit 1
@@ -289,46 +288,62 @@ add_new_user() {
     local password="$2"
     local flag="$3"
     local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
 
+	# ---------------------- check total user count and license
+    total_users=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user;")
+    key_value=$(grep "^key=" $CONFIG_FILE_PATH | cut -d'=' -f2-)
+    if [ -z "$key_value" ] && [ "$total_users" -ge 1 ]; then
+        echo -e "${RED}Error${RESET}: The OpenPanel Community Edition supports only a single Admin user. To enable multiple Administrator and Reseller accounts, please upgrade to the Enterprise Edition."
+	    source $ENTERPRISE
+	    echo "$ENTERPRISE_LINK"
+        exit 1
+    fi
+
+	# ---------------------- check if username already exists
+    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
-    else   
-    	create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
-	    if [ "$flag" == "--reseller" ]; then
-	        role="reseller"
-	    elif [ "$flag" == "--super" ]; then
-	        admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin';"
-	        admin_count=$(sqlite3 "$db_file_path" "$admin_check_sql")
-	        if [ "$admin_count" -eq 0 ]; then
-	            role="admin"
-	        else
-	            echo "An Super Admin user already exists. Cannot create another super admin."
-	            exit 1
-	        fi
-	    else
-	        role="user"
-	    fi
-    	insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', '$role');"
+		exit 1
+	fi
 
-    	output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
-        if [ $? -ne 0 ]; then
-            echo "User not created: $output"
-            # TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
-        else
-            if [ "$flag" == "--reseller" ]; then
-	    	local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
-	    	local resellers_dir="/etc/openpanel/openadmin/resellers"
-	    	mkdir -p $resellers_dir
-      		cp $resellers_template $resellers_dir/$username.json
-                echo "Reseller user '$username' created."
-            elif [ "$flag" == "--super" ]; then
-                echo "Super Administrator '$username' created."
-            else
-                echo "Admin User '$username' created."
-            fi
-        fi
-    fi
+	# ---------------------- determine role
+	if [ "$flag" == "--reseller" ]; then
+		role="reseller"
+		#check_edition	
+	elif [ "$flag" == "--super" ]; then
+		admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin';"
+		admin_count=$(sqlite3 "$db_file_path" "$admin_check_sql")
+		if [ "$admin_count" -eq 0 ]; then
+			role="admin"
+		else
+			echo "An Super Admin user already exists. Cannot create another super admin."
+			exit 1
+		fi
+	else
+		role="user"
+	fi
+
+	# ---------------------- create user	
+	insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$username', '$password_hash', '$role');"
+	create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL);"
+	output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
+	if [ $? -ne 0 ]; then
+		echo "User not created: $output"
+		# TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
+	else
+	# ---------------------- success msg
+		if [ "$flag" == "--reseller" ]; then
+			local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
+			local resellers_dir="/etc/openpanel/openadmin/resellers"
+			mkdir -p $resellers_dir
+			cp $resellers_template $resellers_dir/$username.json
+			echo "Reseller user '$username' created."
+		elif [ "$flag" == "--super" ]; then
+			echo "Super Administrator '$username' created."
+		else
+			echo "Admin User '$username' created."
+		fi
+	fi
 }
 
 
