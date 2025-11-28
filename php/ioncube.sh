@@ -53,7 +53,7 @@ get_context_for_user
 
 # Check if the file exists and read the custom link if available
 if [ -f /etc/openpanel/php/ioncube.txt ]; then
-    custom_link=$(cat /etc/openapanel/php/inocube.txt)
+    custom_link=$(cat /etc/openpanel/php/inocube.txt)
     
     # Check if the content is a valid URL (starting with http or https)
     if [[ "$custom_link" =~ ^https?://.+ ]]; then
