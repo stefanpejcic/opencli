@@ -157,6 +157,22 @@ is_unread_message_present() {
   grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
 }
 
+
+ip_in_cidr() {
+    local ip=$1
+    local cidr=$2
+
+    IFS=/ read -r network mask <<< "$cidr"
+    IFS=. read -r i1 i2 i3 i4 <<< "$ip"
+    IFS=. read -r n1 n2 n3 n4 <<< "$network"
+
+    local ipbin=$(( (i1<<24) + (i2<<16) + (i3<<8) + i4 ))
+    local netbin=$(( (n1<<24) + (n2<<16) + (n3<<8) + n4 ))
+    local maskbin=$(( 0xFFFFFFFF << (32 - mask) & 0xFFFFFFFF ))
+
+    (( (ipbin & maskbin) == (netbin & maskbin) ))
+}
+
 ensure_installed() {
     local cmd="$1"
     local pkg="$2"
@@ -357,15 +373,22 @@ check_ssh_logins() {
   safe_ips=()
 
   WHITELIST_FILE="/etc/openpanel/openadmin/ssh_whitelist.conf"
-  declare -A whitelist
+    declare -a whitelist_ips
+    declare -a whitelist_cidrs
+    
+    # Read whitelist file
+    if [[ -f "$WHITELIST_FILE" ]]; then
+        while IFS= read -r entry; do
+            [[ -n "$entry" ]] || continue
+            if [[ "$entry" == */* ]]; then
+                whitelist_cidrs+=("$entry")
+            else
+                whitelist_ips+=("$entry")
+            fi
+        done < "$WHITELIST_FILE"
+    fi
 
-  if [[ -f "$WHITELIST_FILE" ]]; then
-      while IFS= read -r ip; do
-          [[ -n "$ip" ]] && whitelist["$ip"]=1
-      done < "$WHITELIST_FILE"
-  else
-      echo -e "\e[38;5;214m[!]\e[0m Whitelist file not found: $WHITELIST_FILE"
-  fi
+
 
 
   for ip in $ssh_ips; do
@@ -373,11 +396,20 @@ check_ssh_logins() {
     if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
  
         # whitelist
-        if [[ ${whitelist[$ip]+exists} ]]; then
+        if [[ " ${whitelist_ips[*]} " =~ " $ip " ]]; then
             safe_ips+=("$ip")
             ((safe_counter++))
             continue
         fi
+
+        # CIDRs
+        for cidr in "${whitelist_cidrs[@]}"; do
+            if ip_in_cidr "$ip" "$cidr"; then
+                safe_ips+=("$ip")
+                ((safe_counter++))
+                break
+            fi
+        done
 
     
       if ! echo "$login_ips" | grep -q "$ip"; then
