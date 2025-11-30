@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [-report|--startup]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 30.11.2025
+# Last Modified: 29.11.2025
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -919,14 +919,22 @@ check_if_panel_domain_and_ns_resolve_to_server (){
     
       GOOGLE_DNS_SERVER="8.8.8.8"
       SCRIPT_PATH="/usr/local/admin/core/scripts/ip_servers.sh"
-      if [ -f "$SCRIPT_PATH" ]; then
-          source "$SCRIPT_PATH"
-      else
-          IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
-      fi
-    
-      SERVER_IP=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 --tries=1 -4 --timeout=2 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3)
-    
+
+        if [ -f "$SCRIPT_PATH" ]; then
+            source "$SCRIPT_PATH"
+        else
+            IP_SERVER_1="https://ip.openpanel.com"
+            IP_SERVER_2="https://ipv4.openpanel.com"
+            IP_SERVER_3="https://ipconfig.me"
+        fi
+        
+        SERVER_IP=$(
+            curl --silent --max-time 2 -4 "$IP_SERVER_1" || \
+            wget --timeout=2 --tries=1 -4 -qO- "$IP_SERVER_2" || \
+            curl --silent --max-time 2 -4 "$IP_SERVER_3"
+        )
+
+      
       if [ -z "$SERVER_IP" ]; then
           SERVER_IP=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
       fi
