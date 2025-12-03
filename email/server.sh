@@ -30,38 +30,38 @@
 ################################################################################
 
 # CONFIG
-APP="opencli email-server"                             # this script
-GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
-DIR="/usr/local/mail/openmail"                         # compose.yaml directory
-CONTAINER=openadmin_mailserver                         # DMS container name
-DOCKER_COMPOSE="docker compose"                        # compose plugin
+readonly APP="opencli email-server"                             # this script
+readonly GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
+readonly DIR="/usr/local/mail/openmail"                         # compose.yaml directory
+readonly CONTAINER=openadmin_mailserver                         # DMS container name
+readonly DOCKER_COMPOSE="docker compose"                        # compose plugin
+readonly CONFIG_FILE="/etc/openpanel/openadmin/config/admin.ini"
 
 
-    ensure_jq_installed() {
-        # Check if jq is installed
-        if ! command -v jq &> /dev/null; then
-            # Detect the package manager and install jq
-            if command -v apt-get &> /dev/null; then
-                sudo apt-get update > /dev/null 2>&1
-                sudo apt-get install -y -qq jq > /dev/null 2>&1
-            elif command -v yum &> /dev/null; then
-                sudo yum install -y -q jq > /dev/null 2>&1
-            elif command -v dnf &> /dev/null; then
-                sudo dnf install -y -q jq > /dev/null 2>&1
-            else
-                echo "Error: No compatible package manager found. Please install jq manually and try again."
-                exit 1
-            fi
-    
-            # Check if installation was successful
-            if ! command -v jq &> /dev/null; then
-                echo "Error: jq installation failed. Please install jq manually and try again."
-                exit 1
-            fi
-        fi
-    }
+ensure_jq_installed() {
+	# Check if jq is installed
+	if ! command -v jq &> /dev/null; then
+		# Detect the package manager and install jq
+		if command -v apt-get &> /dev/null; then
+			sudo apt-get update > /dev/null 2>&1
+			sudo apt-get install -y -qq jq > /dev/null 2>&1
+		elif command -v yum &> /dev/null; then
+			sudo yum install -y -q jq > /dev/null 2>&1
+		elif command -v dnf &> /dev/null; then
+			sudo dnf install -y -q jq > /dev/null 2>&1
+		else
+			echo "Error: No compatible package manager found. Please install jq manually and try again."
+			exit 1
+		fi
 
-ensure_jq_installed
+		# Check if installation was successful
+		if ! command -v jq &> /dev/null; then
+			echo "Error: jq installation failed. Please install jq manually and try again."
+			exit 1
+		fi
+	fi
+}
+
 
 _checkBin() {
 	local cmd
@@ -81,10 +81,10 @@ _checkBin() {
 	} >&2
 }
 
-# Dependencies
+
+
+ensure_jq_installed
 _checkBin "cat" "cut" "docker" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
-
-
 DEBUG=false  # Default to false
 
 # Check if --debug flag is provided
@@ -100,14 +100,7 @@ for arg in "$@"; do
 done
 
 
-
-
-
-
-
-
-
-# Check if container is running
+# Check if mailserver is running
 if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
 	if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
 		echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
@@ -369,64 +362,75 @@ process_all_domains_and_start
   
 }
 
+
 # START
 process_all_domains_and_start(){
-  CONFIG_DIR="/etc/openpanel/caddy/domains"
-  COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
-  new_volumes="    volumes:\n      - ./docker-data/dms/mail-state/:/var/mail-state/\n      - ./var/log/mail/:/var/log/mail/\n      - ./docker-data/dms/config/:/tmp/docker-mailserver/\n      - /etc/localtime:/etc/localtime:ro\n"
+	CONFIG_DIR="/etc/openpanel/caddy/domains"
+	COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
+	new_volumes="    volumes:\n      - ./docker-data/dms/mail-state/:/var/mail-state/\n      - ./var/log/mail/:/var/log/mail/\n      - ./docker-data/dms/config/:/tmp/docker-mailserver/\n      - /etc/localtime:/etc/localtime:ro\n"
 
-  cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak"
-  
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- MOUNT USERS HOME DIRECTORIES ------------------"
-      echo ""
-      echo "Re-mounting mail directories for all domains:"
-      echo ""
-      echo "- DOMAINS DIRECTORY: $CONFIG_DIR" 
-      echo "- MAIL SETTINGS FILE: $COMPOSE_FILE"
-      printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
-  fi
-    
+	cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak"
  
-echo "Processing domains in directory: $CONFIG_DIR"
-for file in "$CONFIG_DIR"/*.conf; do
-    echo "Processing file: $file"
-    if [ ! -L "$file" ]; then
-        # Extract the username and domain from the file name
-        BASENAME=$(basename "$file" .conf)
-	whoowns_output=$(opencli domains-whoowns "$BASENAME")
-	owner=$(echo "$whoowns_output" | awk -F "Owner of '$BASENAME': " '{print $2}')
-	if [ -n "$owner" ]; then
-	        echo "Domain $BASENAME skipped. No user."
-   	else
-	        USERNAME=$owner
-	        DOMAIN=$BASENAME
-	 
-	        DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
-	        new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
-	        echo "Mount point added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
-    	fi
+	STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs)
 
-    fi
-    
-done
+	if [[ "$STORE_EMAILS_IN" == /* ]]; then
+		new_volumes+="      - $STORE_EMAILS_IN:/var/mail/\n"
+		if [ "$DEBUG" = true ]; then
+		  echo ""
+		  echo "----------------- STORAGE SETTINGS ------------------"
+		  echo ""
+		  echo "Using a custom storage location for all domains:"
+		  echo ""
+		  echo "- MAIL STORAGE LOCATION: $STORE_EMAILS_IN"
+		  echo "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
+		fi
+	#elif [[ "$STORE_EMAILS_IN" == "user_dir" ]]; then
+	else # TODO: this is a fallback for <1.7.3
+		if [ "$DEBUG" = true ]; then
+		  echo ""
+		  echo "----------------- MOUNT USERS HOME DIRECTORIES ------------------"
+		  echo ""
+		  echo "Re-mounting mail directories for all domains:"
+		  echo ""
+		  echo "- DOMAINS DIRECTORY:     $CONFIG_DIR" 
+		  echo "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
+		  printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
+		fi
+	
+		for file in "$CONFIG_DIR"/*.conf; do
+			echo "Processing file: $file"
+			if [ ! -L "$file" ]; then
+				BASENAME=$(basename "$file" .conf)
+				whoowns_output=$(opencli domains-whoowns "$BASENAME")
+				owner=$(echo "$whoowns_output" | awk -F "Owner of '$BASENAME': " '{print $2}')
+				if [ -n "$owner" ]; then
+					echo "Domain $BASENAME skipped. No user."
+				else
+					USERNAME=$owner
+					DOMAIN=$BASENAME
+			 
+					DOMAIN_DIR="/home/$USERNAME/mail/$DOMAIN/"
+					new_volumes+="      - $DOMAIN_DIR:/var/mail/$DOMAIN/\n"	
+					echo "Mount point added: - $DOMAIN_DIR:/var/mail/$DOMAIN/"
+				fi
+			fi
+		done
+		if [ $? -ne 0 ]; then
+		    echo "Error encountered while processing $file"
+		fi
+	#else
+	#	echo "WARNING: $STORE_EMAILS_IN is invalid."
+	fi
 
-if [ $? -ne 0 ]; then
-    echo "Error encountered while processing $file"
-fi
-
-
-  
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- EMAIL DIRECTORIES ------------------"
-      echo ""
-      printf "%b" "- DEFAULT VOLUMES + VOLUMES PER DOMAIN:\n$new_volumes"
-      echo ""
-      echo "----------------- UPDATE COMPOSE ------------------"
-      echo ""
-  fi
+	if [ "$DEBUG" = true ]; then
+	  echo ""
+	  echo "----------------- EMAIL DIRECTORIES ------------------"
+	  echo ""
+	  printf "%b" "- DEFAULT VOLUMES + CONFIGURATION:\n$new_volumes"
+	  echo ""
+	  echo "----------------- UPDATE COMPOSE ------------------"
+	  echo ""
+	fi
   
   
   
@@ -459,7 +463,7 @@ fi
   
   
   if [ "$DEBUG" = true ]; then
-  	echo "compose.yml has been updated with the new volumes."
+  	echo "compose.yml has been updated with the volume mountpoints."
       echo ""
       echo "----------------- RESTART MAILSERVER ------------------"
       echo ""
