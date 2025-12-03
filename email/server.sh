@@ -34,7 +34,6 @@ APP="opencli email-server"                             # this script
 GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
 DIR="/usr/local/mail/openmail"                         # compose.yaml directory
 CONTAINER=openadmin_mailserver                         # DMS container name
-TIMEOUT=3600                                           # for graceful stop
 DOCKER_COMPOSE="docker compose"                        # compose plugin
 
 
@@ -166,7 +165,8 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    source $ENTERPRISE
+    # shellcheck source=/usr/local/opencli/enterprise.sh
+    source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1
 fi
@@ -202,7 +202,12 @@ fi
 
 # SUMMARY LOGS 
 pflogsumm_get_data() {
-	cd /tmp
+
+	cd /tmp || { 
+	    echo "Error: Failed to enter /tmp in order to generate a summary report." >&2
+	    exit 1
+	}
+	
 	rm -rf PFLogSumm-HTML-GUI
 	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
 
@@ -315,7 +320,6 @@ install_mailserver(){
           # Open port
           sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
           echo "Port ${port} opened in CSF."
-          ports_opened=1
       else
           echo "Port ${port} is already open in CSF."
       fi
@@ -358,11 +362,9 @@ fi
       echo "----------------- ENABLE MAIL FOR EXISTING USERS ------------------"
       echo ""
   fi
-  
-  user_list=$(opencli user-list --json)
-  
+ 
 
-# at end lets add all domains
+# add all domains
 process_all_domains_and_start
   
 }
@@ -511,13 +513,12 @@ remove_mailserver_and_all_config(){
   fi
 
   echo "Are you sure you want to uninstall the MailServer and remove all its configuration? (yes/no)"
-  read -t 10 -n 1 user_input
 
-  if [ $? -ne 0 ]; then
-    echo ""
-    echo "No response received. Aborting uninstallation."
-    return
-  fi
+	if ! read -t 10 -n 1 -r user_input; then
+	    echo ""
+	    echo "No response received. Aborting uninstallation."
+	    return
+	fi
 
   if [[ "$user_input" != "y" && "$user_input" != "Y" && "$user_input" != "yes" ]]; then
     echo ""
