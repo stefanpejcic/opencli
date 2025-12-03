@@ -28,7 +28,19 @@
 # THE SOFTWARE.
 ##################################################################################
 
+readonly ENTERPRISE="/usr/local/opencli/enterprise.sh"
+readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
+if [ -n "$key_value" ]; then
+    :
+else
+    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
+    # shellcheck source=/usr/local/opencli/enterprise.sh
+    source "$ENTERPRISE"
+    echo "$ENTERPRISE_LINK"
+    exit 1
+fi
 
 readonly CONFIG_FILE="/etc/openpanel/openadmin/config/admin.ini"
 readonly LOG_FILE="/var/log/openpanel/admin/email-quotas.log"
