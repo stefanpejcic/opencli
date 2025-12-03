@@ -80,6 +80,12 @@ is_valid_domain() {
 }
 
 update_webmail_domain() {
+
+    readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
+    readonly CADDYFILE="/etc/openpanel/caddy/Caddyfile"
+
+    mkdir -p "$DOMAINS_DIR"
+
     # basic
     if ! is_valid_domain "$new_domain"; then
         log_error "Invalid domain format. Please provide a valid domain."
@@ -89,6 +95,18 @@ update_webmail_domain() {
     
     if [[ ! -f "$PROXY_FILE" ]]; then
         echo "Error: Caddy file not found at $PROXY_FILE"
+        exit 1
+    fi
+
+    # not used by system domains
+    if [[ -f "$CADDYFILE" ]] && grep -q "$new_domain" "$CADDYFILE"; then
+        echo "Error: Rejecting to save domain '$new_domain' as it is already used for another system service."
+        exit 1
+    fi
+
+    # and not in user domains
+    if grep -Rql "$new_domain" "$DOMAINS_DIR" 2>/dev/null; then
+        echo "Error: Aborting - domain '$new_domain' is already associated with an existing user. Remove the domain from that user before continuing."
         exit 1
     fi
 
@@ -105,10 +123,6 @@ update_webmail_domain() {
 
         sed -i -E "s|^redir @webmail https?://[^ ]+|redir @webmail ${proto}://${new_domain}|" "$PROXY_FILE"
    
-        readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
-        readonly CADDYFILE="/etc/openpanel/caddy/Caddyfile"
-
-        mkdir -p "$DOMAINS_DIR"
         touch "${DOMAINS_DIR}${new_domain}.conf" # so caddy can generate le
 
         if [[ -f "$CADDYFILE" ]]; then
@@ -117,10 +131,8 @@ update_webmail_domain() {
                     echo "Updating Caddyfile webmail block to: ${new_domain}"
                 fi
         
-                # Escape dots for sed
                 escaped_domain=$(echo "$new_domain" | sed 's/\./\\./g')
         
-                # Replace the domain inside the block
 sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
 # START WEBMAIL DOMAIN #\\
 ${new_domain} {\\
