@@ -68,7 +68,8 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    source $ENTERPRISE
+    # shellcheck source=/usr/local/opencli/enterprise.sh
+    source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1
 fi
@@ -90,7 +91,6 @@ update_webmail_domain() {
     if ! is_valid_domain "$new_domain"; then
         log_error "Invalid domain format. Please provide a valid domain."
         usage
-        exit 1
     fi
     
     if [[ ! -f "$PROXY_FILE" ]]; then
@@ -130,9 +130,7 @@ update_webmail_domain() {
                 if [[ "$DEBUG" = true ]]; then
                     echo "Updating Caddyfile webmail block to: ${new_domain}"
                 fi
-        
-                escaped_domain=$(echo "$new_domain" | sed 's/\./\\./g')
-        
+
 sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
 # START WEBMAIL DOMAIN #\\
 ${new_domain} {\\
@@ -201,7 +199,6 @@ while [[ "$#" -gt 0 ]]; do
         *)
             echo "Invalid option: $1"
             usage
-            exit 1
             ;;
     esac
     shift
@@ -230,7 +227,10 @@ get_domain_for_webmail() {
 
 
 
-cd /usr/local/mail/openmail
+cd /usr/local/mail/openmail || { 
+    echo "Error: Mailserver is not installed!" >&2
+    exit 1
+}
 
 if [ "$SNAPPYMAIL" = true ]; then
   if [ "$DEBUG" = true ]; then
@@ -285,7 +285,6 @@ function open_port_csf() {
       else
           sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf" >/dev/null 2>&1
       fi
-      ports_opened=1
     else
       if [ "$DEBUG" = true ]; then
           echo "Port ${port} is already open in CSF."
