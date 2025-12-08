@@ -174,7 +174,9 @@ check_if_default_slave_server_is_set         # we run it before parse_flags so i
 	            sql_type="${arg#*=}"
 		    ;;	    
 	        --webserver=*)
-	            webserver="${arg#*=}"
+				webserver="${arg#*=}"
+				webserver="${webserver//\"/}"
+				webserver="$(echo "$webserver" | xargs)"
 		    ;;
 	    esac
 	done
