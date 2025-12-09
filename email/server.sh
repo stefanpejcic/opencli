@@ -230,8 +230,7 @@ set_ssl_for_mailserver() {
 		
 		echo "Configuring mailserver and webmail to use domain $current_hostname for IMAP/SMTP ..."
 
-		sed -i '/^OVERRIDE_HOSTNAME=/c\OVERRIDE_HOSTNAME=' "$MAILSERVER_ENV"
-		
+		sed -i "/^OVERRIDE_HOSTNAME=/c\OVERRIDE_HOSTNAME=$current_hostname" "$MAILSERVER_ENV"
 		sed -i '/^SSL_TYPE=/c\SSL_TYPE=manual' "$MAILSERVER_ENV"
 
 		grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV" \
@@ -244,7 +243,7 @@ set_ssl_for_mailserver() {
 
 	fi
 
-    log_debug "Restarting mailserver and webmail to apply new configuration"
+    echo "Restarting mailserver and webmail to apply new configuration"
     nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default compose down && docker --context default compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
  }
 
