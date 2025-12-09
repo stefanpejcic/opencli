@@ -501,7 +501,7 @@ remove_mailserver_and_all_config(){
 	    return
 	fi
 
-  if [[ "$user_input" != "y" && "$user_input" != "Y" && "$user_input" != "yes" ]]; then
+  if [[ "$user_input" != "yes" && "$user_input" != "Y" && "$user_input" != "y" ]]; then
     echo ""
     echo "Uninstallation aborted."
     return
