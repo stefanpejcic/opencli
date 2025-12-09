@@ -918,22 +918,29 @@ create_mail_mountpoint(){
         DOMAIN_DIR="/home/$context/mail/$domain_name/"
         COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
         if [ -f "$COMPOSE_FILE" ]; then
-            log "Creating directory $DOMAIN_DIR for emails"
-            mkdir -p "$DOMAIN_DIR"
-            log "Configuring mailserver in background.."
-            volume_to_add="      - $DOMAIN_DIR:/var/mail/$domain_name/"
-
-            # Check if the volume is already in the compose file
+			STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs)
+			if [[ "$STORE_EMAILS_IN" == /* ]]; then
+				log "Using $STORE_EMAILS_IN for email storage"
+				mkdir -p "$STORE_EMAILS_IN"
+				volume_to_add="      - $STORE_EMAILS_IN:/var/mail/"
+			else
+            	log "Creating directory $DOMAIN_DIR for emails"
+            	mkdir -p "$DOMAIN_DIR"
+				volume_to_add="      - $DOMAIN_DIR:/var/mail/$domain_name/"
+			fi
+            
+			log "Configuring mailserver in background.."
             if ! grep -qF "$volume_to_add" "$COMPOSE_FILE"; then
-                sed -i "/^  mailserver:/,/^  sogo:/ {
+                sed -i "/^  mailserver:/,/^  roundcube:/ {
                     /^    volumes:/a\\
 $volume_to_add
                 }" "$COMPOSE_FILE"
-            else
-                log "Mountpoint already exists. Skipping addition."
-            fi
 
-            nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
+				nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
+            else
+                :
+				#log "Mountpoint already exists. Skipping addition."
+            fi
         fi
     fi
 }
