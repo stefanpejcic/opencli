@@ -230,9 +230,11 @@ set_ssl_for_mailserver() {
 	if [[ $current_hostname =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	    # an IP
 	    echo "Configuring mailserver to use IP address for IMAP/SMTP ..."
+		sed -i '/^OVERRIDE_HOSTNAME=/c\OVERRIDE_HOSTNAME=' "$MAILSERVER_ENV"
 	    sed -i '/^SSL_TYPE=/c\SSL_TYPE=' "$MAILSERVER_ENV"
-	    sed -i '/^SSL_CERT_PATH=/d' "$MAILSERVER_ENV"
-	    sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
+		sed -i 's/^SSL_CERT_PATH=.*/SSL_CERT_PATH=/' "$MAILSERVER_ENV"
+		sed -i 's/^SSL_KEY_PATH=.*/SSL_KEY_PATH=/' "$MAILSERVER_ENV"
+			
 	else
 	    # a letsencrypt
         local cert_path="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${current_hostname}/${current_hostname}.crt"
@@ -255,8 +257,10 @@ set_ssl_for_mailserver() {
             return 0
         fi
 		
-		echo "Configuring mailserver to use domain $current_hostname for IMAP/SMTP ..."
+		echo "Configuring mailserver and webmail to use domain $current_hostname for IMAP/SMTP ..."
 
+		sed -i '/^OVERRIDE_HOSTNAME=/c\OVERRIDE_HOSTNAME=' "$MAILSERVER_ENV"
+		
 		sed -i '/^SSL_TYPE=/c\SSL_TYPE=manual' "$MAILSERVER_ENV"
 
 		grep -q '^SSL_CERT_PATH=' "$MAILSERVER_ENV" \
@@ -268,6 +272,9 @@ set_ssl_for_mailserver() {
 			|| echo "SSL_KEY_PATH=$key_path" >> "$MAILSERVER_ENV"
 
 	fi
+
+    log_debug "Restarting mailserver and webmail to apply new configuration"
+    nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default compose down && docker --context default compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
  }
 
 
