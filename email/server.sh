@@ -162,6 +162,7 @@ pflogsumm_get_data() {
 	
 	rm -rf PFLogSumm-HTML-GUI
 	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
+	ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
  	docker cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh   > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
 	docker exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
