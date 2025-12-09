@@ -36,32 +36,6 @@ readonly DIR="/usr/local/mail/openmail"                         # compose.yaml d
 readonly CONTAINER=openadmin_mailserver                         # DMS container name
 readonly DOCKER_COMPOSE="docker compose"                        # compose plugin
 
-
-ensure_jq_installed() {
-	# Check if jq is installed
-	if ! command -v jq &> /dev/null; then
-		# Detect the package manager and install jq
-		if command -v apt-get &> /dev/null; then
-			sudo apt-get update > /dev/null 2>&1
-			sudo apt-get install -y -qq jq > /dev/null 2>&1
-		elif command -v yum &> /dev/null; then
-			sudo yum install -y -q jq > /dev/null 2>&1
-		elif command -v dnf &> /dev/null; then
-			sudo dnf install -y -q jq > /dev/null 2>&1
-		else
-			echo "Error: No compatible package manager found. Please install jq manually and try again."
-			exit 1
-		fi
-
-		# Check if installation was successful
-		if ! command -v jq &> /dev/null; then
-			echo "Error: jq installation failed. Please install jq manually and try again."
-			exit 1
-		fi
-	fi
-}
-
-
 _checkBin() {
 	local cmd
 	for cmd in "$@"; do
@@ -81,9 +55,7 @@ _checkBin() {
 }
 
 
-
-ensure_jq_installed
-_checkBin "cat" "cut" "docker" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
+_checkBin "cat" "cut" "docker" "fold" "printf" "sed" "tail" "tput" "tr"
 DEBUG=false  # Default to false
 
 # Check if --debug flag is provided
@@ -576,12 +548,11 @@ case "${1:-}" in
 			_status "Fail2ban" "$(_container fail2ban)"
 			echo
 
-			# Package updates available?
+			# updates?
 			_status "Packages" "$(_container bash -c 'apt -q update 2>/dev/null | grep "All packages are up to date" || echo "Updates available"')"
 			echo
 
-			# Published ports
-			# _status "Ports" "$(docker inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f8 | tr "\n" " ")"
+			# ports
 			_status "Ports" "$(_ports)"
 			echo
 
