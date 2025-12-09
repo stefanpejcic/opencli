@@ -35,7 +35,6 @@ readonly GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
 readonly DIR="/usr/local/mail/openmail"                         # compose.yaml directory
 readonly CONTAINER=openadmin_mailserver                         # DMS container name
 readonly DOCKER_COMPOSE="docker compose"                        # compose plugin
-readonly CONFIG_FILE="/etc/openpanel/openadmin/config/admin.ini"
 
 
 ensure_jq_installed() {
