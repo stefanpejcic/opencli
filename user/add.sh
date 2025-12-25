@@ -612,7 +612,7 @@ get_plan_info_and_check_requirements() {
     if [ -n "$node_ip_address" ]; then
 	max_available_ram_gb=$(ssh "$key_flag" "root@$node_ip_address" "free -g | awk '/Mem:/{print \$2}'")
     else
-        max_available_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+        max_available_ram_gb=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
     fi    
     numram="${ram%"g"}"
 
