@@ -126,7 +126,7 @@ for container in "${usernames[@]}"; do
 
     # System limits
     maxCPU=$(nproc)
-    maxRAM=$(free -g | awk '/^Mem/ {print $2}')
+    maxRAM=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
     numOram=${Oram//[!0-9]/}
     numNram=${Nram//[!0-9]/}
     numNdisk=$(echo "$Ndisk" | awk '{print $1}')
