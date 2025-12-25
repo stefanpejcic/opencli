@@ -271,7 +271,7 @@ check_cpu_cores() {
 }
 
 check_available_ram() {
-  local available_ram=$(free -g | awk '/^Mem:/{print $2}')
+  local available_ram=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
   if [ "$ram" -gt "$available_ram" ]; then
     echo "ERROR: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
     exit 0
