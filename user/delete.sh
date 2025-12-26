@@ -197,15 +197,6 @@ delete_bandwidth_limits() {
         fi
 }
 
-edit_firewall_rules(){
-    # CSF
-    if command -v csf >/dev/null 2>&1; then
-        FIREWALL="CSF"
-        container_ports=("22" "3306" "7681" "8080")
-        #we use range, so not need to rm rules for account delete..
-    fi
-}
-
 
 delete_all_user_files() {
         if [ -n "$node_ip_address" ]; then
@@ -265,7 +256,6 @@ delete_user() {
     get_userid_from_db                       # check if user exists
     get_docker_context_for_user              # on which server is the container running
     delete_vhosts_files                      # delete nginx conf files from that server
-    edit_firewall_rules                      # close user ports on firewall
     #delete_bandwidth_limits                  # delete bandwidth limits for private ip
     delete_ftp_users $provided_username
     delete_user_from_database                # delete user from database
