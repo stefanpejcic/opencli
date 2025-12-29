@@ -95,12 +95,12 @@ start_varnish() {
 }
 
 if [[ "$ACTION" == "on" ]]; then
-    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^/#/' "$CONF_FILE" # Comment the lines under "Handle HTTPS traffic (port 443) with on_demand SSL"
+    sed -i '/# Handle HTTPS traffic (port 443)/,+6 s/^/#/' "$CONF_FILE" # Comment the lines under "Handle HTTPS traffic (port 443)"
     sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$CONF_FILE"                  # Uncomment the lines under "Terminate TLS and pass to Varnish"
     start_varnish
     reload_caddy
 elif [[ "$ACTION" == "off" ]]; then 
-    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^#//' "$CONF_FILE" # Uncomment the lines under "Handle HTTPS traffic (port 443) with on_demand SSL"
+    sed -i '/# Handle HTTPS traffic (port 443)/,+6 s/^#//' "$CONF_FILE" # Uncomment the lines under "Handle HTTPS traffic (port 443)"
     sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^/#/' "$CONF_FILE"                  # Comment the lines under "Terminate TLS and pass to Varnish"
     reload_caddy 
 fi
