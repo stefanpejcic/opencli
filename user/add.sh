@@ -643,6 +643,8 @@ download_images() {
 		    local key=$1
 		    local val
 		    val=$(grep -E "^$key=" "$env_file" | cut -d '=' -f2-)
+			# https://community.openpanel.org/d/239-no-such-container-openlitespeed
+			val=${val//$'\r'/}
 		    # Remove leading and trailing quotes (single or double)
 		    val="${val%\"}"   # Remove trailing double quote
 		    val="${val#\"}"   # Remove leading double quote
