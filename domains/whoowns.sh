@@ -45,7 +45,6 @@ get_domain_owner() {
     fi
     
     user_id_query="SELECT user_id, docroot FROM domains WHERE domain_url = '$domain'"
-    user_id_query="SELECT user_id, docroot FROM domains WHERE domain_url = QUOTE('$domain')"
     read -r user_id docroot <<< "$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$user_id_query" -sN)"
 
     if [ -z "$user_id" ]; then
