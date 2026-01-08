@@ -60,7 +60,6 @@ update_config() {
         # Restart the panel service for all settings except autoupdate and autopatch
         if [ "$param_name" != "autoupdate" ] && [ "$param_name" != "autopatch" ]; then
             docker --context=default restart openpanel &> /dev/null &                        # run in bg, and dont show error if panel not running
-            rm -rf /etc/openpanel/openpanel/core/users/*/data.json         # remove data.json files for all users
         fi
         
     else
