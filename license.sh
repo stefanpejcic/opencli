@@ -304,7 +304,6 @@ EOF
 delete_license() {
     opencli config update key "" > /dev/null
     disable_emails_module
-    rm -rf /etc/openpanel/openpanel/core/users/*/data.json
     service admin restart
 }
 
