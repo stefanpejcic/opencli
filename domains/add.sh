@@ -478,12 +478,6 @@ get_server_ipv4_or_ipv6() {
 }
 
 
-clear_cache_for_user() {
-	log "Purging cached list of domains for the account"
-	rm /etc/openpanel/openpanel/core/users/${user}/data.json >/dev/null 2>&1
-}
-
-
 
 make_folder() {
 	log "Creating document root directory $docroot"
@@ -984,7 +978,6 @@ add_domain() {
 
     if [ "$result" -eq 1 ]; then
     
-    	clear_cache_for_user                         # rm cached file for ui
     	make_folder                                  # create dirs on host server
      	if $SKIP_VHOST_CREATE; then 
       		log "Skipping VirtualHost file creation due to '--skip_dns' flag."
