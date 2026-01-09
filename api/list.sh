@@ -1,9 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: api/list.sh
-# Description: List available API endpoints.
-# Usage: opencli api-list
-# Docs: 
+# Description: List available API endpoints with usage examples.
+# Usage: opencli api-list [--save]
 # Author: Stefan Pejcic
 # Created: 04.09.2024
 # Last Modified: 08.01.2026
