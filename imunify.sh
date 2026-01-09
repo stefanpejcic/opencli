@@ -29,6 +29,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+
+
 readonly SERVICE_NAME="ImunifyAV"
 
 
@@ -116,6 +118,8 @@ imunify360-agent malware rebuild patterns
 
 
 install_av() {
+
+uname -m | grep -qE 'x86_64|amd64' || { echo "ABORTING: ImunifyAV does NOT support your CPU architecture, only supports: AMD/x86"; exit 1; }
 
 echo "Creating directories..."
 mkdir -p /etc/sysconfig/imunify360/
