@@ -47,6 +47,9 @@ jobs:
           while IFS= read -r file; do
             echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
+            # temp
+            sed -i "s/# Company: openpanel\.co/# Company: openpanel.com/" "$file"
+            sed -i "s/# Copyright (c) openpanel\.co/# Copyright (c) openpanel.com/" "$file"            
           done <<< "$FILES"
 
           # Update OPENCLI_VERSION in the opencli file
