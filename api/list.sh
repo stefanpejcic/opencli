@@ -29,24 +29,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-# added in 0.2.5
 ENTERPRISE="/usr/local/opencli/enterprise.sh"
-PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+license_key=$(grep "^key=" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2-)
 
-# Check if 'enterprise edition'
-if [ -n "$key_value" ]; then
-    :
-else
+[ -n "$license_key" ] || {
     echo "Error: OpenPanel Community edition does not support API access. Please consider purchasing the Enterprise version that has remote API access and integrations with billing softwares such as WHMCS and FOSSBilling."
-    source $ENTERPRISE
+    source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1
-fi
+}
 
-
-# Extract the command and arguments
-command="$@"
-
-# Execute the command inside the Docker container
-python3 /usr/local/admin/modules/api/generate.py
+python3 /usr/local/admin/modules/api/generate.py "$@"
