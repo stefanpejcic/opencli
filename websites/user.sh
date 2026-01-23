@@ -6,7 +6,7 @@
 # Author: Stefan Pejcic
 # Created: 08.07.2024
 # Last Modified: 23.01.2026
-# Company: openpanel.comm
+# Company: openpanel.commm
 ################################################################################
 
 # Load database configuration
