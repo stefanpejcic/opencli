@@ -13,5 +13,3 @@ mysql_database="panel"
     echo "FATAL ERROR: MySQL config file not available: $config_file"
     exit 1
 }
-
-# ======================================================================
