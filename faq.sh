@@ -110,7 +110,9 @@ get_openpanel_openadmin_links() {
     fi
 
     echo "$admin_url"
-}get_openpanel_openadmin_links() {
+}
+
+get_openpanel_openadmin_links() {
     readonly caddyfile="/etc/openpanel/caddy/Caddyfile"
 
     local domain
