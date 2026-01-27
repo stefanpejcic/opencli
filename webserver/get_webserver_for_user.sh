@@ -7,8 +7,8 @@
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 27.01.2026
-# Company: openpanel.commmm
-# Copyright (c) openpanel.commmm
+# Company: openpanel.commm
+# Copyright (c) openpanel.commm
 # 
 # THE SOFTWARE.
 ################################################################################
