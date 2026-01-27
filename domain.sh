@@ -28,6 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
+# ======================================================================
 # Configuration
 readonly CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
@@ -35,13 +36,15 @@ readonly MAILSERVER_ENV="/usr/local/mail/openmail/mailserver.env"
 readonly REDIRECTS_CONF="/etc/openpanel/caddy/redirects.conf"
 readonly DEFAULT_DOMAIN="example.net"
 
-# Global variables
+# ======================================================================
+# Variables
 DEBUG=false
 current_domain=""
 new_hostname=""
 server_ip=""
 
-# IP check servers
+# ======================================================================
+# Helpers
 readonly IP_SERVERS=(
     "https://ip.openpanel.com"
     "https://ipv4.openpanel.com"
@@ -62,7 +65,7 @@ log_info() {
     echo "$1"
 }
 
-# IPv4 validation
+# Basic IPv4 validation
 is_valid_ipv4() {
     local ip="$1"
     [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
@@ -353,7 +356,7 @@ fi
 }
 
 
-# Main function
+# ======================================================================
 main() {
     parse_arguments "$@"
     
@@ -391,6 +394,5 @@ main() {
     esac
 }
 
-# Script entry point
 main "$@"
 exit $?
