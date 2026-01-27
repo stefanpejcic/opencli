@@ -43,21 +43,12 @@ jobs:
           
           # Format version as: 202.502.003
           VERSION="${YEAR_SHORT}.${YEAR_4TH}${MONTH}.0${DAY}"
-
-
-          while IFS= read -r file; do
-              echo "Fixing: $file"
-              # RUN JUST ONCE!
-              sed -i "s/openpanel\.commm/openpanel.com/g" "$file"
-          done <<< "$FILES"
-
-          
+         
           while IFS= read -r file; do
             echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
             # temp
-            sed -i "s/# Company: openpanel\.co/# Company: openpanel.com/" "$file"
-            sed -i "s/# Copyright (c) openpanel\.co/# Copyright (c) openpanel.com/" "$file"      
+            sed -i "s/openpanel.commm/openpanel.com/g" "$file"
           done <<< "$FILES"
 
           # Update OPENCLI_VERSION in the opencli file
