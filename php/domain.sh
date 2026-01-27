@@ -31,13 +31,16 @@
 
 # Check if domain argument is provided
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <domain> [--update <new_php_version>]"
+    echo "Usage: opencli php-domain <domain> [--update <new_php_version>]"
     exit 1
 fi
 
 domain="$1"
 update_flag=false
 new_php_version=""
+
+# TODO: check ws, if litespeed abort!
+# https://github.com/stefanpejcic/opencli/issues/68
 
 # Check for the --update flag and new PHP version argument
 if [ "$2" == "--update" ]; then
