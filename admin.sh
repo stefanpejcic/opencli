@@ -672,7 +672,7 @@ case "$1" in
         
         case "$command" in
             check)
-                bash  /usr/local/opencli/notifications.sh
+                bash  /usr/local/opencli/sentinel.sh
                 exit 0
                 ;;
             get)
