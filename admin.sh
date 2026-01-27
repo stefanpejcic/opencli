@@ -6,8 +6,8 @@
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 27.01.2026
-# Company: openpanel.commm
-# Copyright (c) openpanel.commm
+# Company: openpanel.commmm
+# Copyright (c) openpanel.commmm
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -669,7 +669,7 @@ case "$1" in
                 exit 1
             fi
         fi
-        
+
         case "$command" in
             check)
                 bash  /usr/local/opencli/sentinel.sh
@@ -706,6 +706,12 @@ case "$1" in
                 ;;
         esac        
         ;;
+
+
+	"help")
+        usage
+        exit 0
+	    ;;
         
     "delete")
         # https://dev.openpanel.com/cli/admin.html#Delete-Admin-User
