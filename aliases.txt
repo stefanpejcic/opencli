@@ -36,7 +36,6 @@ opencli faq
 opencli files-calculate_resellers_storage
 opencli files-fix_permissions
 opencli files-purge_trash
-opencli firewall-reset
 opencli ftp-add
 opencli ftp-connections
 opencli ftp-delete
