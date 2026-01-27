@@ -47,8 +47,6 @@ jobs:
           while IFS= read -r file; do
             echo "Updating: $file"
             sed -i "s/^# Last Modified: .*/# Last Modified: ${DATE}/" "$file"
-            # temp
-            sed -i "s/openpanel.commm/openpanel.com/g" "$file"
           done <<< "$FILES"
 
           # Update OPENCLI_VERSION in the opencli file
