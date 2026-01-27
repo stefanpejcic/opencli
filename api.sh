@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: api/list.sh
 # Description: On/Off OpenAdmin API access and list available API endpoints.
-# Usage: opencli api <status|on|off|list [--save]>
+# Usage: opencli api <status|on|off|list>
 # Author: Stefan Pejcic
 # Created: 04.09.2024
 # Last Modified: 27.01.2026
@@ -35,6 +35,7 @@ show_usage() {
     cat <<EOF
 
 Usage: opencli api {status|on|off|list}
+Docs:  https://dev.openpanel.com/cli/api.html
 
 Examples:
   opencli api status              Display current OpenAdmin API status.
@@ -70,6 +71,9 @@ case "$1" in
     ;;
   on|off)
     opencli config update api "$1"
+    if systemctl is-active --quiet admin; then
+        systemctl restart admin 2>&1
+    fi
     ;;
   list)
     if [ "$2" = "--save" ]; then
