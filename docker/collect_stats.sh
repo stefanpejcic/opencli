@@ -135,7 +135,10 @@ fi
 
 if [ "$1" == "--all" ]; then
     sync && echo 1 > /proc/sys/vm/drop_caches
-    users=($(opencli user-list --json | jq -r '.[] | select(.status != "SUSPENDED") | .username'))
+    users=($(opencli user-list --json \
+      | jq -r '.data[]
+               | select(.username | startswith("SUSPENDED_") | not)
+               | .username'))
 else
     users=("$1")
 fi
