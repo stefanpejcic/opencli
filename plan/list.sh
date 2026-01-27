@@ -91,7 +91,6 @@ fetch_plans_json() {
             bandwidth: .[12], feature_set: .[13]
         })'
     )
-    echo "Plans:"
     echo "$json"
 }
 
