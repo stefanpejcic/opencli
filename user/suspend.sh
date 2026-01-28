@@ -101,7 +101,7 @@ suspend_user_domains() {
 
     # 2. move all vhosts
     for domain_name in $domain_list; do
-        # /etc/openpanel/caddy/suspended_domains/
+        # from /etc/openpanel/caddy/domains/ to /etc/openpanel/caddy/suspended_domains/
         [[ ! -f "${SUSPENDED_DIR}${domain_name}.conf" ]] && cp "${CADDY_VHOST_DIR}/${domain_name}.conf" "${SUSPENDED_DIR}${domain_name}.conf"
     
         # /etc/openpanel/caddy/templates/suspended_user.html
