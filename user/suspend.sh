@@ -33,7 +33,6 @@
 readonly SUSPENDED_DIR="/etc/openpanel/caddy/suspended_domains/"
 readonly TEMPLATE_CONF="/etc/openpanel/caddy/templates/suspended_user.conf"
 readonly CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
-readonly CONFIG_FILE="/usr/local/opencli/db.sh"
 
 
 
@@ -72,7 +71,7 @@ if [ "$2" != "-y" ]; then
 fi
 
 
-source "$CONFIG_FILE"
+source "/usr/local/opencli/db.sh"
 
 
 # ======================================================================
