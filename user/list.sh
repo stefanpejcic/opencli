@@ -48,7 +48,7 @@ report_users_over_quota_only() {
         sed -n '3,5p' "$repquota_file"
         grep '+' "$repquota_file"
     else
-        No users over quota.
+        echo "No users over quota."
     fi
 }
 
