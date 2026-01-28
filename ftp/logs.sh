@@ -34,6 +34,6 @@ if [ "$#" -gt 0 ]; then
     exit 1
 fi
 
-# Define the container name
-CONTAINER_NAME="openadmin_ftp"
-docker --context=default logs "$CONTAINER_NAME"
+# ======================================================================
+# Main
+docker --context=default logs openadmin_ftp
