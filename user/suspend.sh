@@ -93,10 +93,10 @@ reload_caddy_if_valid() {
 }
 
 suspend_user_domains() {
-    local domain_list
+    mkdir -p "$SUSPENDED_DIR"
 
     # 1. get list of all user domains
-    mkdir -p "$SUSPENDED_DIR"
+    local domain_list
     domain_list=$(opencli domains-user "$USERNAME")
 
     # 2. move all vhosts
