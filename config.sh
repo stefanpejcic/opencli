@@ -62,9 +62,17 @@ update_config() {
 
     if grep -q "^$param_name=" "$config_file"; then
 
-        # update value, respect quotes
-        sed -i "s|^\($param_name=\)\".*\"|\1\"$new_value\"|" "$config_file"
-        sed -i "s|^\($param_name=\)[^\"].*|\1$new_value|" "$config_file"
+        if grep -q "^$param_name=\".*\"" "$config_file"; then
+            # quoted -> keep quotes
+            sed -i "s|^\($param_name=\)\".*\"|\1\"$new_value\"|" "$config_file"
+        elif grep -q "^$param_name=[^\"].*" "$config_file"; then
+            # unquoted -> keep unquoted
+            sed -i "s|^\($param_name=\).*|\1$new_value|" "$config_file"
+        else
+            # Empty -> add without quotes
+            sed -i "s|^\($param_name=\)$|\1$new_value|" "$config_file"
+        fi
+        
         echo "Updated $param_name to $new_value"
 
         # restart openpanel container
