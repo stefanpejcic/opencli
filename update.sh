@@ -29,6 +29,7 @@
 ################################################################################
 
 # ---------------------- CONSTANTS ---------------------- #
+readonly COMPOSE_FILE="/root/docker-compose.yml"
 readonly IMAGE_NAME="openpanel/openpanel-ui"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -94,6 +95,23 @@ EOF
 command_exists() {
     command -v "$1" &> /dev/null
 }
+
+
+# ---------------------- DOCKER IMAGE ---------------------- #
+# added in 1.7.42 to detect if custom image is used
+IMAGE_NAME=$(docker --context=default compose -f "$COMPOSE_FILE" config | awk '
+  $1=="openpanel:" {f=1; next}
+  f && $1=="image:" {
+    split($2, arr, ":")
+    print arr[1]
+    exit
+  }
+')
+
+if [ -z "$IMAGE_NAME" ]; then
+    IMAGE_NAME="openpanel/openpanel-ui"  # fallback
+fi
+
 
 # ---------------------- INSTALL PACKAGE ---------------------- #
 install_package() {
