@@ -1379,7 +1379,7 @@ fi
 
 mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
 cp /etc/openpanel/mysql/user.cnf /home/${username}/custom.cnf
-cp /etc/openpanel/postgres/user.conf /home/${username}/postgre_custom.conf
+cp /etc/openpanel/postgres/postgresql.conf /home/${username}/postgre_custom.conf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf  # added in 1.2.2
 cp /etc/openpanel/openresty/nginx.conf /home/$username/openresty.conf
 cp /etc/openpanel/openlitespeed/httpd_config.conf /home/$username/openlitespeed.conf # added in 1.5.6
