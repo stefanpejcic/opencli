@@ -595,7 +595,7 @@ run_update_immediately() {
 
 update_openpanel() {
     cd /root
-    docker-compose up -d --force-recreate --pull always
+    docker-compose up -d openpanel --force-recreate --pull always
 }
 
 update_openadmin() {
