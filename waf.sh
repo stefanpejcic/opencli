@@ -196,6 +196,33 @@ update_owasp_rules() {
 
 
 
+enable_coraza_waf() {
+    # 1. enable module
+    # TODO
+
+    # 2. change image to openpanel/caddy-coraza
+    sed -i 's|caddy:latest|openpanel/caddy-coraza|' /root/.env
+
+    # 3. restart caddy
+    cd /root
+    docker --context=default compose down caddy && docker --context=default compose up -d caddy
+
+}
+
+disable_coraza_waf() {
+    # 1. disable module
+    sed -i 's/waf,//g' /etc/openpanel/openpanel/conf/openpanel.config
+
+    # 2. change image to caddy:latest
+    sed -i 's|openpanel/caddy-coraza|caddy:latest|' /root/.env
+
+    # 3. restart caddy
+    cd /root
+    docker --context=default compose down caddy && docker --context=default compose up -d caddy
+}
+
+
+
 # ======================================================================
 # Main
 case "$1" in
