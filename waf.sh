@@ -189,8 +189,9 @@ list_all_ids() {
 
 get_count_from_file() {
     local log_file="/var/log/caddy/coraza_audit.log"
+    local record_count
     if [ -f "$log_file" ]; then
-        local record_count=$(grep -cE '^--.*-B--$' "$log_file")
+        record_count=$(grep -cE '^--.*-B--$' "$log_file")
         echo "$record_count"
     fi
 }
