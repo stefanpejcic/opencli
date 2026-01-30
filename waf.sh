@@ -330,7 +330,7 @@ case "$1" in
         fi      
         ;;        
     "stats")
-        get_stats_from_file $2
+        get_stats_from_file "$2"
         ;;
     "count")
         get_count_from_file
