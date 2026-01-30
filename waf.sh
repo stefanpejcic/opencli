@@ -290,7 +290,6 @@ case "$1" in
         if [[ -z "$2" ]]; then
             echo "Domain name is required."
             usage
-            exit 1
         fi
         case "$3" in
                 enable|disable)
@@ -302,7 +301,6 @@ case "$1" in
             *)
                 echo "Invalid action for domain: $3"
                 usage
-                exit 1
                 ;;
         esac
         ;;
@@ -347,7 +345,6 @@ case "$1" in
     *)
         echo "Invalid option: $1"
         usage
-        exit 1
         ;;
 esac
 
