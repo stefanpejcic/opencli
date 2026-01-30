@@ -261,7 +261,7 @@ disable_coraza_waf() {
             echo " - $filename"
         done
 
-        read -p "Do you really want to disable WAF protection on these domains and stop using Coraza WAF on the server? [y/N]: " confirm
+        read -r -p "Do you really want to disable WAF protection on these domains and stop using Coraza WAF on the server? [y/N]: " confirm
         case "$confirm" in
             [yY][eE][sS]|[yY])
                 echo "Disabling Coraza WAF..."
