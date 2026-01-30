@@ -80,11 +80,30 @@ check_domain() {
 check_coraza_status() {
   local env_file="/root/.env"
   local custom_image='CADDY_IMAGE="openpanel/caddy-coraza"'
-  
-  if grep -q "^$custom_image" "$env_file"; then
-      echo "CorazaWAF is ENABLED"
+  local openpanel_config="/etc/openpanel/openpanel/conf/openpanel.config"
+
+  local image_enabled=false
+  local waf_enabled=false
+
+  # Check image
+  if grep -q "^$custom_image" "$env_file" 2>/dev/null; then
+    image_enabled=true
+  fi
+
+  # Check waf module
+  if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
+    waf_enabled=true
+  fi
+
+  # Report
+  if $image_enabled && $waf_enabled; then
+    echo "CorazaWAF is ENABLED"
+  elif $image_enabled; then
+    echo "CorazaWAF is DISABLED: 'waf' module is not enabled in OpenAdmin > Settings > Modules.)"
+  elif $waf_enabled; then
+    echo "CorazaWAF is DISABLED: 'waf' module is enabled, but Caddy is not using $custom_image"
   else
-       echo "CorazaWAF is DISABLED"
+    echo "CorazaWAF is DISABLED"
   fi
 }
 
