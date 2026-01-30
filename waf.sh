@@ -120,9 +120,7 @@ enable_coraza_waf_for_domain() {
         exit 1
     fi
 
-    sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$file"
-    
-    if [[ $? -eq 0 ]]; then
+    if sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$file"; then
         echo "SecRuleEngine On is now set for domain $domain"
     else
         echo "Failed setting SecRuleEngine On - please contact Administrator."
@@ -139,14 +137,15 @@ disable_coraza_waf_for_domain() {
         exit 1
     fi
 
-    sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' "$file"
-    
-    if [[ $? -eq 0 ]]; then
-        echo "SecRuleEngine Off is now set for domain $domain"
+    if sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' "$file"; then
+        echo "SecRuleEngine On is now set for domain $domain"
     else
-        echo "Failed setting SecRuleEngine Off - please contact Administrator."
+        echo "Failed setting SecRuleEngine On - please contact Administrator."
         exit 1
     fi
+
+
+    
 }
 
 get_stats_from_file() {
