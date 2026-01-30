@@ -36,17 +36,21 @@ usage() {
     echo "Usage: opencli waf <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  status                                              Check if CorazaWAF is enabled for new domains and users."
-    echo "  domain                                              Check if CorazaWAF is enabled for a domain."
-    echo "  domain DOMAIN_NAME enable                           Enable CorazaWAF for a domain."
-    echo "  domain DOMAIN_NAME disable                          Disable CorazaWAF for a domain."
-    echo "  tags                                                Display all tags from enabled sets."
-    echo "  ids                                                 Display all rule IDs from enabled sets."
-    echo "  update                                              Update OWASP CRS."
-    echo "  stats <country|agent|hourly|ip|request|path> Display top requests by countr, ip, path, etc."
+    echo "  status                                       Check if CorazaWAF is enabled for new domains and users."
+    echo "  enable                                       Use Caddy image with CorazaWAF, enable module and use WAF on new domains."
+    echo "  disable                                      Use official Caddy docker image, disable module and dont use WAF on new domains."    
+    echo "  domain                                       Check if CorazaWAF is enabled for a domain."
+    echo "  domain DOMAIN_NAME enable                    Enable CorazaWAF for a domain."
+    echo "  domain DOMAIN_NAME disable                   Disable CorazaWAF for a domain."
+    echo "  tags                                         Display all tags from enabled sets."
+    echo "  ids                                          Display all rule IDs from enabled sets."
+    echo "  update                                       Update OWASP CRS."
+    echo "  stats <country|agent|hourly|ip|request|path> Display top requests by country, ip, path, etc."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"
+    echo "  opencli waf enable"
+    echo "  opencli waf disable"
     echo "  opencli waf domain pcx3.com"
     echo "  opencli waf domain pcx3.com enable"
     echo "  opencli waf domain pcx3.com disable"
@@ -198,27 +202,53 @@ update_owasp_rules() {
 
 enable_coraza_waf() {
     # 1. enable module
-    # TODO
+    echo "Enabling WAF module.."
+    sed -i '/^enabled_modules=/ { /waf/! s/$/,waf/ }' /etc/openpanel/openpanel/conf/openpanel.config
 
     # 2. change image to openpanel/caddy-coraza
+    echo "Changing docker image to 'openpanel/caddy-coraza'.."
     sed -i 's|caddy:latest|openpanel/caddy-coraza|' /root/.env
 
     # 3. restart caddy
+    echo "Restarting Web Server to use the new image with CorazaWAF.."
     cd /root
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
 
+    # 4. check status
+    check_coraza_status
 }
 
 disable_coraza_waf() {
-    # 1. disable module
+    # 1. check if in use
+    echo "Checking if CorazaWAF is used by any user domains.."
+    local conf_files
+    conf_files=$(grep -rl "coraza_waf" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
+
+    if [[ -n "$conf_files" ]]; then
+        echo "ERROR: Cannot disable WAF. It is still present in these domains files:"
+        echo "$conf_files"
+        echo
+        echo "Please remove the 'coraza_waf' sections first:"
+        echo "https://github.com/stefanpejcic/openpanel-configuration/blob/main/caddy/templates/domain.conf_with_modsec#L17-L33"
+        echo "https://github.com/stefanpejcic/openpanel-configuration/blob/main/caddy/templates/domain.conf_with_modsec#L68-L82"
+        return 1
+    fi
+
+    # 2. disable module
+    echo "Disabling WAF module..."
     sed -i 's/waf,//g' /etc/openpanel/openpanel/conf/openpanel.config
 
-    # 2. change image to caddy:latest
+    # 3. change image to caddy:latest
+    echo "Changing docker image to 'caddy:latest'.."
     sed -i 's|openpanel/caddy-coraza|caddy:latest|' /root/.env
 
-    # 3. restart caddy
+    # 4. restart caddy
+    echo "Restarting Web Server to use the official Caddy image.."
     cd /root
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
+
+    # 5. check status
+    check_coraza_status
 }
 
 
@@ -254,9 +284,11 @@ case "$1" in
         ;;
     "enable")
         enable_coraza_waf
+        exit 0
         ;;
     "disable")
         disable_coraza_waf
+        exit 0
         ;;
     "update")
         if [[ -z "$2" ]]; then    
