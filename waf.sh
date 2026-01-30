@@ -111,41 +111,32 @@ reload_caddy_now() {
     docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
 }
 
-enable_coraza_waf_for_domain() {
+set_coraza_waf_for_domain() {
     local domain="$1"
+    local action="$2"   # "enable" or "disable"
     local file="/etc/openpanel/caddy/domains/${domain}.conf"
-    
+    local value
+
     if [[ ! -f "$file" ]]; then
         echo "Domain not found!"
         exit 1
     fi
 
-    if sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$file"; then
-        echo "SecRuleEngine On is now set for domain $domain"
+    case "$action" in
+        enable) value="On" ;;
+        disable) value="Off" ;;
+        *)
+            echo "Invalid action: $action. Use 'enable' or 'disable'."
+            exit 1
+            ;;
+    esac
+
+    if sed -i "s/SecRuleEngine .*/SecRuleEngine $value/" "$file"; then
+        echo "SecRuleEngine $value is now set for domain $domain"
     else
-        echo "Failed setting SecRuleEngine On - please contact Administrator."
+        echo "Failed setting SecRuleEngine $value - please contact Administrator."
         exit 1
     fi
-}
-
-disable_coraza_waf_for_domain() {
-    local domain="$1"
-    local file="/etc/openpanel/caddy/domains/${domain}.conf"
-    
-    if [[ ! -f "$file" ]]; then
-        echo "Domain not found!"
-        exit 1
-    fi
-
-    if sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' "$file"; then
-        echo "SecRuleEngine On is now set for domain $domain"
-    else
-        echo "Failed setting SecRuleEngine On - please contact Administrator."
-        exit 1
-    fi
-
-
-    
 }
 
 get_stats_from_file() {
@@ -302,12 +293,9 @@ case "$1" in
             exit 1
         fi
         case "$3" in
-            "enable")
-                enable_coraza_waf_for_domain "$2"
-                ;;
-            "disable")
-                disable_coraza_waf_for_domain "$2"
-                ;;
+                enable|disable)
+                    set_coraza_waf_for_domain "$2" "$3"
+                    ;;
             "")
                 check_domain "$2"
                 ;;
