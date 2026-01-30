@@ -201,15 +201,23 @@ update_owasp_rules() {
 
 
 enable_coraza_waf() {
-    # 1. enable module
+
+    # 1. download rules
+    echo "Downloading Coraza rules.."
+    wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/corazawaf/coraza/v3/dev/coraza.conf-recommended -O /etc/openpanel/caddy/coraza_rules.conf
+    echo "Downloading OWASP CRS.."
+    git clone https://github.com/coreruleset/coreruleset /etc/openpanel/caddy/coreruleset/
+    
+    # 2. enable module
     echo "Enabling WAF module.."
     sed -i '/^enabled_modules=/ { /waf/! s/$/,waf/ }' /etc/openpanel/openpanel/conf/openpanel.config
 
-    # 2. change image to openpanel/caddy-coraza
-    echo "Changing docker image to 'openpanel/caddy-coraza'.."
-    sed -i 's|caddy:latest|openpanel/caddy-coraza|' /root/.env
+    # 3. set image to openpanel/caddy-coraza
+    echo "Setting docker image 'openpanel/caddy-coraza'.."
+    sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="openpanel/caddy-coraza"|' /root/.env
 
-    # 3. restart caddy
+
+    # 4. restart caddy
     echo "Restarting Web Server to use the new image with CorazaWAF.."
     cd /root
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
@@ -238,9 +246,9 @@ disable_coraza_waf() {
     echo "Disabling WAF module..."
     sed -i 's/waf,//g' /etc/openpanel/openpanel/conf/openpanel.config
 
-    # 3. change image to caddy:latest
-    echo "Changing docker image to 'caddy:latest'.."
-    sed -i 's|openpanel/caddy-coraza|caddy:latest|' /root/.env
+    # 3. set image to caddy:latest
+    echo "Setting docker image 'caddy:latest'.."
+    sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="caddy:latest"|' /root/.env
 
     # 4. restart caddy
     echo "Restarting Web Server to use the official Caddy image.."
