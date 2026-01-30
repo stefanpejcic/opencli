@@ -132,6 +132,7 @@ set_coraza_waf_for_domain() {
     esac
 
     if sed -i "s/SecRuleEngine .*/SecRuleEngine $value/" "$file"; then
+        reload_caddy_now
         echo "SecRuleEngine $value is now set for domain $domain"
     else
         echo "Failed setting SecRuleEngine $value - please contact Administrator."
