@@ -238,7 +238,10 @@ enable_coraza_waf() {
 
     # 5. restart caddy
     echo "Restarting Web Server to use the new image with CorazaWAF.."
-    cd /root
+    cd /root || {
+        echo "Failed to cd to /root - are you root?" >&2
+        exit 1
+    }
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
 
     # 6. check status
