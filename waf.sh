@@ -230,15 +230,14 @@ disable_coraza_waf() {
     # 1. check if in use
     echo "Checking if CorazaWAF is used by any user domains.."
     local conf_files
-    conf_files=$(grep -rl "coraza_waf" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
+    conf_files=$(grep -rl "SecRuleEngine On" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
 
     if [[ -n "$conf_files" ]]; then
-        echo "ERROR: Cannot disable WAF. It is still present in these domains files:"
-        echo "$conf_files"
-        echo
-        echo "Please remove the 'coraza_waf' sections first:"
-        echo "https://github.com/stefanpejcic/openpanel-configuration/blob/main/caddy/templates/domain.conf_with_modsec#L17-L33"
-        echo "https://github.com/stefanpejcic/openpanel-configuration/blob/main/caddy/templates/domain.conf_with_modsec#L68-L82"
+        echo "ERROR: Cannot disable WAF. It is still active on these domains:"
+        for file in $conf_files; do
+            filename=$(basename "$file" .conf)
+            echo "$filename"
+        done
         return 1
     fi
 
