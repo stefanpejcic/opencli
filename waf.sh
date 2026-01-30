@@ -105,7 +105,6 @@ enable_coraza_waf_for_domain() {
     
     if [[ $? -eq 0 ]]; then
         echo "SecRuleEngine On is now set for domain $domain"
-        reload_caddy_now
     else
         echo "Failed setting SecRuleEngine On - please contact Administrator."
         exit 1
@@ -125,7 +124,6 @@ disable_coraza_waf_for_domain() {
     
     if [[ $? -eq 0 ]]; then
         echo "SecRuleEngine Off is now set for domain $domain"
-        reload_caddy_now
     else
         echo "Failed setting SecRuleEngine Off - please contact Administrator."
         exit 1
@@ -216,43 +214,52 @@ enable_coraza_waf() {
     echo "Setting docker image 'openpanel/caddy-coraza'.."
     sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="openpanel/caddy-coraza"|' /root/.env
 
+    # 4. enable WAF for ALL user domains
+    sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' /etc/openpanel/caddy/domains/*.conf
 
-    # 4. restart caddy
+    # 5. restart caddy
     echo "Restarting Web Server to use the new image with CorazaWAF.."
     cd /root
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
 
-    # 4. check status
+    # 6. check status
     check_coraza_status
 }
 
 disable_coraza_waf() {
-    # 1. check if in use
+    # 1. check if used and ask for confirmation
     echo "Checking if CorazaWAF is used by any user domains.."
     local conf_files
     conf_files=$(grep -rl "SecRuleEngine On" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
 
     if [[ -n "$conf_files" ]]; then
-        echo "ERROR: Cannot disable WAF. It is still active on these domains:"
+        echo "WARNING: WAF is still active on some domains:"
         for file in $conf_files; do
             filename=$(basename "$file" .conf)
-            echo "$filename"
+            echo " - $filename"
         done
-        return 1
+
+        read -p "Do you really want to disable WAF protection on these domains and stop using Coraza WAF on the server? [y/N]: " confirm
+        case "$confirm" in
+            [yY][eE][sS]|[yY])
+                echo "Disabling Coraza WAF..."
+                ;;
+            *)
+                echo "Aborting."
+                return 1
+                ;;
+        esac
     fi
 
     # 2. disable module
     echo "Disabling WAF module..."
     sed -i 's/waf,//g' /etc/openpanel/openpanel/conf/openpanel.config
 
-    # 3. set image to caddy:latest
-    echo "Setting docker image 'caddy:latest'.."
-    sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="caddy:latest"|' /root/.env
+    # 3. disable WAF for ALL user domains
+    sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' /etc/openpanel/caddy/domains/*.conf
 
-    # 4. restart caddy
-    echo "Restarting Web Server to use the official Caddy image.."
-    cd /root
-    docker --context=default compose down caddy && docker --context=default compose up -d caddy
+    # 4. reload caddy to apply
+    reload_caddy_now
 
     # 5. check status
     check_coraza_status
