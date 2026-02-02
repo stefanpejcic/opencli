@@ -30,7 +30,7 @@
 
 # ---------------------- CONSTANTS ---------------------- #
 readonly COMPOSE_FILE="/root/docker-compose.yml"
-readonly IMAGE_NAME="openpanel/openpanel-ui"
+IMAGE_NAME="openpanel/openpanel-ui"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly SKIP_VERSIONS_FILE="/etc/openpanel/upgrade/skip_versions"
