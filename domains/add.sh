@@ -99,8 +99,7 @@ log() {
 }
 
 get_config_value() {
-	local key="$1"
-	grep -E "^\s*${key}=" "$PANEL_CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
+	grep -E "^\s*${1}=" "$PANEL_CONFIG_FILE" | sed -E "s/^\s*${1}=//" | tr -d '[:space:]'
 }
 
 
