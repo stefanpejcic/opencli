@@ -170,7 +170,7 @@ start_tor_for_user() {
 	else
 	    log "Starting Tor service.."
 	    nohup sh -c "cd /home/$context/ && docker --context $context  compose up -d tor" </dev/null >nohup.out 2>nohup.err &
-     	fi
+    fi
 }
 
 
