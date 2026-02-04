@@ -72,7 +72,7 @@ get_context_for_user() {
 }
 
 get_webserver_for_user(){
-	    output=$(opencli webserver-get_webserver_for_user $owner)		
+	    output=$(opencli webserver-get_webserver_for_user "$owner")		
 		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
         if [[ "$ws" == "openlitespeed" || "$ws" == "litespeed" ]]; then
             echo "ERROR: PHP version can not be changed on $ws webserver. Instead you need to change the docker image tag for the user."
