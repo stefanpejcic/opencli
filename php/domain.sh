@@ -62,12 +62,13 @@ fi
 # ======================================================================
 # Helpers
 get_context_for_user() {
-     source /usr/local/opencli/db.sh
-        username_query="SELECT server FROM users WHERE username = '$owner'"
-        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
-        if [ -z "$context" ]; then
-            context=$owner
-        fi
+	# shellcheck source=/usr/local/opencli/db.sh
+    source /usr/local/opencli/db.sh
+	username_query="SELECT server FROM users WHERE username = '$owner'"
+	context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+	if [ -z "$context" ]; then
+		context=$owner
+	fi
 }
 
 get_webserver_for_user(){
