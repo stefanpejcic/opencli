@@ -229,7 +229,28 @@ detect_apex_or_onion() {
 	fi
 }
 
-
+check_if_apex_exists_in_server()
+	if [[ "$is_subdomain" == true ]]; then
+	  whoowns_output=$(opencli domains-whoowns "$apex_domain")
+	  existing_user=$(echo "$whoowns_output" | awk -F "Owner of '$apex_domain': " '{print $2}')
+	  if [ -n "$existing_user" ]; then
+		if [ "$existing_user" == "$user" ]; then
+			log "User $existing_user already owns the apex domain $apex_domain - adding subdomain.."
+			USE_PARENT_DNS_ZONE=true
+		else
+			allow_subdomain_sharing=$(get_config_value 'permit_subdomain_sharing')
+			if [ "$allow_subdomain_sharing" = "yes" ]; then
+				log "WARNING: Another user owns the apex domain: $apex_domain - adding subdomain as a separate addon on this account."
+			else
+				echo "Another user owns the domain: $apex_domain - can't add subdomain: $domain_name"
+				exit 1
+			fi
+		fi
+	  else
+		  echo "Apex domain: $apex_domain does not exist on this server. "
+	  fi
+	fi
+}
 
 
 
@@ -310,7 +331,7 @@ HiddenServicePort 80 $proxy_ws:80
 
 
 # ======================================================================
-# TODO
+# Functions
 
 
 
@@ -844,35 +865,15 @@ check_and_fix_FTP_permissions() {
 }
 
 
-
-detect_apex_or_onion
-check_domain_exists
-compare_with_forbidden_domains_list            # dont allow admin-defined domains
-compare_with_system_domains                    # hostname, ns or webmail takeover
-if [[ "$is_subdomain" == true ]]; then
-  whoowns_output=$(opencli domains-whoowns "$apex_domain")
-  existing_user=$(echo "$whoowns_output" | awk -F "Owner of '$apex_domain': " '{print $2}')
-  if [ -n "$existing_user" ]; then
-	if [ "$existing_user" == "$user" ]; then
-		log "User $existing_user already owns the apex domain $apex_domain - adding subdomain.."
-		USE_PARENT_DNS_ZONE=true
-	else
-		allow_subdomain_sharing=$(get_config_value 'permit_subdomain_sharing')
-		if [ "$allow_subdomain_sharing" = "yes" ]; then
-			log "WARNING: Another user owns the apex domain: $apex_domain - adding subdomain as a separate addon on this account."
-		else
-			echo "Another user owns the domain: $apex_domain - can't add subdomain: $domain_name"
-			exit 1
-		fi
-	fi
-  else
-	  echo "Apex domain: $apex_domain does not exist on this server. "
-  fi
-fi
-
-get_docker_context
-
-get_php_version
-verify_docroot
-add_domain "$user_id" "$domain_name"
-check_and_fix_FTP_permissions
+# ======================================================================
+# Main
+detect_apex_or_onion                           # TLD, subdomains OR apex 
+check_domain_exists                            # opencli domains-whoowns
+compare_with_forbidden_domains_list            # dont permit admin-defined domains
+compare_with_system_domains                    # prevent hostname, ns or webmail takeover
+check_if_apex_exists_in_server                 # TODO: this doubles whoowns!
+get_docker_context                             # check user exists and get /home path
+get_php_version                                # get php version to set
+verify_docroot                                 # verify user provided docroot
+add_domain "$user_id" "$domain_name"           # finally add the domain and create files
+check_and_fix_FTP_permissions                  # extra step: fixes perms issues for ftp sub-users
