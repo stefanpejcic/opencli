@@ -189,14 +189,14 @@ setup_tor_for_user() {
 		  fi
 		done
 	  	next_folder=$((highest_folder + 1))
-    		folder_name="hidden_service/$next_folder"
-      	fi
-       
-    	mkdir -p "$tor_dir/$folder_name/authorized_clients"
+    	folder_name="hidden_service/$next_folder"
+    fi
+
+	mkdir -p "$tor_dir/$folder_name/authorized_clients"
 	cp $hs_public_key $tor_dir/$folder_name/hs_ed25519_public_key
 	cp $hs_secret_key $tor_dir/$folder_name/hs_ed25519_secret_key
 
- 	chown $context_uid:$context_uid "/home/$context/tor"
+	chown $context_uid:$context_uid "/home/$context/tor"
 	chmod 0600 "/home/$context/tor/torrc"
 
 	if [ "$VARNISH" = true ]; then
@@ -210,18 +210,11 @@ HiddenServicePort 80 $proxy_ws:80
 " >> $tor_dir/torrc
 
   	log ".onion files are saved in $folder_name directory."
-	
 }
-
-
 
 log() {
-    if $debug_mode; then
-        echo "$1"
-    fi
+    [[ "$debug_mode" == true ]] && echo "$1"
 }
-
-
 
 verify_docroot() {
 	if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
@@ -229,10 +222,7 @@ verify_docroot() {
 	    exit 1
 	fi
 	
-	if [[ -n "$docroot" ]]; then
-	    #log "Using document root: $docroot"
-	    :
-	else
+	if [[ -z "$docroot" ]]; then
 	    docroot="/var/www/html/$domain_name"
 	    log "No document root specified, using /var/www/html/$domain_name"
 	fi
@@ -244,7 +234,6 @@ compare_with_forbidden_domains_list() {
     local domain_name="$1"
     local forbidden_domains=()
 
-    # Check forbidden domains list
     if [ -f "forbidden_domains.txt" ]; then
         log "Checking domain against forbidden_domains list"
         mapfile -t forbidden_domains < forbidden_domains.txt
@@ -255,17 +244,14 @@ compare_with_forbidden_domains_list() {
     fi
 }
 
-# added in 1.1.7 to not allow histname, webmail or ns takeover
+# added in 1.1.7 to prevent hostname/webmail/NS takeover
 compare_with_system_domains() {
-     local CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
      local CADDYFILE='/etc/openpanel/caddy/Caddyfile'
-     if [ -f "$CADDYFILE" ] || [ -f "$CONFIG_FILE" ]; then
-         log "Checking domain against system domains list"
-         if grep -q -E "^\s*$domain_name\s*\{" "$CADDYFILE" 2>/dev/null || grep -q "^$domain_name" "$CONFIG_FILE" 2>/dev/null; then
-             echo "ERROR: $domain_name is already configured."
-             exit 1
-         fi
-     fi
+	 log "Checking domain against system domains list"
+	 if grep -q -E "^\s*$domain_name\s*\{" "$CADDYFILE" 2>/dev/null; then
+		 echo "ERROR: $domain_name is already configured."
+		 exit 1
+	 fi
 }
 
 
@@ -415,16 +401,11 @@ get_server_ipv4_or_ipv6() {
 	    local server3=$4
 	
 	    if [ "$ip_version" == "-4" ]; then
-		    curl --silent --max-time 2 $ip_version $server1 || \
-		    wget --timeout=2 --tries=1 -qO- $server2 || \
-		    curl --silent --max-time 2 $ip_version $server3
+		    curl --silent --max-time 2 $ip_version $server1 || wget --timeout=2 --tries=1 -qO- $server2 || curl --silent --max-time 2 $ip_version $server3
 	    else
-		    curl --silent --max-time 2 $ip_version $server1 || \
-		    curl --silent --max-time 2 $ip_version $server3
+		    curl --silent --max-time 2 $ip_version $server1 || curl --silent --max-time 2 $ip_version $server3
 	    fi
-
 	}
-
 
 	# use public IPv4
 	current_ip=$(get_ip "-4" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
@@ -442,20 +423,17 @@ get_server_ipv4_or_ipv6() {
  	    IPV4="no"
 	    log "No IPv4 found. Checking IPv6 address..."
 	    current_ip=$(get_ip "-6" "$IP_SERVER_1" "$IP_SERVER_2" "$IP_SERVER_3")
-	    # Fallback to hostname IPv6 if no IPv6 from servers
 	    if [ -z "$current_ip" ]; then
 	        log "Fetching IPv6 from local hostname..."
 	        current_ip=$(ip addr | grep 'inet6 ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
 	    fi
 	fi
-	
+
 	# no :(
 	if [ -z "$current_ip" ]; then
 	    echo "Error: Unable to determine IP address (IPv4 or IPv6)."
 	    exit 1
 	fi
-
-
 
 	json_file="/etc/openpanel/openpanel/core/users/$user/ip.json"
 	
@@ -463,18 +441,15 @@ get_server_ipv4_or_ipv6() {
 	    dedicated_ip=$(jq -r '.ip' "$json_file")
 	    log "User has reserved IP: $dedicated_ip."
 	
-	    # Check if dedicated_ip is present in the output of `hostname -I`
 	    if hostname -I | grep -q "$dedicated_ip"; then
 	        REMOTE_SERVER="no"
-	 	current_ip=$dedicated_ip
+	 		current_ip=$dedicated_ip
 	        log "User has a dedicated IP address $dedicated_ip"
 	    else
 	        REMOTE_SERVER="yes"
 	        log "IP address is asigned to node server."
 	    fi
 	fi
-
-
 }
 
 
@@ -484,10 +459,8 @@ make_folder() {
  	local stripped_docroot="${docroot#/var/www/html/}"
  	context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
 
-
 	if [ -z "$context_uid" ]; then
 		log "Warning: failed detecting user id, permissions issue!"
-
 	else
 		local full_path="/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped_docroot"
 		mkdir -p "$full_path" && chown $context_uid:$context_uid "$full_path" && chmod -R g+w "$full_path"
@@ -495,7 +468,6 @@ make_folder() {
 		local ws_files="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 		mkdir -p "$ws_files" && chown $context_uid:$context_uid "$ws_files" && chmod -R g+w "$ws_files"
 	  
-	  	# when it is first domain!
 	  	# https://github.com/stefanpejcic/OpenPanel/issues/472
 		chown $context_uid:$context_uid /home/$context/docker-data/volumes/${context}_html_data/
 		chown $context_uid:$context_uid /home/$context/docker-data/volumes/${context}_html_data/_data/
@@ -508,17 +480,13 @@ make_folder() {
 
 
 check_and_create_default_file() {
-    # extra step needed for nginx
     log "Checking if default configuration file exists for Nginx"
     
-    # Check if the file exists
     if [ ! -e "/home/$context/nginx.conf" ]; then
         log "Creating default vhost file for Nginx: /etc/nginx/nginx.conf"
 
-        # Create the Nginx configuration file
         echo "user  nginx;
 worker_processes  auto;
-
 pid        /var/run/nginx.pid;
 
 events {
@@ -528,20 +496,14 @@ events {
 http {
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
-
     sendfile        on;
     #tcp_nopush     on;
-
     keepalive_timeout  65;
-
     #gzip  on;
-
     include /etc/nginx/conf.d/*.conf;
 }" > "/home/$context/nginx.conf"
     fi
 }
-
-
 
 get_webserver_for_user(){
 	    log "Checking webserver configuration"
@@ -549,8 +511,6 @@ get_webserver_for_user(){
 		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
 		[[ $ws == "nginx" ]] && check_and_create_default_file
 }
-
-
 
 get_varnish_for_user(){
 	VARNISH=false
@@ -560,39 +520,26 @@ get_varnish_for_user(){
 
 }
 
-
-
 add_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
 	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
  	if [ -f $domains_list ]; then
       		log "ClamAV Upload Scanner is enabled - Adding $docroot for monitoring"
 		echo "$docroot" >> "$domains_list"
-		# not needed since we also watch the domains list file for changes! 
-  		#service clamav_monitor restart > /dev/null 2>&1
  	fi
 }
 
-
-
 start_default_php_fpm_service() {
-
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ $enabled_modules_line == *"php"* ]]; then  
         log "Starting container for the PHP version ${php_version}"
- 	nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+ 		nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
     else
         log "'php' module is disabled, skip starting container for the PHP version ${php_version}"
     fi
-
- 
 }
 
-
-
-
 vhost_files_create() {
-	
 	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
  	vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_${ws}_domain.conf" # todo litespeed file!
  	get_varnish_for_user
@@ -604,8 +551,9 @@ vhost_files_create() {
 	    nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
 	}
 
-	log "Creating ${domain_name}.conf" #$vhost_in_docker_file
+	log "Creating ${domain_name}.conf"
 	cp $vhost_docker_template $vhost_in_docker_file > /dev/null 2>&1
+
 	# https://github.com/stefanpejcic/OpenPanel/issues/567
 	chown $context_uid:$context_uid "/home/$context/docker-data/volumes/${context}_webserver_data/"
 	chown $context_uid:$context_uid -R "/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
@@ -627,80 +575,53 @@ create_domain_file() {
 	mkdir -p $waf_dir && touch $waf_dir/${domain_name}.log
  
 	local env_file="/home/${context}/.env"
- 	source $env_file
+	[[ ! -f "$env_file" ]] && { echo "Warning: .env file not found!"; return 1; }
+	source $env_file
 
-	# Check if the file exists
-	if [[ ! -f "$env_file" ]]; then
-		echo "Warning: .env file not found!"
-		return 1
-	fi
-	
 	non_ssl_port=$(echo "$HTTP_PORT" | cut -d':' -f2)
 	ssl_port=$(echo "$HTTPS_PORT" | cut -d':' -f2)
+	ip_format_for_nginx=$([[ "$IPV4" == "yes" ]] && echo "$current_ip" || echo "[$current_ip]")
 
-	if [ "$IPV4" == "yes" ]; then
- 		ip_format_for_nginx="$current_ip"
-   	else
-		ip_format_for_nginx="[$current_ip]"
-    fi
-
-     # todo: include only if dedi ip in caddy file!
 	mkdir -p /etc/openpanel/caddy/domains/
 	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 	touch $domains_file
 
 
 sed_values_in_domain_conf() {
-
 	if [ "$REMOTE_SERVER" == "yes" ]; then
-		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
-	                                           -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" \
-	                                           -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
-	 
+		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
 	else
-		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" \
-	                                           -e "s|<SSL_PORT>|$ssl_port|g" \
-	                                           -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
+		domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<SSL_PORT>|$ssl_port|g" -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
 	fi
+
     echo "$domain_conf" > "$domains_file"
 
    	if [ "$VARNISH" = true ]; then
     	log "Enabling Varnish cache for the domain.."
-	    #opencli domains-varnish $domain_name on #> /dev/null 2>&1
 	    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^/#/' "$domains_file"
 	    sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$domains_file"
-       fi
+    fi
 }
 
 
 
-ENV_FILE="/root/.env"
-if [ -f "$ENV_FILE" ]; then
-    # Extract the value of CADDY_IMAGE from the .env file
-    CADDY_IMAGE=$(grep -oP '^CADDY_IMAGE=\K.*' "$ENV_FILE" | sed 's/^"\(.*\)"$/\1/')
-    if [[ "$CADDY_IMAGE" == "openpanel/caddy-coraza" ]]; then
-        conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
-        log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
-        sed_values_in_domain_conf
-    elif [[ "$CADDY_IMAGE" == "caddy:latest" || "$CADDY_IMAGE" == "caddy" ]]; then
-        conf_template="/etc/openpanel/caddy/templates/domain.conf"
-        log "Creating Caddy configuration for the domain, without ModSecurity"
-        sed_values_in_domain_conf
-    else
-        echo "ERROR: unable to detect any services. Contact support."
-        exit 1
-    fi
+
+
+if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
+	conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
+	log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
+	sed_values_in_domain_conf
 else
-    echo "ERROR: unable to detect .env file. Contact support."
-    exit 1
+	conf_template="/etc/openpanel/caddy/templates/domain.conf"
+	log "Creating Caddy configuration for the domain, without ModSecurity"
 fi
+sed_values_in_domain_conf
 
 
 
 check_and_add_to_enabled() {
     # Validate the Caddyfile
     if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
-        # Wait
         docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
         return 0
     else
@@ -711,8 +632,6 @@ check_and_add_to_enabled() {
 	# Check if the 'caddy' container is running
 	if [ $(docker --context default ps -q -f name=caddy) ]; then
 		log "Caddy is running, validating new domain configuration"
-	
-				########check_and_add_to_enabled
 		docker --context default restart caddy >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
 			log "Domain successfully added and Caddy reloaded."
@@ -860,7 +779,6 @@ create_zone_file() {
 
 
 reload_bind_after_slaves(){
-    # Reload BIND service
     if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, adding the zone"
 		docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
@@ -873,9 +791,7 @@ reload_bind_after_slaves(){
 
 notify_slave(){
 
-if $USE_PARENT_DNS_ZONE; then
-:
-else
+if ! $USE_PARENT_DNS_ZONE; then
     echo "Notifying Slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
 	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
@@ -945,7 +861,6 @@ $volume_to_add
 
 # Function to create a zone file
 dns_stuff() {
-
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ $enabled_modules_line == *"dns"* ]]; then  
 	    create_zone_file                             # create zone
@@ -956,7 +871,6 @@ dns_stuff() {
         log "DNS module is disabled - skipping creating DNS records"
     fi
 }
-
 
 get_php_version() {
        if [[ -z "$php_version" ]]; then
@@ -993,40 +907,40 @@ add_domain() {
            	vhost_files_create                       # create file in container
         fi
 
- 	if $onion_domain; then
-		setup_tor_for_user		     # create conf files
-		start_tor_for_user		     # actually run service
-    else
+	 	if $onion_domain; then
+			setup_tor_for_user		     # create conf files
+			start_tor_for_user		     # actually run service
+	    else
 		
-		if $SKIP_CADDY_CREATE; then 
-			log "Skipping Reverse Proxy file creation due to '--skip_caddy' flag."
-		else
-			create_domain_file                   # create file on host
-		fi
-
-		if $SKIP_DNS_ZONE; then 
-			log "Skipping DNS zone file creation due to '--skip_dns' flag."
-		else
-			dns_stuff
-		fi
-  	
- 	fi
-  
-	if $SKIP_STARTING_CONTAINERS; then 
-		log "Skipping starting PHP service."
-	else
-		if [[ $ws != *litespeed* ]]; then
-		    start_default_php_fpm_service    # skip for litespeed!
-		fi
-	fi
+			if $SKIP_CADDY_CREATE; then 
+				log "Skipping Reverse Proxy file creation due to '--skip_caddy' flag."
+			else
+				create_domain_file                   # create file on host
+			fi
 	
- 
-	if $onion_domain; then
- 		:
-   	else
- 		create_mail_mountpoint                       # add mountpoint to mailserver
+			if $SKIP_DNS_ZONE; then 
+				log "Skipping DNS zone file creation due to '--skip_dns' flag."
+			else
+				dns_stuff
+			fi
+  	
+ 		fi
+  
+		if $SKIP_STARTING_CONTAINERS; then 
+			log "Skipping starting PHP service."
+		else
+			if [[ $ws != *litespeed* ]]; then
+			    start_default_php_fpm_service    # skip for litespeed!
+			fi
+		fi
+	
+	 
+		if $onion_domain; then
+	 		:
+	   	else
+	 		create_mail_mountpoint                       # add mountpoint to mailserver
     	fi
- 	######add_domain_to_clamav_list                    # added in 0.3.4    
+ 		######add_domain_to_clamav_list                    # added in 0.3.4    
         echo "Domain $domain_name added successfully"
     else
         log "Adding domain $domain_name failed! Contact administrator to check if the mysql database is running."
