@@ -58,9 +58,6 @@ if [ "$2" == "--update" ]; then
     new_php_version="$3"
 fi
 
-# TODO: check ws, if litespeed abort!
-# https://github.com/stefanpejcic/opencli/issues/68
-
 
 # ======================================================================
 # Helpers
@@ -73,12 +70,22 @@ get_context_for_user() {
         fi
 }
 
+get_webserver_for_user(){
+	    output=$(opencli webserver-get_webserver_for_user $owner)		
+		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
+        if [[ "$ws" == "openlitespeed" || "$ws" == "litespeed" ]]; then
+            echo "ERROR: PHP version can not be changed on $ws webserver. Instead you need to change the docker image tag for the user."
+            echo "Available tags: https://hub.docker.com/r/litespeedtech/openlitespeed/tags"
+            exit 0
+        fi
+}
 
 # ======================================================================
 # Main
 whoowns_output=$(opencli domains-whoowns "$domain")
 owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
 if [ -n "$owner" ]; then
+    get_webserver_for_user
     get_context_for_user
     domain_path_in_volume="/home/$context/docker-data/volumes/${context}_webserver_data/_data/$domain.conf"
     php_version=$(grep -o "php-fpm-[0-9.]\+" "$domain_path_in_volume" | grep -o "[0-9.]\+" | head -n 1)
