@@ -51,7 +51,7 @@ touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
 
 # ======================================================================
 # Main
-docker --context=default exec openadmin_ftp sh -c "deluser $username && rm -rf /home/$openpanel_username/$username"
+docker --context=default exec openadmin_ftp sh -c "deluser $username"
 if [ $? -eq 0 ]; then
     sed -i "/^$username|/d" /etc/openpanel/ftp/users/${openpanel_username}/users.list
     echo "Success: FTP user '$username' deleted successfully."
