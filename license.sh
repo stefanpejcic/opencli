@@ -177,6 +177,19 @@ enable_emails_module() {
     fi
 }
 
+pagespeed_api_key_control() {
+    local FILE
+    FILE="/etc/openpanel/openpanel/service/pagespeed.api"
+    local DEFAULT_KEY
+    DEFAULT_KEY="AIzaSyDow0GLE7N5gcZXa72tpqIvIaJtn1bDtsk"
+
+    if [ "$1" = "remove" ]; then
+        [ -f "$FILE" ] && grep -qx "$DEFAULT_KEY" "$FILE" && rm -f "$FILE"
+    else
+        [ ! -s "$FILE" ] && echo "$DEFAULT_KEY" > "$FILE"
+    fi
+}
+
 # Disable emails module
 disable_emails_module() {
     local enabled_modules new_modules
@@ -195,6 +208,7 @@ save_license_to_file() {
     if opencli config update key "$new_key" > /dev/null; then
         output_message "License key ${new_key} added." "$GREEN"
         enable_emails_module > /dev/null
+        pagespeed_api_key_control > /dev/null
         restart_services
     else
         output_message "License is valid, but failed to save the license key ${new_key}" "$RED"
@@ -304,6 +318,7 @@ EOF
 delete_license() {
     opencli config update key "" > /dev/null
     disable_emails_module
+    pagespeed_api_key_control > /dev/null
     service admin restart
 }
 
