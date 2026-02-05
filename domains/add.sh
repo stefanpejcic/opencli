@@ -130,14 +130,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# remove leading --
-docroot=${--docroot:-}
-php_version=${--php_version:-}
-hs_ed25519_public_key=${--hs_ed25519_public_key:-}
-hs_ed25519_secret_key=${--hs_ed25519_secret_key:-}
-
-
-
 # ======================================================================
 # Helpers
 
