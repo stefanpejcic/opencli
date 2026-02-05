@@ -152,7 +152,6 @@ check_domain_exists() {
 }
 
 get_docker_context(){
-	user="$1"
 	IFS=',' read -r user_id context <<< "$(mysql -se "SELECT CONCAT(id, ',', server) FROM users WHERE username='${user}';")"
 	
 	if [ -z "$user_id" ] || [ -z "$context" ]; then
