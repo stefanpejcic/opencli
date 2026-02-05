@@ -166,17 +166,25 @@ restart_services() {
     echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
 }
 
-# Enable emails module
-enable_emails_module() {
+toggle_emails_module() {
+    local action="${1:-enable}"
     local enabled_modules new_modules
     enabled_modules=$(grep '^enabled_modules=' "$CONFIG_FILE_PATH" | cut -d'=' -f2)
-    
-    if ! echo "$enabled_modules" | grep -q 'emails'; then
-        new_modules="${enabled_modules},emails"
-        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
+
+    if [ "$action" = "disable" ]; then
+        new_modules=$(echo "$enabled_modules" | sed 's/,emails//g; s/emails,//g; s/^emails$//g')
+    else
+        if ! echo "$enabled_modules" | grep -q '\bemails\b'; then
+            new_modules="${enabled_modules},emails"
+        else
+            new_modules="$enabled_modules"
+        fi
     fi
+
+    sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
 }
 
+# add/remove pagespeed api key
 pagespeed_api_key_control() {
     local file key
     file="/etc/openpanel/openpanel/service/pagespeed.api"
@@ -189,24 +197,13 @@ pagespeed_api_key_control() {
     fi
 }
 
-# Disable emails module
-disable_emails_module() {
-    local enabled_modules new_modules
-    enabled_modules=$(grep '^enabled_modules=' "$CONFIG_FILE_PATH" | cut -d'=' -f2)
-    
-    if echo "$enabled_modules" | grep -q 'emails'; then
-        new_modules=$(echo "$enabled_modules" | sed 's/,emails//g; s/emails,//g; s/^emails$//g')
-        sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$CONFIG_FILE_PATH"
-    fi
-}
-
 # Save license key to file
 save_license_to_file() {
     local new_key="$1"
     
     if opencli config update key "$new_key" > /dev/null; then
         output_message "License key ${new_key} added." "$GREEN"
-        enable_emails_module > /dev/null
+        toggle_emails_module > /dev/null
         pagespeed_api_key_control > /dev/null
         restart_services
     else
@@ -316,7 +313,7 @@ EOF
 # Delete license and downgrade
 delete_license() {
     opencli config update key "" > /dev/null
-    disable_emails_module
+    toggle_emails_module "disable" > /dev/null
     pagespeed_api_key_control "remove" > /dev/null
     service admin restart
 }
