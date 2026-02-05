@@ -178,14 +178,14 @@ enable_emails_module() {
 }
 
 pagespeed_api_key_control() {
-    local FILE DEFAULT_KEY
-    FILE="/etc/openpanel/openpanel/service/pagespeed.api"
-    DEFAULT_KEY="AIzaSyDow0GLE7N5gcZXa72tpqIvIaJtn1bDtsk"
+    local file key
+    file="/etc/openpanel/openpanel/service/pagespeed.api"
+    key="AIzaSyDow0GLE7N5gcZXa72tpqIvIaJtn1bDtsk"
 
     if [ "$1" = "remove" ]; then
-        [ -f "$FILE" ] && grep -qx "$DEFAULT_KEY" "$FILE" && rm -f "$FILE"
+        [ -f "$file" ] && grep -qx "$key" "$file" && rm -f "$file"
     else
-        [ ! -s "$FILE" ] && echo "$DEFAULT_KEY" > "$FILE"
+        [ ! -s "$file" ] && echo "$key" > "$file"
     fi
 }
 
