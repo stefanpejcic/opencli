@@ -431,15 +431,12 @@ get_server_ipv4_or_ipv6() {
 	
 	if [ -e "$json_file" ]; then
 	    dedicated_ip=$(jq -r '.ip' "$json_file")
-	    log "User has reserved IP: $dedicated_ip."
-	
-	    if hostname -I | grep -q "$dedicated_ip"; then
-	        REMOTE_SERVER="no"
-	 		current_ip=$dedicated_ip
-	        log "User has a dedicated IP address $dedicated_ip"
-	    else
+	    if docker context ls | grep -q "$dedicated_ip"; then
 	        REMOTE_SERVER="yes"
-	        log "IP address is asigned to node server."
+	        log "IP address is asigned to a node (slave) server."
+	    else
+			REMOTE_SERVER="no"
+	        log "User has a dedicated IP address $dedicated_ip"			
 	    fi
 	fi
 }
@@ -570,15 +567,34 @@ create_domain_file() {
 	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 	touch $domains_file
 
+	update_bind_in_block() {
+	  local conf=$1
+	  local block_header=$2
+	  local ip=$3
 	
+	  local esc_block_header
+	  esc_block_header=$(escape_sed_regex "$block_header")
+	
+	  if sed -n "/^$esc_block_header/{n;/^[[:space:]]*bind /p}" "$conf" | grep -q "bind "; then
+	    sed -i "/^$esc_block_header/{n;s/^[[:space:]]*bind .*/    bind $ip/}" "$conf"
+	  else
+	    sed -i "/^$esc_block_header/a\    bind $ip" "$conf"
+	  fi
+	}
+
 	sed_values_in_domain_conf() {
 		if [ "$REMOTE_SERVER" == "yes" ]; then
 			domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|127.0.0.1:<SSL_PORT>|$current_ip:$ssl_port|g" -e "s|127.0.0.1:<NON_SSL_PORT>|$current_ip:$non_ssl_port|g")
-		else
+		else	
 			domain_conf=$(cat "$conf_template" | sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<SSL_PORT>|$ssl_port|g" -e "s|<NON_SSL_PORT>|$non_ssl_port|g")
 		fi
 	
 	    echo "$domain_conf" > "$domains_file"
+
+		if [ -n "$dedicated_ip" ]; then
+			update_bind_in_block "$domains_file" "http://$domain_name, http://*.$domain_name {" "$dedicated_ip"
+			update_bind_in_block "$domains_file" "https://$domain_name, https://*.$domain_name {" "$dedicated_ip"
+		fi
 	
 	   	if [ "$VARNISH" = true ]; then
 	    	log "Enabling Varnish cache for the domain.."
@@ -586,7 +602,6 @@ create_domain_file() {
 		    sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$domains_file"
 	    fi
 	}
-
 
 	if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
 		conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
