@@ -73,6 +73,10 @@ get_webserver_for_user(){
 
 
 for username in $usernames; do
+    JSON_FILE="/etc/openpanel/openpanel/core/users/$username/ip.json"
+    if [[ -f "$JSON_FILE" ]] && grep -q '"ip"' "$JSON_FILE"; then
+        continue
+    fi
     get_context_for_user "$username"
     get_webserver_for_user "$username"
     user_ip=$(docker --context=$context exec "$ws" bash -c "curl --silent --max-time 2 -4 $IP_SERVER_1 || wget --timeout=2 --tries=1 -qO- $IP_SERVER_2 || curl --silent --max-time 2 -4 $IP_SERVER_3")
