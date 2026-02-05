@@ -566,6 +566,12 @@ create_domain_file() {
 	mkdir -p /etc/openpanel/caddy/domains/
 	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf"
 	touch $domains_file
+	
+	escape_sed_regex() {
+	  local str=$1
+	  # escape \ / ^ $ . | ? * + ( ) [ ] { }
+	  printf '%s' "$str" | sed -e 's/[\/&^$.*[]/\\&/g'
+	}
 
 	update_bind_in_block() {
 	  local conf=$1
