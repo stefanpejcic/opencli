@@ -55,13 +55,15 @@ load_ip_servers() {
 
 # Parse command line flags
 parse_flags() {
-    if [[ " $* " =~ " --json " ]]; then
-        JSON="yes"
-    fi
-    
-    if [[ " $* " =~ " --no-restart " ]]; then
-        NO_RESTART="yes"
-    fi
+    JSON="no"
+    NO_RESTART="no"
+
+    for arg in "$@"; do
+        case "$arg" in
+            --json) JSON="yes" ;;
+            --no-restart) NO_RESTART="yes" ;;
+        esac
+    done
 }
 
 # Display usage information
