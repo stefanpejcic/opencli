@@ -190,15 +190,6 @@ create_ip_file() {
     return 0
 }
 
-update_firewall_rules() {
-    if command -v csf &> /dev/null; then
-        :
-        # TODO: implement firewall updates for dedicated IP
-    else
-        echo "Warning: CSF is not installed; user ports may be exposed without protection."
-    fi
-}
-
 ensure_jq_installed
 
 if [ "$ACTION" = "delete" ]; then
@@ -218,7 +209,6 @@ else
 fi
 
 edit_domain_files "$ip_to_use"
-update_firewall_rules
 
 if [ "$ACTION" == "delete" ]; then
     json_file="$JSON_FILE_BASE/$USERNAME/ip.json"
