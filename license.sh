@@ -318,7 +318,7 @@ EOF
 delete_license() {
     opencli config update key "" > /dev/null
     disable_emails_module
-    pagespeed_api_key_control > /dev/null
+    pagespeed_api_key_control "remove" > /dev/null
     service admin restart
 }
 
