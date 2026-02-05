@@ -39,10 +39,8 @@ fi
 
 
 if [ -z "$1" ]; then
-    # If no username provided, get all active users
     usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 else
-    # If username provided, process only for that user!
     usernames=("$1")
 fi
 
