@@ -229,7 +229,7 @@ detect_apex_or_onion() {
 	fi
 }
 
-check_if_apex_exists_in_server()
+check_if_apex_exists_in_server() {
 	if [[ "$is_subdomain" == true ]]; then
 	  whoowns_output=$(opencli domains-whoowns "$apex_domain")
 	  existing_user=$(echo "$whoowns_output" | awk -F "Owner of '$apex_domain': " '{print $2}')
