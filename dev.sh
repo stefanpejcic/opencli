@@ -255,7 +255,10 @@ process_file() {
     if ! copy_to_container "$tmpfile" "$file_path"; then
         exit 1
     fi
-    
+
+    # enable dev_mode
+    opencli config update dev_mode on  > /dev/null 2>&1
+
     # restart and tail
     restart_container_and_follow_logs
 }
