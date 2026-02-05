@@ -61,26 +61,73 @@ REMOTE_SERVER=""
 PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 USE_PARENT_DNS_ZONE=false
 
-# Loop through args
+# Parse args
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --debug) debug_mode=true ;;
-        --skip_caddy) SKIP_CADDY_CREATE=true ;;
-        --skip_vhost) SKIP_VHOST_CREATE=true ;;
-        --skip_dns) SKIP_DNS_ZONE=true ;;
-        --skip_containers) SKIP_STARTING_CONTAINERS=true ;;
-        --docroot|--php_version|--hs_ed25519_public_key|--hs_ed25519_secret_key)
+        --debug)
+            debug_mode=true
+            shift
+            ;;
+        --skip_caddy)
+            SKIP_CADDY_CREATE=true
+            shift
+            ;;
+        --skip_vhost)
+            SKIP_VHOST_CREATE=true
+            shift
+            ;;
+        --skip_dns)
+            SKIP_DNS_ZONE=true
+            shift
+            ;;    
+        --skip_containers)
+            SKIP_STARTING_CONTAINERS=true
+            shift
+            ;;    
+        --docroot)
             if [[ -n "$2" ]]; then
-                declare "$1=${2}"
-                [[ "$1" == "--php_version" && ! "$2" =~ ^[0-9]+\.[0-9]+$ ]] && \
-                    { echo "FATAL ERROR: Invalid PHP version '$2'"; exit 1; }
-                shift7
+                docroot="$2"
+                shift 2
             else
-                echo "FATAL ERROR: Missing value for $1"; exit 1
+                echo "FATAL ERROR: Missing value for --docroot"
+                exit 1
             fi
             ;;
+        --php_version)
+            if [[ -n "$2" ]]; then
+                php_version="$2"
+	        if [[ ! "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+	            echo "FATAL ERROR: Invalid PHP version format '$php_version'. Expected format: N.N (e.g., 8.2)"
+	            exit 1
+	        fi
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --php_version"
+                exit 1
+            fi
+            ;;
+        --hs_ed25519_public_key)
+            if [[ -n "$2" ]]; then
+                hs_ed25519_public_key="$2"
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --hs_ed25519_public_key"
+                exit 1
+            fi
+            ;;
+        --hs_ed25519_secret_key)
+            if [[ -n "$2" ]]; then
+                hs_ed25519_secret_key="$2"
+                shift 2
+            else
+                echo "FATAL ERROR: Missing value for --hs_ed25519_secret_key"
+                exit 1
+            fi
+            ;;
+        *)
+            shift
+            ;;
     esac
-    shift
 done
 
 # remove leading --
@@ -112,7 +159,7 @@ verify_docroot() {
 	    echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
 	    exit 1
 	fi
-	
+
 	if [[ -z "$docroot" ]]; then
 	    docroot="/var/www/html/$domain_name"
 	    log "No document root specified, using /var/www/html/$domain_name"
