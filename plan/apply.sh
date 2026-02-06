@@ -55,6 +55,8 @@ doram=false
 dodsk=false
 donet=false
 
+# TODO: update to support updating max_email_quota for account
+
 # Parse arguments
 for arg in "$@"; do
     case "$arg" in
