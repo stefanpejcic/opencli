@@ -268,8 +268,7 @@ check_plan_exists() {
   echo "$result"
 }
 
-# TODO: udpate to 13 after 1.8.X
-if [ "$#" -lt 12 ]; then
+if [ "$#" -lt 13 ]; then
     usage
     exit 1
 fi
@@ -351,7 +350,7 @@ cpu=""
 ram=""
 bandwidth=""
 feature_set="default"
-max_email_quota="0" #TODO: remove default after 1.8.X
+max_email_quota="0"
 
 # opencli plan-edit --debug id=1 name="Pro Plan" description="A professional plan" emails=500 max_email_quota=2G ftp=100 domains=10 websites=5 disk=50 inodes=1000000 databases=20 cpu=4 ram=1 bandwidth=100
 for arg in "$@"; do
