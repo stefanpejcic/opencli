@@ -60,8 +60,7 @@ help() {
 # ======================================================================
 # Validations
 
-# TODO: update to 13 after 1.8.X
-if [ "$#" -lt 12 ]; then
+if [ "$#" -lt 13 ]; then
     help
 fi
 
@@ -243,7 +242,7 @@ cpu=""
 ram=""
 bandwidth=""
 feature_set="default"
-max_email_quota="0" # TODO: temporary, for 1.7.42 before making it mandatory in 1.8.X
+max_email_quota="0"
 
 for arg in "$@"; do
   case $arg in
