@@ -61,9 +61,6 @@ setup_zone() {
   docker exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 2048 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 2048-bit key'
   docker exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 4096 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 4096-bit key'
 
-docker cp $CONTAINER:
-
-
   # Allow bind group to read the keys
   docker exec $CONTAINER bash -c "chgrp bind K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to change group of key files'
   docker exec $CONTAINER bash -c "chmod g=r,o= K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to set permissions on key files'
