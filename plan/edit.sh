@@ -158,7 +158,7 @@ update_plan() {
   int_ram="${12}"
   bandwidth="${13}"
   feature_set="${14}"
-  max_email_quota="{$15}"
+  max_email_quota="$15"
   
     if [[ ! "$disk_limit" =~ GB$ ]]; then
       disk_limit="${int_disk_limit} GB"
