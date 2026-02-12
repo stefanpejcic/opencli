@@ -285,7 +285,7 @@ validate_fields_first() {
     local cpu="${9}"
     local ram="${10}"
     local bandwidth="${11}"
-    local max_email_quota="${12}"
+    local max_email_quota="$12"
 
     is_integer() {
         [[ "$1" =~ ^-?[0-9]+$ ]]
