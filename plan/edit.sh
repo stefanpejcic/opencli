@@ -158,7 +158,7 @@ update_plan() {
   int_ram="${12}"
   bandwidth="${13}"
   feature_set="${14}"
-  max_email_quota="$15"
+  max_email_quota="${15}"
   
     if [[ ! "$disk_limit" =~ GB$ ]]; then
       disk_limit="${int_disk_limit} GB"
@@ -285,7 +285,7 @@ validate_fields_first() {
     local cpu="${9}"
     local ram="${10}"
     local bandwidth="${11}"
-    local max_email_quota="$12"
+    local max_email_quota="${12}"
 
     is_integer() {
         [[ "$1" =~ ^-?[0-9]+$ ]]
