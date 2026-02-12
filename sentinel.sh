@@ -50,7 +50,7 @@ FAIL=0
 
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/tmp/swap_cleanup.lock"
-TIME=$(date +%s%3N)
+TIME=$(date +"%Y-%m-%d %H:%M:%S")
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
 HOSTNAME=$(hostname)
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
