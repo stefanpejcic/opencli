@@ -28,19 +28,27 @@
 # THE SOFTWARE.
 ################################################################################
 
+OUTPUT_DIR="/etc/openpanel/openpanel/core/users"
+
+resource_usage_retention=$(grep -Eo "resource_usage_retention=[0-9]+" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
+if [[ -z $resource_usage_retention ]]; then
+  resource_usage_retention=168 #7d
+fi
+
+source /usr/local/opencli/db.sh
+
+
 (
 flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
-OUTPUT_DIR="/etc/openpanel/openpanel/core/users"
-mkdir -p "$OUTPUT_DIR"
+
 CURRENT_DATETIME=$(date +'%Y-%m-%d-%H-%M-%S')
 
-source /usr/local/opencli/db.sh
 
 # docker --context=USERNAME_HERE stats --no-stream
 process_user() {
     local username="$1"
-    
+
     read -r user_id context <<< $(mysql -se "SELECT id, server FROM users WHERE username = '$username';" | awk '{print $1, $2}')
 
     if [ -z "$user_id" ]; then
@@ -114,9 +122,20 @@ total_mem_precent: (
   "PIDs": .total_pids
   }' | jq -c)
     if [[ -n "$current_usage" && "$current_usage" != "null" ]]; then
+        # save to file
         mkdir -p "$OUTPUT_DIR/$username"
-        echo "$CURRENT_DATETIME $current_usage" >> "$OUTPUT_DIR/$username/docker_usage.txt"
+        usage_file="$OUTPUT_DIR/$username/docker_usage.txt" 
+        echo "$CURRENT_DATETIME $current_usage" >> $usage_file
         echo "$current_usage"
+
+        # retention
+        if [ -f "$usage_file" ]; then
+          total_lines=$(wc -l < "$usage_file")
+          if [ "$total_lines" -gt "$resource_usage_retention" ]; then
+            lines_to_remove=$((total_lines - resource_usage_retention))
+            tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
+          fi
+        fi
     fi
 }
 
