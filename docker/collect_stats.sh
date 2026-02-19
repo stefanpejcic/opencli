@@ -32,7 +32,7 @@ OUTPUT_DIR="/etc/openpanel/openpanel/core/users"
 
 resource_usage_retention=$(grep -Eo "resource_usage_retention=[0-9]+" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
 if [[ -z $resource_usage_retention ]]; then
-  resource_usage_retention=168 #7d
+  resource_usage_retention=100 #default
 fi
 
 source /usr/local/opencli/db.sh
@@ -45,7 +45,7 @@ flock -n 200 || { echo "Error: Script already running."; exit 1; }
 CURRENT_DATETIME=$(date +'%Y-%m-%d-%H-%M-%S')
 
 
-# docker --context=USERNAME_HERE stats --no-stream
+# docker --context=CONTEXT_HERE stats --no-stream
 process_user() {
     local username="$1"
 
@@ -131,7 +131,7 @@ total_mem_precent: (
         # retention
         if [ -f "$usage_file" ]; then
           total_lines=$(wc -l < "$usage_file")
-          if [ "$total_lines" -gt "$resource_usage_retention" ]; then
+          if [ "$resource_usage_retention" -gt 0 ] && [ "$total_lines" -gt "$resource_usage_retention" ]; then
             lines_to_remove=$((total_lines - resource_usage_retention))
             tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
           fi
