@@ -35,6 +35,7 @@ if [[ -z $resource_usage_retention ]]; then
   resource_usage_retention=100 #default
 fi
 
+# shellcheck source=/usr/local/opencli/db.sh
 source /usr/local/opencli/db.sh
 
 
@@ -56,7 +57,7 @@ process_user() {
         return 1
     fi
 
-current_usage=$(docker --context $context stats --no-stream --format '{{json .}}' | jq -s '{
+current_usage=$(docker --context "$context" stats --no-stream --format '{{json .}}' | jq -s '{
   total_block_rx: (map(.BlockIO | capture("(?<rx>\\d+\\.?\\d*)([KMGT]?B) / .*") | .rx // "0" | tonumber) | add // 0 | .*100 | round / 100),
   total_block_tx: (map(.BlockIO | capture(".* / (?<tx>\\d+\\.?\\d*)([KMGT]?B)") | .tx // "0" | tonumber) | add // 0 | .*100 | round / 100),
   total_cpu: (map(.CPUPerc | sub("%";"") | tonumber // 0) | add // 0 | .*100 | round / 100),
@@ -125,14 +126,13 @@ total_mem_precent: (
         # save to file
         mkdir -p "$OUTPUT_DIR/$username"
         usage_file="$OUTPUT_DIR/$username/docker_usage.txt" 
-        echo "$CURRENT_DATETIME $current_usage" >> $usage_file
+        echo "$CURRENT_DATETIME $current_usage" >> "$usage_file"
         echo "$current_usage"
 
         # retention
         if [ -f "$usage_file" ]; then
           total_lines=$(wc -l < "$usage_file")
           if [ "$resource_usage_retention" -gt 0 ] && [ "$total_lines" -gt "$resource_usage_retention" ]; then
-            lines_to_remove=$((total_lines - resource_usage_retention))
             tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
           fi
         fi
