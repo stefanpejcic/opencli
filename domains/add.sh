@@ -461,8 +461,8 @@ make_folder() {
     )
 
 	mkdir -p "${dirs[@]}"
-	chown -R "$context_uid:$context_uid" "${dirs[@]}"
-	chmod -R g+w "${dirs[@]}"
+	timeout 3s chown -R "$context_uid:$context_uid" "${dirs[@]}"
+	timeout 1s chmod -R g+w "${dirs[@]}"
 }
 
 
