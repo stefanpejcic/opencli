@@ -145,6 +145,45 @@ cat_certificate_files() {
     	fi    
 }
 
+show_ssl_logs() {
+    local lines="${3:-1000}"
+
+    echo "Showing last $lines SSL-related log lines for $DOMAIN"
+    echo "-------------------------------------------------------"
+
+    log_path=$(docker inspect --format='{{.LogPath}}' caddy 2>/dev/null)
+
+    if [ -z "$log_path" ] || [ ! -f "$log_path" ]; then
+        echo "ERROR: Could not determine Caddy log file path."
+        exit 1
+    fi
+
+    if [ "$lines" -gt 0 ]; then
+        tail -n "$lines" "$log_path"
+    else
+        cat "$log_path"
+    fi | jq -r '.log' | jq -R -c --arg domain "$DOMAIN" '
+	    fromjson? |
+	    select(
+	        .
+	        and
+	        (
+	            .request.host? == $domain or
+	            .request.tls.server_name? == $domain or
+	            .server_name? == $domain or
+	            (.identifiers?[]? == $domain)
+	        )
+	        and
+	        (
+	            (.logger? | test("tls|acme")) or
+	            (.msg? | test("certificate|renew|obtain|challenge"; "i"))
+	        )
+	    )
+	'
+}
+
+
+
 
 show_examples() {
 	echo "Usage:"
@@ -199,6 +238,9 @@ if [ -n "$2" ]; then
         check_and_use_tls "$3" "$4"
         echo "Updated $DOMAIN to use custom SSL."
         exit 0
+	elif [ "$2" == "logs" ]; then
+	    show_ssl_logs "$@"
+	    exit 0
     else
         echo "Invalid arguments. Usage: opencli domains-ssl <domain> [auto|custom] [cert_path key_path]"
         exit 1
