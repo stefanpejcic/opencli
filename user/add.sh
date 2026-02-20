@@ -85,7 +85,7 @@ cleanup() {
 hard_cleanup() {
   killall -u "$username" -9 > /dev/null 2>&1
   deluser --remove-home "$username" > /dev/null 2>&1   # command missing on alma!
-  rm -rf /etc/openpanel/openpanel/core/{stats,users}/"$username" > /dev/null 2>&1
+  rm -rf /etc/openpanel/openpanel/core/users/"$username" > /dev/null 2>&1
   docker context rm "$username"  > /dev/null 2>&1
   quotacheck -avm >/dev/null 2>&1
   mkdir -p /etc/openpanel/openpanel/core/users/
