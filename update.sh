@@ -744,6 +744,7 @@ main() {
             ;;
         --admin)
             update_openadmin --no-log
+            restart_admin
             ;;
         --panel)
             update_openpanel --no-log
