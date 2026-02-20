@@ -166,7 +166,6 @@ delete_all_user_files() {
 	pkill -u $context -9 2>/dev/null || true
     deluser --remove-home $context 2>/dev/null || true
     [ -d /home/$context ] && rm -rf /home/$context
-    [ -d /etc/openpanel/openpanel/core/stats/$context ] && rm -rf /etc/openpanel/openpanel/core/stats/$context
     [ -d /etc/openpanel/openpanel/core/users/$context ] && rm -rf /etc/openpanel/openpanel/core/users/$context
 
 }
