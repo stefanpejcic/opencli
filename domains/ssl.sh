@@ -145,12 +145,22 @@ cat_certificate_files() {
     	fi    
 }
 
-show_ssl_logs() {
-    local lines="${3:-1000}"
 
-    echo "Showing last $lines SSL-related log lines for $DOMAIN"
+show_ssl_logs() {
+    local lines=1000
+    local follow=0
+
+    # $3 is a number or '-f'
+    if [[ "$3" =~ ^[0-9]+$ ]]; then
+        lines="$3"
+    elif [[ "$3" == "-f" ]]; then
+        follow=1
+    fi
+
+    echo "Showing SSL-related log lines for $DOMAIN"	
     echo "-------------------------------------------------------"
 
+    local log_path
     log_path=$(docker inspect --format='{{.LogPath}}' caddy 2>/dev/null)
 
     if [ -z "$log_path" ] || [ ! -f "$log_path" ]; then
@@ -158,29 +168,30 @@ show_ssl_logs() {
         exit 1
     fi
 
-    if [ "$lines" -gt 0 ]; then
-        tail -n "$lines" "$log_path"
+    if [ "$follow" -eq 1 ]; then
+        tail -n "$lines" -f "$log_path"
     else
-        cat "$log_path"
+        tail -n "$lines" "$log_path"
     fi | jq -r '.log' | jq -R -c --arg domain "$DOMAIN" '
-	    fromjson? |
-	    select(
-	        .
-	        and
-	        (
-	            .request.host? == $domain or
-	            .request.tls.server_name? == $domain or
-	            .server_name? == $domain or
-	            (.identifiers?[]? == $domain)
-	        )
-	        and
-	        (
-	            (.logger? | test("tls|acme")) or
-	            (.msg? | test("certificate|renew|obtain|challenge"; "i"))
-	        )
-	    )
-	'
+        fromjson? |
+        select(
+            .
+            and
+            (
+                .request.host? == $domain or
+                .request.tls.server_name? == $domain or
+                .server_name? == $domain or
+                (.identifiers?[]? == $domain)
+            )
+            and
+            (
+                (.logger? | test("tls|acme")) or
+                (.msg? | test("certificate|renew|obtain|challenge"; "i"))
+            )
+        )
+    '
 }
+
 
 
 
