@@ -180,6 +180,7 @@ show_ssl_logs() {
 
     echo "Showing SSL-related log lines for $DOMAIN"	
     echo "-------------------------------------------------------"
+	# docker --context=default logs --tail 1000 caddy 2>&1  | grep "$DOMAIN" | grep -Ei 'tls|acme|certificate|renew|obtain|challenge'
 
     local log_path
     log_path=$(docker inspect --format='{{.LogPath}}' caddy 2>/dev/null)
