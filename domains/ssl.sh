@@ -130,10 +130,10 @@ check_and_use_tls() {
   	local real_key_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/${key_path}"
   
  	if openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
-	    mkdir -p $hostfs_domain_tls_dir
+	    mkdir -p "$hostfs_domain_tls_dir"
 
-	    cp ${real_cert_path} $hostfs_domain_tls_dir/fullchain.pem
-	    cp ${real_key_path} $hostfs_domain_tls_dir/key.pem
+	    cp "${real_cert_path}" "$hostfs_domain_tls_dir"/fullchain.pem
+	    cp "${real_key_path}" "$hostfs_domain_tls_dir"/key.pem
 	    
 		if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then
 		    echo "Custom SSL already configured for $DOMAIN. Updating certificate and key.."
@@ -155,8 +155,8 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 cat_certificate_files() {
     	if grep -q "fullchain.pem" "$CONFIG_FILE" && grep -q "key.pem" "$CONFIG_FILE"; then
 	 		# custom ssl
-    		cat $hostfs_domain_tls_dir/fullchain.pem
-    		cat $hostfs_domain_tls_dir/key.pem
+    		cat "$hostfs_domain_tls_dir"/fullchain.pem
+    		cat "$hostfs_domain_tls_dir"/key.pem
     	else
 	 		# letsencrypt
     		local cert="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt"
@@ -275,8 +275,4 @@ if [ -n "$2" ]; then
 else
 	show_examples
 	exit 0
-
 fi
-
-
-exit 0
