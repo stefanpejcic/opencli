@@ -468,10 +468,12 @@ suspend_user() {
             query_for_usernames="SELECT username FROM users WHERE owner='$username';"
             usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
             if [ $? -eq 0 ]; then
-                for user in $usernames; do
-                    echo "User: $user"
-                    opencli user-suspend "$user"
-                done
+				if [ -n "$usernames" ]; then
+	                for user in $usernames; do
+	                    echo "User: $user"
+	                    opencli user-suspend "$user"
+	                done
+				fi
             fi         
            
         fi
@@ -495,10 +497,12 @@ unsuspend_user() {
             query_for_usernames="SELECT username FROM users WHERE owner='$username';"
             usernames=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$query_for_usernames" -se)
             if [ $? -eq 0 ]; then
-                for user in $usernames; do
-                    echo "User: $user"
-                    opencli user-unsuspend "$user"
-                done
+				if [ -n "$usernames" ]; then
+	                for user in $usernames; do
+	                    echo "User: $user"
+	                    opencli user-unsuspend "$user"
+	                done
+				fi
             fi         
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
