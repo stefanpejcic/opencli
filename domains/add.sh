@@ -601,6 +601,15 @@ create_domain_file() {
 			update_bind_in_block "$domains_file" "http://$domain_name, http://*.$domain_name {" "$dedicated_ip"
 			update_bind_in_block "$domains_file" "https://$domain_name, https://*.$domain_name {" "$dedicated_ip"
 		fi
+
+		if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
+			value="On"
+			log "WAF module is enabled, setting SecRuleEngine On"
+		else
+			value="Off"
+			log "WAF module is disabled, setting SecRuleEngine Off"
+		fi
+		sed -i "s/SecRuleEngine .*/SecRuleEngine $value/" "$domains_file"
 	
 	   	if [ "$VARNISH" = true ]; then
 	    	log "Enabling Varnish cache for the domain.."
@@ -609,16 +618,9 @@ create_domain_file() {
 	    fi
 	}
 
-	if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
-		conf_template="/etc/openpanel/caddy/templates/domain.conf_with_modsec"
-		log "Creating vhosts proxy file for Caddy with ModSecurity OWASP Coreruleset"
-	else
-		conf_template="/etc/openpanel/caddy/templates/domain.conf"
-		log "Creating Caddy configuration for the domain, without ModSecurity"
-	fi
+	conf_template="/etc/openpanel/caddy/templates/domain.conf"
 	
 	sed_values_in_domain_conf
-
 
 	# Check if the 'caddy' container is running
 	if [ $(docker --context default ps -q -f name=caddy) ]; then
