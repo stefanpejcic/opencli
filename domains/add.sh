@@ -604,7 +604,7 @@ create_domain_file() {
 	
 	   	if [ "$VARNISH" = true ]; then
 	    	log "Enabling Varnish cache for the domain.."
-		    sed -i '/# Handle HTTPS traffic (port 443) with on_demand SSL/,+6 s/^/#/' "$domains_file"
+		    sed -i '/# Handle HTTPS traffic (port 443)/,+6 s/^/#/' "$domains_file"
 		    sed -i '/# Terminate TLS and pass to Varnish/,+3 s/^#//' "$domains_file"
 	    fi
 	}
