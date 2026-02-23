@@ -83,8 +83,13 @@ usage() {
     echo "  opencli admin suspend pejcic"
     echo "  opencli admin unsuspend pejcic"
     echo "  opencli admin notifications check"
-    echo "  opencli admin notifications get ssl"
-    echo "  opencli admin notifications update ssl true"
+    echo "  opencli admin notifications get reboot"
+    echo "  opencli admin notifications update reboot yes"
+    echo "  opencli admin notifications update load 10"
+    echo "  opencli admin notifications update cpu 90"
+    echo "  opencli admin notifications update ram 95"
+    echo "  opencli admin notifications update du 99"
+    echo "  opencli admin notifications update swap 95"
     exit 1
 }
 
