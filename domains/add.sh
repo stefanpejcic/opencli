@@ -431,13 +431,17 @@ get_server_ipv4_or_ipv6() {
 	
 	if [ -e "$json_file" ]; then
 	    dedicated_ip=$(jq -r '.ip' "$json_file")
-	    if docker context ls | grep -q "$dedicated_ip"; then
-	        REMOTE_SERVER="yes"
-	        log "IP address is asigned to a node (slave) server."
-	    else
-			REMOTE_SERVER="no"
-	        log "User has a dedicated IP address $dedicated_ip"			
-	    fi
+		if [ -n "$dedicated_ip" ]; then
+	       if docker context ls | grep -q "$dedicated_ip"; then
+	           REMOTE_SERVER="yes"
+	           log "IP address is asigned to a node (slave) server."
+	       else
+			   REMOTE_SERVER="no"
+	           log "User has a dedicated IP address $dedicated_ip"			
+	       fi
+		else
+			   REMOTE_SERVER="no"
+		fi
 	fi
 }
 
