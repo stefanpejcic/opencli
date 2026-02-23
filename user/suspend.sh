@@ -118,10 +118,7 @@ stop_user_containers() {
     $DEBUG && echo "Stopping containers for user: $USERNAME"
 
     docker $CONTEXT_FLAG ps --format "{{.Names}}" |
-        xargs -r -n1 -P "$jobs" bash -c '
-            '"$DEBUG"' && echo "- Stopping container: $0"
-            docker '"$CONTEXT_FLAG"' stop "$0" > /dev/null 2>&1
-        '
+        xargs -r -n1 -P "$jobs" -I{} docker $CONTEXT_FLAG stop {} > /dev/null 2>&1       
 }
 
 rename_user_in_db() {
