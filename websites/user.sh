@@ -171,7 +171,7 @@ output_json() {
     local domains_info sites_info
     local json_output="" first_domain=true
     
-    domains_info=$(get_domains "$user_id" "$filter_type")
+    domains_info=$(get_domains "$user_id" "$filter_type" "$filter_domains")
     
     if [ -z "$domains_info" ]; then
         echo "{}"
