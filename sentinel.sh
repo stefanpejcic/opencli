@@ -68,11 +68,6 @@ generate_random_token_one_time_only() {
     sed -i "s|^mail_security_token=.*$|$new_value|" "$CONF_FILE"
 }
 
-is_valid_number() {
-  local value="$1"
-  [[ "$value" =~ ^[1-9][0-9]?$|^100$ ]]
-}
-
 validate_yes_no() {
     local val="$1"
     [[ "$val" =~ ^(yes|no)$ ]] && echo "$val" || echo "yes"
@@ -80,9 +75,8 @@ validate_yes_no() {
 
 validate_number() {
     local val="$1" default="$2"
-    is_valid_number "$val" && echo "$val" || echo "$default"
+    [[ "$val" =~ ^[1-9][0-9]?$|^100$ ]] && echo "$val" || echo "$default"
 }
-
 
 get_last_message_content() {
   tail -n 1 "$LOG_FILE" 2>/dev/null
@@ -92,7 +86,6 @@ is_unread_message_present() {
   local unread_message_content="$1"
   grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" && return 0 || return 1
 }
-
 
 ip_in_cidr() {
     local ip=$1
