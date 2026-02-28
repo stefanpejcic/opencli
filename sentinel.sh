@@ -991,13 +991,6 @@ email_daily_report() {
 
 # ======================================================================
 # Got flags?
-: '
-script can be run:
-
-  opencli sentinel --reboot     - sends reboot alert 
-  opencli sentinel              - checks what admin configured
-  opencli sentinel --report     - generates daily usage report
-'
 
 if [ "$1" == "--startup" ]; then
   perform_startup_action
@@ -1069,55 +1062,18 @@ else
     show_execution_time
   }
 
-
+  check_services
+  start_login_section
+  check_new_logins
+  check_ssh_logins
+  check_resources_section
+  check_disk_usage
+  check_system_load
+  check_ram_usage
+  check_cpu_usage
+  check_swap_usage
+  check_dns_section
+  check_if_panel_domain_and_ns_resolve_to_server
+  summary
   
-  
-  # Progress bar script
-  PROGRESS_BAR_URL="https://raw.githubusercontent.com/pollev/bash_progress_bar/master/progress_bar.sh"
-  PROGRESS_BAR_FILE="progress_bar.sh"
-  wget --timeout=5 --tries=3 -4 "$PROGRESS_BAR_URL" -O "$PROGRESS_BAR_FILE" > /dev/null 2>&1
-  if [ ! -f "$PROGRESS_BAR_FILE" ]; then
-      echo "Failed to download progress_bar.sh"
-      exit 1
-  fi
-    source "$PROGRESS_BAR_FILE"
-    
-    FUNCTIONS=(
-      check_services
-      start_login_section
-      check_new_logins
-      check_ssh_logins
-      check_resources_section
-      check_disk_usage
-      check_system_load
-      check_ram_usage
-      check_cpu_usage
-      check_swap_usage
-      check_dns_section
-      check_if_panel_domain_and_ns_resolve_to_server
-      summary
-    )
-
-  
-    TOTAL_STEPS=${#FUNCTIONS[@]}
-    CURRENT_STEP=0
-    
-    update_progress() {
-        CURRENT_STEP=$((CURRENT_STEP + 1))
-        PERCENTAGE=$(($CURRENT_STEP * 100 / $TOTAL_STEPS))
-        draw_progress_bar $PERCENTAGE
-    }
-  
-    main() {
-        enable_trapping
-        setup_scroll_area
-        for func in "${FUNCTIONS[@]}"
-        do
-            $func
-            update_progress
-        done
-        destroy_scroll_area
-    }
-  
-    main
   fi
