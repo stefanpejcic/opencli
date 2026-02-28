@@ -121,6 +121,17 @@ is_valid_number() {
   [[ "$value" =~ ^[1-9][0-9]?$|^100$ ]]
 }
 
+validate_yes_no() {
+    local val="$1"
+    [[ "$val" =~ ^(yes|no)$ ]] && echo "$val" || echo "yes"
+}
+
+validate_number() {
+    local val="$1" default="$2"
+    is_valid_number "$val" && echo "$val" || echo "$default"
+}
+
+
 get_last_message_content() {
   tail -n 1 "$LOG_FILE" 2>/dev/null
 }
@@ -227,68 +238,40 @@ write_notification() {
 
 
 
+
+
 # ======================================================================
-# What to check
+# config
 
 EMAIL=$(awk -F'=' '/^email/ {print $2}' "$CONF_FILE")
 EMAIL_ALERT=$([[ -n "$EMAIL" ]] && echo "yes" || echo "no")
 
+declare -A config
+while IFS='=' read -r key value; do
+    key="${key%%*( )}"
+    value="${value%%*( )}"
+    [[ -z "$key" || "$key" =~ ^# || "$key" =~ ^\[ ]] && continue
+    config["$key"]="$value"
+done < "$INI_FILE"
 
-REBOOT=$(awk -F'=' '/^reboot/ {print $2}' "$INI_FILE")
-REBOOT=${REBOOT:-yes}
-[[ "$REBOOT" =~ ^(yes|no)$ ]] || REBOOT=yes
+# yes-no settings
+REBOOT=$(validate_yes_no "${config[reboot]:-yes}")
+MAIN_DOMAIN_AND_NS=$(validate_yes_no "${config[dns]:-yes}")
+LOGIN=$(validate_yes_no "${config[login]:-yes}")
+SSH_LOGIN=$(validate_yes_no "${config[ssh]:-yes}")
+ATTACK=$(validate_yes_no "${config[attack]:-yes}")
+LIMIT=$(validate_yes_no "${config[limit]:-yes}")
+UPDATE=$(validate_yes_no "${config[update]:-yes}")
 
+# String / list
+SERVICES="${config[services]:-admin,docker,mysql,csf,panel}"
 
-MAIN_DOMAIN_AND_NS=$(awk -F'=' '/^dns/ {print $2}' "$INI_FILE")
-MAIN_DOMAIN_AND_NS=${MAIN_DOMAIN_AND_NS:-yes}
-[[ "$MAIN_DOMAIN_AND_NS" =~ ^(yes|no)$ ]] || MAIN_DOMAIN_AND_NS=yes
-
-
-LOGIN=$(awk -F'=' '/^login/ {print $2}' "$INI_FILE")
-LOGIN=${LOGIN:-yes}
-[[ "$LOGIN" =~ ^(yes|no)$ ]] || LOGIN=yes
-
-SSH_LOGIN=$(awk -F'=' '/^ssh/ {print $2}' "$INI_FILE")
-SSH_LOGIN=${SSH_LOGIN:-yes}
-[[ "$SSH_LOGIN" =~ ^(yes|no)$ ]] || SSH_LOGIN=yes
-
-ATTACK=$(awk -F'=' '/^attack/ {print $2}' "$INI_FILE")
-ATTACK=${ATTACK:-yes}
-[[ "$ATTACK" =~ ^(yes|no)$ ]] || ATTACK=yes
-
-LIMIT=$(awk -F'=' '/^limit/ {print $2}' "$INI_FILE")
-LIMIT=${LIMIT:-yes}
-[[ "$LIMIT" =~ ^(yes|no)$ ]] || LIMIT=yes
-
-UPDATE=$(awk -F'=' '/^update/ {print $2}' "$INI_FILE")
-UPDATE=${UPDATE:-yes}
-[[ "$UPDATE" =~ ^(yes|no)$ ]] || UPDATE=yes
-
-SERVICES=$(awk -F'=' '/^services/ {print $2}' "$INI_FILE")
-SERVICES=${SERVICES:-"admin,docker,mysql,csf,panel"}
-
-LOAD_THRESHOLD=$(awk -F'=' '/^load/ {print $2}' "$INI_FILE")
-LOAD_THRESHOLD=${LOAD_THRESHOLD:-20}
-is_valid_number "$LOAD_THRESHOLD" || LOAD_THRESHOLD=20
-
-CPU_THRESHOLD=$(awk -F'=' '/^cpu/ {print $2}' "$INI_FILE")
-CPU_THRESHOLD=${CPU_THRESHOLD:-90}
-is_valid_number "$CPU_THRESHOLD" || CPU_THRESHOLD=90
-
-RAM_THRESHOLD=$(awk -F'=' '/^ram/ {print $2}' "$INI_FILE")
-RAM_THRESHOLD=${RAM_THRESHOLD:-85}
-is_valid_number "$RAM_THRESHOLD" || RAM_THRESHOLD=85
-
-DISK_THRESHOLD=$(awk -F'=' '/^du/ {print $2}' "$INI_FILE")
-DISK_THRESHOLD=${DISK_THRESHOLD:-85}
-is_valid_number "$DISK_THRESHOLD" || DISK_THRESHOLD=85
-
-SWAP_THRESHOLD=$(awk -F'=' '/^swap/ {print $2}' "$INI_FILE")
-SWAP_THRESHOLD=${SWAP_THRESHOLD:-40}
-is_valid_number "$SWAP_THRESHOLD" || SWAP_THRESHOLD=40
-
-
-
+# numeric
+LOAD_THRESHOLD=$(validate_number "${config[load]:-20}" 20)
+CPU_THRESHOLD=$(validate_number "${config[cpu]:-90}" 90)
+RAM_THRESHOLD=$(validate_number "${config[ram]:-85}" 85)
+DISK_THRESHOLD=$(validate_number "${config[du]:-85}" 85)
+SWAP_THRESHOLD=$(validate_number "${config[swap]:-40}" 40)
 
 
 
