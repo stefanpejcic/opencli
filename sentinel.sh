@@ -564,6 +564,9 @@ case "$1" in
   --report)  email_daily_report;     exit 0 ;;
 esac
 
+exec 200>/root/sentinel_run.lock
+flock -n 200 || { echo "Error: Another instance is already running."; exit 1; }
+
 hr
 echo "  Sentinel - OpenPanel server health monitor"
 hr
