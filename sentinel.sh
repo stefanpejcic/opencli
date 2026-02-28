@@ -1,17 +1,8 @@
 #!/bin/bash
 
 PID=$$
-DEBUG=false
 
-
-# ======================================================================
-# Constants
 VERSION="20.251.104"
-
-
-if [ "$1" = "--debug" ]; then
-    DEBUG=true
-fi
 
 # ======================================================================
 # Counters
@@ -71,47 +62,8 @@ print_header() {
     printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 }
 
-check_for_debug_and_print_info(){
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- DEBUG INFORMATION ------------------"
-      echo "HOSTNAME:       $HOSTNAME"
-      echo "VERSION:        $VERSION"
-      echo "PID:            $PID"
-      echo "TIME:           $DISPLAY_TIME"
-      echo "CONF_FILE:      $CONF_FILE"
-      echo "LOCK_FILE:      $LOCK_FILE"
-      echo "INI_FILE:       $INI_FILE"
-      echo "LOG_FILE:       $LOG_FILE"
-      echo "LOG_DIR:        $LOG_DIR"
-      echo ""
-      echo "----------------- CONFIGURATIONS ------------------"
-      echo ""
-      echo "EMAIL_ALERT:     $EMAIL_ALERT"
-      echo "EMAIL:           $EMAIL"
-      echo "REBOOT:          $REBOOT"
-      echo "LOGIN:           $LOGIN"
-      echo "ATTACK:          $ATTACK"
-      echo "LIMIT:           $LIMIT"
-      echo "UPDATE:          $UPDATE"
-      echo "SERVICES:        $SERVICES"
-      echo "LOAD_THRESHOLD:  $LOAD_THRESHOLD"
-      echo "CPU_THRESHOLD:   $CPU_THRESHOLD"
-      echo "RAM_THRESHOLD:   $RAM_THRESHOLD"
-      echo "DISK_THRESHOLD:  $DISK_THRESHOLD"
-      echo "SWAP_THRESHOLD:  $SWAP_THRESHOLD"
-      echo "------------------------------------------------------"
-      echo ""
-  fi
-}
-
-
-generate_random_token() {
-    tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 64
-}
-
 generate_random_token_one_time_only() {
-    TOKEN_ONE_TIME="$(generate_random_token)"
+    TOKEN_ONE_TIME="$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 64)"
     local new_value="mail_security_token=$TOKEN_ONE_TIME"
     sed -i "s|^mail_security_token=.*$|$new_value|" "$CONF_FILE"
 }
@@ -1000,7 +952,6 @@ elif [ "$1" == "--report" ]; then
   exit 0
 else
   print_header
-  check_for_debug_and_print_info
   echo "Checking health for monitored services:"
   echo ""
   
