@@ -172,27 +172,6 @@ get_public_ip() {
     echo "$ip"
 }
 
-open_csf_port() {
-	local type=$1   # TCP_IN or TCP_OUT
-	local port=$2
-	local csf_conf="/etc/csf/csf.conf"
-
-    if [ ! -f "$csf_conf" ]; then
-        echo "Skipping: CSF does not appear to be installed."
-        return 1
-    fi
-
-	for dir in "$type" "${type/4/6}"; do
-		if grep -q "${dir} = .*${port}" "$csf_conf"; then
-			echo "Port $port already open in $dir"
-		else
-			sed -i "s/${dir} = \"\(.*\)\"/${dir} = \"\1,${port}\"/" "$csf_conf"
-			echo "Port $port opened in $dir - reloading firewall.."
-			csf -r > /dev/null 2>&1
-		fi
-	done
-}
-
 delete_existing_users() {
     local username="$1"
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
@@ -689,8 +668,13 @@ case "$1" in
 			sed -i "/redir @openadmin/s/:[0-9]\+/:$new_port/g" "/etc/openpanel/caddy/redirects.conf"
 			sed -i "/# openadmin/,/# roundcube/ s/:[0-9]\+/:$new_port/g" "/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 			if [[ "$optional_flag" != '--no-restart' ]]; then
-				echo "Opening port on firewall.."
-				open_csf_port TCP_IN "$new_port"
+			    csf_conf="/etc/csf/csf.conf"
+				echo "Opening port on firewall.."			
+			    port_opened=$(grep "TCP_IN = .*${new_port}" "$csf_conf")
+			    if [ -z "$port_opened" ]; then
+			        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
+			        nohup csf -r > /dev/null 2>&1 < /dev/null &
+			    fi
 	            echo "Restarting OpenAdmin.."
 				systemctl restart admin
 			else
