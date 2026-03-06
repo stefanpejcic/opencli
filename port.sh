@@ -73,13 +73,11 @@ do_reload() {
     # open port on csf
     local csf_conf="/etc/csf/csf.conf"
     [ -f "$csf_conf" ] || return 0
-
-    type = "TCP_IN"
-    if ! grep -q "${type} = .*${new_port}" "$csf_conf"; then
-        sed -i "s/${type} = \"\(.*\)\"/${type} = \"\1,${new_port}\"/" "$csf_conf"
+    port_opened=$(grep "TCP_IN = .*${new_port}" "$csf_conf")
+    if [ -z "$port_opened" ]; then
+        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
         nohup csf -r > /dev/null 2>&1 < /dev/null &
     fi
-
    fi
 }
 
