@@ -46,7 +46,7 @@ webhook_notification() {
 
   local clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
   
-  local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"Sentinel-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
+  local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"OpenAdmin-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
 
   curl -X POST -H "Content-Type: application/json" \
        -d "$payload" \
