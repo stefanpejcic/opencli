@@ -31,6 +31,7 @@
 ENV_FILE="/root/.env"
 COMPOSE_DIR="/root"
 REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
+PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 
 
@@ -87,12 +88,18 @@ update_redirects() {
   sed -i "/redir @openpanel/s/:[0-9]\+/:$new_port/g" $REDIRECTS_FILE
 }
 
+update_proxy_file() {
+  sed -i "/# openpanel/,/# openadmin/ s/:[0-9]\+/:$new_port/g" "$PROXY_FILE" 
+}
+
+
 
 update_port() {
   current_port=$(get_current_port)
       if [ "$current_port" != "$new_port" ]; then
         update_env
         update_redirects
+        update_proxy_file
         do_reload
         success_msg
       else
