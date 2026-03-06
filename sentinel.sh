@@ -24,6 +24,8 @@ validate_number() { [[ "$1" =~ ^([1-9][0-9]?|100)$ ]] && echo "$1" || echo "$2";
 EMAIL=$(conf_get email)
 EMAIL_ALERT=$([[ -n "$EMAIL" ]] && echo "yes" || echo "no")
 
+WEBHOOK_URL=$(ini_get webhook_url)
+
 REBOOT=$(validate_yes_no "$(ini_get reboot)")
 MAIN_DOMAIN_AND_NS=$(validate_yes_no "$(ini_get dns)")
 LOGIN=$(validate_yes_no "$(ini_get login)")
@@ -37,6 +39,19 @@ DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
 
 is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
+
+webhook_notification() {
+  local title=$1 message=$2
+  [[ -z "$WEBHOOK_URL" ]] && return
+
+  local clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
+  
+  local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"Sentinel-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
+
+  curl -X POST -H "Content-Type: application/json" \
+       -d "$payload" \
+       "$WEBHOOK_URL" >/dev/null 2>&1
+}
 
 email_notification() {
   local title=$1 message=$2
@@ -74,7 +89,12 @@ write_notification() {
   local title=$1 message=$2
   is_unread_message_present "$title" && return
   echo "$DISPLAY_TIME UNREAD $title MESSAGE: $message" >> "$LOG_FILE"
+
+  # Trigger Email
   [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$title" "$message"
+
+  # Trigger Webhook
+  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
 }
 
 ensure_installed() {
@@ -103,7 +123,10 @@ perform_startup_action() {
   if [[ "$REBOOT" == "no" ]]; then
     ((WARN++)); echo "[!] Reboot check disabled."; return
   fi
-  write_notification "SYSTEM REBOOT!" "System was rebooted. $(uptime)"
+  local title="SYSTEM REBOOT!"
+  local message="System was rebooted. $(uptime)"
+  write_notification "$title" "$message"
+  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
 }
 
 email_daily_report() {
