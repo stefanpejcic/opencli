@@ -93,6 +93,7 @@ usage() {
     echo "  opencli admin notifications update ram 95"
     echo "  opencli admin notifications update du 99"
     echo "  opencli admin notifications update swap 95"
+    echo "  opencli admin notifications update webhook_url https://discord.com/api/webhooks/XXXX/YYYYYYY"
     exit 1
 }
 
@@ -112,6 +113,7 @@ usage_for_notifications() {
     echo "  opencli admin notifications update update yes - receive notification when new OpenPanel update is available."
     echo "  opencli admin notifications update cpu 90     - receive notification when server CPU usage is over 90%."
     echo "  opencli admin notifications update du 95      - receive notification when server disk usage is over 95%."
+	echo "  opencli admin notifications update webhook_url https://discord.com/api/webhooks/XXXX/YYYYYYY"
     echo ""
     echo "List of all available options: https://dev.openpanel.com/cli/admin.html#Options"
     exit 1  
@@ -235,7 +237,7 @@ update_config() {
     new_value="$2"
 
     if grep -q "^$param_name=" "$notifications_file"; then
-        sed -i "s/^$param_name=.*/$param_name=$new_value/" "$notifications_file"
+		sed -i "s|^$param_name=.*|$param_name=$new_value|" "$notifications_file"
         echo "Updated $param_name to $new_value"
         
     else
