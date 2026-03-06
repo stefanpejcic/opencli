@@ -675,6 +675,7 @@ case "$1" in
 	"port")
         # https://dev.openpanel.com/cli/admin.html#Suspend-Admin-User
         new_port="$2"
+		optional_flag="$3"
         if [ -n "$new_port" ]; then
 		    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -le 1000 ]; then
 		        echo "Error: OpenAdmin port number must be greater than 1000."
@@ -682,10 +683,14 @@ case "$1" in
 		    fi
             echo "Changing port to: $new_port"
 			sed -i "/# START HOSTNAME DOMAIN #/,/# END HOSTNAME DOMAIN #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/" "/etc/openpanel/caddy/Caddyfile"
-			echo "Opening port on firewall.."
-			open_csf_port TCP_IN "$new_port"
-            echo "Restarting OpenAdmin.."
-			systemctl restart admin
+			if [[ "$optional_flag" != '--no-restart' ]]; then
+				echo "Opening port on firewall.."
+				open_csf_port TCP_IN "$new_port"
+	            echo "Restarting OpenAdmin.."
+				systemctl restart admin
+			else
+				echo "Make sure to open the new port on Firewall and restart OpenAdmin service to apply new port."
+			fi
 			echo "Done"
         else
 		    admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
