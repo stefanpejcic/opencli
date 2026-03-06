@@ -50,6 +50,7 @@ webhook_notification() {
 
   curl -X POST -H "Content-Type: application/json" \
        -d "$payload" \
+       --max-time 1 \
        "$WEBHOOK_URL" >/dev/null 2>&1
 }
 
@@ -125,8 +126,8 @@ perform_startup_action() {
   fi
   local title="SYSTEM REBOOT!"
   local message="System was rebooted. $(uptime)"
-  write_notification "$title" "$message"
   [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
+  write_notification "$title" "$message"
 }
 
 email_daily_report() {
