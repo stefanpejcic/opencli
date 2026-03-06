@@ -57,8 +57,9 @@ email_notification() {
     auth_opt="--user ${u}:${p}"
   fi
 
-  local resp
-  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:2087/send_email" \
+  local admin_port resp
+  admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
+  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" \
     $auth_opt \
     -F "transient=$token" -F "recipient=$EMAIL" \
     -F "subject=$title"   -F "body=$message" 2>/dev/null)
