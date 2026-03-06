@@ -683,6 +683,9 @@ case "$1" in
 		    fi
             echo "Changing port to: $new_port"
 			sed -i "/# START HOSTNAME DOMAIN #/,/# END HOSTNAME DOMAIN #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/" "/etc/openpanel/caddy/Caddyfile"
+			sed -i "/redir @openadmin/s/:[0-9]\+/:$new_port/g" "/etc/openpanel/caddy/redirects.conf"
+			sed -i "/redir @openadmin/s/:[0-9]\+/:$new_port/g" "/etc/openpanel/caddy/redirects.conf"
+			sed -i "/# openadmin/,/# roundcube/ s/:[0-9]\+/:$new_port/g" "/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 			if [[ "$optional_flag" != '--no-restart' ]]; then
 				echo "Opening port on firewall.."
 				open_csf_port TCP_IN "$new_port"
