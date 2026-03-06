@@ -694,20 +694,6 @@ case "$1" in
                 fi
                 new_value="$4"
                 update_config "$param_name" "$new_value"
-                
-                case "$param_name" in
-                    ssl)
-                        update_ssl_config "$new_value"
-                        ;;
-                    port)
-                        update_port_config "$new_value"
-                        ;;
-                    openpanel_proxy)
-                        update_openpanel_proxy_config "$new_value"
-                        service nginx reload
-                        ;;
-                esac
-                ;;
             *)
                 echo "ERROR: Invalid command."
                 usage
