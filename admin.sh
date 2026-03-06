@@ -694,7 +694,7 @@ case "$1" in
 			echo "Done"
         else
 		    admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
-		    echo "Current OpenAdmin port is: $admin_port"
+		    echo $admin_port
         fi
         ;;  	
     "new")
