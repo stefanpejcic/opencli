@@ -96,21 +96,16 @@ update_proxy_file() {
 
 update_port() {
   current_port=$(get_current_port)
-      if [ "$current_port" != "$new_port" ]; then
-        update_env
-        update_redirects
-        update_proxy_file
-        do_reload
-        success_msg
-      else
-        echo "Port ${new_port} s already set for accessing the user panel."
-        exit 0
-      fi
-      
-
-    
-      
-
+  if [ "$current_port" != "$new_port" ]; then
+    update_env
+    update_redirects
+    update_proxy_file
+    do_reload
+    success_msg
+  else
+    echo "Port ${new_port} s already set for accessing the user panel."
+    exit 0
+  fi
 }
 
 
