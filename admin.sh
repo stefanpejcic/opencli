@@ -55,6 +55,7 @@ usage() {
     echo "Commands:"
     echo "  on                                            Enable and start the OpenAdmin service."
     echo "  off                                           Stop and disable the OpenAdmin service."
+    echo "  port [new_port]                               Display or update OpenAdmin port."
     echo "  log                                           Display the last 25 lines of the OpenAdmin error log."
     echo "  logs                                          Display live logs for all OpenAdminn services."
     echo "  list                                          List all current admin users."
@@ -74,6 +75,8 @@ usage() {
     echo "Examples:"
     echo "  opencli admin on"
     echo "  opencli admin off"
+    echo "  opencli admin port"
+    echo "  opencli admin 8443"
     echo "  opencli admin log"
     echo "  opencli admin logs"
     echo "  opencli admin list"
@@ -131,10 +134,12 @@ get_admin_url() {
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
     domain=$(echo "$domain" | sed 's|^http[s]*://||')
-        
+	
+	admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "$caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
+		
     if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
         ip=$(get_public_ip)
-        admin_url="http://${ip}:2087/"
+        admin_url="http://${ip}:${admin_port}/"
     else
 		# ---------------------- letsencrypt
 		local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
@@ -146,10 +151,10 @@ get_admin_url() {
 	 
 		if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || \
 		   { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
-		    admin_url="https://${domain}:2087/"
+		    admin_url="https://${domain}:${admin_port}/"
         else
             ip=$(get_public_ip)
-            admin_url="http://${ip}:2087/"
+            admin_url="http://${ip}:${admin_port}/"
         fi
     fi
 
@@ -165,7 +170,26 @@ get_public_ip() {
     echo "$ip"
 }
 
+open_csf_port() {
+	local type=$1   # TCP_IN or TCP_OUT
+	local port=$2
+	local csf_conf="/etc/csf/csf.conf"
 
+    if [ ! -f "$csf_conf" ]; then
+        echo "Skipping: CSF does not appear to be installed."
+        return 1
+    fi
+
+	for dir in "$type" "${type/4/6}"; do
+		if grep -q "${dir} = .*${port}" "$csf_conf"; then
+			echo "Port $port already open in $dir"
+		else
+			sed -i "s/${dir} = \"\(.*\)\"/${dir} = \"\1,${port}\"/" "$csf_conf"
+			echo "Port $port opened in $dir - reloading firewall.."
+			csf -r > /dev/null 2>&1
+		fi
+	done
+}
 
 delete_existing_users() {
     local username="$1"
@@ -590,7 +614,7 @@ case "$1" in
         systemctl enable --now $service_name > /dev/null 2>&1
         echo "tail -f 25 $admin_logs_file"
         echo ""
-        service admin restart
+        systemctl restart admin
         tail -25 $admin_logs_file
         echo ""
         ;;
@@ -647,7 +671,27 @@ case "$1" in
         # https://dev.openpanel.com/cli/admin.html#Unsuspend-Admin-User
         username="$2"
         unsuspend_user "$username"
-        ;;       
+        ;;   
+	"port")
+        # https://dev.openpanel.com/cli/admin.html#Suspend-Admin-User
+        new_port="$2"
+        if [ -n "$new_port" ]; then
+		    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -le 1000 ]; then
+		        echo "Error: OpenAdmin port number must be greater than 1000."
+		        exit 1
+		    fi
+            echo "Changing port to: $new_port"
+			sed -i "/# START HOSTNAME DOMAIN #/,/# END HOSTNAME DOMAIN #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/" "/etc/openpanel/caddy/Caddyfile"
+			echo "Opening port on firewall.."
+			open_csf_port TCP_IN "$new_port"
+            echo "Restarting OpenAdmin.."
+			systemctl restart admin
+			echo "Done"
+        else
+		    admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
+		    echo "Current OpenAdmin port is: $admin_port"
+        fi
+        ;;  	
     "new")
         # https://dev.openpanel.com/cli/admin.html#Create-new-Admin
         new_username="$2"
@@ -694,6 +738,7 @@ case "$1" in
                 fi
                 new_value="$4"
                 update_config "$param_name" "$new_value"
+                ;;
             *)
                 echo "ERROR: Invalid command."
                 usage
