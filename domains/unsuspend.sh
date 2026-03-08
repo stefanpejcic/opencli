@@ -49,6 +49,7 @@ validate_conf() {
 	check_and_add_to_enabled
  
 	if [ $? -eq 0 ]; then
+		setsid -f opencli sentinel --action=domains_status --title="Domain name $domain_name unsuspended" --message="Domain name $domain_name has been unsuspended." >/dev/null 2>&1
 		echo "Domain unsuspended successfully."
 	else
 		echo "ERROR: Failed to validate conf after unsuspend, changes reverted."
