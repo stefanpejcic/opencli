@@ -216,11 +216,13 @@ if [ "$ACTION" == "delete" ]; then
         rm -rf "$json_file"
     fi
     echo "IP successfully changed for user $USERNAME to shared IP address: $ip_to_use"
+    setsid -f opencli sentinel --action=user_ip --title="User account IP changed" --message="IP address for user account '$USERNAME' has been set to: '$ip_to_use'." >/dev/null 2>&1
     drop_redis_cache 
 else
     create_ip_file "$IP"
     if [ $? -eq 0 ]; then
         echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
+        setsid -f opencli sentinel --action=user_ip --title="User account IP changed" --message="IP address for user account '$USERNAME' has been set to: '$ip_to_use'." >/dev/null 2>&1
         drop_redis_cache
     else
         echo "Failed to set dedicated IP address for user $USERNAME."
