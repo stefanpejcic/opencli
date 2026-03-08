@@ -90,7 +90,7 @@ save_to_database() {
         if [ $? -ne 0 ]; then
             echo "WARNING: Failed to terminate existing sessions for the user."
         fi
-
+        setsid -f opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed." >/dev/null 2>&1
         echo "Successfully changed password for user $username$([ "$random_flag" = true ] && echo ", new random generated password is: $new_password")"
     else
         echo "Error: Data insertion failed."
