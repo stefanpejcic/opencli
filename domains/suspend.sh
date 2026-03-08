@@ -49,6 +49,7 @@ validate_conf() {
 	check_and_add_to_enabled
  
 	if [ $? -eq 0 ]; then
+	    setsid -f opencli sentinel --action=domains_status --title="Domain name $domain_name suspended" --message="Domain name $domain_name has been suspended." >/dev/null 2>&1
 		echo "Domain suspended successfully."
 	else
         mv ${suspended_dir}${domain_name}.conf  $domain_vhost > /dev/null 2>&1
