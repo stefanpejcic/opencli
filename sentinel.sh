@@ -600,27 +600,11 @@ run_action() {
 
 for arg in "$@"; do
   case "$arg" in
-    --startup)
-      perform_startup_action
-      exit 0
-      ;;
-
-    --report)
-      email_daily_report
-      exit 0
-      ;;
-
-    --action=*)
-      action="${arg#*=}"
-      ;;
-
-    --message=*)
-      message="${arg#*=}"
-      ;;
-
-    --title=*)
-      title="${arg#*=}"
-      ;;
+    --startup) perform_startup_action; exit 0 ;;
+    --report) email_daily_report; exit 0 ;;
+    --action=*) action="${arg#*=}" ;;
+    --message=*) message="${arg#*=}" ;;
+    --title=*) title="${arg#*=}";;
   esac
 done
 
