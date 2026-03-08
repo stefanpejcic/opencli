@@ -584,9 +584,19 @@ summary() {
   hr
 }
 
+
+run_action() {
+ action="$1"
+ ACTION=$(validate_yes_no "$(ini_get $action)")
+ 
+}
+
 case "$1" in
   --startup) perform_startup_action; exit 0 ;;
   --report)  email_daily_report;     exit 0 ;;
+  --action=*)
+    action="${1#*=}"
+    run_action "$action"
 esac
 
 exec 200>/root/sentinel_run.lock
