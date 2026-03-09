@@ -111,7 +111,8 @@ rename_user_in_db() {
         echo "ERROR: Failed to unsuspend user '$USERNAME'."
         exit 1
     fi
-    setsid -f opencli sentinel --action=user_status --title="User account unsuspended" --message="User account '$USERNAME' has been unsuspended." >/dev/null 2>&1
+    nohup opencli sentinel --action=user_status --title="User account unsuspended" --message="User account '$USERNAME' has been unsuspended." >/dev/null 2>&1 &
+    disown
 }
 
 
