@@ -296,14 +296,13 @@ get_slave_if_set() {
 	        fi
 	    else
 	        echo "ERROR: $server is not a valid IPv4 address (invalid format)."
-	 	exit 1
+	 		exit 1
 	    fi
-     	else
-      		# local values
-                context_flag="" 
+     else
+      	# local values
+        context_flag="" 
 		hostname=$(hostname)
 	fi
-    
 }
 
 
