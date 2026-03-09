@@ -606,7 +606,7 @@ create_domain_file() {
 			update_bind_in_block "$domains_file" "https://$domain_name, https://*.$domain_name {" "$dedicated_ip"
 		fi
 
-		if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
+		if grep -qi "waf" "$PANEL_CONFIG_FILE" 2>/dev/null; then
 			value="On"
 			log "WAF module is enabled, setting SecRuleEngine On"
 		else
