@@ -743,7 +743,10 @@ echo "Host $username
     UserKnownHostsFile /dev/null
     ControlPath ~/.ssh/cm_socket/%r@%h:%p
     ControlMaster auto
-    ControlPersist 30s
+    ControlPersist 5m
+    TCPKeepAlive yes
+    ServerAliveInterval 15
+    ServerAliveCountMax 3
 " >> ~/.ssh/config
 
 
