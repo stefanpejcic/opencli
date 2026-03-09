@@ -154,23 +154,23 @@ check_if_default_slave_server_is_set         # we run it before parse_flags so i
 	    case $arg in
 	        --debug)
 	            DEBUG=true
-	            ;;
+	        ;;
 	        --send-email)
 	            SEND_EMAIL=true
-	            ;;
+	        ;;
 	        --skip-images)
 	            SKIP_IMAGE_PULL=true
-	            ;;	     
+	        ;;	     
 	        --reseller=*)
 	            reseller="${arg#*=}"
 		    ;;
 	        --server=*)
 	            server="${arg#*=}"
 		    ;;
-		--key=*)
-	             key="${arg#*=}"
-		     key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
-	            ;;
+			--key=*)
+		        key="${arg#*=}"
+			    key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
+		    ;;
 	        --sql=*)
 	            sql_type="${arg#*=}"
 		    ;;	    
@@ -279,18 +279,25 @@ get_slave_if_set() {
 	              ${octets[2]} -ge 0 && ${octets[2]} -le 255 &&
 	              ${octets[3]} -ge 0 && ${octets[3]} -le 255 ]]; then
 	           	
-				context_flag="--context $server"     
+				context_flag="--context $server"
+				if [ -n "$key" ]; then
+					key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
+				else
+					echo "ERROR: Failed to read path to private key to use when connecting to the node $server - Exiting."
+					exit 1
+				fi
+				
 				hostname=$(ssh "$key_flag" "root@$server" "hostname")
 				if [ -z "$hostname" ]; then
-				  echo "ERROR: Unable to reach the node $server - Exiting."
-	     			  echo "       Make sure you can connect to the node from terminal with: 'ssh $key_flag root@$server -vvv'"
-				  exit 1
+					echo "ERROR: Unable to reach the node $server - Exiting."
+	     			echo "       Make sure you can connect to the node from terminal with: 'ssh $key_flag root@$server -vvv'"
+					exit 1
 				fi
-   
+
    				node_ip_address=$server
       			context=$username # so we show it on debug!
   
-	     		log "Container will be created on node: $node_ip_address ($hostname)"
+	     		log "Containers will be created on node: $node_ip_address ($hostname)"
 	        else
 	            echo "ERROR: $server is not a valid IPv4 address (octets out of range)."
 	        fi
