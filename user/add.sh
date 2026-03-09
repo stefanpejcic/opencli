@@ -1319,6 +1319,7 @@ pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
     log "DEFAULT_PHP_VERSION: $default_php_version"
     log "POSTGRES_PASSWORD: $postgres_password"
     log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
+	log "VARNISH PROXY PORT: $port_7"
 '
 
 if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$port_7" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
@@ -1345,7 +1346,7 @@ sed -i -e "s|USERNAME=\"[^\"]*\"|USERNAME=\"$username\"|g" \
     -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:$port_2\"|g" \
     -e "s|DEFAULT_PHP_VERSION=\"[^\"]*\"|DEFAULT_PHP_VERSION=\"$default_php_version\"|g" \
     -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"$mysql_root_password\"|g" \
-    -e "s|^PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_7\"|g" \
+    -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"$port_7\"|g" \
     "/home/$username/.env"
 
 if [[ $email =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
@@ -1358,7 +1359,7 @@ if [[ -n "$webserver" ]]; then
         webserver="${BASH_REMATCH[1]}"  # Extract the part after varnish+
         log "Setting varnish caching and $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" \
-		       -e "s|^#PROXY_HTTP_PORT|PROXY_HTTP_PORT|g" "/home/$username/.env"
+               -e "s|^#\(PROXY_HTTP_PORT=.*\)|\1|" "/home/$username/.env"
     elif [[ "$webserver" =~ ^(nginx|apache|openresty|openlitespeed|litespeed)$ ]]; then
         log "Setting $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
