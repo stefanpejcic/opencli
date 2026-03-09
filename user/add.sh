@@ -741,7 +741,7 @@ echo "Host $username
     IdentityFile ~/.ssh/$node_ip_address
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
-    ControlPath ~/.ssh/cm_socket/%r@%h:%p
+    ControlPath /tmp/ssh_cm/%r@%h:%p
     ControlMaster auto
     ControlPersist 5m
     TCPKeepAlive yes
