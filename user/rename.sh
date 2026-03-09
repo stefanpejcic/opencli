@@ -218,7 +218,8 @@ rename_user_in_db() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
     if [ $? -eq 0 ]; then
-	    setsid -f opencli sentinel --action=user_rename --title="User accountu username changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1
+	    nohup opencli sentinel --action=user_rename --title="User accountu username changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1 &
+		disown
         echo "User '$OLD_USERNAME' successfully renamed to '$NEW_USERNAME'."
     else
         echo "Error: Changing username in database failed!"
