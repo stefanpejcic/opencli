@@ -138,7 +138,8 @@ set_coraza_waf_for_domain() {
         echo "Failed setting SecRuleEngine $value - please contact Administrator."
         exit 1
     fi
-    setsid -f opencli sentinel --action=waf_domain --title="WAF $action for domain" --message="CorazaWAF has been ${action}d for domain '$domain'." >/dev/null 2>&1
+    nohup opencli sentinel --action=waf_domain --title="WAF $action for domain" --message="CorazaWAF has been ${action}d for domain '$domain'." >/dev/null 2>&1 &
+    disown
 }
 
 get_stats_from_file() {
@@ -239,7 +240,8 @@ enable_coraza_waf() {
     }
     docker --context=default compose down caddy && docker --context=default compose up -d caddy
 
-    setsid -f opencli sentinel --action=waf_status --title="WAF configured" --message="CorazaWAF has been configured on the server and WAF will be auto-enabled for new domains." >/dev/null 2>&1
+    nohup opencli sentinel --action=waf_status --title="WAF configured" --message="CorazaWAF has been configured on the server and WAF will be auto-enabled for new domains." >/dev/null 2>&1 &
+    disown
 
     # 6. check status
     check_coraza_status
@@ -284,7 +286,8 @@ disable_coraza_waf() {
     # 4. reload caddy to apply
     reload_caddy_now
 
-    setsid -f opencli sentinel --action=waf_status --title="WAF unconfigured" --message="CorazaWAF has been unconfigured on the server and WAF will be auto-disabled for new domains." >/dev/null 2>&1
+    nohup opencli sentinel --action=waf_status --title="WAF unconfigured" --message="CorazaWAF has been unconfigured on the server and WAF will be auto-disabled for new domains." >/dev/null 2>&1 &
+    disown
 
     # 5. check status
     check_coraza_status
