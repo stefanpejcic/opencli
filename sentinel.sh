@@ -598,7 +598,7 @@ run_action() {
     echo "[!] Notifications are disabled for action: $action"; return
   fi
   [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
-  write_notification "$title" "$message"
+  [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$title" "$message"
 }
 
 
