@@ -903,7 +903,8 @@ add_domain() {
 
  		######add_domain_to_clamav_list                    # added in 0.3.4    
 
-        setsid -f opencli sentinel --action=domains_create --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1
+        nohup opencli sentinel --action=domains_create --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1 &
+		disown
 
         echo "Domain $domain_name added successfully"
     else
