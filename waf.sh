@@ -37,8 +37,8 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  status                                       Check if CorazaWAF is enabled for new domains and users."
-    echo "  enable                                       Use Caddy image with CorazaWAF, enable module and use WAF on new domains."
-    echo "  disable                                      Use official Caddy docker image, disable module and dont use WAF on new domains."    
+    echo "  enable                                       Enable module and use WAF on new domains."
+    echo "  disable                                      Disable module and dont use WAF on new domains."    
     echo "  domain                                       Check if CorazaWAF is enabled for a domain."
     echo "  domain DOMAIN_NAME enable                    Enable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME disable                   Disable CorazaWAF for a domain."
@@ -50,7 +50,7 @@ usage() {
     echo "Examples:"
     echo "  opencli waf status"
     echo "  opencli waf enable"
-    echo "  opencli waf disable"
+    echo "  opencli waf disable -y"
     echo "  opencli waf domain pcx3.com"
     echo "  opencli waf domain pcx3.com enable"
     echo "  opencli waf domain pcx3.com disable"
@@ -258,16 +258,20 @@ disable_coraza_waf() {
             echo " - $filename"
         done
 
-        read -r -p "Do you really want to disable WAF protection on these domains and stop using Coraza WAF on the server? [y/N]: " confirm
-        case "$confirm" in
-            [yY][eE][sS]|[yY])
-                echo "Disabling Coraza WAF..."
-                ;;
-            *)
-                echo "Aborting."
-                return 1
-                ;;
-        esac
+        if [[ "$1" == "-y" ]]; then
+            echo "Disabling Coraza WAF..."
+        else
+            read -r -p "Do you really want to disable WAF protection on these domains and stop using Coraza WAF on the server? [y/N]: " confirm
+            case "$confirm" in
+                [yY][eE][sS]|[yY])
+                    echo "Disabling Coraza WAF..."
+                    ;;
+                *)
+                    echo "Aborting."
+                    return 1
+                    ;;
+            esac
+        fi
     fi
 
     # 2. disable module
@@ -317,7 +321,7 @@ case "$1" in
         exit 0
         ;;
     "disable")
-        disable_coraza_waf
+        disable_coraza_waf "$2"
         exit 0
         ;;
     "update")
