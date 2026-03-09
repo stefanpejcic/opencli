@@ -76,7 +76,8 @@ awk -F'|' -v user="$username" -v newpass="$HASHED_PASS" '
 ' /etc/openpanel/ftp/users/$openpanel_username/users.list > /tmp/$openpanel_username.ftp_users.list.tmp && \
 mv /tmp/$openpanel_username.ftp_users.list.tmp /etc/openpanel/ftp/users/$openpanel_username/users.list
 
-        setsid -f opencli sentinel --action=ftp_password --title="FTP account password changed" --message="FTP account '$username' has password changed." >/dev/null 2>&1
+        nohup opencli sentinel --action=ftp_password --title="FTP account password changed" --message="FTP account '$username' has password changed." >/dev/null 2>&1 &
+        disown
     
         echo "Success: FTP user '$username' password updated successfully."
     else
