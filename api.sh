@@ -71,7 +71,8 @@ case "$1" in
     ;;
   on|off)
     opencli config update api "$1"
-    setsid -f opencli sentinel --action=admin_api --title="OpenAdmin API is $1" --message="API access for the administrator-level panel is now: '$1'." >/dev/null 2>&1
+    nohup opencli sentinel --action=admin_api --title="OpenAdmin API is $1" --message="API access for the administrator-level panel is now: '$1'." >/dev/null 2>&1 &
+    disown
     if systemctl is-active --quiet admin; then
         systemctl restart admin 2>&1
     fi
