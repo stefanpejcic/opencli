@@ -436,7 +436,8 @@ delete_domain() {
         get_webserver_for_user                       #
         vhost_files_delete                           # delete file in container
 
-		setsid -f opencli sentinel --action=domains_delete --title="Domain deleted" --message="Domain name: '$domain_name' has been removed from OpenPanel user: '$user'." >/dev/null 2>&1
+		nohup opencli sentinel --action=domains_delete --title="Domain deleted" --message="Domain name: '$domain_name' has been removed from OpenPanel user: '$user'." >/dev/null 2>&1 &
+		disown
 
 		remove_dns_entries_from_apex_zone	         # subdomain-specific DNS cleanup
 		if $onion_domain; then
