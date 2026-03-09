@@ -90,12 +90,14 @@ validate_number() {
 }
 
 load_env_file() {
+
     [ -f "$env_file" ] && export $(grep -v '^#' "$env_file" | xargs)
 }
 
 check_context_and_env() {
     [ -z "$context" ] && echo "Missing context argument." && exit 1
     [ ! -f "$env_file" ] && echo "Missing env file: $env_file" && exit 1
+    sed -i 's/\r//' "$env_file" >/dev/null 2>&1 # workaround for Windows-style line endings in the .env file
 }
 
 normalize_service_name() {
