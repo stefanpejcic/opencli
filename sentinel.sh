@@ -588,7 +588,7 @@ summary() {
 run_action() {
   action="$1"
   local title="$2"
-  loval message="$3"
+  local message="$3"
   ACTION=$(validate_yes_no "$(ini_get $action)")
   if [[ "$ACTION" == "no" ]]; then
     echo "[!] Notifications are disabled for action: $action"; return
