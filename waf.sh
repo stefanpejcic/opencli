@@ -276,7 +276,7 @@ disable_coraza_waf() {
 
     # 2. disable module
     echo "Disabling WAF module..."
-    sed -i 's/waf,//g' /etc/openpanel/openpanel/conf/openpanel.config
+    sed -i 's/\b,waf\b//g; s/\bwaf,//g; s/\bwaf\b//g' /etc/openpanel/openpanel/conf/openpanel.config
 
     # 3. disable WAF for ALL user domains
     sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' /etc/openpanel/caddy/domains/*.conf
