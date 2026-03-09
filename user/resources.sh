@@ -142,11 +142,14 @@ update_resource() {
 # --- Service Start/Stop ---
 check_service_exists() {
     local svc="$1"
-    if docker --context "$context" compose -f "/home/$context/docker-compose.yml" config --services | grep -qw "$svc"; then
+    local services
+    services=$(docker --context "$context" compose -f "/home/$context/docker-compose.yml" config --services 2>/dev/null | tr -d '\r')
+    
+    if echo "$services" | grep -qx "$svc"; then
         return 0
     else
         return 1
-    fi   
+    fi
 }
 
 check_service_running() {
