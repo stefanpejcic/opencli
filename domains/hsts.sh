@@ -94,7 +94,6 @@ set_hsts_for_domain() {
     fi
 
     nohup docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1 &
-    disown
 }
 
 
