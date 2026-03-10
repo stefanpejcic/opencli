@@ -112,7 +112,8 @@ file="/etc/openpanel/caddy/domains/${domain}.conf"
 case "$action" in
     enable|disable)
         set_hsts_for_domain "$domain" "$action"
-        nohup opencli sentinel --action=domains_hsts --title="HSTS ${action}d for domain $domain" --message="HSTS status has been changed to:'${action}d' for domain: '$domain'." >/dev/null 2>&1 ^
+        nohup opencli sentinel --action=domains_hsts --title="HSTS ${action}d for domain $domain" --message="HSTS status has been changed to:'${action}d' for domain: '$domain'." >/dev/null 2>&1 &
+        disown
         ;;
     *)
         echo "Invalid action: $action"
