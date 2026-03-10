@@ -93,7 +93,8 @@ set_hsts_for_domain() {
         exit 1
     fi
 
-    timeout 3s docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
+    nohup docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1 &
+    disown
 }
 
 
