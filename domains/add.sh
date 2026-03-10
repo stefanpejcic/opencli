@@ -631,6 +631,7 @@ dns_stuff() {
     local enabled_modules_line
     enabled_modules_line=$(grep '^enabled_modules=' "$PANEL_CONFIG_FILE")
     if [[ "$enabled_modules_line" == *"dns"* ]]; then
+    # TODO: check for dynamicdns
         create_zone_file
         get_slave_dns_option
         update_named_conf
