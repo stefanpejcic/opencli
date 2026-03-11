@@ -117,9 +117,8 @@ fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
-/var/log/openpanel/*.log
-/var/log/openpanel/*/*.log
-/var/log/openpanel/*/*/*.log {
+/var/log/openpanel/admin/*.log
+/var/log/openpanel/user/*.log
     su root adm
     size $logrotate_size_limit
     rotate $logrotate_retention
@@ -133,8 +132,7 @@ cat > /etc/logrotate.d/openpanel <<EOF
     maxage $logrotate_keep_days
 }
 
-/var/log/openpanel/admin/login.log
-/var/log/openpanel/updates/*.log {
+/var/log/openpanel/admin/login.log {
     missingok
     notifempty
     rotate 0
