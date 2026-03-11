@@ -95,43 +95,36 @@ reload_user_quotas() {
 	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
 }
 
-delete_vhosts_files() {
-    local all_user_domains=$(opencli domains-user $username)
-    deleted_count=0 
-    # TODO: delete on remote nginx server!
-    for domain in $all_user_domains; do
-        rm /etc/openpanel/caddy/domains/${domain}.conf >/dev/null 2>&1
-        deleted_count=$((deleted_count + 1))
-    done
-    docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
-}
-
 delete_user_from_database() {
     openpanel_username="$1"
 	
-    # 1. Get all domain IDs
-    domain_ids=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e \
-        "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N | paste -sd "," -)
+    # 1. Get all domain IDs and URLs
+	read domain_ids domain_urls < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+	SELECT 
+	    GROUP_CONCAT(domain_id) AS ids,
+	    GROUP_CONCAT(domain_url) AS urls
+	FROM domains
+	WHERE user_id='$user_id';
+	")
 
+	# 2. Prepare SQL queries and execute all at once
     sql=""
-
-    # 2. Delete sites if there are any domain IDs
-    if [ -n "$domain_ids" ]; then
-        sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
-    fi
-
-    # 3. Delete domains for the user
+	[ -n "$domain_ids" ] && sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "
-
-    # 4. Delete active sessions for the user
     sql+="DELETE FROM active_sessions WHERE user_id='$user_id'; "
-
-    # 5. Delete the user
 	sql+="DELETE FROM users WHERE username='$openpanel_username' OR username LIKE 'SUSPENDED_%_$openpanel_username';"
-
-    # 6. Execute all 5 in a single call
-    if [ -n "$sql" ]; then
-        mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
+	[ -n "$sql" ] && mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
+	# 3. delete domain files and reload Caddy
+    if [ -n "$domain_urls" ]; then
+	    IFS=',' read -ra domains_array <<< "$domain_urls"
+	    for domain in "${domains_array[@]}"; do
+	        rm -f "/etc/openpanel/caddy/domains/$domain.conf"
+			rm -f "/etc/openpanel/caddy/suspended_domains/$domain.conf"
+			rm -rf "/var/log/caddy/domlogs/$domain/access*"
+			rm -rf "/var/log/caddy/coraza_waf/$domain.log*"
+	    done
+        nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+        disown
     fi
 }
 
@@ -156,12 +149,12 @@ delete_all_user_files() {
     if [ -n "$node_ip_address" ]; then
         ssh "root@$node_ip_address" bash -c "'
             pkill -u $context -9 2>/dev/null || true
-            deluser --remove-home $context 2>/dev/null || true
+            deluser --remove-home "$context" >/dev/null 2>&1 || true
             [ -d /home/$context ] && rm -rf /home/$context
         '"
     fi
 	pkill -u $context -9 2>/dev/null || true
-    deluser --remove-home $context 2>/dev/null || true
+    deluser --remove-home "$context" >/dev/null 2>&1 || true
     [ -d /home/$context ] && rm -rf /home/$context
     [ -d /etc/openpanel/openpanel/core/users/$context ] && rm -rf /etc/openpanel/openpanel/core/users/$context
 
@@ -198,7 +191,6 @@ delete_user() {
     
     confirm_action "$username"
     get_user_info                                 # get user ID and docker context from db
-    delete_vhosts_files                           # delete caddy vhosts files from the server
     delete_ftp_users $provided_username           # delete all ftp sub-usersthat
     delete_user_from_database $provided_username  # delete user from database
     delete_all_user_files                         # permanently delete data
@@ -207,24 +199,15 @@ delete_user() {
 }
 
 
-
 # ======================================================================
 # Parse args
 for arg in "$@"; do
     case $arg in
-        --all)
-            delete_all=true
-            ;;
-        -y)
-            skip_confirmation=true
-            ;;
-        *)
-            provided_username="$arg"
-            ;;
+        --all) delete_all=true ;;
+        -y) skip_confirmation=true ;;
+        *) provided_username="$arg" ;;
     esac
 done
-
-
 
 # ======================================================================
 # Main
