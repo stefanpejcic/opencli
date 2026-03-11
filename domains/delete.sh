@@ -236,7 +236,7 @@ delete_domain_file() {
 	    check_and_add_to_enabled
 	fi   
 	 #stats and logs
- 	rm -rf /var/log/caddy/domlogs/$domain_name/
+	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"
   	rm -rf /var/log/caddy/stats/$user/$domain_name.html
    	rm -rf /var/log/caddy/coraza_waf/${domain_name}.log > /dev/null 2>&1
 }
