@@ -238,6 +238,7 @@ delete_domain_file() {
 	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"                # access logs
 	rm -f "/var/log/caddy/stats/$openpanel_username/$domain_name.html"  # goaccess
    	rm -rf "/var/log/caddy/coraza_waf/$domain_name.log*"                # waf
+	rm -rf "/etc/openpanel/caddy/ssl/custom/$domain_name"               # custom ssl
 }
 
 
