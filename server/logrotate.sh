@@ -132,7 +132,7 @@ cat > /etc/logrotate.d/openpanel <<EOF
     maxage $logrotate_keep_days
 }
 
-/var/log/openpanel/admin/login.log {
+/var/log/openpanel/admin/notifications.log {
     missingok
     notifempty
     rotate 0
