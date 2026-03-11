@@ -117,6 +117,7 @@ fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
+# rotate all panel logs
 /var/log/openpanel/admin/!(notifications).log
 /var/log/openpanel/user/*.log {
     su root adm
@@ -132,12 +133,18 @@ cat > /etc/logrotate.d/openpanel <<EOF
     maxage $logrotate_keep_days
 }
 
-/var/log/openpanel/admin/notifications.log {
+# delete update logs older than 3m
+/var/log/openpanel/updates/*.log {
     missingok
     notifempty
     rotate 0
+    sharedscripts
+    prerotate
+        find /var/log/openpanel/updates/ -type f -mtime +90 -delete 2>/dev/null || true
+    endscript
 }
 
+# delete reports older than 7d
 /var/log/openpanel/admin/reports/*.txt {
     daily
     rotate 0
