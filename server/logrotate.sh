@@ -117,7 +117,9 @@ fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
-/var/log/openpanel/**/*.log {
+/var/log/openpanel/*.log
+/var/log/openpanel/*/*.log
+/var/log/openpanel/*/*/*.log {
     su root adm
     size $logrotate_size_limit
     rotate $logrotate_retention
@@ -129,25 +131,25 @@ cat > /etc/logrotate.d/openpanel <<EOF
     copytruncate
     create 640 root adm
     maxage $logrotate_keep_days
-
-    tabooext + /var/log/openpanel/admin/login.log
-    tabooext + /var/log/openpanel/updates
 }
 
 /var/log/openpanel/admin/login.log {
     missingok
     notifempty
+    rotate 0
 }
 
 /var/log/openpanel/admin/reports/*.txt {
+    daily
+    rotate 0
     missingok
     notifempty
-    rotate 0
-    daily
+    sharedscripts
     prerotate
-        find /var/log/openpanel/admin/reports/ -type f -name "*.txt" -mtime +7 -delete
+        find /var/log/openpanel/admin/reports/ -type f -name "*.txt" -mtime +7 -delete 2>/dev/null || true
     endscript
 }
+
 EOF
 
 logrotate -f /etc/logrotate.d/openpanel
