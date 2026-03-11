@@ -117,6 +117,7 @@ fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
+/var/log/openpanel/admin/!(notifications).log
 /var/log/openpanel/admin/*.log
 /var/log/openpanel/user/*.log {
     su root adm
