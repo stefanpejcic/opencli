@@ -85,32 +85,44 @@ get_docker_context() {
     context=$(echo "$user_info" | awk '{print $2}')
 }
 
-reload_caddy_if_valid() {
-    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
-        docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
-        return 0
-    fi
-    return 1
-}
-
 suspend_user_domains() {
     mkdir -p "$SUSPENDED_DIR"
 
     # 1. get list of all user domains
     local domain_list
-    domain_list=$(opencli domains-user "$USERNAME")
+    domain_list=$(opencli domains-user "$USERNAME" 2>/dev/null)
+
+    if [[ -z "$domain_list" || "$domain_list" =~ ^(User|No\ domains\ found) ]]; then
+        echo "No domains found for user '$USERNAME'."
+        return 0
+    fi
+
+    domain_regex='\.'
 
     # 2. move all vhosts
     for domain_name in $domain_list; do
+        if [[ ! $domain_name =~ $domain_regex ]]; then
+            echo "Skipping invalid domain name: $domain_name"
+            continue
+        fi
+
         # from /etc/openpanel/caddy/domains/ to /etc/openpanel/caddy/suspended_domains/
-        [[ ! -f "${SUSPENDED_DIR}${domain_name}.conf" ]] && cp "${CADDY_VHOST_DIR}/${domain_name}.conf" "${SUSPENDED_DIR}${domain_name}.conf"
+        src="${CADDY_VHOST_DIR}/${domain_name}.conf"
+        dest="${SUSPENDED_DIR}/${domain_name}.conf"
     
+        if [[ -f "$src" ]]; then
+            if [[ ! -f "$dest" ]]; then
+                cp "$src" "$dest"
+            fi
+        fi
+
         # /etc/openpanel/caddy/templates/suspended_user.html
         sed "s|<DOMAIN_NAME>|$domain_name|g" "$TEMPLATE_CONF" > "${CADDY_VHOST_DIR}/${domain_name}.conf"
     done
 
-    # 3. validate caddy
-    reload_caddy_if_valid
+    # 3. reload caddy
+    nohup docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1 &
+    disown   
 }
 
 stop_user_containers() {
@@ -145,8 +157,3 @@ get_docker_context
 suspend_user_domains
 stop_user_containers
 rename_user_in_db
-
-
-
-
-
