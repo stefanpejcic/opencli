@@ -103,7 +103,7 @@ restart_tor_for_user() {
 	if [ $(docker --context $context ps -q -f name=tor) ]; then
  	    log "Tor service is running, restarting to remove configuration.."
  	    docker --context $context restart tor >/dev/null 2>&1
-     	fi  
+     fi  
 }
 
 
@@ -225,20 +225,19 @@ check_and_add_to_enabled() {
 
 
 delete_domain_file() {
-  log "Removing domain from the proxy"
+	log "Removing domain from the proxy"
  
-	mkdir -p /etc/openpanel/openpanel/core/users/$user/
-	domains_file="/etc/openpanel/caddy/domains/$domain_name.conf" 
- 	rm -rf $domains_file
-  
-	if [ $(docker ps -q -f name=caddy) ]; then
+	rm -f "/etc/openpanel/caddy/domains/$domain_name.conf"              # domain
+	rm -f "/etc/openpanel/caddy/suspended_domains/$domain_name.conf"    # suspended domain
+
+	if [ $(docker --context=default ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
 	    check_and_add_to_enabled
-	fi   
-	 #stats and logs
-	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"
-  	rm -rf /var/log/caddy/stats/$user/$domain_name.html
-   	rm -rf /var/log/caddy/coraza_waf/${domain_name}.log > /dev/null 2>&1
+	fi
+
+	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"                # access logs
+	rm -f "/var/log/caddy/stats/$openpanel_username/$domain_name.html"  # goaccess
+   	rm -rf "/var/log/caddy/coraza_waf/$domain_name.log*"                # waf
 }
 
 
@@ -331,7 +330,7 @@ delete_zone_file() {
     rm "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-    if [ $(docker ps -q -f name=openpanel_dns) ]; then
+    if [ $(docker --context=default ps -q -f name=openpanel_dns) ]; then
         log "DNS service is running, reloading the zones"
       	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
     fi
