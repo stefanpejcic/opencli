@@ -129,6 +129,24 @@ cat > /etc/logrotate.d/openpanel <<EOF
     copytruncate
     create 640 root adm
     maxage $logrotate_keep_days
+
+    tabooext + /var/log/openpanel/admin/login.log
+    tabooext + /var/log/openpanel/updates
+}
+
+/var/log/openpanel/admin/login.log {
+    missingok
+    notifempty
+}
+
+/var/log/openpanel/admin/reports/*.txt {
+    missingok
+    notifempty
+    rotate 0
+    daily
+    prerotate
+        find /var/log/openpanel/admin/reports/ -type f -name "*.txt" -mtime +7 -delete
+    endscript
 }
 EOF
 
