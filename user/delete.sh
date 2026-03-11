@@ -35,7 +35,6 @@ delete_all=false
 node_ip_address=""
 
 
-
 # ======================================================================
 # Validations
 if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
@@ -44,9 +43,7 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
 fi
 
 confirm_action() {
-    if [ "$skip_confirmation" = true ]; then
-        return 0
-    fi
+	[ "$skip_confirmation" = true ] && return 0
 
     read -r -p "This will permanently delete user '$1' and all associated data. Confirm? [Y/n]: " response
     response=${response,,} # to lowercase
@@ -59,7 +56,6 @@ confirm_action() {
 
 
 source /usr/local/opencli/db.sh
-
 
 # ======================================================================
 # Functions
@@ -75,10 +71,7 @@ get_user_info() {
         LIMIT 1;
     ")
 
-    if [ -z "$user_id" ]; then
-        echo "ERROR: User '$provided_username' not found in the database."
-        exit 1
-    fi
+	[ -n "$user_id" ] || { echo "ERROR: User '$provided_username' not found in the database."; exit 1; }
 
     # 2. set context
 	context_flag="--context $context"
@@ -94,64 +87,74 @@ get_user_info() {
 
 reload_user_quotas() {
 	touch /etc/openpanel/openpanel/core/users/repquota
-	nohup quotacheck -avm && repquota -u / > /etc/openpanel/openpanel/core/users/repquota &
-	disown
-}
-
-delete_vhosts_files() {
-    local all_user_domains=$(opencli domains-user $username)
-    deleted_count=0 
-    for domain in $all_user_domains; do
-        rm /etc/openpanel/caddy/domains/${domain}.conf >/dev/null 2>&1
-        deleted_count=$((deleted_count + 1))
-    done
-    nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+	nohup bash -c "quotacheck -avm && repquota -u / > /etc/openpanel/openpanel/core/users/repquota 2>/dev/null" &>/dev/null &
 	disown
 }
 
 delete_user_from_database() {
     openpanel_username="$1"
-	
-    # 1. Get all domain IDs
-    domain_ids=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e \
-        "SELECT domain_id FROM domains WHERE user_id='$user_id';" -N | paste -sd "," -)
 
+    # 1. Get all domain IDs and names owned by the user
+	mapfile -t domains_info < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+	    SELECT domain_id, domain_url FROM domains WHERE user_id='$user_id';
+	")
+
+    # 2. Prepare domain names and IDs
+    domains_array=() # used for deleting caddyfiles
+    domain_ids=()    # used in SQL to delete websites
+    for row in "${domains_info[@]}"; do
+        read -r id url <<< "$row"
+        domain_ids+=("$id")
+        domains_array+=("$url")
+    done
+
+    # 3. Delete domain config files and reload caddy
+    if [ "${#domains_array[@]}" -gt 0 ]; then
+        for domain in "${domains_array[@]}"; do
+            rm -f /etc/openpanel/caddy/domains/"$domain".conf &
+        done
+        wait
+
+        nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+        disown
+    fi
+
+    # 4. SQL to delete sites, domains, sessions and finally the user
     sql=""
 
-    # 2. Delete sites if there are any domain IDs
     if [ -n "$domain_ids" ]; then
         sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
     fi
 
-    # 3. Delete domains for the user
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "
-
-    # 4. Delete active sessions for the user
     sql+="DELETE FROM active_sessions WHERE user_id='$user_id'; "
-
-    # 5. Delete the user
 	sql+="DELETE FROM users WHERE username='$openpanel_username' OR username LIKE 'SUSPENDED_%_$openpanel_username';"
 
-    # 6. Execute all 5 in a single call
     if [ -n "$sql" ]; then
         mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
     fi
 }
 
 delete_ftp_users() {
-    openpanel_username="$1"
-    users_dir="/etc/openpanel/ftp/users"
-    users_file="${users_dir}/${openpanel_username}/users.list"
+    local openpanel_username="$1"
+    local users_dir="/etc/openpanel/ftp/users"
+    local user_folder="${users_dir}/${openpanel_username}"
+    local users_file="${user_folder}/users.list"
 
-    if [[ -d "${users_dir}/${openpanel_username}" ]]; then
-	    if [[ -f "$users_file" ]]; then
-		echo "Checking and removing user's FTP sub-accounts"
-		while IFS='|' read -r username password directories; do
-		    echo "Deleting FTP user: $username"
-		    opencli ftp-delete "$username" "$openpanel_username"
-		done < "$users_file"
-	    fi
-     	rm -rf ${users_dir}/${openpanel_username}
+    if [[ -d "$user_folder" ]]; then
+        if [[ -f "$users_file" ]]; then
+            echo "Removing FTP sub-accounts for user '$openpanel_username'..."
+            
+            mapfile -t ftp_users < <(awk -F'|' '{print $1}' "$users_file")
+
+            for ftp_user in "${ftp_users[@]}"; do
+                echo "Deleting FTP user: $ftp_user"
+                opencli ftp-delete "$ftp_user" "$openpanel_username" &
+            done
+            wait
+        fi
+
+        rm -rf "$user_folder"
     fi
 }
 
@@ -159,19 +162,18 @@ delete_all_user_files() {
     if [ -n "$node_ip_address" ]; then
         ssh "root@$node_ip_address" bash -c "'
             pkill -u $context -9 2>/dev/null || true
-            deluser --remove-home $context 2>/dev/null || true
+			deluser --remove-home "$context" >/dev/null 2>&1 || true
             [ -d /home/$context ] && rm -rf /home/$context
         '"
     fi
 	pkill -u $context -9 2>/dev/null || true
-    deluser --remove-home $context 2>/dev/null || true
+	deluser --remove-home "$context" >/dev/null 2>&1 || true
     [ -d /home/$context ] && rm -rf /home/$context
     [ -d /etc/openpanel/openpanel/core/users/$context ] && rm -rf /etc/openpanel/openpanel/core/users/$context
-
 }
 
 delete_context() {
-    docker context rm $context  > /dev/null 2>&1
+    docker context rm $context > /dev/null 2>&1
 }
 
 refresh_resellers_data() {
@@ -198,49 +200,32 @@ delete_user() {
     else    
         username=$provided_username
     fi
-    
+
     confirm_action "$username"
     get_user_info                                 # get user ID and docker context from db
-    delete_vhosts_files                           # delete caddy vhosts files from the server
-    delete_ftp_users $provided_username           # delete all ftp sub-usersthat
-    delete_user_from_database $provided_username  # delete user from database
+    delete_ftp_users $provided_username           # delete all ftp sub-users
+    delete_user_from_database $provided_username  # delete sites, domains, sessions and user from database
     delete_all_user_files                         # permanently delete data
-    delete_context  
-    refresh_resellers_data                        # count users for all resellers
-    reload_user_quotas
-    echo "User $username deleted successfully." # if we made it
+    delete_context                                # delete docker context
+    echo "User $username deleted successfully."   # if we made it
 }
-
-
 
 # ======================================================================
 # Parse args
 for arg in "$@"; do
     case $arg in
-        --all)
-            delete_all=true
-            ;;
-        -y)
-            skip_confirmation=true
-            ;;
-        *)
-            provided_username="$arg"
-            ;;
+        --all) delete_all=true ;;
+        -y) skip_confirmation=true ;;
+        *) provided_username="$arg" ;;
     esac
 done
-
-
 
 # ======================================================================
 # Main
 if [ "$delete_all" = true ]; then
 	# ALL USERS
-	all_users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
-	
-	if [[ -z "$all_users" || "$all_users" == "No users." ]]; then
-		echo "No users found in the database."
-		exit 1
-	fi
+	all_users=$(opencli user-list --json | jq -r '.data[] | .username')
+	[[ "$all_users" != "No users." && -n "$all_users" ]] || { echo "No users found in the database."; exit 1; }
 
     total_users=$(echo "$all_users" | wc -w)
     current_user_index=1
@@ -250,18 +235,23 @@ if [ "$delete_all" = true ]; then
 	    echo "------------------------------"
 	    ((current_user_index++))
     done
-    	echo "DONE."
-    	echo "$((current_user_index - 1)) users have been deleted."
-		nohup opencli sentinel --action=user_delete --title="All user accounts deleted" --message="All $((current_user_index - 1)) user accounts have been deleted." >/dev/null 2>&1 &
-		disown
-    exit 0
+	echo "DONE."
+	echo "$((current_user_index - 1)) users have been deleted."
+
+	nohup opencli sentinel --action=user_delete --title="All user accounts deleted" --message="All $((current_user_index - 1)) user accounts have been deleted." >/dev/null 2>&1 &
+	disown
+
+    refresh_resellers_data
+    reload_user_quotas
 else
 	# SINGLE USER
-	if [ -z "$provided_username" ]; then
-	    echo "Error: Username is required unless --all is specified."
-	    exit 1
-	fi
+	[ -n "$provided_username" ] || { echo "Error: Username is required."; exit 1; }
+
 	delete_user "$provided_username"
+
 	nohup opencli sentinel --action=user_delete --title="User account deleted" --message="User account '$provided_username' has been deleted." >/dev/null 2>&1 &
 	disown
+
+    refresh_resellers_data
+    reload_user_quotas
 fi
