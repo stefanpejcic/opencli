@@ -78,10 +78,11 @@ source "/usr/local/opencli/db.sh"
 # Functions
 
 get_docker_context() {
-    local query="SELECT server FROM users WHERE username='$USERNAME';"
-    local server_name
-    server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
-    CONTEXT_FLAG="--context $server_name"
+    local query="SELECT id, server FROM users WHERE username = '$USERNAME';"
+    user_info=$(mysql -se "$query")
+    
+    user_id=$(echo "$user_info" | awk '{print $1}')
+    context=$(echo "$user_info" | awk '{print $2}')
 }
 
 reload_caddy_if_valid() {
@@ -117,13 +118,15 @@ stop_user_containers() {
     jobs=$(( $(nproc) * 2 ))
     $DEBUG && echo "Stopping containers for user: $USERNAME"
 
-    docker $CONTEXT_FLAG ps --format "{{.Names}}" |
-        xargs -r -n1 -P "$jobs" -I{} docker $CONTEXT_FLAG stop {} > /dev/null 2>&1       
+    docker --context $context ps --format "{{.Names}}" |
+        xargs -r -n1 -P "$jobs" -I{} docker --context $context stop {} > /dev/null 2>&1       
 }
 
 rename_user_in_db() {
     local new_username="SUSPENDED_$(date +'%Y%m%d%H%M%S')_${USERNAME}"
     local query="UPDATE users SET username='${new_username}' WHERE username='${USERNAME}';"
+
+    [ -n "$user_id" ] && query+="DELETE FROM active_sessions WHERE user_id='$user_id'; "
 
     if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' suspended successfully."
@@ -136,10 +139,14 @@ rename_user_in_db() {
 }
 
 
-
 # ======================================================================
 # Main
 get_docker_context
 suspend_user_domains
 stop_user_containers
 rename_user_in_db
+
+
+
+
+
