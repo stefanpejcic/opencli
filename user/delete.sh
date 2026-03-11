@@ -101,12 +101,12 @@ reload_user_quotas() {
 delete_vhosts_files() {
     local all_user_domains=$(opencli domains-user $username)
     deleted_count=0 
-    # TODO: delete on remote nginx server!
     for domain in $all_user_domains; do
         rm /etc/openpanel/caddy/domains/${domain}.conf >/dev/null 2>&1
         deleted_count=$((deleted_count + 1))
     done
-    docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+    nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+	disown
 }
 
 delete_user_from_database() {
