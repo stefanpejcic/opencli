@@ -94,8 +94,8 @@ get_user_info() {
 
 reload_user_quotas() {
 	touch /etc/openpanel/openpanel/core/users/repquota
-	quotacheck -avm >/dev/null 2>&1
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+	nohup quotacheck -avm && repquota -u / > /etc/openpanel/openpanel/core/users/repquota &
+	disown
 }
 
 delete_vhosts_files() {
