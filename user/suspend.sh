@@ -121,7 +121,7 @@ suspend_user_domains() {
     done
 
     # 3. reload caddy
-    nohup docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1 &
+    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
     disown   
 }
 
