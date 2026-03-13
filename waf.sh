@@ -108,7 +108,8 @@ check_coraza_status() {
 }
 
 reload_caddy_now() {
-    nohup docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1 &
+    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+    disown
 }
 
 set_coraza_waf_for_domain() {
