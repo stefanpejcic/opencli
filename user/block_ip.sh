@@ -148,7 +148,7 @@ if [ -n "$list" ]; then
   domain_regex='\.'
   user_has_domains=false
 
-  for domain_name in $domain_list; do
+  while IFS= read -r domain_name; do
       if [[ ! $domain_name =~ $domain_regex ]]; then
           continue
       fi
@@ -166,7 +166,7 @@ if [ -n "$list" ]; then
       else
         echo "Warning: No caddy file for domain $domain_name"
       fi
-  done
+  done <<< "$domain_list"
   # 4. reload caddy
   if [ "$user_has_domains" = true ]; then
     reload_caddy
