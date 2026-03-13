@@ -45,12 +45,11 @@ list=""
 
 # Parse
 USERNAME="$1"
-shift
 
-case "$1" in
-    --list=*) list="${1#*=}" ;;
+case "$2" in
+    --list=*) list="${2#*=}" ;;
     --delete-all) delete_all=true ;;
-    *) echo "Unknown argument: $1" ;;
+    *) echo "Unknown argument: $2" ;;
 esac
 
 
