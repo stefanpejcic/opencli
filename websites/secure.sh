@@ -56,7 +56,7 @@ if [[ ! -f "$WP_MANAGER_RULES" ]]; then
   RULE_LINE="import $WP_MANAGER_RULES"
   MARKER='# import all sites'
 
-  if ! grep -Fxq "$RULE_LINE" "$FILE"; then
+  if ! grep -Fxq "$RULE_LINE" "$CADDY_FILE"; then
     sed -i "/$MARKER/i $RULE_LINE" "$FILE"
   fi
   
