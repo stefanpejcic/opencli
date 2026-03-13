@@ -37,19 +37,17 @@ domain_name="$1"
 domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
 suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
 
-if [ -f "$suspended_vhost" ]; then  
-	# 1. restore vhost
-	cp "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
+[ -f "$suspended_vhost" ] || { echo "Domain $domain_name is not suspended."; exit 0; }
 
-	# 2. reload caddy
-	nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
-	disown
+# 1. restore vhost
+cp "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
 
-	# 3. notify
-	nohup opencli sentinel --action=domains_status --title="Domain name $domain_name unsuspended" --message="Domain name $domain_name has been unsuspended." >/dev/null 2>&1 &
-	disown
+# 2. reload caddy
+nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+disown
 
-	echo "Domain unsuspended successfully."
-else
-	echo "Domain $domain_name is not suspended."
-fi
+# 3. notify
+nohup opencli sentinel --action=domains_status --title="Domain name $domain_name unsuspended" --message="Domain name $domain_name has been unsuspended." >/dev/null 2>&1 &
+disown
+
+echo "Domain unsuspended successfully."
