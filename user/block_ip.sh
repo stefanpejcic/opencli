@@ -157,7 +157,8 @@ if [ -n "$list" ]; then
         user_has_domains=true
         if ! grep -q "import $DENY_IPS_FILE" "$domain_file"; then
             sed -i "/route {/ {a\\
-                import $DENY_IPS_FILE
+    # ip-blocker\\
+    import $DENY_IPS_FILE
             }" "$domain_file"           
             echo "Blocklist applied for domain '$domain_name'"
         else
