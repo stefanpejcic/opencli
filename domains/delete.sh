@@ -215,8 +215,8 @@ delete_domain_file() {
 
 	if [ $(docker --context=default ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
-	    nohup docker --context default compose exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
-		disown
+	    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload " >/dev/null 2>&1 &
+	    disown
 	fi
 
 	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"                # access logs
