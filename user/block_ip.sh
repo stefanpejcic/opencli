@@ -143,8 +143,7 @@ if [ -n "$list" ]; then
   } > "$DENY_IPS_FILE"
 
   # 3. include in all domains for user
-  local domain_list
-  domain_list=$(opencli domains-user "$USERNAME" 2>/dev/null)
+  domain_list=$(opencli domains-user "$USERNAME" >/dev/null 2>&1)
   domain_regex='\.'
   user_has_domains=false
 
@@ -159,15 +158,15 @@ if [ -n "$list" ]; then
             sed -i "/route {/ {a\\
                 import $DENY_IPS_FILE
             }" "$domain_file"           
-            echo "Added to domain '$domain_name'"
+            echo "Blocklist applied for domain '$domain_name'"
         else
-            echo "Already applied to domain '$domain_name' - skipping."
+            echo "Blocklist already applied to domain '$domain_name' - skipping."
         fi
       else
         echo "Warning: No caddy file for domain $domain_name"
       fi
   done
-  # 3. reload caddy
+  # 4. reload caddy
   if [ "$user_has_domains" = true ]; then
     reload_caddy
   fi
