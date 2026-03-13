@@ -42,12 +42,13 @@ fi
 readonly CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
 delete_all=false
 list=""
+show_ips=false
 
 # Parse
 USERNAME="$1"
 
 if [ -z "$2" ]; then
-    echo "No additional arguments provided"
+    show_ips=true
 else
     case "$2" in
         --list=*) list="${2#*=}" ;;
@@ -55,7 +56,6 @@ else
         *) echo "Unknown argument: $2" ;;
     esac
 fi
-
 
 # HELPERS
 
@@ -108,7 +108,7 @@ if [ "$delete_all" = true ]; then
 fi
 
 # LIST
-if [ -z "$list" ]; then
+if [ "$delete_all" = true ]; then
   if [ -f "$DENY_IPS_FILE" ]; then
     grep -oP 'remote_ip\s+\K[\d./]+' "$DENY_IPS_FILE"
   fi
