@@ -132,6 +132,7 @@ if [ -n "$list" ]; then
   done
 
   # 2. create caddy include file 
+  mkdir -p "$(dirname "$DENY_IPS_FILE")" # <1.7.47
   {
       echo "@blocked {"
       for ip in "${valid_ips[@]}"; do
