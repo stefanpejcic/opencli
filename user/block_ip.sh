@@ -92,7 +92,7 @@ is_valid_ip_or_cidr() {
 }
 
 reload_caddy() {
-    nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
     disown
 }
 
