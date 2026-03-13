@@ -45,6 +45,24 @@ usage() {
 readonly CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
 readonly WP_MANAGER_RULES="/etc/openpanel/caddy/templates/wp.rules"
 
+RULES=""
+DELETE_ALL=false
+LIST_ACTIVE=false
+
+for arg in "$@"; do
+  case $arg in
+    --rules=*) RULES="${arg#*=}" ;;
+    --disable-all) DELETE_ALL=true ;;
+    --list-active-rules) LIST_ACTIVE=true ;;
+    --list-available-rules)
+        grep -oP '^\(\K[a-z0-9_]+' "$WP_MANAGER_RULES"
+        exit 0
+        ;;
+  esac
+done
+
+
+
 DOMAIN="$1"
 shift
 
@@ -67,21 +85,7 @@ if ! grep -q "# modsecurity" "$domain_file"; then
   exit 1
 fi
 
-RULES=""
-DELETE_ALL=false
-LIST_ACTIVE=false
 
-for arg in "$@"; do
-  case $arg in
-    --rules=*) RULES="${arg#*=}" ;;
-    --disable-all) DELETE_ALL=true ;;
-    --list-active-rules) LIST_ACTIVE=true ;;
-    --list-available-rules)
-        grep -oP '^\(\K[a-z0-9_]+' "$WP_MANAGER_RULES"
-        exit 0
-        ;;
-  esac
-done
 
 # ---------------------------
 # Helper functions
