@@ -49,6 +49,26 @@ RULES=""
 DELETE_ALL=false
 LIST_ACTIVE=false
 
+
+if [[ ! -f "$WP_MANAGER_RULES" ]]; then
+  # for <1.7.47
+  CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
+  RULE_LINE="import $WP_MANAGER_RULES"
+  MARKER='# import all sites'
+
+  if ! grep -Fxq "$RULE_LINE" "$FILE"; then
+    sed -i "/$MARKER/i $RULE_LINE" "$FILE"
+  fi
+  
+  curl -s -L "https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/templates/wp.rules" -o "$WP_MANAGER_RULES"
+  if [[ ! -f "$WP_MANAGER_RULES" ]]; then
+    echo "Error: rules file not found: $WP_MANAGER_RULES"
+    exit 1
+  fi
+fi
+
+
+
 for arg in "$@"; do
   case $arg in
     --rules=*) RULES="${arg#*=}" ;;
@@ -83,24 +103,6 @@ if ! grep -q "# modsecurity" "$domain_file"; then
   echo "Error: '# modsecurity' marker not found in $domain_file"
   echo "Aborting to avoid corrupting config."
   exit 1
-fi
-
-
-if [[ ! -f "$WP_MANAGER_RULES" ]]; then
-  # for <1.7.47
-  CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
-  RULE_LINE="import $WP_MANAGER_RULES"
-  MARKER='# import all sites'
-
-  if ! grep -Fxq "$RULE_LINE" "$FILE"; then
-    sed -i "/$MARKER/i $RULE_LINE" "$FILE"
-  fi
-  
-  curl -s -L "https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/templates/wp.rules" -o "$WP_MANAGER_RULES"
-  if [[ ! -f "$WP_MANAGER_RULES" ]]; then
-    echo "Error: rules file not found: $WP_MANAGER_RULES"
-    exit 1
-  fi
 fi
 
 # ---------------------------
