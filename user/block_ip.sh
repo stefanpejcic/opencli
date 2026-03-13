@@ -144,7 +144,7 @@ if [ -n "$list" ]; then
   } > "$DENY_IPS_FILE"
 
   # 3. include in all domains for user
-  domain_list=$(opencli domains-user "$USERNAME" >/dev/null 2>&1)
+  domain_list=$(opencli domains-user "$USERNAME")
   domain_regex='\.'
   user_has_domains=false
 
