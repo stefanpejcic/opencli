@@ -629,8 +629,7 @@ create_domain_file() {
 	# Check if the 'caddy' container is running
 	if [ $(docker --context default ps -q -f name=caddy) ]; then
 		log "Caddy is running, validating new domain configuration"
-		docker --context default restart caddy >/dev/null 2>&1
-		if [ $? -eq 0 ]; then
+		if docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1; then
 			log "Domain successfully added and Caddy reloaded."
 		else
 			log "Failed to add domain configuration, changes reverted."
