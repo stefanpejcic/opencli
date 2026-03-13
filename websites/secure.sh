@@ -127,7 +127,7 @@ helper_to_empty_rules() {
 }
 
 helper_list_active_rules() {
-  awk '/# modsecurity/{flag=1; next} flag && /^[[:space:]]*wp_manager_[a-z0-9_]+$/{print $1}' "$domain_file" | sort -u
+  awk '/# modsecurity/{flag=1; next} flag && /^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+$/{print $2}'
 }
 
 # ---------------------------
