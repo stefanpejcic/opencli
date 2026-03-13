@@ -166,7 +166,7 @@ if [[ -n "$RULES" ]]; then
     # 2. delete all existing
     helper_to_empty_rules
 
-    # 3. insert selected snippet names after # modsecurity
+    # 3. insert selected snippet names before # modsecurity
     TMP=$(mktemp)
     awk -v rules="$RULES" '
     /# modsecurity/ {
