@@ -120,7 +120,7 @@ helper_to_empty_rules() {
         print $0
         next 
     }
-    /^[[:space:]]*wp_manager_[a-z0-9_]+$/ { next }  # skip only wp_manager_ rules
+    /^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+$/ { next }
     { print $0 }
   ' "$domain_file" > "$TMP"
   mv "$TMP" "$domain_file"
