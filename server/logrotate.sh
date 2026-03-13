@@ -82,7 +82,7 @@ cat > /etc/logrotate.d/caddy-logs <<EOF
     copytruncate
     create 640 root adm
     postrotate
-        docker exec caddy bash -c "caddy validate && caddy reload" >/dev/null 2>&1
+        docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1
     endscript
     maxage $logrotate_keep_days
 }
