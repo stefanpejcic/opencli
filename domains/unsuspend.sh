@@ -28,56 +28,28 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-check_and_add_to_enabled() {
-    if docker exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1 | grep -q "Valid configuration"; then
-        docker exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
-        return 0
-    else
-        return 1
-    fi
-}
-
-validate_conf() {
-
-  	if [ $(docker --context default ps -q -f name=caddy) ]; then
-        :
-	else
-        cd /root && docker --context default compose up -d caddy  >/dev/null 2>&1
-     fi
-     
-	check_and_add_to_enabled
- 
-	if [ $? -eq 0 ]; then
-		nohup opencli sentinel --action=domains_status --title="Domain name $domain_name unsuspended" --message="Domain name $domain_name has been unsuspended." >/dev/null 2>&1 &
-		disown
-		echo "Domain unsuspended successfully."
-	else
-		echo "ERROR: Failed to validate conf after unsuspend, changes reverted."
-	fi
-}
-
-edit_caddy_vhosts() {
-       domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
-       suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
-       conf_template="/etc/openpanel/caddy/templates/suspended.conf"
-
-       if [ -f "$suspended_vhost" ]; then      
-            cp $suspended_vhost $domain_vhost  > /dev/null 2>&1
-            validate_conf
-        else
-            echo "Domain $domain_name is not suspended."
-        fi
-}
-
-
-
-# Check for the domain argument
 if [ $# -ne 1 ]; then
-    echo "Usage: $0 <domain_name>"
+    echo "Usage: opencli domains-unsuspend <domain_name>"
     exit 1
 fi
 
-# Get the domain name from the command line argument
 domain_name="$1"
-edit_caddy_vhosts
+domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
+suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
+
+if [ -f "$suspended_vhost" ]; then  
+	# 1. restore vhost
+	cp "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
+
+	# 2. reload caddy
+	nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+	disown
+
+	# 3. notify
+	nohup opencli sentinel --action=domains_status --title="Domain name $domain_name unsuspended" --message="Domain name $domain_name has been unsuspended." >/dev/null 2>&1 &
+	disown
+
+	echo "Domain unsuspended successfully."
+else
+	echo "Domain $domain_name is not suspended."
+fi
