@@ -865,16 +865,15 @@ create_remote_user() {
 }
 
 set_user_quota(){
+   if [ "$disk_limit" -ne 0 ]; then
+     storage_in_blocks=$((disk_limit * 1024000))
+     log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
+   else
+     storage_in_blocks=0; inodes=0
+     log "Setting unlimited storage and inodes for the user"
+   fi
 
-    if [ "$disk_limit" -ne 0 ]; then
-    	storage_in_blocks=$((disk_limit * 1024000))
-        log "Setting storage size of ${disk_limit}GB and $inodes inodes for the user"
-      	setquota -u $username $storage_in_blocks $storage_in_blocks $inodes $inodes /
-    else
-    	log "Setting unlimited storage and inodes for the user"
-      	setquota -u $username 0 0 0 0 /
-    fi
-
+   setquota -u "$username" "$storage_in_blocks" "$storage_in_blocks" "$inodes" "$inodes" /
 }
 
 # CREATE THE USER
@@ -1071,8 +1070,6 @@ ssh $key_flag root@$node_ip_address "
 	systemctl --user daemon-reload > /dev/null 2>&1
         systemctl --user enable docker > /dev/null 2>&1
         systemctl --user start docker > /dev/null 2>&1
-
-	systemctl --user status > /dev/null 2>&1
     ' 2>/dev/null
 "
 
@@ -1235,7 +1232,7 @@ run_docker() {
 	THIRD_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $3}')
 	FOURTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $4}')
 	FIFTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $5}')
-        SIXTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $6}')
+    SIXTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $6}')
 	SEVENTH_NEXT_AVAILABLE=$(echo $AVAILABLE_PORTS | awk '{print $7}')
 
     # todo: better validation!
@@ -1405,14 +1402,10 @@ copy_skeleton_files() {
     cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
 
 	if [ -n "$node_ip_address" ]; then
-		# adding dedicated ip to be used in caddy and dns files
 		local json_file="/etc/openpanel/openpanel/core/users/$username/ip.json"
 		echo "{ \"ip\": \"$node_ip_address\" }" > "$json_file"
 	fi
-
 }
-
-
 
 get_php_version() {
 	default_php_version=$(grep -oP '^DEFAULT_PHP_VERSION="\K[0-9]+\.[0-9]+' /etc/openpanel/docker/compose/1.0/.env | tr -d '\r\n')
@@ -1424,9 +1417,6 @@ get_php_version() {
     fi
 }
 
-
-
-
 start_panel_service() {
     log "Ensuring OpenPanel is running..."
     nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >nohup.out 2>nohup.err &
@@ -1434,13 +1424,11 @@ start_panel_service() {
 
 create_context() {
   local host
-
   if [ -n "$node_ip_address" ]; then
     host="ssh://$username"
   else
     host="unix:///hostfs/run/user/${user_id}/docker.sock"
   fi
-
   docker context create "$username" --docker "host=$host" --description "$username"
 }
 
@@ -1470,7 +1458,7 @@ save_user_to_db() {
         echo "[✔] Successfully added user $username with password: $password"
     else
         echo "[✘] Error: Data insertion failed."
-	hard_cleanup # remove data!
+	    hard_cleanup # remove data!
         exit 1
     fi
 
