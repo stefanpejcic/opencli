@@ -136,9 +136,9 @@ check_if_default_slave_server_is_set() {
 	if [[ -n "$default_node" ]]; then
 		default_ssh_key_path=$(get_config_value "default_ssh_key_path")
 		 if [[ -n "$default_ssh_key_path" ]]; then
-	              server=$default_node
-		      key=$default_ssh_key_path
-	              echo "Using default node $server and ssh key path"
+	        server=$default_node
+		    key=$default_ssh_key_path
+	        echo "Using default node $server and ssh key path"
 		 fi
 	fi
 
@@ -153,36 +153,19 @@ check_if_default_slave_server_is_set         # we run it before parse_flags so i
 
 	for arg in "$@"; do
 	    case $arg in
-	        --debug)
-	            DEBUG=true
-	        ;;
-	        --send-email)
-	            SEND_EMAIL=true
-	        ;;
-	        --skip-images)
-	            SKIP_IMAGE_PULL=true
-	        ;;	     
-	        --reseller=*)
-	            reseller="${arg#*=}"
-		    ;;
-	        --server=*)
-	            server="${arg#*=}"
-		    ;;
-			--key=*)
-		        key="${arg#*=}"
-			    key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
-		    ;;
-	        --sql=*)
-	            sql_type="${arg#*=}"
-		    ;;	    
+	        --debug) DEBUG=true ;;
+	        --send-email) SEND_EMAIL=true ;;
+	        --skip-images) SKIP_IMAGE_PULL=true ;;	     
+	        --reseller=*) reseller="${arg#*=}" ;;
+	        --server=*) server="${arg#*=}" ;;
+			--key=*) key="${arg#*=}"; key_flag="-i $key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes" ;;
+	        --sql=*) sql_type="${arg#*=}" ;;	    
 	        --webserver=*)
 				webserver="${arg#*=}"
 				webserver="${webserver//\"/}"
 				webserver="$(echo "$webserver" | xargs)"
 		    ;;
-			--no-sentinel)
-	            SENTINEL=false
-	        ;;
+			--no-sentinel) SENTINEL=false ;;
 	    esac
 	done
 
