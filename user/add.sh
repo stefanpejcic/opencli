@@ -1472,11 +1472,15 @@ start_panel_service() {
 
 
 create_context() {
-   if [ -n "$node_ip_address" ]; then
-	docker context create $username --docker "host=ssh://$username" --description "$username"
-   else
-   	docker context create $username --docker "host=unix:///hostfs/run/user/${user_id}/docker.sock" --description "$username"
-   fi
+  local host
+
+  if [ -n "$node_ip_address" ]; then
+    host="ssh://$username"
+  else
+    host="unix:///hostfs/run/user/${user_id}/docker.sock"
+  fi
+
+  docker context create "$username" --docker "host=$host" --description "$username"
 }
 
 test_compose_command_for_user() {
@@ -1484,7 +1488,7 @@ test_compose_command_for_user() {
     # Check if Docker Compose is working
     if ! docker --context=$username compose version >/dev/null 2>&1; then
         echo "[✘] Error: Docker Compose is not working in this context. User creation failed."
-	hard_cleanup # remove data!
+	    hard_cleanup # remove data!
         exit 1
     fi
    
