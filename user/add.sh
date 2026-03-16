@@ -1433,17 +1433,14 @@ fi
 
 copy_skeleton_files() {
     log "Creating configuration files for the newly created user"
-    
-	rm -rf /etc/openpanel/skeleton/domains > /dev/null 2>&1 #todo remove from 1.0.0!
-        cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
+    cp -r /etc/openpanel/skeleton/ /etc/openpanel/openpanel/core/users/$username/  > /dev/null 2>&1
 
 	if [ -n "$node_ip_address" ]; then
 		# adding dedicated ip to be used in caddy and dns files
 		local json_file="/etc/openpanel/openpanel/core/users/$username/ip.json"
 		echo "{ \"ip\": \"$node_ip_address\" }" > "$json_file"
 	fi
- 
-        opencli php-available_versions $username  > /dev/null 2>&1 &
+
 }
 
 
