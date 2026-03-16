@@ -768,9 +768,6 @@ validate_ssh_login(){
 	            fi
 	        else
 	            echo "ERROR: Provided ssh key path: "$key" does not exist."
-	     	# TODO: GENERATE OTHERWISE!
-		#ssh-keygen -t rsa -b 4096 -f ~/.ssh/${username}context
-		# ssh-copy-id $username@$hostname+IPPPPP      
 	     	    exit 1
 	        fi
  
@@ -850,7 +847,7 @@ create_remote_user() {
  	fi
   	
    	if [ -n "$node_ip_address" ]; then
-                log "Creating user $username on server $node_ip_address"
+        log "Creating user $username on server $node_ip_address"
 		ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "useradd -m -s /bin/bash -d /home/$username $id_flag $username" >/dev/null 2>&1
 		
 		user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
@@ -858,7 +855,7 @@ create_remote_user() {
 		if [ $? -ne 0 ]; then
 		    echo "Error: Failed creating linux user $username on node: $node_ip_address"
 		    exit 1
-      		fi
+      	fi
 	fi
  
 
@@ -1274,32 +1271,9 @@ if [ ! -f /home/$username/docker-compose.yml ]; then
   exit 1
 fi
 
-# TEMPLATE: https://github.com/stefanpejcic/openpanel-configuration/blob/main/docker/compose/1.0/.env
-
 postgres_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
 mysql_root_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
 pg_admin_password=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')
-
-: '
-    log "Using:"
-    log ""
-    log "USERNAME: $username"
-    log "USER_ID: $user_id"
-    log "CONTEXT: $username"
-    log "TOTAL_CPU: $cpu"
-    log "TOTAL_RAM: $ram"
-    log "HTTP_PORT: $port_5"
-    log "HTTPS_PORT: $port_6"
-    log "HOSTNAME: $hostname"
-    log "PGADMIN_PORT: $port_1"
-    log "POSTGRES_PORT: $port_3"
-    log "PMA_PORT: $port_4"
-    log "MYSQL_PORT: $port_2"
-    log "DEFAULT_PHP_VERSION: $default_php_version"
-    log "POSTGRES_PASSWORD: $postgres_password"
-    log "MYSQL_ROOT_PASSWORD: $mysql_root_password"
-	log "VARNISH PROXY PORT: $port_7"
-'
 
 if [ -z "$username" ] || [ -z "$user_id" ] || [ -z "$cpu" ] || [ -z "$ram" ] || [ -z "$port_5" ] || [ -z "$port_6" ] || [ -z "$port_7" ] || [ -z "$port_1" ] || [ -z "$port_3" ] || [ -z "$port_4" ] || [ -z "$port_2" ] || [ -z "$default_php_version" ] || [ -z "$postgres_password" ] || [ -z "$mysql_root_password" ]; then
    echo "ERROR: One or more required variables are not set."
@@ -1433,20 +1407,16 @@ create_context() {
 }
 
 test_compose_command_for_user() {
-
-    # Check if Docker Compose is working
     if ! docker --context=$username compose version >/dev/null 2>&1; then
         echo "[✘] Error: Docker Compose is not working in this context. User creation failed."
 	    hard_cleanup # remove data!
         exit 1
     fi
-   
 }
 
 save_user_to_db() {
     log "Saving new user to database"
-    
-     # Insert data into MySQL database
+
 	if [ -n "$reseller" ]; then
    	    mysql_query="INSERT INTO users (username, password, owner, email, plan_id, server) VALUES ('$username', '$hashed_password', '$reseller', '$email', '$plan_id', '$username');"
 	else
@@ -1508,11 +1478,9 @@ send_email_to_new_user() {
 
 
 reload_user_quotas() {
-    quotacheck -avm >/dev/null 2>&1
-    mkdir -p /etc/openpanel/openpanel/core/users/
-    repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
+    nohup bash -c "quotacheck -avm && mkdir -p /etc/openpanel/openpanel/core/users/ && repquota -u / > /etc/openpanel/openpanel/core/users/repquota" &
+	disown
 }
-
 
 
 generate_user_password_hash() {
