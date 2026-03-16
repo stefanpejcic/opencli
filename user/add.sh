@@ -430,11 +430,7 @@ get_existing_users_count() {
     
     # Check if 'enterprise edition'
     if [ -n "$key_value" ]; then
-        if [ -n "$reseller" ]; then
-		:
-        else
-        	log "Enterprise edition detected: unlimited number of users can be created"
-	 fi
+        [ -z "$reseller" ] && log "Enterprise edition detected: unlimited number of users can be created"
     else
     	if [ -n "$reseller" ]; then
             echo "[✘] ERROR: Resellers feature requires the Enterprise edition."
@@ -464,16 +460,19 @@ check_username_exists() {
         echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
         exit 1
     fi
-    echo "$username_exists_count"
+    if [ "$username_exists_count" -gt 0 ]; then
+        echo "[✘] Error: Username '$username' is already taken."
+        exit 1
+    fi
 }
 
 
-username_exists_count=$(check_username_exists)
 
-if [ "$username_exists_count" -gt 0 ]; then
-    echo "[✘] Error: Username '$username' is already taken."
-    exit 1
-fi
+
+
+check_username_exists
+
+
 
 
 #########################################
@@ -840,10 +839,6 @@ create_local_user() {
 		echo "Error: Failed creating linux user $username on master server."
   		exit 1
 	fi
- 
- 	# https://github.com/stefanpejcic/OpenPanel/issues/367
-  	#echo "$username:$password" | chpasswd
-
 }
 
 create_remote_user() {
