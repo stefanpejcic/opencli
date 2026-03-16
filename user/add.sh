@@ -587,7 +587,6 @@ get_plan_info_and_check_requirements() {
         
     # Get the maximum available CPU cores on the server
     if [ -n "$node_ip_address" ]; then
-        # TODO: Use a custom user or configure SSH instead of using root
         max_available_cores=$(ssh "$key_flag" "root@$node_ip_address" "nproc")
     else
         max_available_cores=$(nproc)
@@ -598,7 +597,6 @@ get_plan_info_and_check_requirements() {
         echo "[✘] ERROR: CPU cores ($cpu) limit on the plan exceed the maximum available cores on the server ($max_available_cores). Cannot create user."
         exit 1
     fi
-    
     
 
     # Get the maximum available RAM on the server in GB
@@ -887,7 +885,7 @@ set_user_quota(){
 # CREATE THE USER
 create_user_set_quota_and_password() {
  	create_local_user
-       	create_remote_user $user_id
+    create_remote_user $user_id
 	set_user_quota
 }
 
@@ -986,10 +984,8 @@ include <tunables/global>
   }
 EOT1
 
-# Generate the filename for the profile
 filename=$(echo "/home/$username/bin/rootlesskit" | sed -e 's@^/@@' -e 's@/@.@g')
 
-# Create the rootlesskit profile for the user directly
 cat > "/home/$username/${filename}" <<'EOT2'
 abi <abi/4.0>,
 include <tunables/global>
@@ -1000,7 +996,6 @@ include <tunables/global>
   }
 EOT2
 
-# Move the generated file to the AppArmor directory
 mv "/home/$username/${filename}" "/etc/apparmor.d/${filename}"
 
 EOF1
@@ -1012,17 +1007,13 @@ log "Restarting services.."
 
 
 		ssh $key_flag root@$node_ip_address "
-		# Restart apparmor service
-		systemctl restart apparmor.service >/dev/null 2>&1
+		   systemctl restart apparmor.service >/dev/null 2>&1
+	
+		   loginctl enable-linger $username >/dev/null 2>&1
 		
-		# Enable lingering for the user to keep their session alive across reboots
-		loginctl enable-linger $username >/dev/null 2>&1
-		
-		# Create necessary directories and set permissions
-		mkdir -p /home/$username/.docker/run >/dev/null 2>&1
+	    	mkdir -p /home/$username/.docker/run >/dev/null 2>&1
 		chmod 700 /home/$username/.docker/run >/dev/null 2>&1
-		
-		# Set the appropriate permissions for the user home directory
+	
 		chmod 755 -R /home/$username/ >/dev/null 2>&1
 		chown -R $username:$username /home/$username/ >/dev/null 2>&1
   		"
