@@ -177,11 +177,6 @@ log() {
 }
 
 
-get_hostname_of_master() {
-	hostname=$(hostname)
-}
-
-
 
 update_accounts_for_reseller() {
 	if [ -n "$reseller" ]; then
@@ -343,71 +338,33 @@ validate_password_in_lists() {
 
 
 check_username_is_valid() {
+    local username="$1"
 
+    log "Validating username '$username'"
 
-    is_username_forbidden() {
-        local check_username="$1"
-        log "Checking if username is in the forbidden usernames list"
-        readarray -t forbidden_usernames < "$FORBIDDEN_USERNAMES_FILE"
-    
-        # Check against forbidden usernames
-        for forbidden_username in "${forbidden_usernames[@]}"; do
-            if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
-                return 0
+    # Length check
+    if (( ${#username} < 3 || ${#username} > 20 )); then
+        echo "[✘] Error: Username must be 3-20 characters long."
+        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
+        exit 1
+    fi
+
+    # Character check: must start with a letter and contain only letters/numbers
+    if [[ ! "$username" =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]]; then
+        echo "[✘] Error: Username must start with a letter and contain only letters and numbers."
+        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
+        exit 1
+    fi
+
+    # Forbidden username check
+    if [[ -f "$FORBIDDEN_USERNAMES_FILE" ]]; then
+        while IFS= read -r forbidden; do
+            if [[ "${username,,}" == "${forbidden,,}" ]]; then
+                echo "[✘] Error: The username '$username' is not allowed."
+                echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#reserved-usernames"
+                exit 1
             fi
-        done
-    
-        return 1
-    }
-
-
-
-	is_username_valid() {
-	    local check_username="$1"
-	    log "Checking if username $check_username is valid"
-	    
-	    if [[ "$check_username" =~ [[:space:]] ]]; then
-	        echo "[✘] Error: The username cannot contain spaces."
-	        return 0
-	    fi
-	    
-	    if [[ "$check_username" =~ [-_] ]]; then
-	        echo "[✘] Error: The username cannot contain hyphens or underscores."
-	        return 0
-	    fi
-	    
-	    if [[ ! "$check_username" =~ ^[a-zA-Z0-9]+$ ]]; then
-	        echo "[✘] Error: The username can only contain letters and numbers."
-	        return 0
-	    fi
-	    
-	    if [[ "$check_username" =~ ^[0-9]+$ ]]; then
-	        echo "[✘] Error: The username cannot consist entirely of numbers."
-	        return 0
-	    fi
-	    
-	    if (( ${#check_username} < 3 )); then
-	        echo "[✘] Error: The username must be at least 3 characters long."
-	        return 0
-	    fi
-	    
-	    if (( ${#check_username} > 20 )); then
-	        echo "[✘] Error: The username cannot be longer than 20 characters."
-	        return 0
-	    fi
-	    
-	    return 1
-	}
-
-    
-    # Validate username
-    if is_username_valid "$username"; then
-    	echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
-        exit 1
-    elif is_username_forbidden "$username"; then
-        echo "[✘] Error: The username '$username' is not allowed."
-        echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#reserved-usernames"
-        exit 1
+        done < "$FORBIDDEN_USERNAMES_FILE"
     fi
 }
 
@@ -1489,7 +1446,6 @@ send_sentinel_notification() {
 ##########################################################
 (
 flock -n 200 || { echo "[✘] Error: A user creation process is already running."; echo "Please wait for it to complete before starting a new one. Exiting."; exit 1; }
-get_hostname_of_master                       # later can be overwritten if slave
 check_username_is_valid                      # validate username first
 validate_password_in_lists $password         # compare with weakpass dictionaries
 get_slave_if_set                             # check if slave should be used and test connection
