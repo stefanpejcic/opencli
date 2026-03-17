@@ -610,8 +610,8 @@ case "${1:-}" in
 		
 		if [ ! -d "$DIR/postfwd" ]; then
 			mkdir -p "$DIR/postfwd"
-		    curl -sSL "$URL_POSTFWD" -o "$DISABLED_CF"
-			curl -sSL "$URL_POSTFIX" -o "$RULES_CF"
+		    curl -sSL "$URL_POSTFIX" -o "$DISABLED_CF"
+			curl -sSL "$URL_POSTFWD" -o "$RULES_CF"
 		fi
 
 		if ! grep -q "^[[:space:]]*postfwd:" "$COMPOSE_FILE"; then
