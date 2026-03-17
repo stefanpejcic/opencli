@@ -601,6 +601,7 @@ case "${1:-}" in
 	
 	    BACKUP_CF="$DIR/postfwd/postfix-main.cf"
 	    ACTIVE_CF="$DIR/docker-data/dms/config/postfix-main.cf"
+		RULES_CF="$DIR/postfwd/postfwd.cf"
 
 		# TODO: remove afer 1.8
 		COMPOSE_FILE="$DIR/compose.yml"
@@ -610,7 +611,7 @@ case "${1:-}" in
 		if [ ! -d "$DIR/postfwd" ]; then
 			mkdir -p "$DIR/postfwd"
 		    curl -sSL "$URL_POSTFWD" -o "$BACKUP_CF"
-			curl -sSL "$URL_POSTFIX" -o "$DIR/postfwd/postfix-main.cf"
+			curl -sSL "$URL_POSTFIX" -o "$RULES_CF"
 		fi
 
 		if ! grep -q "^[[:space:]]*postfwd:" "$COMPOSE_FILE"; then
@@ -649,12 +650,12 @@ case "${1:-}" in
 	
 	    case "$ACTION" in
 	        view)
-	            if [ -f "$ACTIVE_CF" ]; then
-					cat "$DIR/postfwd/postfwd.cf"
+	            if [ -f "$RULES_CF" ]; then
+					cat "$RULES_CF"
 	            fi
 	            ;;
 	        edit)
-	            nano "$DIR/postfwd/postfwd.cf"
+	            nano "$RULES_CF"
 	            ;;				
 			enable)
 	            if [ ! -f "$ACTIVE_CF" ]; then
