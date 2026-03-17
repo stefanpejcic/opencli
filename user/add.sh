@@ -625,7 +625,6 @@ download_images() {
 		    val=$(grep -E "^$key=" "$env_file" | cut -d '=' -f2-)
 			# https://community.openpanel.org/d/239-no-such-container-openlitespeed
 			val=${val//$'\r'/}
-		    # Remove leading and trailing quotes (single or double)
 		    val="${val%\"}"   # Remove trailing double quote
 		    val="${val#\"}"   # Remove leading double quote
 		    val="${val%\'}"   # Remove trailing single quote
@@ -756,54 +755,39 @@ validate_ssh_login(){
 
 
 
-
-
-
-
-
-# DEBUG
 print_debug_info_before_starting_creation() {
-    if [ "$DEBUG" = true ]; then
-   	 echo "--------------------------------------------------------------"
-	if [ -n "$reseller" ]; then
-	        echo "Reseller user information:"
-	        echo "- Reseller:             $reseller" 
-	        echo "- Existing accounts:    $current_accounts/$max_accounts" 	 
-	        echo "--------------------------------------------------------------"
+    [[ "$DEBUG" == true ]] || return
 
-	fi
-	
-	if [ -n "$node_ip_address" ]; then
-	        echo "Data for connecting to the Node server:"
-	        echo "- IP address:           $node_ip_address" 
-	        echo "- Hostname:             $hostname" 	 
-	        echo "- SSH user:             root" 	
-	        echo "- SSH key path:         $key" 		
-	        echo "--------------------------------------------------------------"
+    sep() { echo "--------------------------------------------------------------"; }
 
-	fi
-        echo "Selected plan limits from database:"
-        echo "- plan id:           $plan_id" 
-        echo "- plan name:         $plan_name"
-        echo "- cpu limit:         $cpu"
-        echo "- memory limit:      $ram"
-	
-	if [ "$disk_limit" -eq 0 ]; then
-        	echo "- storage:           unlimited"
-	else
-		echo "- storage:           $disk_limit GB"
-	fi
- 
- 	if [ "$inodes" -eq 0 ]; then
-        	echo "- inodes:            unlimited"
-	else
-		echo "- inodes:            $inodes"
-	fi
- 
-        echo "- port speed:        $bandwidth"
-	echo "--------------------------------------------------------------"
+    sep
+    if [[ -n "$reseller" ]]; then
+        echo "Reseller user information:"
+        echo "- Reseller:             $reseller"
+        echo "- Existing accounts:    $current_accounts/$max_accounts"
+        sep
     fi
+
+    if [[ -n "$node_ip_address" ]]; then
+        echo "Data for connecting to the Node server:"
+        echo "- IP address:           $node_ip_address"
+        echo "- Hostname:             $hostname"
+        echo "- SSH user:             root"
+        echo "- SSH key path:         $key"
+        sep
+    fi
+
+    echo "Selected plan limits from database:"
+    echo "- plan id:           $plan_id"
+    echo "- plan name:         $plan_name"
+    echo "- cpu limit:         $cpu"
+    echo "- memory limit:      $ram"
+    echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo "unlimited" || echo "$disk_limit GB")"
+    echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo "unlimited" || echo "$inodes")"
+    echo "- port speed:        $bandwidth"
+    sep
 }
+
 
 
 create_local_user() {
