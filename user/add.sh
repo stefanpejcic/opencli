@@ -199,54 +199,44 @@ check_if_reseller() {
 	if [ -n "$reseller" ]; then
 	    log "Checking if reseller user exists and can create new users.."
 	
-    	    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$reseller' AND role='reseller';")
+    	local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$reseller' AND role='reseller';")
 		
 	    if [ "$user_exists" -lt 1 ]; then
 	        echo -e "ERROR: User '$reseller' is not a reseller or not allowed to create new users. Contact support."
 	    fi
 
 	    reseller_limits_file="/etc/openpanel/openadmin/resellers/$reseller.json"
-     
 	    if [ -f "$reseller_limits_file" ]; then
-	  	log "Checking reseller limits.."
+	  		log "Checking reseller limits.."
     
-		local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
+			local query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
 
-		if current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query_for_owner"); then
-		    if [[ -z "$current_accounts" ]]; then
-		        current_accounts=0
-		    fi
-		
-		    jq --argjson current_accounts "$current_accounts" '.current_accounts = $current_accounts' "$reseller_limits_file" > "/tmp/${reseller}_config.json" \
-		        && mv "/tmp/${reseller}_config.json" "$reseller_limits_file"
-		else
-		    log "Error fetching current account count for reseller $reseller from MySQL."
-		    echo "ERROR: Unable to retrieve the number of users from the database. Is MySQL running?"
-		    exit 1
-		fi
+			if current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query_for_owner"); then
+				current_accounts=${current_accounts:-0}
+			
+			    jq --argjson current_accounts "$current_accounts" '.current_accounts = $current_accounts' "$reseller_limits_file" > "/tmp/${reseller}_config.json" \
+			        && mv "/tmp/${reseller}_config.json" "$reseller_limits_file"
+			else
+			    log "Error fetching current account count for reseller $reseller from MySQL."
+			    echo "ERROR: Unable to retrieve the number of users from the database. Is MySQL running?"
+			    exit 1
+			fi
 	  
 			max_accounts=$(jq -r '.max_accounts // "unlimited"' "$reseller_limits_file")
-			local allowed_plans
-			allowed_plans=$(jq -r '.allowed_plans | join(",")' "$reseller_limits_file")
-
-	        # Compare current account count with the max limit
 	        if [ "$max_accounts" != "unlimited" ] && [ "$current_accounts" -ge "$max_accounts" ]; then
 	            echo "ERROR: Reseller has reached the maximum account limit. Cannot create more users."
 	            exit 1
 	        fi
-	 
-	        # Check if the current plan ID is in the allowed plans
-	        if echo "$allowed_plans" | grep -wq "$plan_id"; then
-	            :
-	            #log "Current plan ID '$plan_id' is allowed for this reseller."
-	        else
-	            echo "ERROR: Current plan ID '$plan_id' is not assigned for this reseller. Please select another plan."
-	            exit 1
-	        fi
+
+			local allowed_plans
+			allowed_plans=$(jq -r '.allowed_plans | join(",")' "$reseller_limits_file")	 
+			if ! grep -wq "$plan_id" <<< "$allowed_plans"; then
+			    echo "ERROR: Current plan ID '$plan_id' is not assigned for this reseller. Please select another plan."
+			    exit 1
+			fi
 	   
 	    else
-	 	  log "WARNING: Reseller $reseller has no limits configured and can create unlimited number of users."
-	    		# TODO: notify admin - log in adminn log!
+			log "WARNING: Reseller $reseller has no limits configured and can create unlimited number of users."
 	    fi
     fi
 }
