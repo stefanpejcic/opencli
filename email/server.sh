@@ -656,6 +656,7 @@ case "${1:-}" in
 	            ;;
 	        edit)
 	            nano "$RULES_CF"
+				nohup docker --context=default exec openadmin_mailserver sh -c "postfix reload" >/dev/null 2>&1 &
 	            ;;				
 			enable)
 	            if [ -f "$ACTIVE_CF" ]; then
