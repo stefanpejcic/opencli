@@ -801,6 +801,10 @@ fi
 
 }
 
+check_if_enterprise(){
+    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
+}
+
 postfwd_setup(){
     # Set hourly email limits 
     if [ -n "$key_value" ]; then
@@ -808,11 +812,6 @@ postfwd_setup(){
 		disown		
 	fi
 }	
-
-
-check_if_enterprise(){
-    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
-}
 
 # add mountpoint and reload mailserver
 # todo: need better solution!
