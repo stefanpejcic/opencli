@@ -55,7 +55,7 @@ doram=false
 dodsk=false
 donet=false
 
-# TODO: update to support updating max_email_quota for account
+# TODO: update to support updating max_email_quota AND max_hourly_email for account
 
 # Parse arguments
 for arg in "$@"; do
