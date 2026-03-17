@@ -599,19 +599,18 @@ case "${1:-}" in
 	postfwd)  # manage rate-limiting
 	    ACTION="${2:-}"
 	
-	    ACTIVE_CF="$DIR/postfwd/postfix-main.cf"
-	    BACKUP_CF="$DIR/docker-data/dms/config/postfix-main.cf"
+	    BACKUP_CF="$DIR/postfwd/postfix-main.cf"
+	    ACTIVE_CF="$DIR/docker-data/dms/config/postfix-main.cf"
 
 		# TODO: remove afer 1.8
 		COMPOSE_FILE="$DIR/compose.yml"
 		URL_POSTFIX="https://raw.githubusercontent.com/stefanpejcic/OpenMail/refs/heads/main/postfwd/postfix-main.cf"
 		URL_POSTFWD="https://raw.githubusercontent.com/stefanpejcic/OpenMail/refs/heads/main/postfwd/postfwd.cf"
-		mkdir -p "$(dirname "$ACTIVE_CF")"
-		if [ ! -f "$ACTIVE_CF" ]; then
-		    curl -sSL "$URL_POSTFIX" -o "$ACTIVE_CF"
-		fi
-		if [ ! -f "$BACKUP_CF" ]; then
+		
+		if [ ! -d "$DIR/postfwd" ]; then
+			mkdir -p "$DIR/postfwd"
 		    curl -sSL "$URL_POSTFIX" -o "$BACKUP_CF"
+			curl -sSL "$URL_POSTFIX" -o "$DIR/postfwd/postfix-main.cf"
 		fi
 
 		if ! grep -q "^[[:space:]]*postfwd:" "$COMPOSE_FILE"; then
