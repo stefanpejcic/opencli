@@ -599,7 +599,7 @@ case "${1:-}" in
 	postfwd)  # manage rate-limiting
 	    ACTION="${2:-}"
 	
-	    BACKUP_CF="$DIR/postfwd/postfix-main.cf"
+	    DISABLED_CF="$DIR/postfwd/postfix-main.cf"
 	    ACTIVE_CF="$DIR/docker-data/dms/config/postfix-main.cf"
 		RULES_CF="$DIR/postfwd/postfwd.cf"
 
@@ -610,7 +610,7 @@ case "${1:-}" in
 		
 		if [ ! -d "$DIR/postfwd" ]; then
 			mkdir -p "$DIR/postfwd"
-		    curl -sSL "$URL_POSTFWD" -o "$BACKUP_CF"
+		    curl -sSL "$URL_POSTFWD" -o "$DISABLED_CF"
 			curl -sSL "$URL_POSTFIX" -o "$RULES_CF"
 		fi
 
