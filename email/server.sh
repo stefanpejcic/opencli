@@ -595,7 +595,95 @@ case "${1:-}" in
         echo "Uninstalling the mailsserver..."
         remove_mailserver_and_all_config
 		;;
-  
+
+	postfwd)  # manage rate-limiting
+	    ACTION="${2:-}"
+	
+	    ACTIVE_CF="$DIR/postfwd/postfix-main.cf"
+	    BACKUP_CF="$DIR/docker-data/dms/config/postfix-main.cf"
+
+		# TODO: remove afer 1.8
+		COMPOSE_FILE="$DIR/compose.yml"
+		URL_POSTFIX="https://raw.githubusercontent.com/stefanpejcic/OpenMail/refs/heads/main/postfwd/postfix-main.cf"
+		URL_POSTFWD="https://raw.githubusercontent.com/stefanpejcic/OpenMail/refs/heads/main/postfwd/postfwd.cf"
+		mkdir -p "$(dirname "$ACTIVE_CF")"
+		if [ ! -f "$ACTIVE_CF" ]; then
+		    curl -sSL "$URL_POSTFIX" -o "$ACTIVE_CF"
+		fi
+		if [ ! -f "$BACKUP_CF" ]; then
+		    curl -sSL "$URL_POSTFIX" -o "$BACKUP_CF"
+		fi
+
+		if ! grep -q "^[[:space:]]*postfwd:" "$COMPOSE_FILE"; then
+    echo "Adding postfwd service under services: ..."
+    awk '
+    BEGIN { inserted=0 }
+    /^services:/ && !inserted {
+        print
+        print "  postfwd:"
+        print "    image: postfwd/postfwd:stable"
+        print "    container_name: openadmin_postfwd"
+        print "    restart: always"
+        print "    depends_on:"
+        print "      - mailserver"
+        print "    networks:"
+        print "      - network"
+        print "    volumes:"
+        print "      - ./postfwd:/etc/postfwd"
+        print "    command: >"
+        print "      /usr/sbin/postfwd --config /etc/postfwd/postfwd.cf --daemon --foreground --port 10040"
+        inserted=1
+        next
+    }
+    { print }
+    ' "$COMPOSE_FILE" > "${COMPOSE_FILE}.tmp" && mv "${COMPOSE_FILE}.tmp" "$COMPOSE_FILE"
+	fi
+			
+	    if [ -z "$ACTION" ]; then
+	        if [ -f "$ACTIVE_CF" ]; then
+	            echo "Rate-limiting is currently ENABLED."
+	        else
+	            echo "Rate-limiting is currently DISABLED."
+	        fi
+	        exit 0
+	    fi
+	
+	    case "$ACTION" in
+	        view)
+	            if [ -f "$ACTIVE_CF" ]; then
+					cat "$DIR/postfwd/postfwd.cf"
+	            fi
+	            ;;
+	        edit)
+	            nano "$DIR/postfwd/postfwd.cf"
+	            ;;				
+			enable)
+	            if [ ! -f "$ACTIVE_CF" ]; then
+	                echo "Rate-limiting is already enabled."
+	            else
+	                cd "$DIR" || exit
+	                mv postfwd/postfix-main.cf docker-data/dms/config/postfix-main.cf
+	                nohup docker --context=default compose up -d postfwd >/dev/null 2>&1 &
+	                nohup docker --context=default restart openadmin_mailserver >/dev/null 2>&1 &
+	                echo "Rate-limiting has been ENABLED."
+	            fi
+	            ;;
+	        disable)
+	            if [ -f "$ACTIVE_CF" ]; then
+	                echo "Rate-limiting is already disabled."
+	            else
+	                cd "$DIR" || exit
+	                mv docker-data/dms/config/postfix-main.cf postfwd/postfix-main.cf
+	                nohup docker --context=default compose down postfwd >/dev/null 2>&1 &
+	                nohup docker --context=default restart openadmin_mailserver >/dev/null 2>&1 &
+	                echo "Rate-limiting has been DISABLED."
+	            fi
+	            ;;
+	        *)
+	            echo "Error: Unknown action '$ACTION'. Use 'enable' or 'disable'."
+	            ;;
+	    esac
+	    ;;
 	queue)		# display queue
 		execute_cmd_in_container postqueue -p
 		;;
@@ -711,6 +799,7 @@ case "${1:-}" in
 		$APP logs [-f]                        Show logs. Use -f to 'follow' the logs
 		$APP login                            Run container shell
 		$APP supervisor                       Interact with supervisorctl
+		$APP postfwd                          Enable/disable postfwd rate-limiting and edit limits.
 		$APP pflogsumm                        Generate email summary reports.
 		$APP update-check                     Check for container package updates
 		$APP update-packages                  Update container packages
