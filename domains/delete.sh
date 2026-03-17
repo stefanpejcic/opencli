@@ -307,12 +307,21 @@ delete_zone_file() {
 }
 
 
+check_if_enterprise(){
+    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
+}
 
+postfwd_setup(){
+    # Delete hourly email limits 
+    if [ -n "$key_value" ]; then
+		nohup opencli email-ratelimit --delete-domain=$domain_name >/dev/null 2>&1 &
+		disown		
+	fi
+}	
 
 # add mountpoint and reload mailserver
 # todo: need better solution!
 delete_mail_mountpoint(){
-    key_value=$(grep "^key=" "$PANEL_CONFIG_FILE" | cut -d'=' -f2-)
 
     if [ -n "$key_value" ]; then
         DOMAIN_DIR="/home/$user/mail/$domain_name/"
@@ -417,7 +426,10 @@ delete_domain() {
 		    delete_domain_file                       # remove caddy files
 		 	dns_stuff			                     # remove dns files
 	 	fi
+
+		check_if_enterprise
         delete_mail_mountpoint                       # delete mountpoint to mailserver
+		postfwd_setup                                # delete domain hourly ratelimit
         delete_emails  $user $domain_name            # delete mails for the domain
         rm_domain_to_clamav_list                     # added in 0.3.4    
         echo "Domain $domain_name deleted successfully"
