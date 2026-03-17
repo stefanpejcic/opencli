@@ -877,13 +877,11 @@ if [ -n "$node_ip_address" ]; then
     fi
 
     log "Adding user '$username' to docker group on $node_ip_address..."
-    ssh $key_flag root@"$node_ip_address" bash -c "'
-      if id -nG \"$username\" | grep -qw docker; then
-        :
-      else
-        usermod -aG docker \"$username\" && echo \"User $username added to docker group.\"
-      fi
-    '"
+	ssh $key_flag root@"$node_ip_address" bash -c "'
+	  if [[ ! \" \$(id -nG \"$username\") \" =~ ' docker ' ]]; then
+	    usermod -aG docker \"$username\" && echo \"User $username added to docker group.\"
+	  fi
+	'"
 fi
 }
 
