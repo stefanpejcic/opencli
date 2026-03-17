@@ -76,7 +76,7 @@ required_cmd() {
 
 check_mailserver() {
 	if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
-		if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -z "$(docker --context=default ps -q --filter "name=^$CONTAINER$")" ]; then
 			echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
 			exit 1
 		fi
@@ -99,9 +99,9 @@ check_exposed_ports_for_container() {
 execute_cmd_in_container() {
 	if [ "$1" == "-it" ]; then
 		shift
-		docker exec -it "$CONTAINER" "$@"
+		docker --context=default exec -it "$CONTAINER" "$@"
 	else
-		docker exec "$CONTAINER" "$@"
+		docker --context=default exec "$CONTAINER" "$@"
 	fi
 }
 
@@ -144,7 +144,7 @@ enable_emails_if_not_yet() {
 	echo "'emails' module is not enabled. Enabling.."
 		sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
 		echo "Restarting OpenPanel container to enable email pages.."
-	if [ "$(docker ps -q -f name=openpanel)" ]; then
+	if [ "$(docker --context=default ps -q -f name=openpanel)" ]; then
 		docker restart openpanel  >/dev/null 2>&1
 	else
 		cd /root && docker --context default compose up -d openpanel  >/dev/null 2>&1
@@ -165,7 +165,7 @@ pflogsumm_get_data() {
 	ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
  	docker cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh   > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
-	docker exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
+	docker --context=default exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
 	echo "Done, adding reports to OpenAdmin interface"
 	mkdir -p /usr/local/admin/static/reports /usr/local/admin/templates/emails > /dev/null 2>&1
 	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html > /dev/null 2>&1
@@ -536,9 +536,9 @@ case "${1:-}" in
         pflogsumm_get_data
 		;;
 	status) 	# Show status
-		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -n "$(docker --context=default ps -q --filter "name=^$CONTAINER$")" ]; then
 			# uptime
-			execute_cmd_and_print "Container" "$(docker ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
+			execute_cmd_and_print "Container" "$(docker --context=default ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
 			echo
 
 			# version
