@@ -874,34 +874,36 @@ docker_compose() {
 	local arm_link="https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-aarch64"
  	local x86_link="https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-x86_64"
    	if [ -n "$node_ip_address" ]; then
-    		# TODO: CHECK ARMCPU!
-	    	log "Configuring Docker Compose for user $username on node $node_ip_address"
+    	# TODO: check for armcpu on node
+	    log "Configuring Docker Compose for user $username on node $node_ip_address"
 		ssh $key_flag root@$node_ip_address "su - $username -c '
-		DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
-		mkdir -p /home/$username/.docker/cli-plugins
-		curl -sSL $x86_link -o /home/$username/.docker/cli-plugins/docker-compose
-		chmod +x /home/$username/.docker/cli-plugins/docker-compose
+			DOCKER_CONFIG=\${DOCKER_CONFIG:-/home/$username/.docker}
+			mkdir -p /home/$username/.docker/cli-plugins
+			curl -sSL $x86_link -o /home/$username/.docker/cli-plugins/docker-compose
+			chmod +x /home/$username/.docker/cli-plugins/docker-compose
 		'"
 	else	
- 		architecture=$(lscpu | grep Architecture | awk '{print $2}')
-	    	log "Configuring Docker Compose for user $username"
-      		if [ "$architecture" == "aarch64" ]; then
-			log "Setting compose for ARM CPU (/etc/openpanel/docker/docker-compose-linux-aarch64)"
-			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-aarch64"
-	      		if [ ! -f "$system_wide_compose_file" ]; then
-				curl -sSL $arm_link -o $system_wide_compose_file
-			fi
-  		else 
-    			log "Setting compose for x86_64 CPU (/etc/openpanel/docker/docker-compose-linux-x86_64)"
-			system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-x86_64"
-	   
-	      		if [ ! -f "$system_wide_compose_file" ]; then
-				curl -sSL $x86_link -o $system_wide_compose_file
-			fi
-     		fi
-     		chmod +x $system_wide_compose_file
-      		mkdir -p /home/$username/.docker/cli-plugins
-	        ln -sf $system_wide_compose_file /home/$username/.docker/cli-plugins/docker-compose
+		architecture=$(lscpu | awk '/Architecture/ {print $2}')
+		log "Configuring Docker Compose for user $username"
+		case "$architecture" in
+		    aarch64)
+		        log "Setting compose for ARM CPU (/etc/openpanel/docker/docker-compose-linux-aarch64)"
+		        system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-aarch64"
+		        download_link="$arm_link"
+		        ;;
+		    x86_64|*)
+		        log "Setting compose for x86_64 CPU (/etc/openpanel/docker/docker-compose-linux-x86_64)"
+		        system_wide_compose_file="/etc/openpanel/docker/docker-compose-linux-x86_64"
+		        download_link="$x86_link"
+		        ;;
+		esac
+
+		# TODO: remove after 2.0
+		[ -f "$system_wide_compose_file" ] || curl -sSL "$download_link" -o "$system_wide_compose_file"
+
+     	chmod +x $system_wide_compose_file
+      	mkdir -p /home/$username/.docker/cli-plugins
+	    ln -sf $system_wide_compose_file /home/$username/.docker/cli-plugins/docker-compose
 	fi
 }
 
