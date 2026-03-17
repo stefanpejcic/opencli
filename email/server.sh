@@ -615,8 +615,7 @@ case "${1:-}" in
 		fi
 
 		if ! grep -q "^[[:space:]]*postfwd:" "$COMPOSE_FILE"; then
-    echo "Adding postfwd service under services: ..."
-    awk '
+    		awk '
     BEGIN { inserted=0 }
     /^services:/ && !inserted {
         print
