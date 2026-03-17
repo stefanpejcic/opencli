@@ -642,19 +642,7 @@ download_images() {
 		    val="${val#\'}"   # Remove leading single quote
 		    echo "$val"
 		}
-	
-	php_version=$(get_env_value "DEFAULT_PHP_VERSION")
-	php_image=""
-	if [[ -n "$php_version" ]]; then
-	    if [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
-	        php_image="php-fpm-$php_version"
-	    else
-	        echo "Warning: DEFAULT_PHP_VERSION must be N.N format, got '$php_version'"
-	    fi
-	else
-	    echo "Warning: DEFAULT_PHP_VERSION is not set"
-	fi
-	
+
 	sql_type=$(get_env_value "MYSQL_TYPE")
 	valid_sql_types=("mysql" "mariadb")
 	if [[ -n "$sql_type" ]]; then
@@ -682,7 +670,7 @@ download_images() {
 	images_to_pull=()
 	[[ -n "$ws_type" ]] && images_to_pull+=("$ws_type")
 	[[ -n "$sql_type" ]] && images_to_pull+=("$sql_type")
-	[[ -n "$php_image" ]] && images_to_pull+=("$php_image")
+    [[ ! "$ws_type" =~ litespeed && -n "$php_image" ]] && images_to_pull+=("php-fpm-$php_version")
 	
 	if [[ ${#images_to_pull[@]} -eq 0 ]]; then
 	    echo "Warning: No valid images to pull."
