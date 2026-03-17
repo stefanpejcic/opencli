@@ -1081,9 +1081,9 @@ EOF
 
 run_docker() {
 
-# TODO:
-# check ports on remote server!
-#
+	# TODO:
+	# check ports on remote server!
+	#
     # added in 0.2.3 to set fixed ports for mysql and ssh services of the user!
     find_available_ports() {
 
