@@ -658,7 +658,7 @@ case "${1:-}" in
 	            nano "$RULES_CF"
 	            ;;				
 			enable)
-	            if [ ! -f "$ACTIVE_CF" ]; then
+	            if [ -f "$ACTIVE_CF" ]; then
 	                echo "Rate-limiting is already enabled."
 	            else
 	                cd "$DIR" || exit
@@ -669,7 +669,7 @@ case "${1:-}" in
 	            fi
 	            ;;
 	        disable)
-	            if [ -f "$ACTIVE_CF" ]; then
+	            if [ ! -f "$ACTIVE_CF" ]; then
 	                echo "Rate-limiting is already disabled."
 	            else
 	                cd "$DIR" || exit
