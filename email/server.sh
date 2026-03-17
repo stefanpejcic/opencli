@@ -631,6 +631,7 @@ case "${1:-}" in
         print "      - ./postfwd:/etc/postfwd"
         print "    command: >"
         print "      /usr/sbin/postfwd --config /etc/postfwd/postfwd.cf --daemon --foreground --port 10040"
+		print
         inserted=1
         next
     }
