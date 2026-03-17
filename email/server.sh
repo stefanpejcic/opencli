@@ -609,7 +609,7 @@ case "${1:-}" in
 		
 		if [ ! -d "$DIR/postfwd" ]; then
 			mkdir -p "$DIR/postfwd"
-		    curl -sSL "$URL_POSTFIX" -o "$BACKUP_CF"
+		    curl -sSL "$URL_POSTFWD" -o "$BACKUP_CF"
 			curl -sSL "$URL_POSTFIX" -o "$DIR/postfwd/postfix-main.cf"
 		fi
 
