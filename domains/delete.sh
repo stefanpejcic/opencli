@@ -292,7 +292,7 @@ remove_dns_entries_from_apex_zone() {
 
 
 delete_zone_file() {
-	local zone_file=/etc/bind/zones/$domain_name.zone"
+	local zone_file="/etc/bind/zones/$domain_name.zone"
 
 	if [ -f "$zone_file" ]; then
 	    log "Removing DNS zone file: $zone_file"
