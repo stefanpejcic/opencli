@@ -45,7 +45,6 @@ readonly EXCLUDE_PATTERNS=(
     "ftp/users.sh"
     "db.sh"
     "enterprise.sh"
-    "ip_servers.sh"
     "progress_bar.sh"
 )
 
