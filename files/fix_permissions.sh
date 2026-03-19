@@ -130,7 +130,7 @@ apply_permissions_in_container() {
     
 
         # get uid first!
-        uid="$(grep -E "^${context}:" /hostfs/etc/passwd | cut -d: -f3)"
+        uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
 
         # USERNAME OWNER
         #chown -R $verbose $uid:$uid $directory
