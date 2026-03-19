@@ -154,7 +154,7 @@ storage_in_blocks=$((numNdisk * 1024000))
 
 
 
-# SERVER LIMITS
+# TODO: check if slave node and check cpu and ram limits on it!
 maxCPU=$(nproc)
 maxRAM=$(free -g | awk '/^Mem/ {print $2}')
 
