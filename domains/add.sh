@@ -437,8 +437,7 @@ get_server_ipv4_or_ipv6() {
 make_folder() {
 	log "Creating document root directory $docroot"
  	local stripped_docroot="${docroot#/var/www/html/}"
- 	context_uid=$(awk -F: -v user="$context" '$1 == user {print $3}' /hostfs/etc/passwd)
-
+	context_uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
 	if [ -z "$context_uid" ]; then
 		log "Warning: failed detecting user id, permissions issue!"
 		return
