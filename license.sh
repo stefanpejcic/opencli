@@ -33,7 +33,6 @@
 # Configuration
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly WHMCS_URL="https://my.openpanel.com/modules/servers/licensing/verify.php"
-readonly IP_SCRIPT_PATH="/usr/local/opencli/ip_servers.sh"
 
 # Colors
 readonly GREEN='\033[0;32m'
@@ -43,15 +42,6 @@ readonly RESET='\033[0m'
 # Global flags
 JSON="no"
 NO_RESTART="no"
-
-# Load IP servers configuration
-load_ip_servers() {
-    if [[ -f "$IP_SCRIPT_PATH" ]]; then
-        source "$IP_SCRIPT_PATH"
-    else
-        IP_SERVER_1=IP_SERVER_2=IP_SERVER_3="https://ip.openpanel.com"
-    fi
-}
 
 # Parse command line flags
 parse_flags() {
@@ -117,7 +107,8 @@ get_license_key() {
 
 # Get public IP address
 get_public_ip() {
-    curl --silent --max-time 2 -4 "$IP_SERVER_1" || wget --timeout=2 --tries=1 -qO- "$IP_SERVER_2" || curl --silent --max-time 2 -4 "$IP_SERVER_3"
+    local ip_server="https://openpanel.com"
+    curl --silent --max-time 2 -4 "$ip_server" || wget --timeout=2 --tries=1 -qO- "$ip_server"
 }
 
 # Verify license with WHMCS
@@ -326,7 +317,6 @@ main() {
         usage
     fi
     
-    load_ip_servers
     parse_flags "$@"
     
     case "$command" in
