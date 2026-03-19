@@ -228,14 +228,18 @@ if [ -n "$stop_service" ]; then
     if [ "$dry_run" = true ]; then
         message+="<br>[DRY-RUN] Would stop $stop_service."
     else
-        stop_service "$stop_service"
-        if check_service_running "$stop_service"; then
-            message+="<br>Failed to stop $stop_service."
-            if [ "$debug" = true ]; then
-                message+="<br>Command used: 'docker --context=$context compose -f /home/$context/docker-compose.yml down $stop_service'"
-            fi    
+        if ! check_service_running "$stop_service"; then
+            message+="<br>Service $stop_service is not running."
         else
-            message+="<br>Stopped $stop_service."
+            stop_service "$stop_service"
+            if check_service_running "$stop_service"; then
+                message+="<br>Failed to stop $stop_service."
+                if [ "$debug" = true ]; then
+                    message+="<br>Command used: 'docker --context=$context compose -f /home/$context/docker-compose.yml down $stop_service'"
+                fi    
+            else
+                message+="<br>Stopped $stop_service."
+            fi
         fi
     fi
 fi
@@ -247,34 +251,41 @@ if [ -n "$new_service" ]; then
         exit 1
     }
 
-    norm_name=$(normalize_service_name "$new_service")
-    cpu_var="${norm_name}_CPU"
-    ram_var="${norm_name}_RAM"
-    
-    cpu="${!cpu_var:-0}"
-    ram="${!ram_var:-0}"
-
-    ram=${ram//[gG]/}
-
-    projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $cpu}")
-    projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $ram}")
-
-    if [ "$TOTAL_CPU" -ne 0 ] && awk -v a="$projected_cpu" -v b="$TOTAL_CPU" 'BEGIN {exit !(a > b)}'; then
-        message+="<br>CPU limit exceeded by starting $new_service."
-    elif [ "$TOTAL_RAM" -ne 0 ] && awk -v a="$projected_ram" -v b="$TOTAL_RAM" 'BEGIN {exit !(a > b)}'; then
-        message+="<br>RAM limit exceeded by starting $new_service."
+    if check_service_running "$new_service"; then
+        message+="<br>Service $new_service is already running."
+        if [ "$json_output" = false ]; then
+            echo "Service $new_service is already running."
+        fi
     else
-        if [ "$dry_run" = true ]; then
-            message+="<br>[DRY-RUN] Would start $new_service (CPU: $cpu, RAM: ${ram}G)."
-        else    
-            start_service "$new_service"
-            if check_service_running "$new_service"; then
-                message+="<br>Started $new_service."
-            else
-                message+="<br>Failed to start $new_service."
-                if [ "$debug" = true ]; then
-                    message+="<br>Command used: 'docker --context=$context compose -f /home/$context/docker-compose.yml up -d $new_service'"
-                fi    
+        norm_name=$(normalize_service_name "$new_service")
+        cpu_var="${norm_name}_CPU"
+        ram_var="${norm_name}_RAM"
+        
+        cpu="${!cpu_var:-0}"
+        ram="${!ram_var:-0}"
+    
+        ram=${ram//[gG]/}
+    
+        projected_cpu=$(awk "BEGIN {print $TOTAL_USED_CPU + $cpu}")
+        projected_ram=$(awk "BEGIN {print $TOTAL_USED_RAM + $ram}")
+    
+        if [ "$TOTAL_CPU" -ne 0 ] && awk -v a="$projected_cpu" -v b="$TOTAL_CPU" 'BEGIN {exit !(a > b)}'; then
+            message+="<br>CPU limit exceeded by starting $new_service."
+        elif [ "$TOTAL_RAM" -ne 0 ] && awk -v a="$projected_ram" -v b="$TOTAL_RAM" 'BEGIN {exit !(a > b)}'; then
+            message+="<br>RAM limit exceeded by starting $new_service."
+        else
+            if [ "$dry_run" = true ]; then
+                message+="<br>[DRY-RUN] Would start $new_service (CPU: $cpu, RAM: ${ram}G)."
+            else    
+                start_service "$new_service"
+                if check_service_running "$new_service"; then
+                    message+="<br>Started $new_service."
+                else
+                    message+="<br>Failed to start $new_service."
+                    if [ "$debug" = true ]; then
+                        message+="<br>Command used: 'docker --context=$context compose -f /home/$context/docker-compose.yml up -d $new_service'"
+                    fi    
+                fi
             fi
         fi
     fi
