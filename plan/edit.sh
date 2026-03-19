@@ -246,24 +246,6 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   fi
 }
 
-
-check_cpu_cores() {
-  local available_cores=$(nproc)
-  
-  if [ "$cpu" -gt "$available_cores" ]; then
-    echo "ERROR: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
-    exit 0
-  fi
-}
-
-check_available_ram() {
-  local available_ram=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
-  if [ "$ram" -gt "$available_ram" ]; then
-    echo "ERROR: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
-    exit 0
-  fi
-}
-
 check_plan_exists() {
   local id="$1"
   local sql="SELECT id FROM plans WHERE id='$id';"
@@ -418,8 +400,6 @@ for arg in "$@"; do
   esac
 done
 
-check_cpu_cores "$cpu"
-check_available_ram "$ram"
 
 existing_plan=$(check_plan_exists "$plan_id")
 if [ -z "$existing_plan" ]; then
