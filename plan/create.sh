@@ -65,25 +65,6 @@ if [ "$#" -lt 13 ]; then
     help
 fi
 
-check_cpu_cores() {
-  local available_cores=$(nproc) 
-  #TODO: for slave servers, remove the limit
-  if [ "$cpu" -gt "$available_cores" ]; then
-    echo "Error: Insufficient CPU cores. Required: ${cpu}, Available: ${available_cores}"
-    exit 1
-  fi
-}
-
-check_available_ram() {
-  #TODO: for slave servers, remove the limit
-  local available_ram=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
-
-  if [ "$ram" -gt "$available_ram" ]; then
-    echo "Error: Insufficient RAM. Required: ${ram}GB, Available: ${available_ram}GB"
-    exit 1
-  fi
-}
-
 check_plan_exists() {
     local name="$1"
     local sql="SELECT id FROM plans WHERE name='${name}';"
@@ -310,8 +291,6 @@ done
 
 # ======================================================================
 # Main
-check_cpu_cores "$cpu"
-check_available_ram "$ram"
 check_plan_exists "${name}"
 validate_fields_first "$ftp_limit" "$email_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$max_email_quota" "$max_hourly_email"
 check_reseller_user # if no file or invalid json, abort
