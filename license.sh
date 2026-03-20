@@ -109,7 +109,7 @@ get_license_key() {
 
 # Get public IP address
 get_public_ip() {
-    local ip_server="https://openpanel.com"
+    local ip_server="https://ip.openpanel.com"
     curl --silent --max-time 2 -4 "$ip_server" || wget --timeout=2 --tries=1 -qO- "$ip_server"
 }
 
