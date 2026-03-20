@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: resources.sh
 # Description: View services limits for user.
-# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--deactivate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--service=<NAME>] [--json]
+# Usage: opencli user-resources <CONTEXT> [--activate=<SERVICE_NAME>] [--deactivate=<SERVICE_NAME>] [--update_cpu=<FLOAT>] [--update_ram=<FLOAT>] [--service=<NAME>] [--dry-run] [--json]
 # Author: Stefan Pejcic
 # Created: 26.02.2025
 # Last Modified: 19.03.2026
@@ -58,7 +58,7 @@ Options:
   --deactivate=<service>         Stop the specified service.
   --dry-run                      Simulate actions without applying changes.
   --force                        Force image pull before activation.
-  --debug                        Display raw output of docker-compsoe commands.
+  --debug                        Display raw output of docker-compose commands.
 
 Example:
   opencli user-resources stefan --json
