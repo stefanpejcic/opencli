@@ -166,7 +166,7 @@ pflogsumm_get_data() {
  	docker cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
 	docker exec openadmin_mailserver sh -c "mkdir -p /usr/local/admin/static/reports" > /dev/null 2>&1	
-	docker cp /usr/local/admin/templates/emails openadmin_mailserver:/usr/local/admin/static/reports > /dev/null 2>&1	
+	docker cp /usr/local/admin/templates/emails/data openadmin_mailserver:/usr/local/admin/static/reports/data > /dev/null 2>&1	
 	docker --context=default exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
 	docker exec openadmin_mailserver sh -c "rm -rf /usr/local/admin/static/reports" > /dev/null 2>&1	
 	echo "Done, adding reports to OpenAdmin interface"
