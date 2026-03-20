@@ -338,8 +338,6 @@ validate_password_in_lists() {
 
 
 check_username_is_valid() {
-    local username="$1"
-
     log "Validating username '$username'"
 
     # Length check
