@@ -149,7 +149,6 @@ manage_compose_volumes() {
 
     VOLUMES=(
     "/root/.ssh/:/root/.ssh/:ro"
-    "/root/.docker/:/root/.docker/:ro"
     "/usr/local/mail/openmail/:/usr/local/mail/openmail/:ro"
     "/etc/openpanel/openpanel/custom_code/:/templates/custom_code/:ro"
     "/etc/openpanel/openpanel/custom_code/custom.css:/static/css/custom.css:ro"
