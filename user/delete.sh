@@ -133,18 +133,10 @@ delete_email_users() {
     openpanel_username="$1"
 	local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
     if [ -f "$email_file" ]; then
-        mapfile -t emails < <(awk '{print $2}' "$email_file")
-        local max_jobs=5
-        local job_count=0
-        for email in "${emails[@]}"; do
-            opencli email-setup email del "$email" &
-            (( ++job_count ))
-            if (( job_count >= max_jobs )); then
-                wait -n 2>/dev/null || wait
-                (( --job_count ))
-            fi
-        done
-        wait
+		mapfile -t emails < <(awk '{print $2}' "$email_file")
+        if [ "${#emails[@]}" -gt 0 ]; then
+            opencli email-setup email del "${emails[@]}"
+        fi
     fi
 }
 
