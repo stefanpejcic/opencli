@@ -133,7 +133,7 @@ delete_email_users() {
     openpanel_username="$1"
 	local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
     if [ -f "$email_file" ]; then
-		mapfile -t emails < <(awk '{print $2}' "$email_file")
+		mapfile -t emails < <(awk 'NF {print $2}' "$email_file")
         if [ "${#emails[@]}" -gt 0 ]; then
             opencli email-setup email del "${emails[@]}"
         fi
@@ -194,8 +194,9 @@ refresh_resellers_data() {
 			if [ -f "$json_file" ]; then
 				reseller=$(basename "$json_file" .json)
 				query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$reseller';"
-				current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query_for_owner" -se)
-				if [ $? -eq 0 ]; then
+				current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$query_for_owner")
+				mysql_exit=$?
+				if [ $mysql_exit -eq 0 ]; then				
 					jq ".current_accounts = $current_accounts" $json_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $json_file
 				fi
 			fi
