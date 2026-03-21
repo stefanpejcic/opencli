@@ -115,6 +115,7 @@ delete_user_from_database() {
 	sql+="DELETE FROM users WHERE username='$openpanel_username' OR username LIKE 'SUSPENDED_%_$openpanel_username';"
 	[ -n "$sql" ] && mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 	# 3. delete domain files and reload Caddy
+	rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
     if [ -n "$domain_urls" ]; then
 	    IFS=',' read -ra domains_array <<< "$domain_urls"
 	    for domain in "${domains_array[@]}"; do
@@ -122,7 +123,6 @@ delete_user_from_database() {
 			rm -f "/etc/openpanel/caddy/suspended_domains/$domain.conf"  # caddyfile if suspended domains
 			rm -rf "/var/log/caddy/domlogs/$domain/access*"              # access logs
 			rm -rf "/var/log/caddy/coraza_waf/$domain.log*"              # waf log
-			rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
 			rm -rf "/etc/openpanel/caddy/ssl/custom/$domain"             # custom ssl files
 	    done
         nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
