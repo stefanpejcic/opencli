@@ -31,7 +31,6 @@
 # ======================================================================
 # Variables
 skip_confirmation=false
-delete_all=false
 node_ip_address=""
 
 
@@ -66,7 +65,7 @@ source /usr/local/opencli/db.sh
 
 get_user_info() {
 	# 1. get context and ID
-    read user_id context <<< $(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+    read -r user_id context <<< $(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
         SELECT id, server FROM users 
         WHERE username='$USERNAME'
         UNION ALL
@@ -77,10 +76,7 @@ get_user_info() {
 
     [ -n "$user_id" ] || { echo "ERROR: User '$USERNAME' not found in the database."; exit 1; }
 
-    # 2. set context
-	context_flag="--context $context"
-
-    # 3. check if remote
+    # 2. check if remote
     if [[ "$context" == ssh://* ]]; then
         ssh_host=${context#ssh://}
         node_ip_address=${ssh_host#*@}
@@ -89,17 +85,11 @@ get_user_info() {
     fi
 }
 
-reload_user_quotas() {
-	touch /etc/openpanel/openpanel/core/users/repquota
-	quotacheck -avm >/dev/null 2>&1
-	repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
-}
-
 delete_user_from_database() {
     openpanel_username="$1"
 	
     # 1. Get all domain IDs and URLs
-	read domain_ids domain_urls < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+	read -r domain_ids domain_urls < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
 	SELECT 
 	    GROUP_CONCAT(domain_id) AS ids,
 	    GROUP_CONCAT(domain_url) AS urls
@@ -115,7 +105,7 @@ delete_user_from_database() {
 	sql+="DELETE FROM users WHERE username='$openpanel_username' OR username LIKE 'SUSPENDED_%_$openpanel_username';"
 	[ -n "$sql" ] && mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 	# 3. delete domain files and reload Caddy
-	rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
+	ionice -c3 rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
     if [ -n "$domain_urls" ]; then
 	    IFS=',' read -ra domains_array <<< "$domain_urls"
         paths_to_delete=()
@@ -128,7 +118,7 @@ delete_user_from_database() {
            "/etc/openpanel/caddy/ssl/custom/$domain"
            )
         done
-        rm -rf "${paths_to_delete[@]}"
+		[[ ${#paths_to_delete[@]} -gt 0 ]] && ionice -c3 rm -rf "${paths_to_delete[@]}"
         nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
         disown
     fi
@@ -136,9 +126,20 @@ delete_user_from_database() {
 
 postfwd_setup(){
     # Delete hourly email limits for the user
-	nohup opencli email-ratelimit --delete-user=$openpanel_username >/dev/null 2>&1 &
-	disown		
-}	
+	opencli email-ratelimit --delete-user="$1" >/dev/null 2>&1		
+}
+
+delete_email_users() {
+    openpanel_username="$1"
+	local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
+	if [ -f "$email_file" ]; then
+		mapfile -t emails < <(awk '{print $2}' "$email_file")
+		for email in "${emails[@]}"; do
+		    opencli email-setup email del "$email" &
+		done
+		wait
+	fi
+}
 
 delete_ftp_users() {
     openpanel_username="$1"
@@ -147,13 +148,12 @@ delete_ftp_users() {
 
     if [[ -d "${users_dir}/${openpanel_username}" ]]; then
 	    if [[ -f "$users_file" ]]; then
-		echo "Checking and removing user's FTP sub-accounts"
-		while IFS='|' read -r username password directories; do
-		    echo "Deleting FTP user: $username"
-		    opencli ftp-delete "$username" "$openpanel_username"
-		done < "$users_file"
+			while IFS='|' read -r username password directories; do
+			    opencli ftp-delete "$username" "$openpanel_username" &
+			done < "$users_file"
+			wait
 	    fi
-     	rm -rf ${users_dir}/${openpanel_username}
+		ionice -c3 rm -rf "${users_dir:?}/${openpanel_username:?}"
     fi
 }
 
@@ -163,21 +163,21 @@ delete_all_user_files() {
         ssh "root@$node_ip_address" bash -c "'
             pkill -u $context -9 2>/dev/null || true
             deluser --remove-home "$context" >/dev/null 2>&1 || true
-            [ -d /home/$context ] && rm -rf /home/$context
+            [ -d /home/"$context" ] && ionice -c3 rm -rf /home/$context 
         '"
 		# 2. unmount from master
-		umount /home/$context >/dev/null 2>&1
+		umount "/home/$context" >/dev/null 2>&1
     fi
 	# 3. delete on master 
-	pkill -u $context -9 2>/dev/null || true
+	pkill -u "$context" -9 2>/dev/null || true
     deluser --remove-home "$context" >/dev/null 2>&1 || true
-    [ -d /home/$context ] && rm -rf /home/$context
-    [ -d /etc/openpanel/openpanel/core/users/$context ] && rm -rf /etc/openpanel/openpanel/core/users/$context
+    [ -d /home/"$context" ] && rm -rf "/home/${context:?}"
+    [ -d /etc/openpanel/openpanel/core/users/"$context" ] && rm -rf "/etc/openpanel/openpanel/core/users/$context"
 
 }
 
 delete_context() {
-    docker context rm $context  > /dev/null 2>&1
+    docker context rm "$context"  > /dev/null 2>&1
 }
 
 refresh_resellers_data() {
@@ -213,19 +213,21 @@ if [ -z "$USERNAME" ]; then
 	exit 1
 fi
 
-USERNAME="${USERNAME#SUSPENDED_}"
+USERNAME="${USERNAME##*_}"
 confirm_action "$USERNAME"
 get_user_info                                   # get user ID and docker context from db
-delete_ftp_users $USERNAME &                    # delete all ftp sub-usersthat
-delete_user_from_database $USERNAME &           # delete user from database
-delete_all_user_files &                         # permanently delete data
-postfwd_setup &                                 # delete ratelimits for all user domains
+delete_email_users "$USERNAME" &                  # email addresses
+delete_ftp_users "$USERNAME" &                    # FTP users
+delete_user_from_database "$USERNAME" &           # user, domains, sites
+delete_all_user_files &                         # homedir
+postfwd_setup "$USERNAME" &                                 # ratelimits for domains
 delete_context &
 
 wait
-echo "User $username deleted successfully." # if we made it
+echo "User $USERNAME deleted successfully."
 nohup opencli sentinel --action=user_delete --title="User account deleted" --message="User account '$USERNAME' has been deleted." >/dev/null 2>&1 &
 disown
 
-refresh_resellers_data
-reload_user_quotas
+refresh_resellers_data &
+nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' &
+disown
