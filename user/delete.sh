@@ -216,25 +216,35 @@ fi
 # Main
 
 if [ -z "$USERNAME" ]; then
-	echo "Error: Username is required unless --all is specified."
+	echo "ERROR: Username is required."
 	exit 1
 fi
 
 USERNAME="${USERNAME##*_}"
+
+# 1. -y
 confirm_action "$USERNAME"
-get_user_info                                   # get user ID and docker context from db
-delete_email_users "$USERNAME" &                  # email addresses
-delete_ftp_users "$USERNAME" &                    # FTP users
-delete_user_from_database "$USERNAME" &           # user, domains, sites
-delete_all_user_files &                         # homedir
-postfwd_setup "$USERNAME" &                                 # ratelimits for domains
+
+# 2. get docker context and user ID from database
+get_user_info
+
+# 3. in parallel: delete emails, delete ftp accounts, user/sites/domains from database, homedir, postfwd limits, docker context
+delete_email_users "$USERNAME" &
+delete_ftp_users "$USERNAME" &
+delete_user_from_database "$USERNAME" &
+delete_all_user_files &
+postfwd_setup "$USERNAME" &
 delete_context &
 
+# 4. wait for all of the above functions to finish
 wait
+
+# 5. notify
 echo "User $USERNAME deleted successfully."
 nohup opencli sentinel --action=user_delete --title="User account deleted" --message="User account '$USERNAME' has been deleted." >/dev/null 2>&1 &
 disown
 
+# 6. refresh resellers usage
 refresh_resellers_data &
 nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
 disown
