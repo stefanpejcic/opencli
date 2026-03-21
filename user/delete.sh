@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/delete.sh
 # Description: Delete user account and permanently remove all their data.
-# Usage: opencli user-delete <username> [-y] [--all]
+# Usage: opencli user-delete <username> [-y]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 21.03.2026
@@ -38,8 +38,8 @@ node_ip_address=""
 
 # ======================================================================
 # Validations
-if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
-    echo "Usage: opencli user-delete <username> [-y] [--all]"
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    echo "Usage: opencli user-delete <username> [-y]"
     exit 1
 fi
 
@@ -48,10 +48,10 @@ confirm_action() {
         return 0
     fi
 
-    read -r -p "This will permanently delete user '$1' and all associated data. Confirm? [Y/n]: " response
+    read -r -p "This will permanently delete user '$USERNAME' and all associated data. Confirm? [Y/n]: " response
     response=${response,,} # to lowercase
     if [[ ! $response =~ ^(yes|y| ) ]]; then
-        echo "Operation canceled for user '$1'."
+        echo "Operation canceled for user '$USERNAME'."
         exit 0
     fi
 }
@@ -68,14 +68,14 @@ get_user_info() {
 	# 1. get context and ID
     read user_id context <<< $(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
         SELECT id, server FROM users 
-        WHERE username='$provided_username'
+        WHERE username='$USERNAME'
         UNION ALL
         SELECT id, server FROM users 
-        WHERE username LIKE 'SUSPENDED_%_$provided_username'
+        WHERE username LIKE 'SUSPENDED_%_$USERNAME'
         LIMIT 1;
     ")
 
-    [ -n "$user_id" ] || { echo "ERROR: User '$provided_username' not found in the database."; exit 1; }
+    [ -n "$user_id" ] || { echo "ERROR: User '$USERNAME' not found in the database."; exit 1; }
 
     # 2. set context
 	context_flag="--context $context"
@@ -197,69 +197,35 @@ refresh_resellers_data() {
 	fi
 }
 
-delete_user() {
-    local provided_username="$1"
-    if [[ "$provided_username" == SUSPENDED_* ]]; then
-        username="${provided_username##*_}"
-    else    
-        username=$provided_username
-    fi
-    
-    confirm_action "$username"
-    get_user_info                                   # get user ID and docker context from db
-    delete_ftp_users $provided_username &           # delete all ftp sub-usersthat
-    delete_user_from_database $provided_username &  # delete user from database
-    delete_all_user_files &                         # permanently delete data
-	postfwd_setup &                                 # delete ratelimits for all user domains
-    delete_context &
-	
-	wait
-    echo "User $username deleted successfully." # if we made it
-}
-
-
 # ======================================================================
 # Parse args
-for arg in "$@"; do
-    case $arg in
-        --all) delete_all=true ;;
-        -y) skip_confirmation=true ;;
-        *) provided_username="$arg" ;;
-    esac
-done
+USERNAME="$1"
+
+if [ "$2" = "-y" ]; then
+	skip_confirmation=true
+fi
 
 # ======================================================================
 # Main
-if [ "$delete_all" = true ]; then
-	# ALL USERS
-	all_users=$(opencli user-list --json | jq -r '.data[] | .username')
-	[[ "$all_users" != "No users." && -n "$all_users" ]] || { echo "No users found in the database."; exit 1; }
 
-    total_users=$(echo "$all_users" | wc -w)
-    current_user_index=1
-    for user in $all_users; do
-        echo "- $user ($current_user_index/$total_users)"
-        delete_user "$user"
-	    echo "------------------------------"
-	    ((current_user_index++))
-    done
-    	echo "DONE."
-    	echo "$((current_user_index - 1)) users have been deleted."
-		nohup opencli sentinel --action=user_delete --title="All user accounts deleted" --message="All $((current_user_index - 1)) user accounts have been deleted." >/dev/null 2>&1 &
-		disown
-	
-	    refresh_resellers_data
-	    reload_user_quotas
-else
-	# SINGLE USER
-	if [ -z "$provided_username" ]; then
-	    echo "Error: Username is required unless --all is specified."
-	    exit 1
-	fi
-	delete_user "$provided_username"
-	nohup opencli sentinel --action=user_delete --title="User account deleted" --message="User account '$provided_username' has been deleted." >/dev/null 2>&1 &
-	disown
-
-    refresh_resellers_data
-    reload_user_quotas
+if [ -z "$USERNAME" ]; then
+	echo "Error: Username is required unless --all is specified."
+	exit 1
 fi
+
+USERNAME="${USERNAME#SUSPENDED_}"
+confirm_action "$USERNAME"
+get_user_info                                   # get user ID and docker context from db
+delete_ftp_users $USERNAME &                    # delete all ftp sub-usersthat
+delete_user_from_database $USERNAME &           # delete user from database
+delete_all_user_files &                         # permanently delete data
+postfwd_setup &                                 # delete ratelimits for all user domains
+delete_context &
+
+wait
+echo "User $username deleted successfully." # if we made it
+nohup opencli sentinel --action=user_delete --title="User account deleted" --message="User account '$USERNAME' has been deleted." >/dev/null 2>&1 &
+disown
+
+refresh_resellers_data
+reload_user_quotas
