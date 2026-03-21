@@ -118,13 +118,17 @@ delete_user_from_database() {
 	rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
     if [ -n "$domain_urls" ]; then
 	    IFS=',' read -ra domains_array <<< "$domain_urls"
-	    for domain in "${domains_array[@]}"; do
-	        rm -f "/etc/openpanel/caddy/domains/$domain.conf"            # caddyfile
-			rm -f "/etc/openpanel/caddy/suspended_domains/$domain.conf"  # caddyfile if suspended domains
-			rm -rf "/var/log/caddy/domlogs/$domain/access*"              # access logs
-			rm -rf "/var/log/caddy/coraza_waf/$domain.log*"              # waf log
-			rm -rf "/etc/openpanel/caddy/ssl/custom/$domain"             # custom ssl files
-	    done
+        paths_to_delete=()
+        for domain in "${domains_array[@]}"; do
+           paths_to_delete+=(
+           "/etc/openpanel/caddy/domains/$domain.conf"
+           "/etc/openpanel/caddy/suspended_domains/$domain.conf"
+           "/var/log/caddy/domlogs/$domain"
+           "/var/log/caddy/coraza_waf/$domain.log"
+           "/etc/openpanel/caddy/ssl/custom/$domain"
+           )
+        done
+        rm -rf "${paths_to_delete[@]}"
         nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
         disown
     fi
