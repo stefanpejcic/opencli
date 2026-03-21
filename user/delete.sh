@@ -202,12 +202,14 @@ delete_user() {
     fi
     
     confirm_action "$username"
-    get_user_info                                 # get user ID and docker context from db
-    delete_ftp_users $provided_username           # delete all ftp sub-usersthat
-    delete_user_from_database $provided_username  # delete user from database
-    delete_all_user_files                         # permanently delete data
-	postfwd_setup                                 # delete ratelimits for all user domains
-    delete_context
+    get_user_info                                   # get user ID and docker context from db
+    delete_ftp_users $provided_username &           # delete all ftp sub-usersthat
+    delete_user_from_database $provided_username &  # delete user from database
+    delete_all_user_files &                         # permanently delete data
+	postfwd_setup &                                 # delete ratelimits for all user domains
+    delete_context &
+	
+	wait
     echo "User $username deleted successfully." # if we made it
 }
 
