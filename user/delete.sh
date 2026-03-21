@@ -132,13 +132,20 @@ postfwd_setup(){
 delete_email_users() {
     openpanel_username="$1"
 	local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
-	if [ -f "$email_file" ]; then
-		mapfile -t emails < <(awk '{print $2}' "$email_file")
-		for email in "${emails[@]}"; do
-		    opencli email-setup email del "$email" &
-		done
-		wait
-	fi
+    if [ -f "$email_file" ]; then
+        mapfile -t emails < <(awk '{print $2}' "$email_file")
+        local max_jobs=5
+        local job_count=0
+        for email in "${emails[@]}"; do
+            opencli email-setup email del "$email" &
+            (( ++job_count ))
+            if (( job_count >= max_jobs )); then
+                wait -n 2>/dev/null || wait
+                (( --job_count ))
+            fi
+        done
+        wait
+    fi
 }
 
 delete_ftp_users() {
@@ -147,13 +154,20 @@ delete_ftp_users() {
     users_file="${users_dir}/${openpanel_username}/users.list"
 
     if [[ -d "${users_dir}/${openpanel_username}" ]]; then
-	    if [[ -f "$users_file" ]]; then
-			while IFS='|' read -r username password directories; do
-			    opencli ftp-delete "$username" "$openpanel_username" &
-			done < "$users_file"
-			wait
-	    fi
-		ionice -c3 rm -rf "${users_dir:?}/${openpanel_username:?}"
+        if [[ -f "$users_file" ]]; then
+            local max_jobs=5
+            local job_count=0
+            while IFS='|' read -r username password directories; do
+                opencli ftp-delete "$username" "$openpanel_username" &
+                (( ++job_count ))
+                if (( job_count >= max_jobs )); then
+                    wait -n 2>/dev/null || wait
+                    (( --job_count ))
+                fi
+            done < "$users_file"
+            wait
+        fi
+        ionice -c3 rm -rf "${users_dir:?}/${openpanel_username:?}"
     fi
 }
 
