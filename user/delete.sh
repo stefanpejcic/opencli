@@ -236,5 +236,5 @@ nohup opencli sentinel --action=user_delete --title="User account deleted" --mes
 disown
 
 refresh_resellers_data &
-nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' &
+nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
 disown
