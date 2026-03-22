@@ -34,7 +34,7 @@ if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
     exit 1
 fi
 
-container_name=$1
+USERNAME=$1
 new_plan_name=$2
 
 debug=false
@@ -50,13 +50,6 @@ done
 # DB
 source /usr/local/opencli/db.sh
 
-# COMPOSE 
-docker_compose_file="/home/$container_name/docker-compose.yml"
-if [[ ! -f "$docker_compose_file" ]]; then
-    echo "Fatal Error: $docker_compose_file does not exist - changing user limits will not be permanent." >&2
-    exit 1
-fi
-
 # Function to fetch the current plan ID for the container
 get_current_plan_id() {
     local container="$1"
@@ -67,9 +60,6 @@ get_current_plan_id() {
     # Extract plan_id and server from the result
     current_plan_id=$(echo "$result" | awk '{print $1}')
     server=$(echo "$result" | awk '{print $2}')
-    if [[ -z "$server" || "$server" == "default" ]]; then
-        server="$container"
-    fi
 }
 
 # Function to fetch plan limits for a given plan ID smece format
@@ -105,14 +95,21 @@ get_plan_name() {
 }
 
 # Fetch current plan ID for the container
-get_current_plan_id "$container_name"
+get_current_plan_id "$USERNAME"
+
+# COMPOSE 
+docker_compose_file="/home/$server/docker-compose.yml"
+if [[ ! -f "$docker_compose_file" ]]; then
+    echo "Fatal Error: $docker_compose_file does not exist - changing user limits will not be permanent." >&2
+    exit 1
+fi
 
 current_plan_name=$(get_plan_name "$current_plan_id")
 new_plan_id=$(get_new_plan_id "$new_plan_name")
 
 # Check if the container exists
 if [ -z "$current_plan_id" ]; then
-    echo "Error: Container '$container_name' not found in the database."
+    echo "Error: Container '$USERNAME' not found in the database."
     exit 1
 fi
 
@@ -199,7 +196,7 @@ update_container_cpu() {
         if $debug; then
             echo "Updating total CPU% limit from: $Ocpu to $Ncpu"
         fi
-        command="opencli user-resources \"$container_name\" --update_cpu=\"$Ncpu\""
+        command="opencli user-resources \"$USERNAME\" --update_cpu=\"$Ncpu\""
         eval $command > /dev/null
         if [ $? -eq 0 ]; then
             ((success_count++))
@@ -221,7 +218,7 @@ update_container_ram() {
         if $debug; then
             echo "Updating Memory limit from: $Oram to $Nram"
         fi
-        command="opencli user-resources \"$container_name\" --update_ram=\"$Nram\""
+        command="opencli user-resources \"$USERNAME\" --update_ram=\"$Nram\""
         eval $command > /dev/null
         if [ $? -eq 0 ]; then
             ((success_count++))
@@ -240,7 +237,7 @@ update_used_disk_inodes() {
         echo "Changing disk limit from: $Odisk_limit to $Ndisk_limit ($storage_in_blocks)"
         echo "Changing inodes limit from: $Oinodes_limit to $Ninodes_limit"
     fi
-    command="setquota -u $container_name $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /"
+    command="setquota -u $USERNAME $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /"
     eval $command # set quota for user
     if [ $? -eq 0 ]; then
         ((success_count++))
@@ -269,13 +266,13 @@ change_plan_name_in_db() {
     fi
     
     #Menja ID
-    query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$container_name';"
+    query="UPDATE users SET plan_id = $new_plan_id WHERE username = '$USERNAME';"
     result=$(mysql -D "$mysql_database" -N -B -e "$query")
     if [ $? -eq 0 ]; then
         if [ $failure_count -gt 0 ]; then
-            echo "Plan changed successfuly for user $container_name from $current_plan_name to $new_plan_name - ($failure_count warnings)"
+            echo "Plan changed successfuly for user $USERNAME from $current_plan_name to $new_plan_name - ($failure_count warnings)"
         else
-            echo "Plan changed successfuly for user $container_name from $current_plan_name to $new_plan_name"
+            echo "Plan changed successfuly for user $USERNAME from $current_plan_name to $new_plan_name"
         fi
     else
         echo "Error changing plan id in the database for user - is mysql service running?"
