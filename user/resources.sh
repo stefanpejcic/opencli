@@ -93,8 +93,7 @@ validate_number() {
 }
 
 load_env_file() {
-
-    [ -f "$env_file" ] && export $(grep -v '^#' "$env_file" | xargs)
+    export $(grep -v '^#' "$env_file" | xargs)
 }
 
 check_context_and_env() {
