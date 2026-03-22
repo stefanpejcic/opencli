@@ -115,13 +115,13 @@ update_total_cpu() {
         exit 1
     fi
     $debug && echo "Updating total CPU% limit from: $Ocpu to $Ncpu"
-    if opencli user-resources "$USERNAME" --update_cpu="$Ncpu" > /dev/null; then
+    if opencli user-resources "$CONTEXT" --update_cpu="$Ncpu" > /dev/null; then
         ((success_count++))
         echo "[✔] Total CPU limit ($Ncpu) set successfully for docker context."
     else
         ((failure_count++))
         echo "[✘] Error setting total CPU limit."
-        echo "    Command: opencli user-resources \"$USERNAME\" --update_cpu=\"$Ncpu\""
+        echo "    Command: opencli user-resources \"$CONTEXT\" --update_cpu=\"$Ncpu\""
     fi
 }
 
@@ -131,13 +131,13 @@ update_total_ram() {
         return
     fi
     $debug && echo "Updating Memory limit from: $Oram to $Nram"
-    if opencli user-resources "$USERNAME" --update_ram="$Nram" > /dev/null; then
+    if opencli user-resources "$CONTEXT" --update_ram="$Nram" > /dev/null; then
         ((success_count++))
         echo "[✔] Total Memory limit ($Nram) set successfully for docker context."
     else
         ((failure_count++))
         echo "[✘] Error setting total RAM limit."
-        echo "    Command: opencli user-resources \"$USERNAME\" --update_ram=\"$Nram\""
+        echo "    Command: opencli user-resources \"$CONTEXT\" --update_ram=\"$Nram\""
     fi
 }
 
