@@ -46,10 +46,10 @@ done
 
 source /usr/local/opencli/db.sh
 
-# For old plan: id, name, context, cpu, ram
-IFS=$'\t' read -r current_plan_id current_plan_name server Ocpu Oram < <(
+# For old plan: id, name, context
+IFS=$'\t' read -r current_plan_id current_plan_name server < <(
     mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
-        SELECT u.plan_id, p.name, u.server, p.cpu, p.ram
+        SELECT u.plan_id, p.name, u.server
         FROM users u
         JOIN plans p ON p.id = u.plan_id
         WHERE u.username = '$USERNAME'
@@ -99,45 +99,22 @@ get_compose_limit() {
     echo "${value:-$fallback}"
 }
 
-Ocpu=$(get_compose_limit "cpu" "$Ocpu")
-Oram=$(get_compose_limit "ram" "$Oram")
-
-# TODO: https://github.com/stefanpejcic/OpenPanel/issues/891
-maxCPU=$(nproc)
-maxRAM=$(free -g | awk '/^Mem/ {print $2}')
-
 success_count=0
 failure_count=0
 
-update_total_cpu() {
-    if (( Ncpu > maxCPU )); then
-        echo "Error: New CPU value exceeds server limit ($Ncpu > $maxCPU)."
-        exit 1
-    fi
-    $debug && echo "Updating total CPU% limit from: $Ocpu to $Ncpu"
-    if opencli user-resources "$CONTEXT" --update_cpu="$Ncpu" > /dev/null; then
-        ((success_count++))
-        echo "[✔] Total CPU limit ($Ncpu) set successfully for docker context."
-    else
-        ((failure_count++))
-        echo "[✘] Error setting total CPU limit."
-        echo "    Command: opencli user-resources \"$CONTEXT\" --update_cpu=\"$Ncpu\""
-    fi
-}
+update_resource() {
+    local type="$1"   # cpu or ram
+    local value="$2"
 
-update_total_ram() {
-    if (( numNram > maxRAM )); then
-        echo "Warning: RAM limit not changed — new value exceeds physical memory ($numNram > $maxRAM)."
-        return
-    fi
-    $debug && echo "Updating Memory limit from: $Oram to $Nram"
-    if opencli user-resources "$CONTEXT" --update_ram="$Nram" > /dev/null; then
+    $debug && echo "Updating ${type^^} limit to $value"
+
+    if opencli user-resources "$CONTEXT" --update_${type}="$value" > /dev/null; then
         ((success_count++))
-        echo "[✔] Total Memory limit ($Nram) set successfully for docker context."
+        echo "[✔] Total ${type^^} limit ($value) set successfully for docker context."
     else
         ((failure_count++))
-        echo "[✘] Error setting total RAM limit."
-        echo "    Command: opencli user-resources \"$CONTEXT\" --update_ram=\"$Nram\""
+        echo "[✘] Error setting total ${type^^} limit."
+        echo "    Command: opencli user-resources \"$CONTEXT\" --update_${type}=\"$value\""
     fi
 }
 
@@ -181,8 +158,8 @@ drop_redis_cache() {
 
 
 # Main
-update_total_cpu
-update_total_ram
+update_resource cpu "$Ncpu"
+update_resource ram "$Nram"
 # update_total_tc   # TODO
 update_disk_inodes
 change_plan_name_in_db
