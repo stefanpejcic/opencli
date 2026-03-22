@@ -5,7 +5,7 @@
 # Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 22.03.2026
+# Last Modified: 21.03.2026
 # Company: openpanel.comm,
 # Copyright (c) openpanel.comm,
 # 
@@ -247,8 +247,8 @@ update_used_disk_inodes() {
         echo "[✘] Error setting disk and inodes limits for the user:"
         echo "Command used: $command"
     fi 
-    quotacheck -avm >/dev/null 2>&1                                                          # recheck for all users
-    repquota -u / > /etc/openpanel/openpanel/core/users/repquota                             # store to file for openpanel ui
+    nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
+    disown    
 }
 
 
