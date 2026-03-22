@@ -54,8 +54,8 @@ docpu=false
 doram=false
 dodsk=false
 donet=false
+doemail=false
 
-# TODO: update to support updating max_email_quota AND max_hourly_email for account
 
 # Parse arguments
 for arg in "$@"; do
@@ -66,6 +66,7 @@ for arg in "$@"; do
         --ram)     partial=true; doram=true ;;
         --dsk)     partial=true; dodsk=true ;;
         --net)     partial=true; donet=true ;;
+        --email)   partial=true; doemail=true ;;
         --*)       ;; # ignore unknown flags
         *)         usernames+=("$arg") ;;
     esac
@@ -125,7 +126,8 @@ for container in "${usernames[@]}"; do
     Oram=$(get_plan_limit "$current_plan_id" "ram")
     Ndisk=$(get_plan_limit "$new_plan_id" "disk_limit")
     Ninodes=$(get_plan_limit "$new_plan_id" "inodes_limit")
-
+    Nemail=$(get_plan_limit "$new_plan_id" "max_hourly_email")
+    
     # System limits
     maxCPU=$(nproc)
     maxRAM=$(free -m | awk '/^Mem:/ {printf "%d\n", ($2+512)/1024 }')
@@ -180,6 +182,13 @@ for container in "${usernames[@]}"; do
         setquota -u "$server" "$storage_in_blocks" "$storage_in_blocks" "$Ninodes" "$Ninodes" /
         echo "- Storage: [OK] limit set to ${storage_in_blocks} blocks and $Ninodes inodes"
         reload_user_quotas
+    fi
+
+    # Emails
+    if ! $partial || $doemail; then
+        #opencli email-server ratelimit
+        # TODO: update to support updating max_email_quota if needed
+        echo "- Emails: [OK] Max hourly emails limit set to $Nemail"
     fi
 
     # Network (stub)
