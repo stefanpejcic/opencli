@@ -36,15 +36,14 @@ determine_web_server() {
 
 
 get_user_info() {
-    local query="SELECT id, server FROM users WHERE username = '${username}';"
-    
+    local query="SELECT id, server FROM users WHERE username = '${username}';"   
     user_info=$(mysql -se "$query")
     
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
     
     if [ -z "$user_id" ]; then
-        echo "FATAL ERROR: user $username does not exist."
+        echo "FATAL ERROR: user ${username##*_} does not exist."
         exit 1
     fi
 }
@@ -59,27 +58,27 @@ username="$1"
 
 get_user_info
 
+USERNAME="${USERNAME##*_}"
 config_file="/home/$context/.env"
 
 if [ ! -f "$config_file" ]; then
-    echo "Configuration file not found for user $username"
+    echo "Configuration file not found for user $USERNAME"
     exit 1
 fi
 
 if [ "$2" == "--update" ]; then
     current_web_server=$(determine_web_server)
     if [ "$current_web_server" == "unknown" ]; then
-        echo "Unable to determine the running web server for user $username."
+        echo "Unable to determine the running web server for user $USERNAME."
         exit 1
     fi
-
     sed -i "s/^WEB_SERVER=.*/WEB_SERVER=\"$current_web_server\"/" "$config_file"        
-    echo "Web Server for user $username updated to: $current_web_server"
+    echo "Web Server for user $USERNAME updated to: $current_web_server"
 else
     web_server=$(grep "^WEB_SERVER=" "$config_file" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
     if [ -n "$web_server" ]; then
-        echo "Web Server for user $username: $web_server"
+        echo "Web Server for user $USERNAME: $web_server"
     else
-        echo "Web Server not found for user $username"
+        echo "Web Server not found for user $USERNAME"
     fi
 fi
