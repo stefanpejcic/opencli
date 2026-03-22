@@ -5,7 +5,7 @@
 # Usage: opencli plan-apply <USERNAME> <NEW_PLAN_ID>
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 22.03.2026
+# Last Modified: 21.03.2026
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -97,8 +97,8 @@ get_plan_name() {
 }
 
 reload_user_quotas() {
-    quotacheck -avm >/dev/null 2>&1
-    repquota -u / > /etc/openpanel/openpanel/core/users/repquota
+    nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
+    disown    
 }
 
 # Main loop
