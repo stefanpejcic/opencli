@@ -186,8 +186,8 @@ for container in "${usernames[@]}"; do
 
     # Emails
     if ! $partial || $doemail; then
-        #opencli email-server ratelimit
-        # TODO: update to support updating max_email_quota if needed
+        opencli email-server ratelimit --username=$container
+        # TODO: support optional updatr of max_email_quota for all accounts
         echo "- Emails: [OK] Max hourly emails limit set to $Nemail"
     fi
 
