@@ -56,6 +56,9 @@ IFS=$'\t' read -r current_plan_id current_plan_name server < <(
         LIMIT 1"
 )
 
+# if suspended, remove prefix
+USERNAME="${USERNAME##*_}" 
+
 if [ -z "$current_plan_id" ]; then
     echo "Error: User '$USERNAME' not found in the database."
     exit 1
@@ -63,7 +66,6 @@ fi
 
 # For new plan: id, cpu, ram, disk, inodes, port
 safe_plan_name=$(printf "%s" "$new_plan_name" | sed "s/'/''/g")
-
 IFS=$'\t' read -r new_plan_id Ncpu Nram Ndisk_limit Ninodes_limit Nbandwidth < <(
     mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
         SELECT id, cpu, ram, disk_limit, inodes_limit, bandwidth
@@ -71,7 +73,6 @@ IFS=$'\t' read -r new_plan_id Ncpu Nram Ndisk_limit Ninodes_limit Nbandwidth < <
         WHERE name = '$safe_plan_name'
         LIMIT 1"
 )
-
 
 if [ -z "$new_plan_id" ]; then
     echo "Error: Plan '$new_plan_name' not found in the database."
