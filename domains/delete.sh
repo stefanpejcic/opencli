@@ -146,11 +146,11 @@ get_slave_dns_option() {
 			rm -f "/etc/bind/zones/$domain_name.zone"
 	        echo "Zone $domain_name deleted from slave server."
 	    fi
-	EOF
+EOF
 	
 		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
 	    docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
-	EOF
+EOF
 	}
 
 	for ip in "${ALLOW_TRANSFER_IPS[@]}"; do
