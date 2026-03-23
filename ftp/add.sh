@@ -118,7 +118,7 @@ create_user() {
         mkdir -p "$new_directory"
 
         # Set owner and group on directory (important!)
-		uid=$(stat -c '%u' "/home/$username")
+		uid=$(stat -c '%u' "/home/$openpanel_username")
 	    chown -R "$uid:$uid" "$new_directory"
         # Set proper permissions: read/write for group, +setgid for inheritance
         chmod -R 2775 "$new_directory"
