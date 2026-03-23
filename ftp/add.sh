@@ -96,7 +96,6 @@ create_user() {
 	fi
 
     mkdir -p "$new_directory"
-    chown -R "$openpanel_username:$openpanel_username" "$new_directory"
     # Fix permissions for shared group access on host
     chmod +rx "/home/$openpanel_username"
     chmod +rx "/home/$openpanel_username/docker-data"
@@ -119,8 +118,8 @@ create_user() {
         mkdir -p "$new_directory"
 
         # Set owner and group on directory (important!)
-        chown -R "$openpanel_username:$openpanel_username" "$new_directory"
-
+		uid=$(stat -c '%u' "/home/$username")
+	    chown -R "$uid:$uid" "$new_directory"
         # Set proper permissions: read/write for group, +setgid for inheritance
         chmod -R 2775 "$new_directory"
 
