@@ -71,7 +71,7 @@ run_for_context() {
     echo "Running Cup in context: $ctx"
 
     local user_id mount_flag
-    user_id=$(id -u "$ctx" 2>/dev/null)
+    user_id=$(stat -c %u "/home/$ctx" 2>/dev/null)
 
     if [ -n "$user_id" ]; then
         if [ -S "/hostfs/run/user/$user_id/docker.sock" ]; then
