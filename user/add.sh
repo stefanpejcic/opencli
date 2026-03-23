@@ -735,10 +735,10 @@ print_debug_info_before_starting_creation() {
     echo "Selected plan limits from database:"
     echo "- plan id:           $plan_id"
     echo "- plan name:         $plan_name"
-    echo "- cpu limit:         $cpu"
-    echo "- memory limit:      $ram"
-    echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo "unlimited" || echo "$disk_limit GB")"
-    echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo "unlimited" || echo "$inodes")"
+    echo "- cpu limit:         $([[ "$cpu" -eq 0 ]] && echo ""∞"" || echo "$cpu core(s)")"
+    echo "- memory limit:      $([[ "$ram" -eq 0 ]] && echo ""∞"" || echo "$ram GB")"
+    echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo ""∞"" || echo "$disk_limit GB")"
+    echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo ""∞"" || echo "$inodes")"
     echo "- port speed:        $bandwidth"
     sep
 }
