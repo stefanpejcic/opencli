@@ -105,20 +105,13 @@ check_if_we_need_to_edit_docker_containers() {
     fi
 
     # BANDWIDTH CHANGE OR PLAN NAME CHANGE
-    if [ "$old_bandwidth" == "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
-        if [ "$DEBUG" = true ]; then
-            echo "DEBUG: Port speed and plan name have not changed."
-        fi
-    elif [ "$old_bandwidth" != "$bandwidth" ] && [ "$old_plan_name" == "$new_plan_name" ]; then
+    if [ "$old_bandwidth" != "$bandwidth" ]; then
         if [ "$DEBUG" = true ]; then
             echo "DEBUG: Port speed limit is changed, applying new bandwidth limit to the docker network."
         fi
-        edit_docker_network "$old_plan_name" "$bandwidth"
-    elif [ "$old_plan_name" != "$new_plan_name" ]; then
-        if [ "$DEBUG" = true ]; then
-            echo "DEBUG: Plan name is changed."
-        fi
         flags+=( "--net" )
+        # TODO
+        # edit_docker_network "$old_plan_name" "$bandwidth"
     fi
 }
 
