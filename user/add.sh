@@ -1395,7 +1395,7 @@ send_email_to_new_user() {
 
 
 reload_user_quotas() {
-    nohup bash -c "quotacheck -avm && mkdir -p /etc/openpanel/openpanel/core/users/ && repquota -u / > /etc/openpanel/openpanel/core/users/repquota" &
+    nohup bash -c "quotacheck -avm ; mkdir -p /etc/openpanel/openpanel/core/users/ && repquota -u / > /etc/openpanel/openpanel/core/users/repquota" &
 	disown
 }
 
