@@ -165,7 +165,7 @@ EOF
 
 get_user_info() {
     local user="$1"
-    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    local query="SELECT id, server FROM users WHERE username = '$user}';"
     user_info=$(mysql -se "$query")
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
@@ -406,7 +406,6 @@ delete_domain() {
 
     if [ "$result" -eq 0 ]; then
         get_webserver_for_user                       #
-		get_user_info                                # get context and user id
         vhost_files_delete                           # delete file in container
 
 		nohup opencli sentinel --action=domains_delete --title="Domain deleted" --message="Domain name: '$domain_name' has been removed from OpenPanel user: '$user'." >/dev/null 2>&1 &
@@ -437,4 +436,5 @@ delete_domain() {
 # ======================================================================
 # Main
 pre_flight_checks
+get_user_info                                # get context and user id
 delete_domain "$user" "$domain_name"
