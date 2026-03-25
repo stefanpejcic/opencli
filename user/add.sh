@@ -1430,7 +1430,7 @@ collect_stats() {
 create_volume() {
 	local vol_path="/home/$username/docker-data/volumes/${username}_html_data/_data/"
 	mkdir -p "$vol_path" && chown $username:$username "$vol_path" && chmod -R g+w "$vol_path"
-	ln -sfn "$vol_path" "/home/$context/files" >/dev/null 2>&1
+	ln -sfn "$vol_path" "/home/$username/files" >/dev/null 2>&1
 }
 
 send_sentinel_notification() {
