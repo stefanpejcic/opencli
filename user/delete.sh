@@ -139,9 +139,8 @@ delete_email_users() {
     if [ -f "$email_file" ]; then	
 		mapfile -t emails < <(awk 'NF {print $2}' "$email_file")
         if [ "${#emails[@]}" -gt 0 ]; then
-            opencli email-setup email del "${emails[@]}"
+            opencli email-setup email del -y "${emails[@]}"
         fi
-    fi
 }
 
 delete_ftp_users() {
