@@ -135,12 +135,13 @@ postfwd_setup(){
 
 delete_email_users() {
     openpanel_username="$1"
-	local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
-    if [ -f "$email_file" ]; then	
-		mapfile -t emails < <(awk 'NF {print $2}' "$email_file")
+    local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
+    if [ -f "$email_file" ]; then    
+        mapfile -t emails < <(awk 'NF {print $2}' "$email_file")
         if [ "${#emails[@]}" -gt 0 ]; then
             opencli email-setup email del -y "${emails[@]}"
         fi
+    fi
 }
 
 delete_ftp_users() {
