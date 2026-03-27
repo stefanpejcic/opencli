@@ -247,12 +247,14 @@ install_mailserver(){
       cd /usr/local/mail/ && git clone $GITHUB_REPO
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail
+	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
+	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1
   fi
 
