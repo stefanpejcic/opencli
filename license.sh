@@ -241,7 +241,7 @@ save_license_to_file() {
         output_message "License key ${new_key} added." "$GREEN"
         toggle_emails_module > /dev/null
         pagespeed_api_key_control > /dev/null
-        manage_compose_volumes "disable"
+        manage_compose_volumes "enable"
         restart_services
     else
         output_message "License is valid, but failed to save the license key ${new_key}" "$RED"
@@ -353,6 +353,7 @@ delete_license() {
     opencli config update key "" > /dev/null
     toggle_emails_module "disable" > /dev/null
     pagespeed_api_key_control "remove" > /dev/null
+    manage_compose_volumes
     service admin restart
 }
 
