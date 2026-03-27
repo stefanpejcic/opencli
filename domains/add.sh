@@ -392,8 +392,13 @@ get_server_ipv4_or_ipv6() {
 
 	# fallback from the server
 	if [ -z "$current_ip" ]; then
-	    log "Fetching IPv4 from local hostname..."
-	    current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
+		log "ip.openpanel.com is unreachable, checking ifconfig.me"
+		current_ip=$(curl --silent --max-time 2 -4 https://ifconfig.me || wget --timeout=2 --tries=1 -qO- https://ifconfig.me)
+	fi
+
+	if [ -z "$current_ip" ]; then
+		log "Fetching IPv4 from local hostname..."
+		current_ip=$(ip addr | grep 'inet ' | grep global | head -n1 | awk '{print $2}' | cut -f1 -d/)
 	fi
  
  	IPV4="yes"
