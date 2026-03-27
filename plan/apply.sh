@@ -111,25 +111,25 @@ for username in "${usernames[@]}"; do
     # RAM
     if ! $partial || $doram; then
         sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${ram}\"/" "/home/$context/.env"
-        echo "- Memory: [OK] total limit changed to ${ram//[!0-9]/}GB."
+        echo "- Memory:     [OK]   total limit changed to ${ram//[!0-9]/}GB."
     fi
     
     # CPU
     if ! $partial || $docpu; then
         sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env"
-        echo "- CPU: [OK] limit set to ${cpu}"
+        echo "- CPU:        [OK]   limit set to ${cpu}"
     fi
 
     # Disk and Inodes
     if ! $partial || $dodsk; then
         setquota -u "$context" "$storage_in_blocks" "$storage_in_blocks" "$inodes_limit" "$inodes_limit" /
-        echo "- Storage: [OK] limit set to ${storage_in_blocks} blocks and $inodes_limit inodes"
+        echo "- Storage:    [OK]   limit set to ${storage_in_blocks} blocks and $inodes_limit inodes"
     fi
 
     # Emails
     if ! $partial || $doemail; then
         opencli email-ratelimit --username=$username >/dev/null 2>&1
-        echo "- Emails: [OK] Max hourly emails limit set to $max_hourly_email for all domains"
+        echo "- Emails:     [OK]   Max hourly emails limit set to $max_hourly_email for all domains"
         # TODO: support optional update of max_email_quota for all accounts
     fi
 
