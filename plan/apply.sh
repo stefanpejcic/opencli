@@ -117,7 +117,7 @@ for username in "${usernames[@]}"; do
     # CPU
     if ! $partial || $docpu; then
         sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env"
-        echo "- CPU:        [OK]   limit set to ${cpu}"
+        echo "- CPU:        [OK]   total limit changed to ${cpu} core(s)"
     fi
 
     # Disk and Inodes
