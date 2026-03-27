@@ -203,10 +203,10 @@ get_domain_for_webmail() {
 
 
 
-cd /usr/local/mail/openmail || { 
-    echo "Error: Mailserver is not installed!" >&2
-    exit 1
-}
+#cd /usr/local/mail/openmail || { 
+#    echo "Error: Mailserver is not installed!" >&2
+#    exit 1
+#}
 
 
 get_domain_for_webmail    # display domain only
