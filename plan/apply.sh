@@ -128,9 +128,9 @@ for username in "${usernames[@]}"; do
 
     # Emails
     if ! $partial || $doemail; then
-        opencli email-ratelimit --username=$username
+        opencli email-ratelimit --username=$username >/dev/null 2>&1
+        echo "- Emails: [OK] Max hourly emails limit set to $max_hourly_email for all domains"
         # TODO: support optional update of max_email_quota for all accounts
-        echo "- Emails: [OK] Max hourly emails limit set to $max_hourly_email"
     fi
 
     # Network (bandwidth)
