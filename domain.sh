@@ -245,6 +245,11 @@ configure_mailserver() {
 
 # Restart services
 restart_services() {
+
+    # Restart Caddy
+	nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+	disown
+
     local no_restart=false
     
     # Check for --no-restart flag
@@ -266,10 +271,6 @@ restart_services() {
     
     # Restart OpenPanel
     docker --context default compose restart openpanel >/dev/null 2>&1
-    
-    # Restart Caddy
-    docker --context default compose down caddy >/dev/null 2>&1
-    docker --context default compose up -d caddy >/dev/null 2>&1
 }
 
 # Display success message
