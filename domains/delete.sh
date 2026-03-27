@@ -436,5 +436,5 @@ delete_domain() {
 # ======================================================================
 # Main
 pre_flight_checks
-get_user_info                                # get context and user id
+get_user_info "$user"                               # get context and user id
 delete_domain "$user" "$domain_name"
