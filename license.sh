@@ -33,6 +33,7 @@
 # Configuration
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly WHMCS_URL="https://my.openpanel.com/modules/servers/licensing/verify.php"
+# https://api.openpanel.com/enterprise/index.php
 readonly COMPOSE_FILE="/root/docker-compose.yml"
 readonly SERVICE="openpanel"
 
