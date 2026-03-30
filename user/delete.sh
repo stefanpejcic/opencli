@@ -237,7 +237,7 @@ confirm_action "$USERNAME"
 get_user_info
 
 # 3. in parallel: delete emails, delete ftp accounts, user/sites/domains from database, homedir, postfwd limits, docker context
-delete_email_users "$USERNAME" &
+delete_email_users "$USERNAME"
 delete_ftp_users "$USERNAME" &
 delete_user_from_database "$USERNAME" &
 delete_all_user_files &
