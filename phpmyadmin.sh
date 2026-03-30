@@ -28,7 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
-CADDYFILE="/etc/openpanel/caddy/Caddyfile"
+readonly CADDYFILE="/etc/openpanel/caddy/Caddyfile"
 START_MARKER="# START PHPMYADMIN DOMAIN #"
 END_MARKER="# END PHPMYADMIN DOMAIN #"
 
