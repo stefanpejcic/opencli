@@ -143,7 +143,8 @@ delete_email_users() {
         done < "$email_file"
 
         if [ "${#emails[@]}" -gt 0 ]; then
-            opencli email-setup email del -y "${emails[@]}"
+			nohup opencli email-setup email del -y "${emails[@]}" >/dev/null 2>&1 &
+			disown
         fi
     fi
 }
