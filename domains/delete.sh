@@ -363,8 +363,11 @@ delete_emails() {
 	local email_file="/etc/openpanel/openpanel/core/users/$username/emails.yml"
 
     if [ -f "$email_file" ]; then
-		log "Deleting @$domain_name email accounts"
-		mapfile -t emails < <(awk '{print $2}' "$email_file")
+        emails=()
+        while read -r _ email; do
+            [ -n "$email" ] && emails+=("$email")
+        done < "$email_file"
+
         if [ "${#emails[@]}" -gt 0 ]; then
             opencli email-setup email del -y "${emails[@]}"
         fi
