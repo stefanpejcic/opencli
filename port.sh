@@ -36,7 +36,12 @@ PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 
 get_current_port() {
-  current_port="$(grep -oP '(?<=^PORT=").*(?=")' $ENV_FILE | head -n 1)"
+  if [ -f /.dockerenv ] && [ -f /etc/openpanel/no_port ]; then
+      current_port=443
+  fi
+  if [ -z "$current_port" ]; then
+    current_port="$(grep -oP '(?<=^PORT=").*(?=")' $ENV_FILE | head -n 1)"
+  fi
   echo "$current_port"
 }
 
