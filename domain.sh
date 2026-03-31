@@ -137,6 +137,8 @@ get_current_domain() {
         domain=$(extract_domain "# START USERPANEL DOMAIN #" "# END USERPANEL DOMAIN #")
         if [[ -z "$domain" ]]; then
             domain=$(extract_domain "# START HOSTNAME DOMAIN #" "# END HOSTNAME DOMAIN #")
+		else
+			domain="$DEFAULT_DOMAIN"
         fi
     else
         domain=$(extract_domain "# START HOSTNAME DOMAIN #" "# END HOSTNAME DOMAIN #")
