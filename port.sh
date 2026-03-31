@@ -98,6 +98,11 @@ update_port() {
     update_env
     update_redirects
     update_proxy_file
+    if [ "$new_port" == '443' ]; then
+        sed -i "s#\${PORT}:2083/tcp#2083:2083/tcp#g" /root/docker-compose.yml
+    else
+        sed -i "s#2083:2083/tcp#\${PORT}:2083/tcp#g" /root/docker-compose.yml
+    fi
     do_reload
     success_msg
   else
@@ -113,7 +118,7 @@ if [ -z "$1" ]; then
     get_current_port
 
 elif [[ "$1" == 'set' && -n "$2" ]]; then
-    if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1000 ]; then
+    if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 443 ]; then
         new_port=$2
         update_port $new_port
     else
