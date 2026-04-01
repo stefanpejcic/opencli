@@ -734,7 +734,7 @@ print_debug_info_before_starting_creation() {
     echo "- plan id:           $plan_id"
     echo "- plan name:         $plan_name"
     echo "- cpu limit:         $([[ "$cpu" -eq 0 ]] && echo ""∞"" || echo "$cpu core(s)")"
-    echo "- memory limit:      $([[ "$ram" -eq 0 ]] && echo ""∞"" || echo "$ram GB")"
+	echo "- memory limit:      $([[ "$ram" -eq 0 ]] && echo "∞" || echo "${ram%[gG]} GB")"
     echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo ""∞"" || echo "$disk_limit GB")"
     echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo ""∞"" || echo "$inodes")"
     echo "- port speed:        $bandwidth"
@@ -792,7 +792,7 @@ set_cpu_and_ram() {
         systemctl set-property "user-$user_id.slice" CPUQuota=${cpu_quota}%
     fi
 
-    if [[ "$ram" -ne 0 ]]; then
+	if [[ "${ram%[gG]}" -ne 0 ]]; then
         echo "Applying Memory limit: ${ram}G"
         systemctl set-property "user-$user_id.slice" MemoryMax=${ram}G
     fi
