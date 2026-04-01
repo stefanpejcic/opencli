@@ -108,6 +108,10 @@ update_resource() {
     local value="$2"
 
     $debug && echo "Updating ${type^^} limit to $value"
+    # TODO: for total limiting
+    # sed -i "s/^TOTAL_${type^^}=.*/TOTAL_${type^^}=$value/" /home/$CONTEXT/.env
+    # user_id=$(id -u $CONTEXT)
+    # systemctl set-property user-$user_id.slice CPUQuota=$value% # TODO: convert value from float to %
 
     if opencli user-resources "$CONTEXT" --update_${type}="$value" > /dev/null; then
         ((success_count++))
