@@ -109,6 +109,7 @@ fi
 sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
 
 # 2. start new php version container if not running
+# #TODO: after total limits! # nohup sh -c "cd /home/$owner && docker --context=$owner compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
 nohup sh -c "opencli user-resources $owner --activate=php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
 
 # 3. restart webserver
