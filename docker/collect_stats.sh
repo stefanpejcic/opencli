@@ -115,8 +115,7 @@ process_user() {
 
     local CPU_DELTA=$(( CPU_STAT2 - CPU_STAT1 ))
     local INTERVAL_US=$(( (T2 - T1) / 1000 ))  # ns → μs
-    local NCPUS=$(nproc)
-    local CPU_TOTAL_SERVER=$(( NCPUS * 100 ))
+    local CPU_TOTAL_SERVER=$(( SERVER_CPUS * 100 ))
 
     local CPU_MAX_FILE="$CGROUP/cpu.max"
     if [ -f "$CPU_MAX_FILE" ]; then
@@ -192,7 +191,8 @@ else
     users=("$1")
 fi
 
-MEM_MAX=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> bytes
+SERVER_MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> bytes
+SERVER_CPUS=$(nproc)
 
 for user in "${users[@]}"; do
     process_user "$user"
