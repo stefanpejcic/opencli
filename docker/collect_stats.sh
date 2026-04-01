@@ -48,11 +48,11 @@ CURRENT_DATETIME=$(date +'%Y-%m-%d-%H-%M-%S')
 
 process_user() {
     local USER_NAME="$1"
-    USER_NAME=${USER_NAME:-$(whoami)}
-    local UID_NUM=$(id -u "$USER_NAME" 2>/dev/null)
+    local HOME_DIR="/home/$USERNAME"
+    local UID_NUM=$(stat -c "%u" "$HOME_DIR")
 
     if [ -z "$UID_NUM" ]; then
-        echo '{"error": "User '"$USER_NAME"' not found"}' >&2
+        echo '{"error": "Context '"$USER_NAME"' not found"}' >&2
         return 1
     fi
 
@@ -164,7 +164,7 @@ process_user() {
     # ---------------------
     # Save and retention
     # ---------------------
-    local usage_file="/home/$USER_NAME/resource_usage.txt"
+    local usage_file="$HOME_DIR/resource_usage.txt"
     echo "$current_usage" >> "$usage_file"
     
     if [ -f "$usage_file" ]; then
