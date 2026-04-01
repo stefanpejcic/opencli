@@ -90,7 +90,6 @@ hard_cleanup() {
   docker context rm "$username"  > /dev/null 2>&1
   quotacheck -avm >/dev/null 2>&1
   mkdir -p /etc/openpanel/openpanel/core/users/
-  repquota -u / > /etc/openpanel/openpanel/core/users/repquota 
   exit 1
 }
 
@@ -1395,10 +1394,9 @@ send_email_to_new_user() {
 
 
 reload_user_quotas() {
-    nohup bash -c "quotacheck -avm ; mkdir -p /etc/openpanel/openpanel/core/users/ && repquota -u / > /etc/openpanel/openpanel/core/users/repquota" &
+    nohup opencli user-quota &>/dev/null &
 	disown
 }
-
 
 generate_user_password_hash() {
 	if [ "$password" = "generate" ]; then
