@@ -129,7 +129,7 @@ update_disk_inodes() {
         echo "[✘] Error setting disk/inodes limits."
         echo "    Command: setquota -u $USERNAME $storage_in_blocks $storage_in_blocks $Ninodes_limit $Ninodes_limit /"
     fi
-    nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
+    nohup opencli user-quota >/dev/null 2>&1 &
     disown
 }
 
