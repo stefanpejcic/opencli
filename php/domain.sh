@@ -130,7 +130,7 @@ if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_versio
 	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 	user_vhost_files=$(find "$user_vhost_dir" -type f -name "*.conf" -user "$owner")
     if ! grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf"; then	
-        nohup sh -c "opencli user-resources $owner --deactivate=php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
+		nohup sh -c "cd /home/$owner && docker --context=$owner compose down php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
         disown
     fi
 fi
