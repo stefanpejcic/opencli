@@ -792,7 +792,7 @@ set_cpu_and_ram() {
         systemctl set-property "user-$user_id.slice" CPUQuota=${cpu_quota}%
     fi
 
-	if [[ "${ram%[gG]}" -ne 0 ]]; then
+    if [[ "$ram" -ne 0 ]]; then
         echo "Applying Memory limit: ${ram}G"
         systemctl set-property "user-$user_id.slice" MemoryMax=${ram}G
     fi
@@ -1483,7 +1483,7 @@ setup_ssh_key                                # set key for the user
 install_docker_and_add_user
 create_volume				                 # initializing user home dir
 docker_rootless                              # install 
-set_cpu_and_ram "$cpu" "ram"
+set_cpu_and_ram "$cpu" "$numram"
 docker_compose                               # magic happens here
 create_context                               # on master
 test_compose_command_for_user
