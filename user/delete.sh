@@ -255,5 +255,5 @@ disown
 
 # 6. refresh resellers usage
 refresh_resellers_data &
-nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
+nohup opencli user-quota >/dev/null 2>&1 &
 disown
