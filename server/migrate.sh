@@ -399,7 +399,7 @@ restart_services_on_target() {
 refresh_quotas() {
             echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota"
+                "opencli user-quota >/dev/null 2>&1"
 }
 
   
