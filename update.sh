@@ -252,7 +252,11 @@ update_check() {
         echo '{"error": "Error fetching remote version"}' >&2
         exit 1
     fi
-    
+
+    if [[ "$remote_version" == *-beta ]]; then
+        exit 0
+    fi
+
     local comparison
     comparison=$(compare_versions "$local_version" "$remote_version")
     
