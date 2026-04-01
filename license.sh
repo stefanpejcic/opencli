@@ -121,7 +121,7 @@ verify_license_api() {
     ip_address=$(get_public_ip)
     check_token=$(openssl rand -hex 16)
     
-    response=$(curl -sS -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" "$WHMCS_URL")
+    response=$(curl -sS --connect-timeout 1 --max-time 2 -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" "$WHMCS_URL")
     echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)'
 }
 
