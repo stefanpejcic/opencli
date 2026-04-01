@@ -267,7 +267,7 @@ configure_mailserver() {
 # Restart services
 restart_services() {
 
-    if docker --context default compose ps -q caddy >/dev/null 2>&1; then
+	if docker --context default compose -f /root/docker-compose.yml ps -q caddy >/dev/null 2>&1; then
         nohup docker --context default restart caddy >/dev/null 2>&1 &
         disown
     else
