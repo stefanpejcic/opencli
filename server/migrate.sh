@@ -467,7 +467,7 @@ sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMO
 # set quotas
 echo "Restoring user quotas ..."
 sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"opencli user-quota --all"
+	"opencli user-quota --update --all"
 
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
