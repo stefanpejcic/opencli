@@ -44,8 +44,7 @@ flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
 process_user() {
     local USER_NAME="$1"
-    local HOME_DIR="/home/$USERNAME"
-    local UID_NUM=$(stat -c "%u" "$HOME_DIR")
+    local UID_NUM=$(id -u $USER_NAME)
 
     if [ -z "$UID_NUM" ]; then
         echo '{"error": "Context '"$USER_NAME"' not found"}' >&2
@@ -159,7 +158,7 @@ process_user() {
     # ---------------------
     # Save and retention
     # ---------------------
-    local usage_file="$HOME_DIR/resource_usage.txt"
+    local usage_file="/home/$USER_NAME/resource_usage.txt"
     echo "$current_usage" >> "$usage_file"
     
     if [ -f "$usage_file" ]; then
