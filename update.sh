@@ -590,13 +590,14 @@ run_update_immediately() {
     current_major=$(echo "$local_version" | cut -d. -f1)
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
-        log "Updating system packages"
-        install_required_tools
-        update_system_packages
-        remove_old_kernels
-        check_reboot_required
-        log "Updating Docker Compose"
-        update_docker_compose
+        #log "Updating system packages"
+        :
+        #install_required_tools
+        #update_system_packages
+        #remove_old_kernels
+        #check_reboot_required
+        #log "Updating Docker Compose"
+        #update_docker_compose
     else
         log "[✔] Minor update - skipping system and Docker Compose updates"
     fi
