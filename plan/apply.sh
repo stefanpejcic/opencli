@@ -168,9 +168,9 @@ done
 echo "+=============================================================================+"
 echo "Completed!"
 
-# 6. quotacheck if disk limits were updated
+# 6. refresh quotas file if disk limits were updated
 if ! $partial || $dodsk; then
-    nohup bash -c 'quotacheck -avm >/dev/null 2>&1; repquota -u / > /etc/openpanel/openpanel/core/users/repquota' >/dev/null 2>&1 &
+    nohup opencli user-quota >/dev/null 2>&1 &
     disown
 fi
 
