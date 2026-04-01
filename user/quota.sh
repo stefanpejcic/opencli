@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/quota.sh
-# Description: Enforce and recalculate disk and inodes for a user.
+# Description: Report or set disk and inodes for users.
 # Usage: opencli user-quota <username|--all>
 # Author: Stefan Pejcic
 # Created: 16.11.2023
