@@ -851,7 +851,7 @@ get_remote_nameservers
 rsync_files_for_user
 copy_docker_context # create context on dest, start service
 $SSH_CMD "systemctl daemon-reload" 
-$SSH_CMD "opencli user-quota $USERNAME >/dev/null 2>&1" # set quotas
+$SSH_CMD "opencli user-quota --update $USERNAME >/dev/null 2>&1" # set quotas
 $SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/caddy/ssl/custom/ /etc/openpanel/openpanel/core/users/"
 
 # todo: folder just for that user!
