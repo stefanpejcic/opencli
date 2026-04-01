@@ -713,32 +713,32 @@ print_debug_info_before_starting_creation() {
 
     sep() { echo "--------------------------------------------------------------"; }
 
-    sep
     if [[ -n "$reseller" ]]; then
+		sep
         echo "Reseller user information:"
         echo "- Reseller:             $reseller"
         echo "- Existing accounts:    $current_accounts/$max_accounts"
-        sep
     fi
 
     if [[ -n "$node_ip_address" ]]; then
+		sep
         echo "Data for connecting to the Node server:"
         echo "- IP address:           $node_ip_address"
         echo "- Hostname:             $hostname"
         echo "- SSH user:             root"
         echo "- SSH key path:         $key"
-        sep
     fi
 
-    echo "Selected plan limits from database:"
-    echo "- plan id:           $plan_id"
-    echo "- plan name:         $plan_name"
-    echo "- cpu limit:         $([[ "$cpu" -eq 0 ]] && echo ""∞"" || echo "$cpu core(s)")"
-	echo "- memory limit:      $([[ "$ram" -eq 0 ]] && echo "∞" || echo "${ram%[gG]} GB")"
-    echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo ""∞"" || echo "$disk_limit GB")"
-    echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo ""∞"" || echo "$inodes")"
-    echo "- port speed:        $bandwidth"
-    sep
+    # sep
+	#echo "Selected plan limits from database:"
+    #echo "- plan id:           $plan_id"
+    #echo "- plan name:         $plan_name"
+    #echo "- cpu limit:         $([[ "$cpu" -eq 0 ]] && echo ""∞"" || echo "$cpu core(s)")"
+	#echo "- memory limit:      $([[ "$ram" -eq 0 ]] && echo "∞" || echo "${ram%[gG]} GB")"
+    #echo "- storage:           $([[ "$disk_limit" -eq 0 ]] && echo ""∞"" || echo "$disk_limit GB")"
+    #echo "- inodes:            $([[ "$inodes" -eq 0 ]] && echo ""∞"" || echo "$inodes")"
+    #echo "- port speed:        $bandwidth"
+    #sep
 }
 
 
