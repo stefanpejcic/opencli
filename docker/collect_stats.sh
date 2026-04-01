@@ -183,9 +183,8 @@ if [ $# -ne 1 ]; then
 fi
 
 if [ "$1" == "--all" ]; then
-
     if command -v repquota &>/dev/null; then
-        opencli user-quota &>/dev/null
+        opencli user-quota #&>/dev/null
     fi
 
     sync && echo 1 > /proc/sys/vm/drop_caches
