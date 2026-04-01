@@ -32,7 +32,6 @@ set -euo pipefail
 
 # ======================================================================
 # Constants and Variables
-readonly REPQUOTA_PATH="/etc/openpanel/openpanel/core/users/repquota"
 readonly GB_TO_BLOCKS=1024000
 declare -g mysql_database config_file
 
