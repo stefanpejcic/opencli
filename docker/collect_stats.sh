@@ -6,8 +6,8 @@
 # Author: Petar Curic, Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 01.04.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -147,12 +147,12 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-if command -v repquota &>/dev/null; then
-    quotacheck -avm &>/dev/null
-    repquota -u / > /etc/openpanel/openpanel/core/users/repquota
-fi
-
 if [ "$1" == "--all" ]; then
+
+    if command -v repquota &>/dev/null; then
+        opencli user-quota &>/dev/null
+    fi
+
     sync && echo 1 > /proc/sys/vm/drop_caches
     users=($(opencli user-list --json \
       | jq -r '.data[]
