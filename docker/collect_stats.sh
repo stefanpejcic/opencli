@@ -42,10 +42,6 @@ source /usr/local/opencli/db.sh
 (
 flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
-
-CURRENT_DATETIME=$(date +'%Y-%m-%d-%H-%M-%S')
-
-
 process_user() {
     local USER_NAME="$1"
     local HOME_DIR="/home/$USERNAME"
@@ -97,7 +93,7 @@ process_user() {
 
     local MEM_MAX=$(systemctl show "$SLICE" -p MemoryMax 2>/dev/null | cut -d= -f2)
     if [[ -z "$MEM_MAX" || "$MEM_MAX" == "max" || "$MEM_MAX" -eq 0 ]] 2>/dev/null; then
-        MEM_MAX=$(( MEM_CURRENT * 2 ))
+        MEM_MAX=$SERVER_MEMORY
     fi
 
     local USED=$(( ANON + KERNEL ))
@@ -195,6 +191,8 @@ if [ "$1" == "--all" ]; then
 else
     users=("$1")
 fi
+
+MEM_MAX=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> bytes
 
 for user in "${users[@]}"; do
     process_user "$user"
