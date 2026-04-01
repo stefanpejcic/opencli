@@ -126,16 +126,28 @@ for username in "${usernames[@]}"; do
         "SELECT plan_id, server FROM users WHERE username = '$username'")
 
     # 5. update limits
-    
+    user_id=$(id -u "$username")
     # RAM
     if ! $partial || $doram; then
-        sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${ram}\"/" "/home/$context/.env"
+        sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${ram}\"/" "/home/$context/.env" # legacy
+        if [[ "$ram" -eq 0 ]]; then
+            systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
+        else
+            [[ "$ram" != *G ]] && ram="${ram}G"
+            systemctl set-property "user-${user_id}.slice" MemoryMax="$ram"
+        fi
         echo "- Memory:     [OK]   $ram_text"
     fi
     
     # CPU
     if ! $partial || $docpu; then
-        sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env"
+        sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env" # legacy
+        if [[ "$cpu" -eq 0 ]]; then
+            systemctl set-property "user-${user_id}.slice" CPUQuota=infinity
+        else
+            cpu_percent=$(echo "$cpu * 100" | bc)
+            systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_percent}%"
+        fi
         echo "- CPU:        [OK]   $cpu_text"
     fi
 
