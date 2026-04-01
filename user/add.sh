@@ -776,6 +776,33 @@ create_remote_user() {
 
 }
 
+
+set_cpu_and_ram() {
+    local cpu="$1"        # Number of CPU cores (0 = unlimited)
+    local ram="$2"        # RAM in GB (0 = unlimited)
+
+    if [[ "$cpu" -ne 0 ]] || [[ "$ram" -ne 0 ]]; then
+    	echo "Setting CPU and Memory limits.."
+	fi
+
+    if [[ "$cpu" -ne 0 ]]; then
+        # 1 core = 100%
+        local cpu_quota=$(echo "$cpu * 100" | bc)
+        echo "Applying CPU limit: $cpu_quota%"
+        systemctl set-property "user-$user_id.slice" CPUQuota=${cpu_quota}%
+    fi
+
+    if [[ "$ram" -ne 0 ]]; then
+        echo "Applying Memory limit: ${ram}G"
+        systemctl set-property "user-$user_id.slice" MemoryMax=${ram}G
+    fi
+
+	# TODO: cover remote context and 
+	# systemctl set-property user-1002.slice TasksMax=150 # Max processes
+	# systemctl set-property user-1002.slice IOWeight=500 # I/O weight
+}
+
+
 set_user_quota(){
    if [ "$disk_limit" -ne 0 ]; then
      storage_in_blocks=$((disk_limit * 1024000))
@@ -1456,6 +1483,7 @@ setup_ssh_key                                # set key for the user
 install_docker_and_add_user
 create_volume				                 # initializing user home dir
 docker_rootless                              # install 
+set_cpu_and_ram "$cpu" "ram"
 docker_compose                               # magic happens here
 create_context                               # on master
 test_compose_command_for_user
