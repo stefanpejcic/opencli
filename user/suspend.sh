@@ -126,12 +126,27 @@ suspend_user_domains() {
 }
 
 stop_user_containers() {
-    local cores
+    local jobs
+    local names_file="/home/$context/stopped_containers_on_suspend.txt"
     jobs=$(( $(nproc) * 2 ))
+
     $DEBUG && echo "Stopping containers for user: $USERNAME"
 
-    docker --context $context ps --format "{{.Names}}" |
-        xargs -r -n1 -P "$jobs" -I{} docker --context $context stop {} > /dev/null 2>&1       
+    local running
+    running=$(docker --context "$context" ps -a --format "{{.Names}}")
+
+    if [ -z "$running" ]; then
+        $DEBUG && echo "No running containers for $USERNAME"
+        > "$names_file"
+        return 0
+    fi
+
+    echo "$running" > "$names_file"
+    $DEBUG && echo "Saved stopped containers to $names_file"
+
+    echo "$running" |
+        xargs -r -n1 -P "$jobs" -I{} \
+        docker --context "$context" stop {} > /dev/null 2>&1
 }
 
 rename_user_in_db() {
