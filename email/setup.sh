@@ -76,6 +76,7 @@ reload_emails_data_file_for_user() {
     if [ -n "$owner" ]; then
         file_to_refresh="/etc/openpanel/openpanel/core/users/$owner/emails.yml"
         ALL_DOMAINS_OWNED_BY_USER=$(opencli domains-user $owner)
+        sleep 0.5
         ALL_EMAILS_ON_SERVER=$(opencli email-setup email list)
         
         > "$file_to_refresh"
