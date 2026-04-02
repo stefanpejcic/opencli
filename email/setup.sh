@@ -75,11 +75,11 @@ reload_emails_data_file_for_user() {
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
     if [ -n "$owner" ]; then
         file_to_refresh="/etc/openpanel/openpanel/core/users/$owner/emails.yml"
-        ALL_DOMAINS_OWNED_BY_USER=$(opencli domains-user $owner)
+        ALL_DOMAINS_OWNED_BY_USER=$(opencli domains-user "$owner")
         sleep 2
         ALL_EMAILS_ON_SERVER=$(opencli email-setup email list)
         
-        > "$file_to_refresh"
+        : > "$file_to_refresh"
         for domain in $ALL_DOMAINS_OWNED_BY_USER; do
             echo "$ALL_EMAILS_ON_SERVER" | grep "@${domain}" >> "$file_to_refresh"
         done
@@ -95,8 +95,7 @@ reload_emails_data_file_for_user() {
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
 
 validate_first
-command="$@" 
-docker exec openadmin_mailserver setup $command  
+docker exec openadmin_mailserver setup "$@"
 
 if { [[ "$1" == "email" && ( "$2" == "add" || "$2" == "del" ) ]] || \
      [[ "$1" == "quota" && ( "$2" == "set" || "$2" == "del" ) ]]; }; then
