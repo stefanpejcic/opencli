@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: api/list.sh
+# Script Name: api.sh
 # Description: On/Off OpenAdmin API access and list available API endpoints.
 # Usage: opencli api <status|on|off|list>
 # Author: Stefan Pejcic
