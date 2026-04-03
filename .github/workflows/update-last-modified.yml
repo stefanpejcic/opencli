@@ -52,7 +52,7 @@ jobs:
           # Update OPENCLI_VERSION in the opencli file
           if [ -f opencli ]; then
             echo "Updating OpenCLI Version to $VERSION"
-            sed -i "s/^OPENCLI_VERSION=\"[0-9.]\+\"/OPENCLI_VERSION=\"${VERSION}\"/" opencli
+            sed -i "s/^readonly OPENCLI_VERSION=\"[0-9.]*\"/readonly OPENCLI_VERSION=\"${VERSION}\"/" opencli
           fi
 
       - name: Commit and Push Changes
