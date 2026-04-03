@@ -201,7 +201,7 @@ get_remote_version() {
         return 1
     fi
     
-    echo "$tags" | grep -v '^latest$' | sort -V | tail -n 1
+    echo "$tags" | grep -v '^latest$' | grep -v -- '-beta$' | sort -V | tail -n 1
 }
 
 # ---------------------- COMPARE, DUH! ---------------------- #
