@@ -337,7 +337,7 @@ case "$1" in
                     cd /etc/openpanel/caddy/coreruleset/ && git log --oneline
                     ;;
                 *)
-                    echo "Invalid action, available: opencli waf-update and opencli waf-update log"
+                    echo "Invalid action, available: opencli waf update and opencli waf update log"
                     exit 1
                     ;;
             esac
