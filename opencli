@@ -39,7 +39,7 @@ readonly HOOKS_DIR="/etc/openpanel/openpanel/hooks"
 show_about() {
     cat <<EOF
 About:
-  Documentation:                    https://dev.openpanel.com/cli/
+  Documentation:                    https://openpanel.com/docs/articles/opencli
   Version:                          ${OPENCLI_VERSION}
   Author:                           Stefan Pejcic <stefan@pejcic.rs>
   License:                          MIT
