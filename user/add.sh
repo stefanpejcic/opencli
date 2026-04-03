@@ -785,6 +785,16 @@ set_cpu_and_ram() {
     	echo "Setting CPU and Memory limits.."
 	fi
 
+
+	mkdir -p /etc/systemd/system/user-$user_id.slice.d/
+	cat <<EOF > /etc/systemd/system/user-$user_id.slice.d/override.conf
+[Slice]
+Delegate=yes
+EOF
+
+systemctl daemon-reload
+systemctl restart user@$user_id.service
+
     if [[ "$cpu" -ne 0 ]]; then
         # 1 core = 100%
         local cpu_quota=$(echo "$cpu * 100" | bc)
