@@ -176,15 +176,8 @@ format_commands() {
 
 get_server_ipv4(){
 	# Get server ipv4
- 
-	# list of ip servers for checks
-	IP_SERVER_1="https://ip.openpanel.com"
-	IP_SERVER_2="https://ipv4.openpanel.com"
-	IP_SERVER_3="https://ifconfig.me"
-
-	current_ip=$(curl --silent --max-time 2 -4 $IP_SERVER_1 || \
-                 wget --timeout=2 --tries=1 --inet4-only -qO- $IP_SERVER_2 || \
-                 curl --silent --max-time 2 -4 $IP_SERVER_3)
+	current_ip=$(curl --silent --max-time 2 -4 "https://ip.openpanel.com" || \
+                 curl --silent --max-time 2 -4 "https://ifconfig.me")
 
 	if [ -z "$current_ip" ]; then
 	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
