@@ -1,0 +1,34 @@
+name: Generate Aliases
+
+on:
+  schedule:
+    - cron: '14 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:      # On demand
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up /usr/local/opencli
+        run: |
+          sudo mkdir -p /usr/local/opencli
+          sudo cp -r . /usr/local/opencli
+          sudo chmod +x /usr/local/opencli/commands.sh
+
+      - name: Run commands.sh
+        run: sudo bash /usr/local/opencli/commands.sh
+
+      - name: Copy generated aliases back
+        run: cp /usr/local/opencli/aliases.txt aliases.txt
+
+      - name: Commit aliases file
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add aliases.txt
+          git diff --cached --quiet || git commit -m "chore: update aliases.txt [skip ci]"
+          git push
