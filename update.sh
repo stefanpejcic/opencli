@@ -677,13 +677,7 @@ update_opencli() {
         else
             message="OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
             [[ "$1" == "--no-log" ]] && echo $message || log_error  $message
-        fi    
-        message="Generating list of OpenCLI commands for auto-complete"
-        [[ "$1" == "--no-log" ]] && echo $message || log  $message
-        opencli commands &>/dev/null
-
-        # always disable dev_mode
-        opencli config update dev_mode off &>/dev/null
+        fi
     fi
 }
 
