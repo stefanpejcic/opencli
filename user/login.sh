@@ -38,14 +38,11 @@ if [ -z "$USERNAME" ]; then
 fi
 
 for arg in "$@"; do
-    if [ "$arg" == "--open" ]; then
-        NOW_FLAG=true
-    fi
-    if [ "$arg" == "--delete" ]; then
-        DELETE_FLAG=true
-    fi
+    case "$arg" in
+        --open)   NOW_FLAG=true ;;
+        --delete) DELETE_FLAG=true ;;
+    esac
 done
-
 
 # ======================================================================
 # Helpers
