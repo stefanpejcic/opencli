@@ -240,6 +240,7 @@ save_license_to_file() {
     if opencli config update key "$new_key" > /dev/null; then
         output_message "License key ${new_key} added." "$GREEN"
         toggle_emails_module > /dev/null
+        opencli config update how_to_guides no > /dev/null
         pagespeed_api_key_control > /dev/null
         manage_compose_volumes "enable"
         restart_services
