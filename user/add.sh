@@ -1456,7 +1456,7 @@ permisisons_do() {
 }
 
 collect_stats() {
-  nohup  opencli docker-collect_stats "${username}" &
+  nohup  opencli docker-collect_stats "${username}" >/dev/null 2>&1 &
   disown
 }
 
