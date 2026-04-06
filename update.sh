@@ -742,16 +742,26 @@ check_update() {
 
 # ---------------------- RUNS CHECK OR STARTS UPDATE ---------------------- #
 main() {
-    case "${1:-}" in
-        --check)                                      update_check ;;
-        "")                                           check_update ;;
-        --force)                              check_update --force ;;
-        --admin) update_openadmin --no-log; restart_admin --no-log ;;
-        beta)                                            BETA=true ;;       
-        --panel)                         update_openpanel --no-log ;;
-        --cli)                             update_opencli --no-log ;;     
-        -h|--help)                                           usage ;;
-        *)              log_error "[!] Unknown argument: $1"; usage;;
+    for arg in "$@"; do
+        case "$arg" in
+            --check) MODE="check" ;;
+            --force) MODE="force" ;;
+            --admin) MODE="admin" ;;
+            --panel) MODE="panel" ;;
+            --cli)   MODE="cli"   ;;
+            beta)    BETA=true    ;;
+            -h|--help) usage ;;
+            *) log_error "[!] Unknown argument: $arg"; usage ;;
+        esac
+    done
+
+    case "$MODE" in
+        check) update_check ;;
+        force) check_update --force ;;
+        admin) update_openadmin --no-log; restart_admin --no-log ;;
+        panel) update_openpanel --no-log ;;
+        cli)   update_opencli --no-log ;;
+        "")    check_update ;;
     esac
 }
 
