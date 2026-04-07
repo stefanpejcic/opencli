@@ -40,6 +40,7 @@ readonly EXCLUDE_PATTERNS=(
     ".github/*"
     "ftp/users.sh"
     "db.sh"
+    "dev.sh"
     "enterprise.sh"
     "progress_bar.sh"
 )
