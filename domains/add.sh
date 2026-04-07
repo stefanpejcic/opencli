@@ -770,26 +770,24 @@ notify_slave(){
 
 if ! $USE_PARENT_DNS_ZONE; then
     echo "Notifying slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
-	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
-    if ! grep -q "$1.zone" /etc/bind/named.conf.local; then
-    	cat >> /etc/bind/named.conf.local <<EOFZONE
-zone "$1" {type slave; masters { $2; }; file "/etc/bind/zones/$1.zone"; allow-notify { $2; }; };
+    ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP "nohup bash -c '
+        if ! grep -q \"$domain_name.zone\" /etc/bind/named.conf.local; then
+            cat >> /etc/bind/named.conf.local <<EOFZONE
+zone \"$domain_name\" {type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; allow-notify { $MASTER_IP; }; };
 EOFZONE
-        mkdir -p /etc/bind/zones/
-		touch /etc/bind/zones/$domain_name.zone
-        echo "Zone $domain_name added to slave server."
-    fi
-EOF
+            mkdir -p /etc/bind/zones/
+            touch /etc/bind/zones/$domain_name.zone
+        fi
+    ' >/dev/null 2>&1 & disown"
 
-	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
-    if [ $(docker --context default ps -q -f name=openpanel_dns) ]; then
-        echo "Reloading DNS service on slave server.."
-		docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
-    else
-		echo "Starting DNS service on slave server.."
- 		nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
-    fi
-EOF
+    # Reload or start DNS service silently in background
+    ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP "nohup bash -c '
+        if docker --context default ps -q -f name=openpanel_dns >/dev/null; then
+            docker --context default exec openpanel_dns rndc reconfig
+        else
+            cd /root && docker --context default compose up -d bind9
+        fi
+    ' >/dev/null 2>&1 & disown"
 fi
 
 }
