@@ -772,7 +772,7 @@ if ! $USE_PARENT_DNS_ZONE; then
     echo "Notifying Slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
 	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
     if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
-        echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; };" >> /etc/bind/named.conf.local
+        echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; allow-notify { $MASTER_IP; }; };" >> /etc/bind/named.conf.local
         mkdir -p /etc/bind/zones/
 		touch /etc/bind/zones/$domain_name.zone
         echo "Zone $domain_name added to slave server."
