@@ -76,10 +76,13 @@ for FOLDER_NAME in "$FOLDER"/*; do
   else
     USERNAME=$(log "$owner" | sed -n '1p')
     CONTEXT=$(log "$owner" | sed -n '2p')
-    log "USERNAME: $USERNAME - CONTEXT: $CONTEXT"
+    USER_ID=(id -u $CONTEXT)
+    log "USERNAME: $USERNAME - CONTEXT: $CONTEXT (UID: $USER_ID)"
     log "Setting permissions to: $CONTEXT:$CONTEXT for all mails in: $FOLDER_NAME"
-    chown -R "$CONTEXT:$CONTEXT" "$FOLDER_NAME"
+    docker exec openadmin_mailserver bash -c "DOMAIN='$DOMAIN'; USER_ID=$USER_ID; sed -i \"/@\$DOMAIN/ s/:[0-9]\+:[0-9]\+:/:\$USER_ID:\$USER_ID:/\" /etc/dovecot/userdb"
+    timeout 300 chown -R "$CONTEXT:$CONTEXT" "$FOLDER_NAME"
   fi
+  docker exec openadmin_mailserver bash -c "dovecot reload"
 done
 
 log "Finished processing a total of $COUNT domains."
