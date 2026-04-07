@@ -250,7 +250,6 @@ get_user_info
 delete_email_users "$USERNAME"
 delete_ftp_users "$USERNAME" &
 delete_user_from_database "$USERNAME" &
-delete_dns_zones "$USERNAME" $
 delete_all_user_files &
 postfwd_setup "$USERNAME" &
 delete_context &
