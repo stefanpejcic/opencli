@@ -769,15 +769,15 @@ reload_bind_after_slaves(){
 notify_slave(){
 
 if ! $USE_PARENT_DNS_ZONE; then
-    echo "Notifying Slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
+    echo "Notifying slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
 	timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
-    if ! grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
-        echo "zone \"$domain_name\" { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/$domain_name.zone\"; allow-notify { $MASTER_IP; }; };" >> /etc/bind/named.conf.local
+    if ! grep -q "$1.zone" /etc/bind/named.conf.local; then
+    	cat >> /etc/bind/named.conf.local <<EOFZONE
+zone "$1" {type slave; masters { $2; }; file "/etc/bind/zones/$1.zone"; allow-notify { $2; }; };
+EOFZONE
         mkdir -p /etc/bind/zones/
 		touch /etc/bind/zones/$domain_name.zone
         echo "Zone $domain_name added to slave server."
-    else
-        echo "Warning: Zone $domain_name already exists on the slave server."
     fi
 EOF
 
