@@ -218,6 +218,7 @@ enable_coraza_waf() {
     echo "Downloading Coraza rules.."
     wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/corazawaf/coraza/v3/dev/coraza.conf-recommended -O /etc/openpanel/caddy/coraza_rules.conf
     sed -i '/^SecRequestBodyJsonDepthLimit/ s/^/#/' /etc/openpanel/caddy/coraza_rules.conf
+    sed -i '/^SecRxPreFilter/s/^/#/' /etc/openpanel/caddy/coraza_rules.conf
 
     echo "Downloading OWASP CRS.."
     git clone https://github.com/coreruleset/coreruleset /etc/openpanel/caddy/coreruleset/
