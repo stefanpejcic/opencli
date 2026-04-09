@@ -652,14 +652,11 @@ case "$1" in
 	    shift 1
 	    update_reseller_account "$@"
 	    ;;
-	"suspend")
-        username="$2"
-        suspend_user "$username"
-        ;;   
-    "unsuspend")
-        username="$2"
-        unsuspend_user "$username"
-        ;;   
+	"suspend"|"unsuspend")
+	    username="$2"
+		source /usr/local/opencli/db.sh
+	    "${1}_user" "$username"
+	    ;;  
 	"port")
         new_port="$2"
 		optional_flag="$3"
