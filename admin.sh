@@ -468,64 +468,42 @@ list_current_users() {
 }
 
 
-# ---------------------- opencli admin suspend ---------------------- #
-suspend_user() {
-    local username="$1"
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
+# ---------------------- opencli admin suspend/unsuspend ---------------------- #
+manage_user() {
+    local action="$1"  # suspend | unsuspend
+    local username="$2"
 
-    if [ "$user_exists" -gt 0 ]; then
-        if [ "$is_admin" -gt 0 ]; then
+    if ! sqlite3 "$db_file_path" "SELECT 1 FROM user WHERE username='$username';" | grep -q 1; then
+        echo -e "${RED}Error${RESET}: User '$username' does not exist."
+        return 1
+    fi
+
+    if [ "$action" = "suspend" ]; then
+        if sqlite3 "$db_file_path" "SELECT 1 FROM user WHERE username='$username' AND role='admin';" | grep -q 1; then
             echo -e "${RED}Error${RESET}: Cannot suspend user '$username' with 'admin' role."
-        else
-            sqlite3 $db_file_path "UPDATE user SET is_active='0' WHERE username='$username';"
-            echo "User '$username' suspended successfully."
-
-            nohup opencli sentinel --action=admin_suspend --title="Administrator suspended" --message="Administrator account '$username' has been suspended." >/dev/null 2>&1 &
-			disown
-
-			query_for_usernames="SELECT username FROM users WHERE owner='$username';"
-			if usernames=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query_for_usernames"); then
-			
-			    if [ -n "$usernames" ]; then
-			        while IFS= read -r user; do
-			            opencli user-suspend "$user"
-			        done <<< "$usernames"
-			    fi
-			fi 
+            return 1
         fi
+        local is_active=0 label="suspended"     sentinel_action="admin_suspend"
+        local cli_action="user-suspend"         sentinel_title="Administrator suspended"
     else
-        echo -e "${RED}Error${RESET}: User '$username' does not exist."
+        local is_active=1 label="unsuspended"   sentinel_action="admin_unsuspend"
+        local cli_action="user-unsuspend"       sentinel_title="Administrator unsuspended"
     fi
 
-}
+    sqlite3 "$db_file_path" "UPDATE user SET is_active='$is_active' WHERE username='$username';"
+    echo "User '$username' $label successfully."
 
-# ---------------------- opencli admin unsuspend ---------------------- #
-unsuspend_user() {
-    local username="$1"
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    nohup opencli sentinel --action="$sentinel_action" --title="$sentinel_title" --message="Administrator account '$username' has been $label." >/dev/null 2>&1 &
+    disown
 
-    if [ "$user_exists" -gt 0 ]; then
-            sqlite3 $db_file_path "UPDATE user SET is_active='1' WHERE username='$username';"
-            echo "User '$username' unsuspended successfully."
-
-            nohup opencli sentinel --action=admin_unsuspend --title="Administrator unsuspended" --message="Administrator account '$username' has been unsuspended." >/dev/null 2>&1 &
-		    disown
-
-			query_for_usernames="SELECT username FROM users WHERE owner='$username';"
-			if usernames=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query_for_usernames"); then
-			
-			    if [ -n "$usernames" ]; then
-			        while IFS= read -r user; do
-			            opencli user-unsuspend "$user"
-			        done <<< "$usernames"
-			    fi
-			fi     
-    else
-        echo -e "${RED}Error${RESET}: User '$username' does not exist."
+	source /usr/local/opencli/db.sh
+    local query="SELECT username FROM users WHERE owner='$username';"
+    if usernames=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query"); then
+        while IFS= read -r user; do
+            [[ -n "$user" ]] && opencli "$cli_action" "$user"
+        done <<< "$usernames"
     fi
 }
-
 
 # ---------------------- opencli admin logs ---------------------- #
 multitail_admin_logs(){
@@ -648,8 +626,7 @@ case "$1" in
 	    ;;
 	"suspend"|"unsuspend")
 	    username="$2"
-		source /usr/local/opencli/db.sh
-	    "${1}_user" "$username"
+	    manage_user "${1}" "$username"
 	    ;;  
 	"port")
         new_port="$2"
