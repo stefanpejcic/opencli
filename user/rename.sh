@@ -239,7 +239,7 @@ mv_user_data                                                               # /et
 ensure_jq_installed                                                        # just helper for parsing json
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
 # rename_env USERNAME is no longer used!
-reload_user_quotas
+#reload_user_quotas
 #TODO: rename ftp accounts suffix!
 # rename paths
 
