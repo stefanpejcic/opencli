@@ -693,6 +693,10 @@ else
 	    DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
 	    if [ -f "$DOMAIN_CADDY_CONF" ]; then
 			eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
+			if [[ "$LIVE_TRANSFER" == true ]]; then
+			   # https://github.com/stefanpejcic/OpenPanel/issues/897
+		       sed -E -i 's|reverse_proxy (https?://)[^ ]+|reverse_proxy \1'"$REMOTE_HOST"'|g' "$DOMAIN_CADDY_CONF"
+			fi
 		fi
 	
 	    DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
@@ -732,12 +736,15 @@ EOF
 			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/custom/
 		fi
 
-		#TODO: https://github.com/stefanpejcic/OpenPanel/issues/897
  	fi
  done <<< "$ALL_DOMAINS"
 
  docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
  cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
+
+ if [[ "$LIVE_TRANSFER" == true ]]; then
+   docker --context default exec caddy caddy reload >/dev/null 2>&1
+ fi
 
 fi
 }
