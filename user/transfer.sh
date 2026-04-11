@@ -706,7 +706,6 @@ else
 		fi
 
 		DOMAIN_ZONE_FILE="/etc/bind/zones/$domain.zone"
-
 		if [ -f "$DOMAIN_ZONE_FILE" ]; then
 		    eval $RSYNC_CMD "$DOMAIN_ZONE_FILE" ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/zones/
       
@@ -727,7 +726,6 @@ EOF
 		if [ -d "$DOMAIN_CADDY_SSL" ]; then
 		eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
 		fi
-
 
 		DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/custom/$domain"
 		if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
