@@ -176,8 +176,7 @@ format_commands() {
 
 get_server_ipv4(){
 	# Get server ipv4
-	current_ip=$(curl --silent --max-time 2 -4 "https://ip.openpanel.com" || \
-                 curl --silent --max-time 2 -4 "https://ifconfig.me")
+	current_ip=$(curl --silent --max-time 2 -4 "https://ip.openpanel.com" || curl --silent --max-time 2 -4 "https://ifconfig.me")
 
 	if [ -z "$current_ip" ]; then
 	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
@@ -194,9 +193,8 @@ get_server_ipv4(){
 	    }
 
 	if ! is_valid_ipv4 "$current_ip"; then
-	        log "Invalid or private IPv4 address: $current_ip. OpenPanel requires a public IPv4 address to bind Nginx configuration files."
+	    log "Invalid or private IPv4 address: $current_ip. OpenPanel requires a public IPv4 address to bind Nginx configuration files."
 	fi
-
 }
 
 
@@ -204,13 +202,13 @@ PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 get_users_count_on_destination() {
-	  user_count_query="SELECT COUNT(*) FROM users"
+	user_count_query="SELECT COUNT(*) FROM users"
     user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
-        if [ $? -ne 0 ]; then
-            log "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
-            exit 1
-        fi
+    if [ $? -ne 0 ]; then
+        log "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
+        exit 1
+    fi
 
     if [ -n "$key_value" ]; then
     :
