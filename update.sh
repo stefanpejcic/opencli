@@ -625,7 +625,7 @@ update_openpanel() {
             if [[ "$current_version" != *-beta ]]; then
                 sed -i "s/^VERSION=.*/VERSION=\"${current_version}-beta\"/" /root/.env
             fi
-        fi        
+        fi
     fi
     docker --context=default compose up -d openpanel --force-recreate --pull always
 }
