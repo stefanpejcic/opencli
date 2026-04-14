@@ -85,6 +85,7 @@ Examples:
     opencli update                 # Update if auto-update is enabled
     opencli update --check         # Check for available updates
     opencli update --force         # Force update regardless of settings
+    opencli update --panel beta    # Update OpenPanel UI to the nightly-release
 
 EOF
     exit 1
