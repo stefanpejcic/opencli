@@ -3,7 +3,7 @@
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
 # Usage: opencli report
-#        opencli report [--public] [--cli] [--csf]
+#        opencli report [--public] [--cli]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 15.04.2026
@@ -37,7 +37,6 @@ RESET='\033[0m'
 # ======================================================================
 # Variables
 cli_flag=false
-csf_flag=false
 upload_flag=false
 non_interactive=false
 
@@ -61,9 +60,6 @@ parse_args() {
 	        --cli)
 	            cli_flag=true
 	            ;;
-	        --csf)
-	            csf_flag=true
-	            ;; 
 	        --public|--link|--upload)
 	            upload_flag=true
 	            ;; 
@@ -134,7 +130,7 @@ collect_opencli_commands() {
 
 collect_csf_rules() {
   local tmp="$1"
-  if [ "$csf_flag" = true ]; then
+  if command -v csf >/dev/null 2>&1; then
     echo "=== Sentinel Firewall Rules ===" >> "$tmp"
     run_command "csf -l" "Collecting Firewall Rules" "$tmp"
   fi
@@ -199,7 +195,7 @@ collect_user_services() {
 # deterministic regardless of which job finishes first. The temp files are
 # merged in order at the end.
 
-export output_file cli_flag csf_flag non_interactive
+export output_file cli_flag non_interactive
 
 # Ordered list – index determines merge order
 ORDERED_FUNCS=(
