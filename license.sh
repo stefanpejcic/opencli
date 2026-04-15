@@ -109,8 +109,7 @@ get_license_key() {
 
 # Get public IP address
 get_public_ip() {
-    local ip_server="https://ip.openpanel.com"
-    curl --silent --max-time 2 -4 "$ip_server" || wget --timeout=2 --tries=1 -qO- "$ip_server"
+    curl --silent --max-time 1 -4 "https://ip.openpanel.com" ||curl --silent --max-time 1 -4 "https://ifconfig.me/ip"
 }
 
 # Verify license with WHMCS
