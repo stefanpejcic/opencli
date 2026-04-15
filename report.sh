@@ -109,12 +109,6 @@ collect_docker_info() {
   run_command "docker info" "Collecting host docker information" "$tmp"
 }
 
-collect_opencli_commands() {
-  local tmp="$1"
-  echo "=== OpenCLI Information ===" >> "$tmp"
-  run_command "opencli commands" "Checking available OpenCLI Commands" "$tmp"
-}
-
 collect_csf_rules() {
   local tmp="$1"
   if command -v csf >/dev/null 2>&1; then
@@ -191,7 +185,6 @@ ORDERED_FUNCS=(
   collect_mysql_info
   collect_admin_info
   collect_docker_info
-  collect_opencli_commands
   collect_csf_rules
   collect_openpanel_settings
   collect_openadmin_settings
@@ -210,7 +203,6 @@ export -f run_command \
            collect_mysql_info \
            collect_admin_info \
            collect_docker_info \
-           collect_opencli_commands \
            collect_csf_rules \
            collect_openpanel_settings \
            collect_openadmin_settings \
