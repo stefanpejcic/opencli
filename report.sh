@@ -109,14 +109,6 @@ collect_docker_info() {
   run_command "docker info" "Collecting host docker information" "$tmp"
 }
 
-collect_csf_rules() {
-  local tmp="$1"
-  if command -v csf >/dev/null 2>&1; then
-    echo "=== Sentinel Firewall Rules ===" >> "$tmp"
-    run_command "csf -l" "Collecting Firewall Rules" "$tmp"
-  fi
-}
-
 collect_openpanel_settings() {
   local tmp="$1"
   echo "=== OpenPanel Settings ===" >> "$tmp"
@@ -185,7 +177,6 @@ ORDERED_FUNCS=(
   collect_mysql_info
   collect_admin_info
   collect_docker_info
-  collect_csf_rules
   collect_openpanel_settings
   collect_openadmin_settings
   collect_mysql_information
@@ -203,7 +194,6 @@ export -f run_command \
            collect_mysql_info \
            collect_admin_info \
            collect_docker_info \
-           collect_csf_rules \
            collect_openpanel_settings \
            collect_openadmin_settings \
            collect_mysql_information \
