@@ -71,7 +71,7 @@ run_command() {
   local tmpfile="$3"
   {
     echo "# $label:"
-    eval "$cmd" 2>&1
+	timeout 3s bash -c "$cmd" 2>&1
     echo "# ======================================================================"
     echo
   } >> "$tmpfile"
@@ -141,6 +141,7 @@ collect_services_status() {
   run_command "systemctl status csf"                     "Checking if Sentinel Firewall (CSF) is running" "$tmp"
 }
 
+# NOT USED ANYMORE
 collect_user_services() {
   local tmp="$1"
   echo "=== Docker Context Services ===" >> "$tmp"
@@ -181,7 +182,6 @@ ORDERED_FUNCS=(
   collect_openadmin_settings
   collect_mysql_information
   collect_services_status
-  collect_user_services
 )
 
 TMPDIR_REPORT=$(mktemp -d)
@@ -197,8 +197,7 @@ export -f run_command \
            collect_openpanel_settings \
            collect_openadmin_settings \
            collect_mysql_information \
-           collect_services_status \
-           collect_user_services
+           collect_services_status
 
 # Wrapper called by xargs: receives "<index> <func_name>"
 run_indexed() {
