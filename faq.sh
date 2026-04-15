@@ -5,7 +5,7 @@
 # Usage: opencli faq
 # Author: Stefan Pejcic
 # Created: 20.05.2024
-# Last Modified: 15.04.2026
+# Last Modified: 14.04.2026
 # Company: openpanel.comm
 # Copyright (c) openpanel.comm
 #
@@ -54,7 +54,7 @@ get_ssl_status() {
 
 
 get_public_ip() {
-    ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" ||curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
+    ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" || curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
     if [ -z "$ip" ] || ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         ip=$(hostname -I | awk '{print $1}')
     fi
