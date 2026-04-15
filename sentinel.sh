@@ -230,7 +230,7 @@ docker_containers_status() {
       else
           ((WARN--))
           echo "  - DNS module not enabled; bind9 not starting."
-      fi
+      fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
         cd /root && docker --context=default compose up -d caddy &>/dev/null
