@@ -238,7 +238,7 @@ main() {
   done
 
   if [ "$non_interactive" = false ]; then
-    echo "Collecting system information (parallel)..."
+    echo "Collecting system information..."
   fi
 
   # Run all collectors in parallel (up to nproc jobs at once)
