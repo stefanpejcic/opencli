@@ -176,8 +176,7 @@ check_if_dest_has_space(){
 
 get_server_ipv4(){
 	# Get server ipv4
-	current_ip=$(curl --silent --max-time 2 -4 "https://ip.openpanel.com" || \
-                 curl --silent --max-time 2 -4 "https://ifconfig.me")
+	current_ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" || curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
 
 	if [ -z "$current_ip" ]; then
 	    current_ip=$(ip addr|grep 'inet '|grep global|head -n1|awk '{print $2}'|cut -f1 -d/)
