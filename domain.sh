@@ -73,7 +73,7 @@ is_valid_ipv4() {
 # Get server's public IPv4 address
 get_server_ipv4() {
     local current_ip=""
-	current_ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" 2>/dev/null ||curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
+	current_ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" 2>/dev/null || curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
 
 	if is_valid_ipv4 "$current_ip"; then
 		echo "$current_ip"
