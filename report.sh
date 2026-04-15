@@ -3,7 +3,7 @@
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
 # Usage: opencli report
-#        opencli report [--public] [--cli]
+#        opencli report [--public]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
 # Last Modified: 15.04.2026
@@ -36,7 +36,6 @@ RESET='\033[0m'
 
 # ======================================================================
 # Variables
-cli_flag=false
 upload_flag=false
 non_interactive=false
 
@@ -54,19 +53,9 @@ create_local_path() {
 parse_args() {
 	while [[ $# -gt 0 ]]; do
 	    case $1 in
-	        --non-interactive)
-	            non_interactive=true
-	            ;;
-	        --cli)
-	            cli_flag=true
-	            ;;
-	        --public|--link|--upload)
-	            upload_flag=true
-	            ;; 
-	        *)
-	            echo "Unknown option: $1"
-	            exit 1
-	            ;;
+	        --non-interactive) non_interactive=true ;;
+	        --public|--link|--upload) upload_flag=true ;; 
+	        *) echo "Unknown option: $1"; exit 1 ;;
 	    esac
 	    shift
 	done
@@ -122,10 +111,8 @@ collect_docker_info() {
 
 collect_opencli_commands() {
   local tmp="$1"
-  if [ "$cli_flag" = true ]; then
-    echo "=== OpenCLI Information ===" >> "$tmp"
-    run_command "opencli commands" "Checking available OpenCLI Commands" "$tmp"
-  fi
+  echo "=== OpenCLI Information ===" >> "$tmp"
+  run_command "opencli commands" "Checking available OpenCLI Commands" "$tmp"
 }
 
 collect_csf_rules() {
@@ -195,7 +182,7 @@ collect_user_services() {
 # deterministic regardless of which job finishes first. The temp files are
 # merged in order at the end.
 
-export output_file cli_flag non_interactive
+export output_file non_interactive
 
 # Ordered list – index determines merge order
 ORDERED_FUNCS=(
