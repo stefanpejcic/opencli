@@ -1422,7 +1422,13 @@ send_email_to_new_user() {
 				port="$(opencli port)"
 				login_url="$PROTOCOL://$DOMAIN:$port/login"
 
-                email_notification "New OpenPanel account information" "OpenPanel URL: $login_url | username: $username  | password: $password"
+				email_password="$password"
+				email_plaintext_passwords=$(grep -E "^email_plaintext_passwords=" "$PANEL_CONFIG_FILE" | awk -F= '{print $2}')
+			    if [ "$email_plaintext_passwords" = "no" ]; then
+			        email_password="********"
+			    fi
+
+                email_notification "New OpenPanel account information" "OpenPanel URL: $login_url | username: $username  | password: $email_password"
             else
                 echo "$email is not a valid email address. Login infomration can not be sent to the user."
             fi       
