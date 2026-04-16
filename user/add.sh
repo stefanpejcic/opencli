@@ -1287,7 +1287,7 @@ if [[ -n "$sql_type" ]]; then
 fi
 
 
-mkdir -p /home/$username/sockets/{mysqld,postgres,redis,memcached}
+mkdir -p /home/$username/sockets/{mysqld,postgres,redis,valkey,memcached}
 cp /etc/openpanel/mysql/user.cnf /home/${username}/custom.cnf
 cp /etc/openpanel/postgres/postgresql.conf /home/${username}/postgre_custom.conf
 cp /etc/openpanel/nginx/user-nginx.conf /home/$username/nginx.conf  # added in 1.2.2
