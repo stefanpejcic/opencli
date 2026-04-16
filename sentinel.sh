@@ -33,15 +33,15 @@ SSH_LOGIN=$(validate_yes_no "$(ini_get ssh)")
 SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,docker,mysql,csf,panel}"
 
 LIMIT=$(validate_yes_no "$(ini_get limit)")
+ATTACK=$(validate_yes_no "$(ini_get attack)")
+MAX_TOTAL_CONN=$(validate_number "$(ini_get max_total_conn)"   5000)
+MAX_CONN_PER_IP=$(validate_number "$(ini_get max_conn_per_ip)" 500)
 
 LOAD_THRESHOLD=$(validate_number "$(ini_get load)" 20)
 CPU_THRESHOLD=$(validate_number  "$(ini_get cpu)"  90)
 RAM_THRESHOLD=$(validate_number  "$(ini_get ram)"  85)
 DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
-
-MAX_TOTAL_CONN=$(validate_number "$(ini_get max_total_conn)"   5000)
-MAX_CONN_PER_IP=$(validate_number "$(ini_get max_conn_per_ip)" 500)
 
 is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
 
@@ -187,6 +187,7 @@ docker_containers_status() {
 
   if _docker_ps | grep -wq "$svc"; then
     if [[ "$svc" == "caddy" ]]; then
+      CADDY_IS_ACTIVE=true
       if _caddy_http_ok; then
         ((PASS++)); echo -e "\e[32m[✔]\e[0m caddy is active and responding."
       else
@@ -551,40 +552,87 @@ check_cpu_usage() {
   fi
 }
 
-
 check_https_traffic() {
-  local PORT=443
-
-  local CONNS IP_COUNTS TOTAL_CONN SYN_RECV
-  CONNS=$(ss -tn state established "( sport = :443T )" | tail -n +2)
-  TOTAL_CONN=$(echo "$CONNS" | wc -l)
-
-  IP_COUNTS=$(echo "$CONNS" | awk '{print $5}' | cut -d: -f1 | sort | uniq -c | sort -nr)
-
+  if [[ "$ATTACK" == "no" ]]; then
+    ((WARN++)); echo "[!] Website traffic checks are disabled."; return
+  fi
+  if [[ "$CADDY_IS_ACTIVE" != "true" ]]; then
+    ((WARN++)); echo "[!] Skipping website traffic checks because Caddy is not running."; return
+  fi
   local ALERT=0
-  while read -r COUNT IP; do
-    if [ "$COUNT" -ge "$MAX_CONN_PER_IP" ]; then
-      echo -e "\e[31m[ALERT]\e[0m High connections from $IP: $COUNT"
-      write_notification "High traffic from $IP" "Port 443: $COUNT connections from $IP"
+  local ALL_CONNS
+  ALL_CONNS=$(ss -tn '( sport = :80 or sport = :443 )' | tail -n +2)
+
+  # SYN flooding
+  while read -r COUNT PORT; do
+    if (( COUNT >= 1000 )); then
+      echo -e "\e[31m[✘]\e[0m Possible SYN flood on :$PORT — $COUNT in SYN_RECV"
+      write_notification "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state"
       ALERT=1
     fi
-  done <<< "$IP_COUNTS"
+  done < <(awk '/SYN-RECV/{split($4,a,":"); print a[length(a)]}' <<< "$ALL_CONNS" | sort | uniq -c | awk '{print $1, $2}')
 
-  if [ "$TOTAL_CONN" -ge "$MAX_TOTAL_CONN" ]; then
-    echo -e "\e[31m[ALERT]\e[0m High total connections: $TOTAL_CONN"
-    write_notification "High total connections" "Port 443: $TOTAL_CONN total connections"
+  # Established per-IP-per-port
+  while read -r COUNT PORT IP; do
+    if (( COUNT >= MAX_CONN_PER_IP )); then
+      echo -e "\e[31m[✘]\e[0m High connections from $IP on port $PORT: $COUNT"
+  
+      DOMAINS=$(
+        find /var/log/caddy/domlogs -type f -name "access.log" 2>/dev/null |
+        while read -r f; do
+  
+          if timeout 1s bash -c '
+            tail -n 200 "$1" | grep -q "$2"
+          ' _ "$f" "$IP"
+          then
+            echo "$f"
+          fi
+  
+        done | sed 's|/var/log/caddy/domlogs/||; s|/access\.log||' | sort -u | tr '\n' ', ' | sed 's/,$//'
+      )
+  
+      if [[ -n "$DOMAINS" ]]; then
+        echo -e "    \e[33m[→]\e[0m Domain hit: $DOMAINS"
+        write_notification "High traffic from $IP" "Port $PORT: $COUNT connections from $IP | Domains: $DOMAINS"
+      else
+        echo -e "    \e[33m[→]\e[0m No matching domain logs found, check manually with: 'grep -Rli --include=access.log 104.23.195.56 /var/log/caddy/domlogs/ | xargs -n1 dirname | xargs -n1 basename'"
+        write_notification "High traffic from $IP" "Port $PORT: $COUNT connections from $IP"
+      fi
+  
+      ALERT=1
+    fi
+  done < <(
+    awk '/ESTAB/{
+      split($4, a, ":")
+      port = a[length(a)]
+      peer = $5
+      if (match(peer, /^\[(.+)\]:[0-9]+$/, m)) {
+          ip = m[1]
+      } else {
+          n = split(peer, b, ":")
+          ip = b[1]
+      }
+      sub(/^::ffff:/, "", ip)
+      print port, ip
+    }' <<< "$ALL_CONNS" |
+    sort | uniq -c | awk '{print $1, $2, $3}'
+  )
+
+
+  # Total established
+  local TOTAL_CONN
+  TOTAL_CONN=$(awk '/ESTAB/' <<< "$ALL_CONNS" | wc -l)
+  if (( TOTAL_CONN >= MAX_TOTAL_CONN )); then
+    echo -e "\e[31m[✘]\e[0m High total connections: $TOTAL_CONN"
+    write_notification "High total connections" "$TOTAL_CONN total connections on ports 80/443"
     ALERT=1
   fi
 
-  SYN_RECV=$(ss -tn state syn-recv "( sport = :443 )" | tail -n +2 | wc -l)
-  if [ "$SYN_RECV" -ge 100 ]; then
-    echo -e "\e[31m[ALERT]\e[0m Possible SYN flood: $SYN_RECV connections in SYN_RECV"
-    write_notification "Possible SYN flood" "Port $PORT: $SYN_RECV connections in SYN_RECV state"
-    ALERT=1
+  if [[ $ALERT -eq 0 ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m No unusual traffic detected on web ports (80|443)."
+  else
+    ((FAIL++)); STATUS=2
   fi
-
-  #echo "Top 10 IPs by connections:"
-  #echo "$IP_COUNTS" | head -10 | awk '{printf "%s connections → %s\n",$1,$2}'
 }
 
 check_swap_usage() {
@@ -784,6 +832,9 @@ echo "Checking services:"
 check_services
 check_oom_logs
 hr
+echo "Checking traffic:"
+check_https_traffic
+hr
 echo "Checking logins:"
 check_new_logins
 check_ssh_logins
@@ -794,7 +845,6 @@ check_system_load
 check_ram_usage
 check_cpu_usage
 check_swap_usage
-#check_https_traffic #TODO: test
 hr
 echo "Checking DNS:"
 check_if_panel_domain_and_ns_resolve_to_server
