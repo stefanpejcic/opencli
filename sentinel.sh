@@ -32,6 +32,8 @@ LOGIN=$(validate_yes_no "$(ini_get login)")
 SSH_LOGIN=$(validate_yes_no "$(ini_get ssh)")
 SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,docker,mysql,csf,panel}"
 
+LIMIT=$(validate_yes_no "$(ini_get limit)")
+
 LOAD_THRESHOLD=$(validate_number "$(ini_get load)" 20)
 CPU_THRESHOLD=$(validate_number  "$(ini_get cpu)"  90)
 RAM_THRESHOLD=$(validate_number  "$(ini_get ram)"  85)
@@ -284,6 +286,82 @@ check_services() {
       named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'               ;;
     esac
   done
+}
+
+check_oom_logs() {
+  if [[ "$LIMIT" == "no" ]]; then
+    ((WARN++)); echo "[!] OOM errors check disabled."; return
+  fi
+
+  local FLAG_FILE="/tmp/check_oom_logs.last_run"
+  local NOW EPOCH_LAST DIFF
+
+  NOW=$(date +%s)
+  if [[ -f "$FLAG_FILE" ]]; then
+    EPOCH_LAST=$(cat "$FLAG_FILE" 2>/dev/null)
+    DIFF=$((NOW - EPOCH_LAST))
+    [[ "$DIFF" -lt 86400 ]] && return
+  fi
+
+  echo "$NOW" > "$FLAG_FILE"
+
+  local TODAY LOG
+  TODAY=$(date +%Y-%m-%d)
+  if [[ -f /var/log/syslog ]]; then
+    LOG="/var/log/syslog"
+  elif [[ -f /var/log/messages ]]; then
+    LOG="/var/log/messages"
+  else
+    return
+  fi
+
+  local SYSTEM_COUNT=0
+  local USER_COUNT=0
+  local SYSTEM_MSG=""
+  local USER_MSG=""
+
+  while read -r line; do
+    uid=$(echo "$line" | sed -n 's/.*UID:\([0-9]\+\).*/\1/p')
+    [[ -z "$uid" ]] && continue
+
+    if [[ "$uid" -eq 0 ]]; then
+        ((SYSTEM_COUNT++))
+        SYSTEM_MSG+=$' | '"$line"
+    elif [[ "$uid" -ge 1000 ]]; then
+        ((USER_COUNT++))
+        user=$(getent passwd "$uid" | cut -d: -f1)
+        [[ -z "$user" ]] && continue
+        USER_MSG+=$' | '"$user: $line"
+    fi
+
+  done < <(grep "Memory cgroup out of memory: Killed process" "$LOG" | grep "^$TODAY")
+
+  if [[ "$SYSTEM_COUNT" -eq 0 && "$USER_COUNT" -eq 0 ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m No OOM errors detected."; return
+  else
+    ((FAIL++)); STATUS=2
+  fi
+
+  title_parts=()
+
+  [[ "$SYSTEM_COUNT" -gt 0 ]] && title_parts+=("System: $SYSTEM_COUNT")
+  [[ "$USER_COUNT" -gt 0 ]] && title_parts+=("User: $USER_COUNT")
+
+  title="OOM Alert - $TODAY - $(IFS=' | '; echo "${title_parts[*]}")"
+  message=""
+
+  if [[ "$SYSTEM_COUNT" -gt 0 ]]; then
+    message+="$SYSTEM_COUNT system service(s) killed by OOM in the last 24 hours $SYSTEM_MSG"
+    echo -e "\e[31m[✘]\e[0m $SYSTEM_COUNT system service(s) killed by OOM in the last 24 hours"
+  fi
+
+  if [[ "$USER_COUNT" -gt 0 ]]; then
+    message+="$USER_COUNT user process(es) killed by OOM in the last 24 hours $USER_MSG"
+    echo -e "\e[31m[✘]\e[0m $USER_COUNT user process(es) killed by OOM in the last 24 hours"
+  fi
+
+  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
+  write_notification "$title" "$message"
 }
 
 check_new_logins() {
@@ -704,6 +782,7 @@ echo "  Sentinel - OpenPanel server health monitor"
 hr
 echo "Checking services:"
 check_services
+check_oom_logs
 hr
 echo "Checking logins:"
 check_new_logins
