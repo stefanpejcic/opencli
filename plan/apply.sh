@@ -169,36 +169,42 @@ for username in "${usernames[@]}"; do
     # Network (bandwidth)
     if ! $partial || $donet; then
 
+        get_user_netns_pid() {
+          pgrep -u "$username" -f "rootlesskit" | head -1
+        }
+
+        netns_exec() {
+          local pid
+          pid=$(get_user_netns_pid) || return 1
+          nsenter --net="/proc/${pid}/ns/net" -- "$@"
+        }
+
         get_bridge() {
           local net_name="${username}_${1}"
           local net_id
 
-          local bridge
-          bridge=$(docker --context="$username" network inspect "$net_name" --format '{{index .Options "com.docker.network.bridge.name"}}' 2>/dev/null)
-
-          if [ -z "$bridge" ]; then
-            net_id=$(docker --context="$username" network inspect "$net_name" --format '{{.Id}}' 2>/dev/null)
-            [ -z "$net_id" ] && return 1
-            bridge="br-${net_id:0:12}"
-          fi
-
-          ip link show "$bridge" &>/dev/null || return 1
+          net_id=$(docker --context="$username" network inspect "$net_name" --format '{{.Id}}' 2>/dev/null)
+          [ -z "$net_id" ] && return 1
+        
+          local bridge="br-${net_id:0:12}"
+          netns_exec ip link show "$bridge" &>/dev/null || return 1
           echo "$bridge"
         }
 
+        IFB_DEV="ifb_${username:0:11}"
+
         # UNLIMITED BANDWIDTH
         if [[ "$bandwidth" -eq 0 ]]; then
-          local IFB_DEV="ifb_${username:0:11}"
           for NET in www db; do
             local BRIDGE
             BRIDGE=$(get_bridge "$NET") || continue
-            tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
+            netns_exec tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
           done
         
-          if ip link show "$IFB_DEV" &>/dev/null; then
-            tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
-            ip link set "$IFB_DEV" down
-            ip link delete "$IFB_DEV"
+          if netns_exec ip link show "$IFB_DEV" &>/dev/null; then
+            netns_exec tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
+            netns_exec ip link set "$IFB_DEV" down
+            netns_exec ip link delete "$IFB_DEV"
           fi
 
         echo "- Bandwidth:  [OK]   $bandwidth_text"
@@ -213,31 +219,29 @@ for username in "${usernames[@]}"; do
               exit 1
             fi
 
-            IFB_DEV="ifb_${username:0:11}"
-
             modprobe ifb numifbs=0 2>/dev/null || true
-            if ip link show "$IFB_DEV" &>/dev/null; then
-              tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
-              ip link set "$IFB_DEV" down
-              ip link delete "$IFB_DEV"
+            if netns_exec ip link show "$IFB_DEV" &>/dev/null; then
+              netns_exec tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
+              netns_exec ip link set "$IFB_DEV" down
+              netns_exec ip link delete "$IFB_DEV"
             fi
 
             for BRIDGE in "$WWW_BRIDGE" "$DB_BRIDGE"; do
               [ -z "$BRIDGE" ] && continue
-              tc qdisc del dev "$BRIDGE" root 2>/dev/null || true
-              tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
+              netns_exec tc qdisc del dev "$BRIDGE" root 2>/dev/null || true
+              netns_exec tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
             done
 
-            ip link add name "$IFB_DEV" type ifb
-            ip link set "$IFB_DEV" up
-            tc qdisc add dev "$IFB_DEV" root handle 1: htb default 10
-            tc class add dev "$IFB_DEV" parent 1: classid 1:10 htb rate "${bandwidth}mbit" ceil "${bandwidth}mbit" burst 128k
-            tc qdisc add dev "$IFB_DEV" parent 1:10 handle 10: pfifo limit 50
+            netns_exec ip link add name "$IFB_DEV" type ifb
+            netns_exec ip link set "$IFB_DEV" up
+            netns_exec tc qdisc add dev "$IFB_DEV" root handle 1: htb default 10
+            netns_exec tc class add dev "$IFB_DEV" parent 1: classid 1:10 htb rate "${bandwidth}mbit" ceil "${bandwidth}mbit" burst 128k
+            netns_exec tc qdisc add dev "$IFB_DEV" parent 1:10 handle 10: pfifo limit 50
 
             for BRIDGE in "$WWW_BRIDGE" "$DB_BRIDGE"; do
               [ -z "$BRIDGE" ] && continue
-              tc qdisc add dev "$BRIDGE" ingress
-              tc filter add dev "$BRIDGE" parent ffff: protocol all u32 match u32 0 0 action mirred egress redirect dev "$IFB_DEV"
+              netns_exec tc qdisc add dev "$BRIDGE" ingress
+              netns_exec tc filter add dev "$BRIDGE" parent ffff: protocol all u32 match u32 0 0 action mirred egress redirect dev "$IFB_DEV"
             done
             echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on $IFB_DEV (bridges: $WWW_BRIDGE $DB_BRIDGE)"
         fi
