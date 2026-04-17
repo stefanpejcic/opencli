@@ -176,12 +176,12 @@ get_admin_url() {
             admin_url="http://${hostname_ip}:${admin_port}/"
         fi
         return
-    fi
-
-    # 3. public ip, non-ssl
-    local ip
-    ip=$(get_public_ip)
-    admin_url="http://${ip}:${admin_port}/"
+    else
+	    # 3. public ip, non-ssl
+	    local ip
+	    ip=$(get_public_ip)
+	    admin_url="http://${ip}:${admin_port}/"
+	fi
 
     echo "$admin_url"    
 }
