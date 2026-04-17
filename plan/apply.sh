@@ -196,7 +196,7 @@ for username in "${usernames[@]}"; do
         # UNLIMITED BANDWIDTH
         if [[ "$bandwidth" -eq 0 ]]; then
           for NET in www db; do
-            local BRIDGE
+            BRIDGE
             BRIDGE=$(get_bridge "$NET") || continue
             netns_exec tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
           done
