@@ -199,14 +199,13 @@ for username in "${usernames[@]}"; do
 
                 if [ -n "$BRIDGE_ID" ]; then
                     IFACE="br-$BRIDGE_ID"
-
                     nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
                     nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
                     nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" handle ffff: ingress
                     nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
                     nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
                     nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
-                    echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on $IFB_DEV (bridges: $IFACE)"                    
+                    echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on $IFACE (bridges: $IFACE)"                    
                 fi
             done
         fi
