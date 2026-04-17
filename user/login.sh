@@ -73,6 +73,7 @@ get_openpanel_url() {
 	PORT=${PORT:-2083}
 
     caddyfile="/etc/openpanel/caddy/Caddyfile"
+	# 1. domain and later will check for ssl
 	domain_block=$(awk '/# START USERPANEL DOMAIN #/{flag=1; next} /# END USERPANEL DOMAIN #/{flag=0} flag {print}' "$caddyfile")
 	if [ -z "$domain_block" ]; then
 	    domain_block=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag {print}' "$caddyfile")
@@ -81,10 +82,30 @@ get_openpanel_url() {
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
     domain=$(echo "$domain" | sed 's|^http[s]*://||')
-        
+    # 2. ip and later will check for ssl
     if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
-        ip=$(get_public_ip)
-        openpanel_url="http://${ip}:$PORT/"
+		domain_block="$(awk '
+			/# START HOSTNAME IP #/ {flag=1; next}
+			/# END HOSTNAME IP #/   {flag=0}
+			flag {print}
+		' "$caddyfile" 2>/dev/null)"
+
+		local ip
+		ip="$(echo "$domain_block" \
+		    | sed '/^\s*$/d' \
+		    | grep -v '^\s*#' \
+		    | head -n1 \
+		    | grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' \
+		    | xargs)"
+		ip="${ip%%:*}"
+		ip="${ip%%,*}"
+		# 3. IP and non-ssl
+		if [ -z "$ip" ]; then
+        	ip=$(get_public_ip)
+       		openpanel_url="http://${ip}:$PORT/"
+		else
+			domain="$ip"
+		fi
     else
 		# ---------------------- letsencrypt
 		local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
