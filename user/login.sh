@@ -103,26 +103,26 @@ get_openpanel_url() {
 		if [ -z "$ip" ]; then
         	ip=$(get_public_ip)
        		openpanel_url="http://${ip}:$PORT/"
+			return 0
 		else
 			domain="$ip"
 		fi
-    else
-		# ---------------------- letsencrypt
-		local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
-		local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.key"
-	
-		# ---------------------- custom ssl
-		local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.crt"
-		local fallback_key_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.key"
-	 
-		if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || \
-		   { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
-		    openpanel_url="https://${domain}:$PORT/"
-        else
-            ip=$(get_public_ip)
-            openpanel_url="http://${ip}:$PORT/"
-        fi
-    fi
+	fi
+	# ---------------------- letsencrypt
+	local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
+	local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.key"
+
+	# ---------------------- custom ssl
+	local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.crt"
+	local fallback_key_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.key"
+ 
+	if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || \
+	   { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
+		openpanel_url="https://${domain}:$PORT/"
+	else
+		ip=$(get_public_ip)
+		openpanel_url="http://${ip}:$PORT/"
+	fi
 
     echo "$openpanel_url"
 }
