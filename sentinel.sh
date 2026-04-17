@@ -66,8 +66,8 @@ email_notification() {
     "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
 
   local domain; domain=$(opencli domain)
-  local proto="http"
-  [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] && proto="https"
+  local proto="https"
+  [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] && proto="http"
 
   local auth_opt=""
   if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' \
