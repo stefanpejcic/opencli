@@ -254,6 +254,7 @@ mysql_docker_containers_status() {
       ((PASS++)); echo -e "\e[32m[✔]\e[0m MySQL container active and responding."
     else
       echo -e "\e[31m[✘]\e[0m MySQL running but not responding — restarting."
+      write_notification "MySQL service restarted!" "MySQL service running but not responding, attempting restart."
       cd /root && docker --context=default compose up -d openpanel_mysql &>/dev/null
     fi
   else
