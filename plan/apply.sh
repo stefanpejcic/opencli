@@ -130,10 +130,14 @@ for username in "${usernames[@]}"; do
     # RAM
     if ! $partial || $doram; then
         sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${ram}\"/" "/home/$context/.env" # legacy
+
+        ram="${ram%G}"
+        ram="${ram%g}"
+
         if [[ "$ram" -eq 0 ]]; then
             systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
         else
-            [[ "$ram" != *G ]] && ram="${ram}G"
+            ram="${ram}G"
             systemctl set-property "user-${user_id}.slice" MemoryMax="$ram"
         fi
         echo "- Memory:     [OK]   $ram_text"
