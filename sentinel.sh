@@ -525,7 +525,8 @@ check_ram_usage() {
   if (( pct > RAM_THRESHOLD )); then
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m RAM ${pct}% > threshold ${RAM_THRESHOLD}%"
-    write_notification "$title" "Used RAM: ${used}MB / ${total}MB (${pct}%)"
+    local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10 | sed ':a;N;$!ba;s/\n/\\n/g')
+    write_notification "$title" "Used RAM: ${used}MB / ${total}MB (${pct}%) | $procs"
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m RAM ${pct}% < threshold ${RAM_THRESHOLD}%"
   fi
