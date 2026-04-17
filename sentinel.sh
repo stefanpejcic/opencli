@@ -70,10 +70,11 @@ email_notification() {
   fi
 
   local auth_opt=""
-  if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null; then
+  local admin_ini="/etc/openpanel/openadmin/config/admin.ini"  
+  if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' "$admin_ini" 2>/dev/null; then
     local u p
-    u=$(awk -F= '/^basic_auth_username=/{print $2; exit}' /etc/openpanel/openadmin/config/admin.ini)
-    p=$(awk -F= '/^basic_auth_password=/{print $2; exit}' /etc/openpanel/openadmin/config/admin.ini)
+    u=$(awk -F= '/^basic_auth_username=/{print $2; exit}' "$admin_ini")
+    p=$(awk -F= '/^basic_auth_password=/{print $2; exit}' "$admin_ini")
     auth_opt="--user ${u}:${p}"
   fi
 
