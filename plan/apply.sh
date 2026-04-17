@@ -96,7 +96,7 @@ cpu_text=$(limit_text "$cpu" " core(s)" "total")
 disk_text=$(limit_text "$storage_in_blocks" " blocks" "total")
 inodes_text=$(limit_text "$inodes_limit" " inodes" "total")
 hourly_email_text=$(limit_text "$max_hourly_email" "" "max hourly emails for all domains")
-bandwidth_text=$(limit_text "$bandwidth" " bandwidth" "total")
+bandwidth_text=$(limit_text "$bandwidth" " bandwidth" "mbits" "total")
 
 # 2. fetch all users if --all
 if $bulk; then
@@ -206,8 +206,7 @@ for username in "${usernames[@]}"; do
             netns_exec ip link set "$IFB_DEV" down
             netns_exec ip link delete "$IFB_DEV"
           fi
-
-        echo "- Bandwidth:  [OK]   $bandwidth_text"
+          echo "- Bandwidth:  [OK]   $bandwidth_text"
 
         # BANDWIDTH IN mbits
         else
