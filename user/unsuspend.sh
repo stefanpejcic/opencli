@@ -139,6 +139,7 @@ rename_user_in_db() {
 # ======================================================================
 # Main
 get_docker_context
+rename_user_in_db
 unsuspend_user_domains
 start_user_containers
-rename_user_in_db
+
