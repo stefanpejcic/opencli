@@ -1,14 +1,21 @@
 #!/bin/bash
 
+# config
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-readonly LOCK_FILE="/tmp/swap_cleanup.lock"
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
-readonly DNS_STAMP="/tmp/sentinel_dns_last_run"
+
 readonly DISPLAY_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 HOSTNAME=$(hostname)
 
-[ ! -f "$INI_FILE" ] && { echo "Error: INI file not found: $INI_FILE"; exit 1; }
+# lock files
+readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
+readonly LOCK_FILE_FOR_DNS_CHECK="/tmp/sentinel.dns"
+readonly LOCK_FILE_FOR_OOM_CHECK="/tmp/sentinel.oom"
+readonly LOCK_FILE_FOR_DOCKER_PRUNE="/tmp/sentinel.docker"
+
+[ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
+[ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
 
 mkdir -p "$(dirname "$LOG_FILE")"
 [[ ! -f "$LOG_FILE" ]] && > "$LOG_FILE"
@@ -288,17 +295,16 @@ check_oom_logs() {
     ((WARN++)); echo "[!] OOM errors check disabled."; return
   fi
 
-  local FLAG_FILE="/tmp/check_oom_logs.last_run"
   local NOW EPOCH_LAST DIFF
 
   NOW=$(date +%s)
-  if [[ -f "$FLAG_FILE" ]]; then
-    EPOCH_LAST=$(cat "$FLAG_FILE" 2>/dev/null)
+  if [[ -f "$LOCK_FILE_FOR_OOM_CHECK" ]]; then
+    EPOCH_LAST=$(cat "$LOCK_FILE_FOR_OOM_CHECK" 2>/dev/null)
     DIFF=$((NOW - EPOCH_LAST))
     [[ "$DIFF" -lt 86400 ]] && return
   fi
 
-  echo "$NOW" > "$FLAG_FILE"
+  echo "$NOW" > "$LOCK_FILE_FOR_OOM_CHECK"
 
   local TODAY LOG
   TODAY=$(date +%Y-%m-%d)
@@ -456,9 +462,8 @@ check_disk_usage() {
   local pct; pct=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
   if (( pct > DISK_THRESHOLD )); then
     # Try cleanup if not done in last 24h
-    local flag_file="/tmp/docker_system_prune.lock"
-    if [ -f "$flag_file" ]; then
-      local age=$(( $(date +%s) - $(stat -c %Y "$flag_file") ))
+    if [ -f "$LOCK_FILE_FOR_DOCKER_PRUNE" ]; then
+      local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_DOCKER_PRUNE") ))
       if [ "$age" -lt "$flag_tt" ]; then
         $DEBUG && echo "[$context] Skipping cleanup — ran ${age}s ago"
         write_notification "$title" "Disk usage: ${pct}% | Partitions: $(df -h | sort -r -k 5 -i | sed ':a;N;$!ba;s/\n/\\n/g')"
@@ -474,7 +479,7 @@ check_disk_usage() {
        context_name=$(basename "$context")
        timeout 15 docker --context="$context_name" system prune -f --filter "until=24h" > /dev/null 2>&1
     done
-    touch "$flag_file"
+    touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
 
     local kb_after; kb_after=$(df / | awk 'NR==2 {print $3}')
     local freed_gb=$(( (kb_before - kb_after) / 1024 / 1024 ))
@@ -641,20 +646,20 @@ check_swap_usage() {
 
   if (( pct <= SWAP_THRESHOLD )); then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m SWAP ${pct}% < threshold ${SWAP_THRESHOLD}%"
-    rm -f "$LOCK_FILE"; return
+    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"; return
   fi
 
-  if [[ -f "$LOCK_FILE" ]]; then
-    local age=$(( $(date +%s) - $(date -r "$LOCK_FILE" +%s) ))
+  if [[ -f "$LOCK_FILE_FOR_SWAP_CLEANUP" ]]; then
+    local age=$(( $(date +%s) - $(date -r "$LOCK_FILE_FOR_SWAP_CLEANUP" +%s) ))
     if (( age <= 21600 )); then
       ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m SWAP cleanup already in progress. Skipping."; return
     fi
-    rm -f "$LOCK_FILE"
+    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
   fi
 
   echo -e "\e[31m[✘]\e[0m SWAP ${pct}% > threshold ${SWAP_THRESHOLD}%. Clearing..."
   write_notification "$title" "SWAP: ${pct}%. Cleanup starting."
-  touch "$LOCK_FILE"
+  touch "$LOCK_FILE_FOR_SWAP_CLEANUP"
 
   sync ; echo 3 > /proc/sys/vm/drop_caches
   swapoff -a && swapon -a
@@ -663,7 +668,7 @@ check_swap_usage() {
   read -r _ stotal2 sused2 _rest < <(free | awk '/^Swap:/')
   local pct2=$(( stotal2 > 0 ? sused2*100/stotal2 : 0 ))
   if (( pct2 < SWAP_THRESHOLD )); then
-    rm -f "$LOCK_FILE"
+    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
     write_notification "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME."
     echo -e "\e[32m[✔]\e[0m SWAP cleared successfully. Now: ${pct2}%"
   else
@@ -693,13 +698,13 @@ check_if_panel_domain_and_ns_resolve_to_server() {
     ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m DNS check disabled."; return
   fi
 
-  if [[ -f "$DNS_STAMP" ]]; then
-    local age=$(( $(date +%s) - $(date -r "$DNS_STAMP" +%s) ))
+  if [[ -f "$LOCK_FILE_FOR_DNS_CHECK" ]]; then
+    local age=$(( $(date +%s) - $(date -r "$LOCK_FILE_FOR_DNS_CHECK" +%s) ))
     if (( age < 3600 )); then
       ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m DNS check skipped (last run $((age/60))m ago)."; return
     fi
   fi
-  touch "$DNS_STAMP"
+  touch "$LOCK_FILE_FOR_DNS_CHECK"
 
   local FORCED_DOMAIN; FORCED_DOMAIN=$(opencli domain 2>/dev/null)
   local CHECK_DOMAIN="no" CHECK_NS="no"
