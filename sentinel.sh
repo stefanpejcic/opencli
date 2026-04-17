@@ -48,30 +48,29 @@ is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
 webhook_notification() {
   local title=$1 message=$2
   [[ -z "$WEBHOOK_URL" ]] && return
-
   local clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
-  
   local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"OpenAdmin-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
-
-  curl -X POST -H "Content-Type: application/json" \
-       -d "$payload" \
-       --max-time 1 \
-       "$WEBHOOK_URL" >/dev/null 2>&1
+  curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 1 "$WEBHOOK_URL" >/dev/null 2>&1
 }
 
 email_notification() {
   local title=$1 message=$2
   local token; token=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 64)
-  awk -v t="$token" '/^mail_security_token=/{$0="mail_security_token="t} 1' \
-    "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
+  awk -v t="$token" '/^mail_security_token=/{$0="mail_security_token="t} 1' "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
 
   local domain; domain=$(opencli domain)
-  local proto="https"
-  [[ "$domain" =~ ^[a-zA-Z0-9.-]+$ ]] && proto="http"
+  local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
+  local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.key"
+  local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.crt"
+  local fallback_key_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.key"
+
+  local proto="http"
+  if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
+      proto="https"
+  fi
 
   local auth_opt=""
-  if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' \
-      /etc/openpanel/openadmin/config/admin.ini 2>/dev/null; then
+  if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null; then
     local u p
     u=$(awk -F= '/^basic_auth_username=/{print $2; exit}' /etc/openpanel/openadmin/config/admin.ini)
     p=$(awk -F= '/^basic_auth_password=/{print $2; exit}' /etc/openpanel/openadmin/config/admin.ini)
@@ -80,10 +79,7 @@ email_notification() {
 
   local admin_port resp
   admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
-  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" \
-    $auth_opt \
-    -F "transient=$token" -F "recipient=$EMAIL" \
-    -F "subject=$title"   -F "body=$message" 2>/dev/null)
+  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" $auth_opt -F "transient=$token" -F "recipient=$EMAIL" -F "subject=$title"   -F "body=$message" 2>/dev/null)
 
   case "$resp" in
     *'"error"'*)             echo "Error sending email: $resp" ;;
@@ -155,15 +151,12 @@ check_service_status() {
     local log; log=$(journalctl -n 5 -u "$svc" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
     [[ -n "$log" ]] && write_notification "$title" "$log"
     systemctl restart "$svc"
-    systemctl is-active --quiet "$svc" \
-      && echo -e "\e[32m[✔]\e[0m $svc restarted." \
-      || echo -e "\e[31m[✘]\e[0m Failed to restart $svc."
+    systemctl is-active --quiet "$svc" && echo -e "\e[32m[✔]\e[0m $svc restarted." || echo -e "\e[31m[✘]\e[0m Failed to restart $svc."
   fi
 }
 
 _docker_ps()  { docker --context=default ps --format "{{.Names}}"; }
-_docker_log() { docker --context=default logs --tail 10 "$1" 2>&1 \
-                  | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n",$0}'; }
+_docker_log() { docker --context=default logs --tail 10 "$1" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n",$0}'; }
 
 _caddy_http_ok() {
   local code
@@ -211,8 +204,7 @@ docker_containers_status() {
   ((WARN++))
   case "$svc" in
     openpanel)
-      local users; users=$(opencli user-list --json 2>/dev/null \
-        | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
+      local users; users=$(opencli user-list --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
       if [[ -z "$users" || "$users" == "No users." ]]; then
         ((WARN--)); echo "  - No users found; $svc not needed."
       else
@@ -285,7 +277,7 @@ check_services() {
       docker) check_service_status      'docker'        'Docker not active — user websites down!'       ;;
       panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'              ;;
       mysql)  mysql_docker_containers_status                                                            ;;
-      named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'               ;;
+      named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'                ;;
     esac
   done
 }
