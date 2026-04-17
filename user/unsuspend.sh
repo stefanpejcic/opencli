@@ -108,7 +108,7 @@ start_user_containers() {
             $DEBUG && echo "Starting container: $container"
             docker $CONTEXT_FLAG start "$container" > /dev/null 2>&1
         else
-            # Container doesn't exist — compose up
+            #no contianer = compose up
             $DEBUG && echo "Container $container not found, running compose up"
             (cd "/home/$context" && \
                 docker $CONTEXT_FLAG compose up -d "$container" > /dev/null 2>&1)
