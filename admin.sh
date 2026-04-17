@@ -147,40 +147,37 @@ get_admin_url() {
         if { [ -f "$cert_path_on_hosts" ] && [ -f "$key_path_on_hosts" ]; } || \
            { [ -f "$fallback_cert_path" ] && [ -f "$fallback_key_path" ]; }; then
             admin_url="https://${domain}:${admin_port}/"
-            return
         else
             admin_url="http://${domain}:${admin_port}/"
-            return
         fi
-    fi
-
-    # 2. check IP set in file
-    ip_block=$(awk '/# START HOSTNAME IP #/{flag=1; next} /# END HOSTNAME IP #/{flag=0} flag {print}' "$caddyfile")
-    hostname_ip=$(echo "$ip_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
-    hostname_ip=$(echo "$hostname_ip" | sed 's/[[:space:]]*{//' | xargs)
-
-    if [[ -f "/root/disable_2087_port" ]]; then
-        admin_port="443"
     else
-        admin_port=$(echo "$ip_block" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
-    fi
+	    # 2. check IP set in file
+	    ip_block=$(awk '/# START HOSTNAME IP #/{flag=1; next} /# END HOSTNAME IP #/{flag=0} flag {print}' "$caddyfile")
+	    hostname_ip=$(echo "$ip_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
+	    hostname_ip=$(echo "$hostname_ip" | sed 's/[[:space:]]*{//' | xargs)
+	
+	    if [[ -f "/root/disable_2087_port" ]]; then
+	        admin_port="443"
+	    else
+	        admin_port=$(echo "$ip_block" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
+	    fi
 
-    if [ -n "$hostname_ip" ]; then
-        #2a. check Let's Encrypt shortlived
-        local ip_cert_path="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${hostname_ip}/${hostname_ip}.crt"
-        local ip_key_path="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${hostname_ip}/${hostname_ip}.key"
-
-        if [ -f "$ip_cert_path" ] && [ -f "$ip_key_path" ]; then
-            admin_url="https://${hostname_ip}:${admin_port}/"
-        else
-            admin_url="http://${hostname_ip}:${admin_port}/"
-        fi
-        return
-    else
-	    # 3. public ip, non-ssl
-	    local ip
-	    ip=$(get_public_ip)
-	    admin_url="http://${ip}:${admin_port}/"
+	    if [ -n "$hostname_ip" ]; then
+	        #2a. check Let's Encrypt shortlived
+	        local ip_cert_path="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${hostname_ip}/${hostname_ip}.crt"
+	        local ip_key_path="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${hostname_ip}/${hostname_ip}.key"
+	
+	        if [ -f "$ip_cert_path" ] && [ -f "$ip_key_path" ]; then
+	            admin_url="https://${hostname_ip}:${admin_port}/"
+	        else
+	            admin_url="http://${hostname_ip}:${admin_port}/"
+	        fi
+	    else
+		    # 3. public ip, non-ssl
+		    local ip
+		    ip=$(get_public_ip)
+		    admin_url="http://${ip}:${admin_port}/"
+		fi
 	fi
 
     echo "$admin_url"    
