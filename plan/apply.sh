@@ -215,7 +215,8 @@ for username in "${usernames[@]}"; do
 
             if [ -z "$WWW_BRIDGE" ] && [ -z "$DB_BRIDGE" ]; then
               echo "ERROR: No bridges found for user $username"
-              exit 1
+              echo "- Bandwidth:[WARN]   No bridges found for user $username)"
+              continue
             fi
 
             modprobe ifb numifbs=0 2>/dev/null || true
