@@ -207,12 +207,12 @@ for username in "${usernames[@]}"; do
                     nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
                     nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
                 fi
-                if [ ${#IFACES[@]} -gt 0 ]; then
-                    echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on www and db networks (bridges: ${IFACES[*]})"
-                else
-                    echo "- Bandwidth:[WARN]   Could not find bridge ID for any networks for $username - does user have any containers running?"
-                fi
             done
+            if [ ${#IFACES[@]} -gt 0 ]; then
+                echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on www and db networks (bridges: ${IFACES[*]})"
+            else
+                echo "- Bandwidth:[WARN]   Could not find bridge ID for any networks - does user $username have any containers running?"
+            fi
         fi
     fi
 done
