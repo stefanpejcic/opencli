@@ -185,7 +185,6 @@ for username in "${usernames[@]}"; do
                 fi
             done
         else
-            echo "Setting shared limit to ${bandwidth}mbit for $username..."
             nsenter -t "$USER_PID" -n ip link set dev ifb0 up 2>/dev/null || \
             nsenter -t "$USER_PID" -n ip link add ifb0 type ifb 2>/dev/null
             nsenter -t "$USER_PID" -n ip link set dev ifb0 up
@@ -193,19 +192,25 @@ for username in "${usernames[@]}"; do
             nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10
             nsenter -t "$USER_PID" -n tc class add dev ifb0 parent 1: classid 1:10 htb rate "${bandwidth}mbit"
 
+            IFACES=()
             for suffix in "www" "db"; do
                 full_net_name="${username}_${suffix}"
                 BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
 
                 if [ -n "$BRIDGE_ID" ]; then
                     IFACE="br-$BRIDGE_ID"
+                    IFACES+=("$IFACE")
                     nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
                     nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
                     nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" handle ffff: ingress
                     nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
                     nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
                     nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
-                    echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on $IFACE (bridges: $IFACE)"                    
+                fi
+                if [ ${#IFACES[@]} -gt 0 ]; then
+                    echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on www and db networks (bridges: ${IFACES[*]})"
+                else
+                    echo "- Bandwidth:[WARN]   Could not find bridge ID for any networks for $username - does user have any containers running?"
                 fi
             done
         fi
