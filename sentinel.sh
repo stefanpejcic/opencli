@@ -152,7 +152,7 @@ check_service_status() {
     fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m $svc is not active."
-    local log; log=$(journalctl -n 5 -u "$svc" 2>/dev/null | awk '{printf "%s|",$0}')
+    local log; log=$(journalctl -n 5 -u "$svc" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
     [[ -n "$log" ]] && write_notification "$title" "$log"
     systemctl restart "$svc"
     systemctl is-active --quiet "$svc" \
@@ -545,7 +545,7 @@ check_cpu_usage() {
   if (( pct > CPU_THRESHOLD )); then
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m CPU ${pct}% > threshold ${CPU_THRESHOLD}%"
-    local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10 | awk '{printf "%s|",$0}')
+    local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10 | sed ':a;N;$!ba;s/\n/\\n/g')
     write_notification "$title" "CPU: ${pct}% | $procs"
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m CPU ${pct}% < threshold ${CPU_THRESHOLD}%"
