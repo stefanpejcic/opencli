@@ -53,7 +53,6 @@ dodsk=false
 donet=false
 doemail=false
 
-
 # Parse arguments
 for arg in "$@"; do
     case "$arg" in
@@ -69,17 +68,11 @@ for arg in "$@"; do
     esac
 done
 
-
 # 1. get plan limits
 source /usr/local/opencli/db.sh
 
 IFS=$'\t' read -r cpu ram disk_limit inodes_limit max_hourly_email bandwidth < <(
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
-        SELECT cpu, ram, disk_limit, inodes_limit, max_hourly_email, bandwidth
-        FROM plans
-        WHERE id = '$new_plan_id'
-        LIMIT 1;
-    "
+    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT cpu, ram, disk_limit, inodes_limit, max_hourly_email, bandwidth FROM plans WHERE id = '$new_plan_id' LIMIT 1;"
 )
 
 numNdisk=$(echo "$disk_limit" | awk '{print $1}')
@@ -103,11 +96,11 @@ cpu_text=$(limit_text "$cpu" " core(s)" "total")
 disk_text=$(limit_text "$storage_in_blocks" " blocks" "total")
 inodes_text=$(limit_text "$inodes_limit" " inodes" "total")
 hourly_email_text=$(limit_text "$max_hourly_email" "" "max hourly emails for all domains")
+bandwidth_text=$(limit_text "$bandwidth" " bandwidth" "total")
 
 # 2. fetch all users if --all
 if $bulk; then
-    mapfile -t usernames < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e \
-        "SELECT username FROM users WHERE plan_id = '$new_plan_id';")
+    mapfile -t usernames < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "SELECT username FROM users WHERE plan_id = '$new_plan_id';")
     $debug && echo "Applying plan changes to users: ${usernames[*]}"
 fi
 
@@ -122,8 +115,7 @@ for username in "${usernames[@]}"; do
     echo ""
 
     # 4. get docker context
-    read -r current_plan_id context < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e \
-        "SELECT plan_id, server FROM users WHERE username = '$username'")
+    read -r current_plan_id context < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT plan_id, server FROM users WHERE username = '$username'")
 
     # 5. update limits
     user_id=$(id -u "$username")
@@ -176,8 +168,80 @@ for username in "${usernames[@]}"; do
 
     # Network (bandwidth)
     if ! $partial || $donet; then
-        # TODO
-        echo "- Port Speed: [WARN] Not implemented yet ($bandwidth)"
+
+        get_bridge() {
+          local net_name="${username}_${1}"
+          local net_id
+
+          local bridge
+          bridge=$(docker --context="$username" network inspect "$net_name" --format '{{index .Options "com.docker.network.bridge.name"}}' 2>/dev/null)
+
+          if [ -z "$bridge" ]; then
+            net_id=$(docker --context="$username" network inspect "$net_name" --format '{{.Id}}' 2>/dev/null)
+            [ -z "$net_id" ] && return 1
+            bridge="br-${net_id:0:12}"
+          fi
+
+          ip link show "$bridge" &>/dev/null || return 1
+          echo "$bridge"
+        }
+
+        # UNLIMITED BANDWIDTH
+        if [[ "$bandwidth" -eq 0 ]]; then
+          local IFB_DEV="ifb_${username:0:11}"
+          for NET in www db; do
+            local BRIDGE
+            BRIDGE=$(get_bridge "$NET") || continue
+            tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
+          done
+        
+          if ip link show "$IFB_DEV" &>/dev/null; then
+            tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
+            ip link set "$IFB_DEV" down
+            ip link delete "$IFB_DEV"
+          fi
+
+        echo "- Bandwidth:  [OK]   $bandwidth_text"
+
+        # BANDWIDTH IN mbits
+        else
+            WWW_BRIDGE=$(get_bridge "www")
+            DB_BRIDGE=$(get_bridge "db")
+
+            if [ -z "$WWW_BRIDGE" ] && [ -z "$DB_BRIDGE" ]; then
+              echo "ERROR: No bridges found for user $username"
+              exit 1
+            fi
+
+            IFB_DEV="ifb_${username:0:11}"
+
+            modprobe ifb numifbs=0 2>/dev/null || true
+            if ip link show "$IFB_DEV" &>/dev/null; then
+              tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
+              ip link set "$IFB_DEV" down
+              ip link delete "$IFB_DEV"
+            fi
+
+            for BRIDGE in "$WWW_BRIDGE" "$DB_BRIDGE"; do
+              [ -z "$BRIDGE" ] && continue
+              tc qdisc del dev "$BRIDGE" root 2>/dev/null || true
+              tc qdisc del dev "$BRIDGE" ingress 2>/dev/null || true
+            done
+
+            ip link add name "$IFB_DEV" type ifb
+            ip link set "$IFB_DEV" up
+            tc qdisc add dev "$IFB_DEV" root handle 1: htb default 10
+            tc class add dev "$IFB_DEV" parent 1: classid 1:10 htb rate "${bandwidth}mbit" ceil "${bandwidth}mbit" burst 128k
+            tc qdisc add dev "$IFB_DEV" parent 1:10 handle 10: pfifo limit 50
+
+            for BRIDGE in "$WWW_BRIDGE" "$DB_BRIDGE"; do
+              [ -z "$BRIDGE" ] && continue
+              tc qdisc add dev "$BRIDGE" ingress
+              tc filter add dev "$BRIDGE" parent ffff: protocol all u32 match u32 0 0 action mirred egress redirect dev "$IFB_DEV"
+            done
+            echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on $IFB_DEV (bridges: $WWW_BRIDGE $DB_BRIDGE)"
+        fi
+
     fi
 done
 
