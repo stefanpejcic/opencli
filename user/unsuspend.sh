@@ -110,8 +110,7 @@ start_user_containers() {
         else
             #no contianer = compose up
             $DEBUG && echo "Container $container not found, running compose up"
-            (cd "/home/$context" && \
-                docker $CONTEXT_FLAG compose up -d "$container" > /dev/null 2>&1)
+            (cd "/home/$context" && docker $CONTEXT_FLAG compose up -d "$container" > /dev/null 2>&1)
         fi
 
     done < "$names_file"
@@ -142,4 +141,3 @@ get_docker_context
 rename_user_in_db
 unsuspend_user_domains
 start_user_containers
-
