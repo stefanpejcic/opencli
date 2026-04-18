@@ -174,6 +174,7 @@ update_caddyfile() {
             local ip_block="# START HOSTNAME IP #\n${new_hostname} {\n  tls {\n    issuer acme {\n      profile shortlived\n    }\n  }\n  reverse_proxy localhost:${admin_port}\n}\n# END HOSTNAME IP #\n"
             sed -i "s|# START HOSTNAME DOMAIN #|${ip_block}# START HOSTNAME DOMAIN #|" "$CADDY_FILE"
         fi
+		sed -i "s/$current_domain/"$DEFAULT_DOMAIN"/g" "$CADDY_FILE"
     else
         sed -i "s/$current_domain/$new_hostname/g" "$CADDY_FILE"
     fi
