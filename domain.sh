@@ -103,9 +103,12 @@ get_server_ipv4() {
 
 # Domain validation
 is_valid_domain() {
-    local domain="$1"
-    [[ "$domain" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]
+    local input="$1"
+    local domain_regex='^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$'
+    local ipv4_regex='^((25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\.){3}(25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})$'
+    [[ "$input" =~ $domain_regex || "$input" =~ $ipv4_regex ]]
 }
+
 
 # Get current domain from Caddyfile
 get_current_domain() {
