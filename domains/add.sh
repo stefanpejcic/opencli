@@ -64,69 +64,45 @@ USE_PARENT_DNS_ZONE=false
 # Parse args
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --debug)
-            debug_mode=true
-            shift
-            ;;
-        --skip_caddy)
-            SKIP_CADDY_CREATE=true
-            shift
-            ;;
-        --skip_vhost)
-            SKIP_VHOST_CREATE=true
-            shift
-            ;;
-        --skip_dns)
-            SKIP_DNS_ZONE=true
-            shift
-            ;;    
-        --skip_containers)
-            SKIP_STARTING_CONTAINERS=true
-            shift
-            ;;    
+        --debug) debug_mode=true; shift ;;
+        --skip_caddy) SKIP_CADDY_CREATE=true; shift ;;
+        --skip_vhost) SKIP_VHOST_CREATE=true; shift ;;
+        --skip_dns) SKIP_DNS_ZONE=true; shift ;;    
+        --skip_containers) SKIP_STARTING_CONTAINERS=true; shift ;;    
         --docroot)
             if [[ -n "$2" ]]; then
-                docroot="$2"
-                shift 2
+                docroot="$2"; shift 2
             else
-                echo "FATAL ERROR: Missing value for --docroot"
-                exit 1
+                echo "FATAL ERROR: Missing value for --docroot"; exit 1
             fi
             ;;
         --php_version)
             if [[ -n "$2" ]]; then
                 php_version="$2"
-	        if [[ ! "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
-	            echo "FATAL ERROR: Invalid PHP version format '$php_version'. Expected format: N.N (e.g., 8.2)"
-	            exit 1
+			if [[ ! "$php_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+	            echo "FATAL ERROR: Invalid PHP version format '$php_version'. Expected format: N.N (e.g., 8.2)"; exit 1
 	        fi
                 shift 2
             else
-                echo "FATAL ERROR: Missing value for --php_version"
-                exit 1
+                echo "FATAL ERROR: Missing value for --php_version"; exit 1
             fi
             ;;
         --hs_ed25519_public_key)
             if [[ -n "$2" ]]; then
-                hs_ed25519_public_key="$2"
-                shift 2
+                hs_ed25519_public_key="$2"; shift 2
             else
-                echo "FATAL ERROR: Missing value for --hs_ed25519_public_key"
-                exit 1
+                echo "FATAL ERROR: Missing value for --hs_ed25519_public_key"; exit 1
             fi
             ;;
         --hs_ed25519_secret_key)
             if [[ -n "$2" ]]; then
-                hs_ed25519_secret_key="$2"
-                shift 2
+                hs_ed25519_secret_key="$2"; shift 2
             else
-                echo "FATAL ERROR: Missing value for --hs_ed25519_secret_key"
-                exit 1
+                echo "FATAL ERROR: Missing value for --hs_ed25519_secret_key"; exit 1
             fi
             ;;
         *)
-            shift
-            ;;
+            shift ;;
     esac
 done
 
