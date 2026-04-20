@@ -474,11 +474,7 @@ INNER_EOF
 fi
 EOF
 
-        scp "$key_flag" \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -o BatchMode=yes \
-            -r /etc/openpanel root@"$node_ip_address":/etc/openpanel
+        scp "$key_flag" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -r /etc/openpanel root@"$node_ip_address":/etc/openpanel
 
         # mount home dir on master
         if ! command -v sshfs &> /dev/null; then
