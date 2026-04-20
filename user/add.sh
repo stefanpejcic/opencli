@@ -418,12 +418,12 @@ get_plan_info() {
     log "Getting information from the database for plan $plan_name"
 	# limits are applied via plan-apply command
     local query="SELECT id FROM plans WHERE name = '$plan_name'"
-    if ! plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$plan_id" -sN); then
+    if ! plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN); then
         echo "[✘] ERROR: Unable to fetch plan information from the database."
         exit 1
     fi
     if [ -z "$plan_id" ]; then
-        echo "[✘] ERROR: Plan with name $plan_name not found. Unable to fetch CPU/RAM limits information from the database."
+        echo "[✘] ERROR: Plan with name $plan_name not found."
         exit 1
     fi
 }
