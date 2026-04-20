@@ -20,7 +20,7 @@ jobs:
           sudo chmod +x /usr/local/opencli/opencli
 
       - name: Generate commands
-        run: bash /usr/local/opencli/opencli --help
+        run: sudo bash /usr/local/opencli/opencli --help
 
       - name: Copy generated aliases back
         run: cp /usr/local/opencli/aliases.txt aliases.txt
