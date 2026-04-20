@@ -173,6 +173,10 @@ EOF
         setquota -u "$context" "$storage_in_blocks" "$storage_in_blocks" "$inodes_limit" "$inodes_limit" /
         echo "- Disk        [OK]   $disk_text"
         echo "- Inodes:     [OK]   $inodes_text"
+		if (! $bulk); then
+		    nohup opencli docker-collect_stats "${username} >/dev/null 2>&1 &
+		    disown
+		fi
     fi
 
     # Bandwidth (Port Speed)
@@ -230,11 +234,9 @@ done
 echo "+=============================================================================+"
 echo "Completed!"
 
-# 7. refresh quotas file if disk limits were updated
-if ( (! $partial) || ( $dodsk || doram || docpu ) ); then
-    nohup opencli docker-collect_stats "${username} >/dev/null 2>&1 &
+# 7. refresh quotas and purge logs
+if $bulk; then
+    nohup opencli docker-collect_stats --all >/dev/null 2>&1 &
     disown
+	find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; >/dev/null 2>&1
 fi
-
-# 7. Cleanup logs older than 1d
-find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; >/dev/null 2>&1
