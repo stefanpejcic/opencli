@@ -1479,6 +1479,17 @@ send_sentinel_notification() {
 	fi
 }
 
+start_user_networks() {
+    local username="$1"
+    local compose_dir="/home/${username}"
+
+    cd "$compose_dir" || { echo "[WARN] Cannot cd to $compose_dir"; return 1; }
+
+	docker --context "${username}" compose up --no-start --pull never 2>/dev/null
+}
+
+
+
 ##########################################################
 ########################## MAIN ##########################
 ##########################################################
@@ -1515,5 +1526,6 @@ collect_stats                                #
 update_accounts_for_reseller                 # update current_accounts for reseller in their json file
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 permisisons_do
+start_user_networks "$username"
 exit 0
 )200>/var/lock/openpanel_user_add.lock
