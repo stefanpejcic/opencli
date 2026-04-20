@@ -64,7 +64,7 @@ Usage: opencli <COMMAND> [additional_arguments]
 
 Suggested commands:
   opencli faq                       Display frequently asked questions and answers.
-  opencli commands                  List all available OpenCLI commands and their usage.
+  opencli --help                    List all available OpenCLI commands and their usage.
 
 EOF
 }
