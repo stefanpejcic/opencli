@@ -152,52 +152,51 @@ for username in "${usernames[@]}"; do
         setquota -u "$context" "$storage_in_blocks" "$storage_in_blocks" "$inodes_limit" "$inodes_limit" /
         echo "- Disk        [OK]   $disk_text"
         echo "- Inodes:     [OK]   $inodes_text"
-
     fi
 
     # Emails
-if ! $partial || $donet; then
-    USER_PID=$(pgrep -u "$username" -x dockerd | head -n 1)
-    [ -z "$USER_PID" ] && { echo "- Bandwidth:[WARN]   Could not find dockerd PID for $username"; continue; }
-
-    if [ "$bandwidth" -eq 0 ]; then
-        nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
-        nsenter -t "$USER_PID" -n ip link del ifb0 2>/dev/null
-        for suffix in "www" "db"; do
-            full_net_name="${username}_${suffix}"
-            BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
-            if [ -n "$BRIDGE_ID" ]; then
+    if ! $partial || $donet; then
+        USER_PID=$(pgrep -u "$username" -x dockerd | head -n 1)
+        [ -z "$USER_PID" ] && { echo "- Bandwidth:[WARN]   Could not find dockerd PID for $username"; continue; }
+    
+        if [ "$bandwidth" -eq 0 ]; then
+            nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
+            nsenter -t "$USER_PID" -n ip link del ifb0 2>/dev/null
+            for suffix in "www" "db"; do
+                full_net_name="${username}_${suffix}"
+                BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
+                if [ -n "$BRIDGE_ID" ]; then
+                    IFACE="br-$BRIDGE_ID"
+                    nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
+                    nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
+                    echo "- Bandwidth:  [OK]   $bandwidth_text ($IFACE)"
+                fi
+            done
+        else
+            nsenter -t "$USER_PID" -n ip link add ifb0 type ifb 2>/dev/null
+            nsenter -t "$USER_PID" -n ip link set dev ifb0 up
+            nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
+            nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10
+            nsenter -t "$USER_PID" -n tc class add dev ifb0 parent 1: classid 1:10 htb rate "${bandwidth}mbit"
+            nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 parent 1:10 handle 10: sfq perturb 10
+    
+            IFACES=()
+            for suffix in "www" "db"; do
+                full_net_name="${username}_${suffix}"
+                BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
+                [ -z "$BRIDGE_ID" ] && continue
                 IFACE="br-$BRIDGE_ID"
+                IFACES+=("$IFACE")
+    
                 nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
                 nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
-                echo "- Bandwidth:  [OK]   $bandwidth_text ($IFACE)"
-            fi
-        done
-    else
-        nsenter -t "$USER_PID" -n ip link add ifb0 type ifb 2>/dev/null
-        nsenter -t "$USER_PID" -n ip link set dev ifb0 up
-        nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
-        nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10
-        nsenter -t "$USER_PID" -n tc class add dev ifb0 parent 1: classid 1:10 htb rate "${bandwidth}mbit"
-        nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 parent 1:10 handle 10: sfq perturb 10
-
-        IFACES=()
-        for suffix in "www" "db"; do
-            full_net_name="${username}_${suffix}"
-            BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
-            [ -z "$BRIDGE_ID" ] && continue
-            IFACE="br-$BRIDGE_ID"
-            IFACES+=("$IFACE")
-
-            nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
-            nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
-            nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" handle ffff: ingress
-            nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent ffff: protocol ip u32 match u32 0 0 \
-                action mirred egress redirect dev ifb0
-            nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
-            nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 \
-                action mirred egress redirect dev ifb0
-        done
+                nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" handle ffff: ingress
+                nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent ffff: protocol ip u32 match u32 0 0 \
+                    action mirred egress redirect dev ifb0
+                nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
+                nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 \
+                    action mirred egress redirect dev ifb0
+            done
             if [ ${#IFACES[@]} -gt 0 ]; then
                 echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on www and db networks (bridges: ${IFACES[*]})"
             else
