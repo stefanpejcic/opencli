@@ -96,7 +96,7 @@ cpu_text=$(limit_text "$cpu" " core(s)" "total")
 disk_text=$(limit_text "$storage_in_blocks" " blocks" "total")
 inodes_text=$(limit_text "$inodes_limit" " inodes" "total")
 hourly_email_text=$(limit_text "$max_hourly_email" "" "max hourly emails for all domains")
-bandwidth_text=$(limit_text "$bandwidth" " bandwidth" "mbits" "total")
+bandwidth_text=$(limit_text "$bandwidth" " mbits bandwidth" "total")
 
 # 2. fetch all users if --all
 if $bulk; then
@@ -121,8 +121,7 @@ for username in "${usernames[@]}"; do
 
     # 5. if cpu / ram, then create the user slice
     user_id=$(id -u "$username")
-    if ( (! $partial) || ( $docpu && doram ) ); then
-
+	if ( (! $partial) || ( $docpu && $doram ) ); then
         if [ ! -f "/etc/systemd/system/user-$user_id.slice.d/override.conf" ]; then
             mkdir -p /etc/systemd/system/user-$user_id.slice.d/
             cat <<EOF > /etc/systemd/system/user-$user_id.slice.d/override.conf
@@ -156,7 +155,7 @@ EOF
     if ! $partial || $docpu; then
         sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env" # legacy
         if [[ "$cpu" -eq 0 ]]; then
-            systemctl set-property "user-${user_id}.slice" CPUQuota=infinity
+            systemctl set-property "user-${user_id}.slice" CPUQuota=
         else
             cpu_percent=$(echo "$cpu * 100" | bc)
             systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_percent}%"
@@ -174,7 +173,7 @@ EOF
         echo "- Disk        [OK]   $disk_text"
         echo "- Inodes:     [OK]   $inodes_text"
 		if (! $bulk); then
-		    nohup opencli docker-collect_stats "${username} >/dev/null 2>&1 &
+			nohup opencli docker-collect_stats "${username}" >/dev/null 2>&1 &
 		    disown
 		fi
     fi
@@ -237,6 +236,6 @@ echo "Completed!"
 # 7. refresh quotas and purge logs
 if $bulk; then
     nohup opencli docker-collect_stats --all >/dev/null 2>&1 &
-    disown
+	disown
 	find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; >/dev/null 2>&1
 fi
