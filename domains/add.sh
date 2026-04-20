@@ -329,7 +329,7 @@ setup_tor_for_user() {
 	if [ "$VARNISH" = true ]; then
 		proxy_ws="varnish"
 	else
-		proxy_ws="$ws"
+		proxy_ws="$WEB_SERVER"
 	fi
 
 	echo "HiddenServiceDir /var/lib/tor/$folder_name/
@@ -466,10 +466,10 @@ http {
 }
 
 get_webserver_for_user(){
-	    log "Checking webserver configuration"
-		output=$(opencli webserver-get_webserver_for_user "$user")
-		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
-		[[ $ws == "nginx" ]] && check_and_create_default_file
+	log "Checking webserver configuration"
+	local web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
+	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
+	[[ $WEB_SERVER == "nginx" ]] && check_and_create_default_file
 }
 
 get_varnish_for_user(){
@@ -504,7 +504,7 @@ vhost_files_create() {
  	get_varnish_for_user
 
 	$SKIP_STARTING_CONTAINERS && log "Skipping starting ${ws} container." || {
-	    services="$ws"
+	    services="$WEB_SERVER"
 	    [[ $VARNISH == true ]] && services="$services varnish"
 	    log "Starting $services containers.."
 	    nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
@@ -518,7 +518,7 @@ vhost_files_create() {
 	chown $context_uid:$context_uid -R "/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 
 	sed -i -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" $vhost_in_docker_file
-    ! $SKIP_STARTING_CONTAINERS && nohup sh -c "cd /home/$context/ && docker --context $context restart $ws" </dev/null >nohup.out 2>nohup.err &
+    ! $SKIP_STARTING_CONTAINERS && nohup sh -c "cd /home/$context/ && docker --context $context restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
 }
 
 create_domain_file() {
@@ -872,7 +872,7 @@ add_domain() {
 			$SKIP_DNS_ZONE && log "Skipping DNS zone file creation due to '--skip_dns' flag." || dns_stuff
  		fi
 
-		$SKIP_STARTING_CONTAINERS && log "Skipping starting PHP service." || [[ $ws != *litespeed* ]] && start_default_php_fpm_service
+		$SKIP_STARTING_CONTAINERS && log "Skipping starting PHP service." || [[ $WEB_SERVER != *litespeed* ]] && start_default_php_fpm_service
 
 		if [ -z "$onion_domain" ]; then
 			check_if_enterprise
