@@ -45,7 +45,6 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-
 check_status() {
   if grep -q "^#PROXY_HTTP_PORT=" "$ENV_FILE"; then
       STATUS="Off"
@@ -58,16 +57,14 @@ check_status() {
   echo "Current status: $STATUS"
 }
 
-
 get_webserver_for_user(){
-	    log "Checking webserver configuration"
-		output=$(opencli webserver-get_webserver_for_user "$USER")
-		ws=$(echo "$output" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
+	log "Checking webserver configuration"
+	local web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
+	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
 }
 
-
 stop_webserver(){
-  cd /home/$USER && docker --context $USER compose down $ws > /dev/null;
+  cd /home/$USER && docker --context $USER compose down $WEB_SERVER > /dev/null;
 }
 
 stop_varnish(){
@@ -79,7 +76,7 @@ start_varnish(){
 }
 
 start_webserver(){
-  cd /home/$USER && docker --context $USER compose up -d $ws > /dev/null;
+  cd /home/$USER && docker --context $USER compose up -d $WEB_SERVER > /dev/null;
 }
 
 check_varnish() {
