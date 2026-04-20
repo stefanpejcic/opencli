@@ -3,7 +3,7 @@
 # Script Name: plan/apply.sh
 # Description: Change plan for a user and apply new plan limits.
 # Usage: opencli plan-apply <NEW_PLAN_ID> <USERNAME> 
-# Author: Petar Ćurić
+# Author: Petar Ćurić, Stefan Pejčić
 # Created: 17.11.2023
 # Last Modified: 20.04.2026
 # Company: openpanel.com
@@ -28,13 +28,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Usage info
 usage() {
     echo "Usage: opencli plan-apply <plan_id> <username1> <username2>... [--debug] [--all] [--cpu] [--ram] [--dsk] [--net] [--email]"
     exit 1
 }
 
-# Ensure minimum params
 if [ "$#" -lt 2 ]; then
     usage
 fi
@@ -63,7 +61,7 @@ for arg in "$@"; do
         --dsk)     partial=true; dodsk=true ;;
         --net)     partial=true; donet=true ;;
         --email)   partial=true; doemail=true ;;
-        --*)       ;; # ignore unknown flags
+        --*)       usage; exit 1 ;;
         *)         usernames+=("$arg") ;;
     esac
 done
@@ -119,7 +117,7 @@ for username in "${usernames[@]}"; do
     user_id=$(id -u "$username")
     # user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
 
-    # 5. if cpu / ram, then create the user slice
+    # 5. if cpu / ram, then create the user slice first
     user_id=$(id -u "$username")
 	if ( (! $partial) || ( $docpu && $doram ) ); then
         if [ ! -f "/etc/systemd/system/user-$user_id.slice.d/override.conf" ]; then
