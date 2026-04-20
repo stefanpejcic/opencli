@@ -17,10 +17,10 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/opencli
           sudo cp -r . /usr/local/opencli
-          sudo chmod +x /usr/local/opencli/commands.sh
+          sudo chmod +x /usr/local/opencli/opencli
 
-      - name: Run commands.sh
-        run: sudo bash /usr/local/opencli/commands.sh
+      - name: Generate commands
+        run: bash /usr/local/opencli/opencli --help
 
       - name: Copy generated aliases back
         run: cp /usr/local/opencli/aliases.txt aliases.txt
