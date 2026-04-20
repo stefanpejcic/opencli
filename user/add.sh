@@ -1489,6 +1489,29 @@ start_user_networks() {
 }
 
 
+apply_plan_in_background() {
+    log "Fetching plan ID for plan $plan_name"
+
+    local query="SELECT id FROM plans WHERE name = '$plan_name'"
+    local plan_id
+	local username="$1"
+
+    if ! plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN); then
+        echo "ERROR: Unable to fetch plan ID from the database."
+        return 1
+    fi
+
+    if [ -z "$plan_id" ]; then
+        echo "ERROR: Plan with name $plan_name not found."
+        return 1
+    fi
+
+    log "Applying plan ID $plan_id to user $username in background"
+
+    (opencli plan-apply "$plan_id" "$username" > /dev/null 2>&1 &) 
+
+}
+
 
 ##########################################################
 ########################## MAIN ##########################
@@ -1527,5 +1550,6 @@ update_accounts_for_reseller                 # update current_accounts for resel
 send_email_to_new_user                       # added in 0.3.2 to optionally send login info to new user
 permisisons_do
 start_user_networks "$username"
+apply_plan_in_background "$username"
 exit 0
 )200>/var/lock/openpanel_user_add.lock
