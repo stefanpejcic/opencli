@@ -108,7 +108,6 @@ get_all_domains() {
         first=true
         while IFS=$'\t' read -r domain docroot php_version owner server; do
             dot_count=$(grep -o "\." <<<"$domain" | wc -l)
-            is_main=false
 
             [ -z "$docroot" ] && docroot=""
             [ -z "$php_version" ] && php_version=""
@@ -151,7 +150,6 @@ get_all_domains() {
             echo -n "\"is_native\":true,"
             echo -n "\"handler\":\"php-fpm\""
             echo -n "},"
-            echo -n "\"is_main\":$is_main,"
             if [ "$owner" = "null" ]; then
                 echo -n "\"owner\":null"
             else
