@@ -28,9 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-
-
-# Check if the correct number of arguments are provided
 if [ "$#" -lt 2 ]; then
     echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--debug]"
     exit 1
