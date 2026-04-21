@@ -43,7 +43,7 @@ flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
 process_user() {
     local USER_NAME="$1"
-    local UID_NUM=$(id -u $USER_NAME)
+    local UID_NUM=$(id -u "$USER_NAME")
 
     if [ -z "$UID_NUM" ]; then
         echo '{"error": "Context '"$USER_NAME"' not found"}' >&2
@@ -187,11 +187,9 @@ process_user() {
     local usage_file="/home/$USER_NAME/resource_usage.txt"
     echo "$current_usage" >> "$usage_file"
     
-    if [ -f "$usage_file" ]; then
-        total_lines=$(wc -l < "$usage_file")
-        if [ "$resource_usage_retention" -gt 0 ] && [ "$total_lines" -gt "$resource_usage_retention" ]; then
-            tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
-        fi
+    total_lines=$(wc -l < "$usage_file")
+    if [ "$resource_usage_retention" -gt 0 ] && [ "$total_lines" -gt "$resource_usage_retention" ]; then
+        tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
     fi
 
     echo "$current_usage"
@@ -204,14 +202,11 @@ fi
 
 if [ "$1" == "--all" ]; then
     if command -v repquota &>/dev/null; then
-        opencli user-quota #&>/dev/null
+        opencli user-quota &>/dev/null
     fi
 
-    sync && echo 1 > /proc/sys/vm/drop_caches
-    users=($(opencli user-list --json \
-      | jq -r '.data[]
-               | select(.username | startswith("SUSPENDED_") | not)
-               | .context'))
+    #sync && echo 1 > /proc/sys/vm/drop_caches
+    users=($(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'))
 else
     users=("$1")
 fi
@@ -220,7 +215,8 @@ SERVER_MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> 
 SERVER_CPUS=$(nproc)
 
 for user in "${users[@]}"; do
-    process_user "$user"
+    process_user "$user" &
 done
+wait
 
 ) 200>/root/openpanel_docker_collect_stats.lock
