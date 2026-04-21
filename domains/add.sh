@@ -500,10 +500,10 @@ start_default_php_fpm_service() {
 
 vhost_files_create() {
 	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
- 	vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_${ws}_domain.conf" # todo litespeed file!
+ 	vhost_docker_template="/etc/openpanel/nginx/vhosts/1.1/docker_${WEB_SERVER}_domain.conf" # todo litespeed file!
  	get_varnish_for_user
 
-	$SKIP_STARTING_CONTAINERS && log "Skipping starting ${ws} container." || {
+	$SKIP_STARTING_CONTAINERS && log "Skipping starting ${WEB_SERVER} container." || {
 	    services="$WEB_SERVER"
 	    [[ $VARNISH == true ]] && services="$services varnish"
 	    log "Starting $services containers.."
