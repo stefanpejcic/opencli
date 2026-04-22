@@ -127,7 +127,7 @@ write_notification() {
   local title="$1" message="$2" action="$3"
 
   # if user action: check if admin enabled notification
-  if [[ "$action"]]; then
+  if [ "$action" ]; then
     [[ -n "$RUN_ACTION_LOCKED" ]] && return
     export RUN_ACTION_LOCKED=1
     
