@@ -124,8 +124,23 @@ email_notification() {
 }
 
 write_notification() {
-  local title=$1 message=$2
-  is_unread_message_present "$title" && return
+  local title="$1" message="$2" action="$3"
+
+  # if user action: check if admin enabled notification
+  if [[ "$action"]]; then
+    [[ -n "$RUN_ACTION_LOCKED" ]] && return
+    export RUN_ACTION_LOCKED=1
+    
+    ACTION=$(validate_yes_no "$(ini_get $action)")
+    if [[ "$ACTION" == "no" ]]; then
+      echo "[!] Notifications are disabled for action: $action"; return
+    fi
+  else
+    # if system action: check if admin already notified
+    is_unread_message_present "$title" && return
+  fi
+
+  # Save to OpenAdmin > Notifications
   echo "$DISPLAY_TIME UNREAD $title MESSAGE: $message" >> "$LOG_FILE"
 
   # Trigger Email
@@ -826,23 +841,6 @@ summary() {
 }
 
 
-run_action() {
-  action="$1"
-  local title="$2"
-  local message="$3"
-
-  [[ -n "$RUN_ACTION_LOCKED" ]] && return
-  export RUN_ACTION_LOCKED=1
-  
-  ACTION=$(validate_yes_no "$(ini_get $action)")
-  if [[ "$ACTION" == "no" ]]; then
-    echo "[!] Notifications are disabled for action: $action"; return
-  fi
-  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
-  [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$title" "$message"
-}
-
-
 for arg in "$@"; do
   case "$arg" in
     --startup) perform_startup_action; exit 0 ;;
@@ -854,7 +852,7 @@ for arg in "$@"; do
 done
 
 if [[ -n "$action" ]]; then
-  run_action "$action" "$title" "$message"
+  write_notification "$title" "$message" "$action"
   exit 0
 fi
 
