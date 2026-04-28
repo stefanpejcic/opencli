@@ -5,7 +5,7 @@
 # Usage: opencli user-quota <username|--all>
 # Author: Stefan Pejcic
 # Created: 16.11.2023
-# Last Modified: 23.04.2026
+# Last Modified: 28.04.2026
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
