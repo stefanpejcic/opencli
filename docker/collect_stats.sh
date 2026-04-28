@@ -250,9 +250,14 @@ fi
 
 SERVER_MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> bytes
 SERVER_CPUS=$(nproc)
+# https://community.openpanel.org/d/288-does-collect-statssh-part-of-openpanel
+MAX_JOBS=$(( SERVER_CPUS * 2 ))
 
 for user in "${users[@]}"; do
     process_user "$user" &
+    while [[ $(jobs -r | wc -l) -ge $MAX_JOBS ]]; do
+      sleep 0.1
+    done
 done
 wait
 
