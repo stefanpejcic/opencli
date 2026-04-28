@@ -210,18 +210,17 @@ restore_zone_to_default(){
   YES="$2"
 
   edit_zone_to_default(){
-  domain_name="$1"
-  
-  # backup zone
-  mkdir -p /etc/bind/zones/backups/
-  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/backups/$domain_name.zone.$(date +%Y%m%d%H%M%S)
-  
-  # todo: add cron to crear zones daily, older than 24hrs.
-  create_dns_zone_for_domain "$domain_name"
-  add_subdomains_to_zone "$domain_name"
+	  domain_name="$1"
+
+	  # backup zone
+	  mkdir -p /etc/bind/zones/backups/
+	  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/backups/$domain_name.zone.$(date +%Y%m%d%H%M%S)
+
+	  # todo: cron to cleanup zones daily, older than 24hrs.
+	  create_dns_zone_for_domain "$domain_name"
+	  add_subdomains_to_zone "$domain_name"
   }
 
-  
   if [[ -n "$DOMAIN" ]]; then
     if [[ "$YES" == "-y" ]]; then
       echo "Deleting DNS zone for domain: $DOMAIN  and restoring default zone.."
@@ -278,17 +277,15 @@ create_dns_zone_for_domain(){
 
 
 
-    ns1=$(get_config_value 'ns1')
-    ns2=$(get_config_value 'ns2')
-
-    # Fallback
-    if [ -z "$ns1" ]; then
-        ns1='ns1.openpanel.co'
-    fi
-
-    if [ -z "$ns2" ]; then
-        ns2='ns2.openpanel.co'
-    fi
+	ns1=$(get_config_value 'ns1')
+	ns2=$(get_config_value 'ns2')
+	ns3=$(get_config_value 'ns3')
+	rpemail=$(get_config_value 'email')
+	
+	ns1=${ns1:-ns1.openpanel.org}
+	ns2=${ns2:-ns2.openpanel.org}
+	rpemail=${rpemail:-root.${domain_name}}
+	rpemail="${rpemail//@/.}"
 
     # Create zone content
     timestamp=$(date +"%Y%m%d")
@@ -311,13 +308,25 @@ create_dns_zone_for_domain(){
 		fi     
      fi
 
-    
-    # Replace placeholders in the template
-	  zone_content=$(echo "$zone_template" | sed -e "s/{domain}/$domain_name/g" \
-	                                           -e "s/{ns1}/$ns1/g" \
-	                                           -e "s/{ns2}/$ns2/g" \
-	                                           -e "s/{server_ip}/$current_ip/g" \
-	                                           -e "s/YYYYMMDD/$timestamp/g")
+	# Replace placeholders in the template
+	if [ -z "$ns3" ]; then
+		zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
+											   -e "s|{ns1}|$ns1|g" \
+											   -e "s|{ns2}|$ns2|g" \
+											   -e "s|{rpemail}|$rpemail|g" \
+											   -e "s|{server_ip}|$current_ip|g" \
+											   -e "s|YYYYMMDD|$timestamp|g")
+	else
+		ns4=$(get_config_value 'ns4')
+		zone_content=$(echo "$zone_template" | sed -e "s|{domain}|$domain_name|g" \
+											   -e "s|{ns1}|$ns1|g" \
+											   -e "s|{ns2}|$ns2|g" \
+											   -e "s|{ns3}|$ns3|g" \
+											   -e "s|{ns4}|$ns4|g" \
+											   -e "s|{rpemail}|$rpemail|g" \
+											   -e "s|{server_ip}|$current_ip|g" \
+											   -e "s|YYYYMMDD|$timestamp|g")
+	fi
 
     # Ensure the directory exists
     mkdir -p "$ZONE_FILE_DIR"
