@@ -28,8 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-OUTPUT_DIR="/etc/openpanel/openpanel/core/users"
-
 resource_usage_retention=$(grep -Eo "resource_usage_retention=[0-9]+" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
 if [[ -z $resource_usage_retention ]]; then
   resource_usage_retention=100 #default
