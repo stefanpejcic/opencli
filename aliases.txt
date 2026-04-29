@@ -82,7 +82,6 @@ opencli user-unsuspend
 opencli user-varnish
 opencli version
 opencli waf
-opencli webserver-get_webserver_for_user
 opencli websites-all
 opencli websites-pagespeed
 opencli websites-scan
