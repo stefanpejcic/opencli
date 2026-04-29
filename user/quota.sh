@@ -309,10 +309,7 @@ main() {
 
     # 4. process a single OR all users
     case "${1:-}" in
-        ""|"help")
-            usage
-            exit 1
-            ;;
+        ""|"help") usage; exit 1 ;;
         "--all")
             (( $# == 1 )) || { log_error "Invalid number of arguments"; usage; exit 1; }
             process_all_users && log "DONE: All users processed successfully" || exit_code=1
