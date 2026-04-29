@@ -607,10 +607,10 @@ case "$1" in
         ;;
     "off")
         echo "Disabling the OpenAdmin..."
+		nohup opencli sentinel --action=admin_status --title="OpenAdmin disabled" --message="Administrator-level panel has been disabled." >/dev/null 2>&1 &
         systemctl disable --now $service_name > /dev/null 2>&1
 		touch /root/openadmin_is_disabled
         detect_service_status
-		nohup opencli sentinel --action=admin_status --title="OpenAdmin disabled" --message="Administrator-level panel has been disabled." >/dev/null 2>&1 &
 		disown
         ;;
     "help")
