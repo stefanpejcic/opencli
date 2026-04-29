@@ -30,10 +30,9 @@
 
 resource_usage_retention=$(grep -Eo "resource_usage_retention=[0-9]+" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
 if [[ -z $resource_usage_retention ]]; then
-  resource_usage_retention=100 #default
+  resource_usage_retention=100
 fi
 
-# shellcheck source=/usr/local/opencli/db.sh
 source /usr/local/opencli/db.sh
 
 (
@@ -41,6 +40,7 @@ flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
 process_user() {
     local USER_NAME="$1"
+    local SAMPLE_DELAY="${2:-0.4}"   # allow caller to pass jittered delay
 
     local UID_NUM
     if ! UID_NUM=$(id -u "$USER_NAME" 2>/dev/null); then
@@ -57,16 +57,23 @@ process_user() {
     fi
 
     # CPU sample 1
-    local CPU_STAT1=$(grep '^usage_usec' "$CGROUP/cpu.stat" | awk '{print $2}')
-    local T1=$(date +%s%N)
+    local CPU_STAT1
+    CPU_STAT1=$(grep '^usage_usec' "$CGROUP/cpu.stat" | awk '{print $2}')
+    local T1
+    T1=$(date +%s%N)
 
-    # Memory
-    local MEM_CURRENT=$(cat "$CGROUP/memory.current")
-    local ANON=$(grep '^anon ' "$CGROUP/memory.stat" | awk '{print $2}')
-    local FILE=$(grep '^file ' "$CGROUP/memory.stat" | awk '{print $2}')
-    local KERNEL=$(grep '^kernel ' "$CGROUP/memory.stat" | awk '{print $2}')
+    # Memory — read all at once to minimise syscalls
+    local MEM_STAT
+    MEM_STAT=$(cat "$CGROUP/memory.stat")
+    local MEM_CURRENT
+    MEM_CURRENT=$(cat "$CGROUP/memory.current")
+    local ANON FILE KERNEL
+    ANON=$(awk   '/^anon /   {print $2}' <<< "$MEM_STAT")
+    FILE=$(awk   '/^file /   {print $2}' <<< "$MEM_STAT")
+    KERNEL=$(awk '/^kernel / {print $2}' <<< "$MEM_STAT")
 
-    local MEM_MAX=$(systemctl show "$SLICE" -p MemoryMax 2>/dev/null | cut -d= -f2)
+    local MEM_MAX
+    MEM_MAX=$(systemctl show "$SLICE" -p MemoryMax 2>/dev/null | cut -d= -f2)
     if [[ -z "$MEM_MAX" || "$MEM_MAX" == "max" || "$MEM_MAX" -eq 0 ]] 2>/dev/null; then
         MEM_MAX=$SERVER_MEMORY
     fi
@@ -75,20 +82,18 @@ process_user() {
     local BUFF_CACHE=$FILE
     local FREE=$(( MEM_MAX - MEM_CURRENT ))
     local AVAILABLE=$(( FREE + BUFF_CACHE ))
-    local MEMORY_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($USED / $MEM_MAX) * 100}")
+    local MEMORY_USAGE_PCT
+    MEMORY_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($USED / $MEM_MAX) * 100}")
 
     # Bandwidth
-    local BW_LIMIT_BITS=0
-    local BW_USED_BYTES=0
-    local BW_USAGE_PCT=0
-    
+    local BW_LIMIT_BITS=0 BW_USED_BYTES=0 BW_USAGE_PCT=0
     local DOCKERD_PID
     DOCKERD_PID=$(pgrep -u "$USER_NAME" -x dockerd 2>/dev/null | head -1)
     if [[ -n "$DOCKERD_PID" ]]; then
         local TC_OUTPUT
         TC_OUTPUT=$(nsenter -t "$DOCKERD_PID" -n tc -s class show dev ifb0 2>/dev/null)
-        BW_USED_BYTES=$(echo "$TC_OUTPUT" | awk '/class htb 1:10/{found=1} found && /Sent/{print $2; exit}')
-        BW_LIMIT_BITS=$(echo "$TC_OUTPUT" | awk '/class htb 1:10/{
+        BW_USED_BYTES=$(awk '/class htb 1:10/{found=1} found && /Sent/{print $2; exit}' <<< "$TC_OUTPUT")
+        BW_LIMIT_BITS=$(awk '/class htb 1:10/{
             for(i=1;i<=NF;i++){
                 if($i=="ceil"){
                     val=$(i+1)
@@ -98,33 +103,35 @@ process_user() {
                     printf "%d", val; exit
                 }
             }
-        }')
-
-        [[ -z "$BW_USED_BYTES" ]] && BW_USED_BYTES=0
-        [[ -z "$BW_LIMIT_BITS" ]] && BW_LIMIT_BITS=0
-
+        }' <<< "$TC_OUTPUT")
+        [[ -z "$BW_USED_BYTES"  ]] && BW_USED_BYTES=0
+        [[ -z "$BW_LIMIT_BITS"  ]] && BW_LIMIT_BITS=0
         local BW_LIMIT_BYTES=$(( BW_LIMIT_BITS / 8 ))
         if [[ "$BW_LIMIT_BYTES" -gt 0 ]]; then
             BW_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($BW_USED_BYTES / $BW_LIMIT_BYTES) * 100}")
         fi
     fi
 
-    # Sleep for CPU delta
-    sleep 0.4
+    # Jittered sleep — spreads CPU wake-ups across jobs
+    sleep "$SAMPLE_DELAY"
 
     # CPU sample 2
-    local CPU_STAT2=$(grep '^usage_usec' "$CGROUP/cpu.stat" | awk '{print $2}')
-    local T2=$(date +%s%N)
+    local CPU_STAT2
+    CPU_STAT2=$(grep '^usage_usec' "$CGROUP/cpu.stat" | awk '{print $2}')
+    local T2
+    T2=$(date +%s%N)
 
     local CPU_DELTA=$(( CPU_STAT2 - CPU_STAT1 ))
-    local INTERVAL_US=$(( (T2 - T1) / 1000 ))  # ns → μs
+    local INTERVAL_US=$(( (T2 - T1) / 1000 ))
     local CPU_TOTAL_SERVER=$(( SERVER_CPUS * 100 ))
 
     local CPU_MAX_FILE="$CGROUP/cpu.max"
+    local CPU_MAX_PCT
     if [ -f "$CPU_MAX_FILE" ]; then
+        local QUOTA PERIOD
         read -r QUOTA PERIOD < "$CPU_MAX_FILE"
-        QUOTA_NUM=${QUOTA//[^0-9]/}
-        PERIOD_NUM=${PERIOD//[^0-9]/}
+        local QUOTA_NUM=${QUOTA//[^0-9]/}
+        local PERIOD_NUM=${PERIOD//[^0-9]/}
         if [[ -z "$QUOTA_NUM" || "$QUOTA_NUM" -eq 0 ]] 2>/dev/null; then
             CPU_MAX_PCT=$CPU_TOTAL_SERVER
         else
@@ -134,10 +141,12 @@ process_user() {
         CPU_MAX_PCT=$CPU_TOTAL_SERVER
     fi
 
-    local CPU_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($CPU_DELTA / $INTERVAL_US) * 100}")
-    local CPU_LIMIT_PCT=$(awk "BEGIN {printf \"%d\", ($CPU_USAGE_PCT / $CPU_MAX_PCT) * 100}")
+    local CPU_USAGE_PCT
+    CPU_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($CPU_DELTA / $INTERVAL_US) * 100}")
+    local CPU_LIMIT_PCT
+    CPU_LIMIT_PCT=$(awk "BEGIN {printf \"%d\", ($CPU_USAGE_PCT / $CPU_MAX_PCT) * 100}")
 
-    # Warnings?
+    # Warnings
     local WARN_MSG=""
     if [ "$MEMORY_USAGE_PCT" -ge 85 ] || [ "$CPU_LIMIT_PCT" -ge 85 ]; then
         WARN_MSG="\""
@@ -147,13 +156,14 @@ process_user() {
         [ "$BW_USAGE_PCT" -ge 90 ] && {
             [ -n "$WARN_MSG" ] && WARN_MSG+=", "
             WARN_MSG+="Bandwidth at ${BW_USAGE_PCT}%"
-        }       
+        }
         WARN_MSG+=" — above threshold\""
     else
         WARN_MSG="null"
     fi
 
-    local TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local TIMESTAMP
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     local FMT
     FMT=$(awk -v mem_max="$MEM_MAX" \
@@ -166,37 +176,37 @@ process_user() {
                -v cpu_limit="$CPU_LIMIT_PCT" \
                -v cpu_max="$CPU_MAX_PCT" \
                -v cpu_srv="$CPU_TOTAL_SERVER" \
-               'function to_h(n,    s) {
-                if      (n > 1073741824) { s = sprintf("%.1fG", n/1073741824) }
-                else if (n > 1048576)    { s = sprintf("%.1fM", n/1048576) }
-                else if (n > 1024)       { s = sprintf("%.1fK", n/1024) }
-                else                     { s = n "B" }
-                return s
-            }
-            function to_h_bits(n,    s) {
-                if      (n > 1000000000) { s = sprintf("%.1fGbit", n/1000000000) }
-                else if (n > 1000000)    { s = sprintf("%.1fMbit", n/1000000) }
-                else if (n > 1000)       { s = sprintf("%.1fKbit", n/1000) }
-                else                     { s = n "bit" }
-                return s
-            }
-            function cpu_h(p) { return sprintf("%.1f cores", p/100) }
+        'function to_h(n,s) {
+            if      (n>1073741824) s=sprintf("%.1fG",n/1073741824)
+            else if (n>1048576)   s=sprintf("%.1fM",n/1048576)
+            else if (n>1024)      s=sprintf("%.1fK",n/1024)
+            else                  s=n"B"
+            return s
+        }
+        function to_h_bits(n,s) {
+            if      (n>1000000000) s=sprintf("%.1fGbit",n/1000000000)
+            else if (n>1000000)   s=sprintf("%.1fMbit",n/1000000)
+            else if (n>1000)      s=sprintf("%.1fKbit",n/1000)
+            else                  s=n"bit"
+            return s
+        }
+        function cpu_h(p) { return sprintf("%.1f cores",p/100) }
         BEGIN {
             printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s",
-                to_h(mem_max), to_h(used), to_h(free),
-                to_h(buff),    to_h(avail),
-                to_h_bits(bw_limit), to_h_bits(bw_used),
-                cpu_h(cpu_limit), cpu_h(cpu_max), cpu_h(cpu_srv),
-                to_h_bits(bw_used)   # bw total_sent human (bits display)
+                to_h(mem_max),to_h(used),to_h(free),
+                to_h(buff),to_h(avail),
+                to_h_bits(bw_limit),to_h_bits(bw_used),
+                cpu_h(cpu_limit),cpu_h(cpu_max),cpu_h(cpu_srv),
+                to_h_bits(bw_used)
         }')
- 
+
     IFS='|' read -r \
         H_MEM_MAX H_USED H_FREE H_BUFF H_AVAIL \
         H_BW_LIMIT H_BW_USED \
         H_CPU_LIMIT H_CPU_MAX H_CPU_SRV \
         H_BW_SENT \
         <<< "$FMT"
- 
+
     local current_usage
     current_usage=$(printf '%s' \
         "{\"timestamp\":\"$TIMESTAMP\"," \
@@ -218,10 +228,11 @@ process_user() {
             "\"total_sent\":{\"bytes\":$BW_USED_BYTES,\"human\":\"$H_BW_SENT\"}," \
             "\"usage_pct\":$BW_USAGE_PCT}," \
         "\"warning\":$WARN_MSG}")
- 
+
     local usage_file="/home/$USER_NAME/resource_usage.txt"
     echo "$current_usage" >> "$usage_file"
 
+    local total_lines
     total_lines=$(wc -l < "$usage_file")
     if [ "$resource_usage_retention" -gt 0 ] && [ "$total_lines" -gt "$resource_usage_retention" ]; then
         tail -n "$resource_usage_retention" "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
@@ -235,28 +246,41 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
+SERVER_MEMORY=$(awk '/MemTotal/{print $2 * 1024}' /proc/meminfo)
+SERVER_CPUS=$(nproc)
+
 if [ "$1" == "--all" ]; then
     if command -v repquota &>/dev/null; then
         opencli user-quota &>/dev/null
     fi
 
     #sync && echo 1 > /proc/sys/vm/drop_caches
-    users=($(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'))
-else
-    users=("$1")
-fi
+    mapfile -t users < <(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
 
-SERVER_MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2 * 1024}')  # KB -> bytes
-SERVER_CPUS=$(nproc)
-# https://community.openpanel.org/d/288-does-collect-statssh-part-of-openpanel
-MAX_JOBS=$(( SERVER_CPUS * 2 ))
+    total=${#users[@]}
+    if [[ $total -eq 0 ]]; then
+        exit 0
+    fi
 
-for user in "${users[@]}"; do
-    process_user "$user" &
-    while [[ $(jobs -r | wc -l) -ge $MAX_JOBS ]]; do
-      sleep 0.1
+    # https://community.openpanel.org/d/288-does-collect-statssh-part-of-openpanel
+    MAX_JOBS=$(( SERVER_CPUS * 2 ))
+    [[ $MAX_JOBS -gt 8 ]] && MAX_JOBS=8
+    [[ $MAX_JOBS -lt 2 ]] && MAX_JOBS=2
+
+    JITTER_WINDOW=2.0
+    idx=0
+    for user in "${users[@]}"; do
+        # delay = (idx / total) * JITTER_WINDOW, clamped to [0.1, window]
+        jitter=$(awk "BEGIN {d=($idx/$total)*$JITTER_WINDOW; printf \"%.2f\", (d<0.1?0.1:d)}")
+        process_user "$user" "$jitter" &
+        (( idx++ ))
+        while [[ $(jobs -r | wc -l) -ge $MAX_JOBS ]]; do
+            sleep 0.1
+        done
     done
-done
-wait
+    wait
+else
+    process_user "$1"
+fi
 
 ) 200>/root/openpanel_docker_collect_stats.lock
