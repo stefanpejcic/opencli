@@ -1207,6 +1207,7 @@ send_sentinel_notification() {
 
 set_plan_limits_for_user() {
     (opencli plan-apply "$plan_id" "$username" > /dev/null 2>&1 &)
+	(opencli user-quota > /dev/null 2>&1 &)
 }
 
 # MAIN
