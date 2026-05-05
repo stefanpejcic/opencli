@@ -326,7 +326,7 @@ get_existing_users_count() {
 }
 
 check_username_exists() {
-    local username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username'"
+	local username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$username' OR username LIKE 'SUSPENDED\\_%_${username}'"
 	local username_exists_count
 	if ! username_exists_count=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_exists_query" -sN); then
         echo "[✘] Error: Unable to check username existence in the database. Is mysql running?"
