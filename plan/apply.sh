@@ -197,10 +197,16 @@ EOF
                 fi
             done
         else
+			# Calculate r2q to avoid HTB quantum warnings
+			# quantum = rate_bps / r2q, should be between 1500–60000
+			# r2q = rate_bps / quantum_target (we target 1500, the minimum)
+			RATE_BPS=$(( bandwidth * 125000 ))         # mbit → bytes/sec
+			R2Q=$(( RATE_BPS / 1500 ))
+			[ "$R2Q" -lt 1 ] && R2Q=1                  # clamp to minimum
             nsenter -t "$USER_PID" -n ip link add ifb0 type ifb 2>/dev/null
             nsenter -t "$USER_PID" -n ip link set dev ifb0 up
             nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
-            nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10
+			nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10 r2q "$R2Q"
             nsenter -t "$USER_PID" -n tc class add dev ifb0 parent 1: classid 1:10 htb rate "${bandwidth}mbit"
             nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 parent 1:10 handle 10: sfq perturb 10
     
