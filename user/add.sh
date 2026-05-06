@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 06.05.2026
+# Last Modified: 05.05.2026
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -29,13 +29,10 @@
 # THE SOFTWARE.
 ################################################################################
 
-# ======================================================================
-# Constants
 readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
-# ======================================================================
 # Variables
 username="${1,,}"
 password="$2"
@@ -48,9 +45,8 @@ SENTINEL=true
 server=""
 key_flag=""
 
-# ======================================================================
-# Functions
-usage() {
+# Usage
+if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>]"
     echo
     echo "Required arguments:"
@@ -73,11 +69,10 @@ usage() {
     printf "%-25s %-45s\n" "  --debug" "Enable debug mode for additional output."
     echo
     exit 1
-}
+fi
 
-check_enterprise() {
-    key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
-}
+
+# Helpers
 
 cleanup() {
   rm /var/lock/openpanel_user_add.lock > /dev/null 2>&1
@@ -92,48 +87,61 @@ hard_cleanup() {
   exit 1
 }
 
-# ======================================================================
-# pre-flight checks
-check_enterprise
-if [ "$#" -lt 4 ] || [ "$#" -gt 11 ]; then
-    usage
-fi
 
-trap cleanup EXIT
+# Functions
+read_config_file() {
+    while IFS='=' read -r key value; do
+        case "$key" in
+            key) key_value="$value" ;;
+            weakpass) weakpass="$value" ;;
+            email_plaintext_passwords) email_plaintext_passwords="$value" ;;
+        esac
+    done < "$PANEL_CONFIG_FILE"
+}
+
+
+
+
+
+
+
+
+
+
 
 check_if_default_slave_server_is_set() {
+    local file="/etc/openpanel/openadmin/config/admin.ini"
+
 	: '
 	[CLUSTERING]
 	default_node="11.22.33.44"
 	default_ssh_key_path="/root/some-key.rsa"
 	'
 
-	get_config_value() {
-	    local file="/etc/openpanel/openadmin/config/admin.ini"
-	    local key=$1
-		local value
-	    value=$(grep -E "^$key=" "$file" | awk -F= '{sub(/^ /, "", $2); print $2}')
-	
-	    if [[ -z "$value" ]]; then
-	        echo ""
-	    else
-	        echo "$value"
-	    fi
-	}
+    while IFS='=' read -r key value; do
+        # trim leading/trailing spaces
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
 
-	default_node=$(get_config_value "default_node")
-	if [[ -n "$default_node" ]]; then
-		default_ssh_key_path=$(get_config_value "default_ssh_key_path")
-		 if [[ -n "$default_ssh_key_path" ]]; then
-	        server=$default_node
-		    key=$default_ssh_key_path
-	        echo "Using default node $server and ssh key path"
-		 fi
-	fi
+        case "$key" in
+            default_node) default_node="$value" ;;
+            default_ssh_key_path) default_ssh_key_path="$value" ;;
+        esac
+    done < "$file"
+
+    if [[ -n "$default_node" && -n "$default_ssh_key_path" ]]; then
+        server="$default_node"
+        key="$default_ssh_key_path"
+        echo "Using default node $server and ssh key path"
+    fi
 }
 
+trap cleanup EXIT
+
+read_config_file                             # check license and pass settings
 check_if_default_slave_server_is_set         # we run it before parse_flags so it can be overwritten!
 
+# Parse args
 for arg in "$@"; do
 	case $arg in
 		--debug) DEBUG=true ;;
