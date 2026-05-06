@@ -748,7 +748,7 @@ configure_environment() {
     chown -R "${USERNAME}:${USERNAME}" "${home_dir}/sockets"
     chmod 777 "${home_dir}/sockets/"
 
-    printf '[client]\nuser=root\npassword="%s"\n' "$mysql_root_pw" > "${home_dir}/my.cnf"
+    printf '[client]\nuser=root\npassword=%s\n' "$mysql_root_pw" > "${home_dir}/my.cnf"
     [[ -f "${home_dir}/my.cnf" ]] || warn "Failed to create my.cnf."
 
     # shellcheck disable=SC2034
