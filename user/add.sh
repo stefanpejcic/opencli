@@ -85,7 +85,7 @@ cleanup() {
 
 hard_cleanup() {
   killall -u "$username" -9 > /dev/null 2>&1
-  deluser --remove-home "$username" > /dev/null 2>&1   # command missing on alma!
+  deluser --remove-home "$username" > /dev/null 2>&1   # command is missing on alma!
   rm -rf /etc/openpanel/openpanel/core/users/"$username" > /dev/null 2>&1
   docker context rm "$username"  > /dev/null 2>&1
   mkdir -p /etc/openpanel/openpanel/core/users/
@@ -1014,7 +1014,6 @@ if [[ -n "$webserver" ]]; then
     elif [[ "$webserver" =~ ^(nginx|apache|openresty|openlitespeed|litespeed)$ ]]; then
         log "Setting $webserver as webserver for the user.."
         sed -i -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"$webserver\"|g" "/home/$username/.env"
-        VARNISH=false
     else
         log "Warning: invalid webserver type selected: $webserver. Must be 'nginx', 'apache', 'openresty', 'openlitespeed', 'litespeed' 'varnish+nginx', 'varnish+apache', 'varnish+openresty', or 'varnish+openlitespeed'. Using the default instead.."
     fi
