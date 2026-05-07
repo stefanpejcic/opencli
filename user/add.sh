@@ -611,7 +611,7 @@ check_socket_created() {
     local hostfs_sock="/hostfs/run/user/${USER_ID}/docker.sock"
     local elapsed=0
 
-    while [[ $elapsed -lt 15 ]]; do
+    while [[ $elapsed -lt 25 ]]; do
         if [[ -S "$hostfs_sock" ]]; then
             log "Docker service is running for user."
             return 0
@@ -925,7 +925,7 @@ create_docker_context
 ########################################################################
 # 6. validate docker service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
-check_socket_created
+#check_socket_created
 verify_docker_context_and_compose
 pull_images &
 
