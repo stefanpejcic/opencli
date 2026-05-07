@@ -925,7 +925,7 @@ create_docker_context
 ########################################################################
 # 6. validate docker service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
-#check_socket_created
+check_socket_created
 verify_docker_context_and_compose
 pull_images &
 
