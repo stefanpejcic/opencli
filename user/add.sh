@@ -571,6 +571,11 @@ REMOTE
 
         loginctl enable-linger "$USERNAME" >/dev/null 2>&1
 
+      	if [ ! -f "$ROOTLESS_SETUP_SCRIPT" ]; then
+			curl -sSL https://get.docker.com/rootless -o "$ROOTLESS_SETUP_SCRIPT"
+   			chmod +x "$ROOTLESS_SETUP_SCRIPT"
+		fi
+
         mkdir -p "${home_dir}/.docker/run" "${home_dir}/bin"
         chmod 700 "${home_dir}/.docker/run"
         chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
