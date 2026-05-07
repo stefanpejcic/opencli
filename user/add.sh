@@ -613,10 +613,13 @@ SVCEOF
 
 
 check_socket_created() {
+	[ ! -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."; }
+	[ ! -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."; }
+
     local hostfs_sock="/hostfs/run/user/${USER_ID}/docker.sock"
     local elapsed=0
 
-    while [[ $elapsed -lt 25 ]]; do
+    while [[ $elapsed -lt 30 ]]; do
         if [[ -S "$hostfs_sock" ]]; then
             log "Docker service is running for user."
             return 0
