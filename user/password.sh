@@ -111,23 +111,6 @@ save_to_database() {
     fi
 }
 
-save_to_database() {
-    mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$username';"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
-
-    if [ $? -eq 0 ]; then
-        docker --context=default exec openpanel_redis sh -c 'redis-cli --scan --pattern "session:1:*" | xargs -r redis-cli unlink'
-        if [ $? -ne 0 ]; then
-            echo "WARNING: Failed to terminate existing sessions for the user."
-        fi
-        nohup opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed." >/dev/null 2>&1 &
-        disown
-        echo "Successfully changed password for user $username$([ "$random_flag" = true ] && echo ", new random generated password is: $new_password")"
-    else
-        echo "Error: Data insertion failed."
-        exit 1
-    fi
-}
 
 
 # ======================================================================
