@@ -612,7 +612,7 @@ SVCEOF
 }
 
 get_docker_service_errors() {
-    docker_service_errors=$(machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"' 2>&1)
+    docker_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"' 2>&1)
 }
 
 test_docker_service() {
@@ -622,16 +622,39 @@ test_docker_service() {
     # dockerd-rootless-setuptool.sh finished and created dockerd-rootless.sh?
     [ -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."; }
 
-    # docker service started and socket is available?
+    # wait for the docker socket to be available (docker started and initialized)
 	local elapsed=0 max_time=30
-	while [[ $elapsed -lt $max_time ]]; do [[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ]] && { log "Docker service started for user (/run/user/${USER_ID}/docker.sock)."; break; }; sleep 1; (( elapsed++ )) || true; done
-    [ -S "/hostfs/run/user/${USER_ID}/docker.sock" ] || { get_docker_service_errors; hard_cleanup; die "Docker service did not start after $max_time seconds! errors: $docker_service_errors"; }
+    while [[ $elapsed -lt $max_time ]]; do
+        if [[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ]]; then
+            log "Docker service started for user (/run/user/${USER_ID}/docker.sock)."
+            break
+        fi
+        sleep 1
+        (( elapsed++ )) || true
+    done
+
+	# is docker socket available?
+	[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ] || { get_docker_service_errors; hard_cleanup; die "Docker service did not start after $max_time seconds!"; }
 
     # context created and compose plugin loaded?
-    docker --context="$USERNAME" compose version >/dev/null 2>&1 || { hard_cleanup; die "Docker Compose is not working in context '$USERNAME'."; }
+	docker_compose_output=$(docker --context="$USERNAME" compose version 2>&1)
+	if echo "$docker_compose_output" | grep -q "Docker Compose version"; then
+	    log "Docker context is working and compose plugin is loaded."
+	else
+		hard_cleanup
+		die "Docker Compose is not working in context '$USERNAME'."
+	fi
 
-    # is docker service ready?
-	docker --context="$USERNAME" info > /dev/null 2>&1 && log "Docker service is responding and working correctly." || { get_docker_service_errors; hard_cleanup; die "Docker service started (socket created) but has errors: $docker_service_errors"; }
+	# is docker service ready?
+	docker_info_output=$(docker --context="$USERNAME" info 2>&1)
+	if echo "$docker_info_output" | grep -q "Server Version"; then
+	    log "Docker service is responding and working correctly."
+	else
+	    log "docker info output: $docker_info_output"
+		get_docker_service_errors
+	    hard_cleanup
+	    die "Docker service started (socket created) but is not running: $docker_service_errors"
+	fi
 }
 
 find_available_ports_bg() { find_available_ports > /tmp/ports_$$; }
