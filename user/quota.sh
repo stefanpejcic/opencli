@@ -320,8 +320,12 @@ main() {
             ;;
     esac
 
-    # 5. Update repquota file
+    # 5. Update /etc/openpanel/openpanel/quota_report.json
     generate_report &>/dev/null
+
+    # 6. flush cache on OpenPanel UI
+    docker exec openpanel_redis redis-cli DEL flask_cache_modules.dashboard._load_quota_report_memver &>/dev/null
+
     exit $exit_code
 }
 
