@@ -612,21 +612,27 @@ SVCEOF
 }
 
 get_docker_service_errors() {
-    docker_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"' 2>&1)
+    docker_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1' 2>&1) #systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"
 }
 
 test_docker_service() {
     # dockerd-rootless-setuptool.sh executed?
-    [ -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."; }
+	if [ !-f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ]; then
+	    hard_cleanup
+	    die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."
+	fi
 
     # dockerd-rootless-setuptool.sh finished and created dockerd-rootless.sh?
-    [ -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."; }
+	if [ ! -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ]; then
+	    hard_cleanup
+	    die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."
+	fi
 
     # wait for the docker socket to be available (docker started and initialized)
 	local elapsed=0 max_time=30
     while [[ $elapsed -lt $max_time ]]; do
         if [[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ]]; then
-            log "Docker service started for user (/run/user/${USER_ID}/docker.sock)."
+            log "Docker service started (socket: /run/user/${USER_ID}/docker.sock)"
             break
         fi
         sleep 1
@@ -634,10 +640,14 @@ test_docker_service() {
     done
 
 	# is docker socket available?
-	[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ] || { get_docker_service_errors; hard_cleanup; die "Docker service did not start after $max_time seconds!"; }
+	if [ ! -S "/hostfs/run/user/${USER_ID}/docker.sock" ]; then
+	    get_docker_service_errors
+	    hard_cleanup
+	    die "Docker service did not start after $max_time seconds!"
+	fi
 
     # context created and compose plugin loaded?
-	docker_compose_output=$(docker --context="$USERNAME" compose version 2>&1)
+	docker_compose_output=$(timeout 3 docker --context="$USERNAME" compose version 2>&1)
 	if echo "$docker_compose_output" | grep -q "Docker Compose version"; then
 	    log "Docker context is working and compose plugin is loaded."
 	else
@@ -646,7 +656,7 @@ test_docker_service() {
 	fi
 
 	# is docker service ready?
-	docker_info_output=$(docker --context="$USERNAME" info 2>&1)
+	docker_info_output=$(timeout 5 docker --context="$USERNAME" info 2>&1)
 	if echo "$docker_info_output" | grep -q "Server Version"; then
 	    log "Docker service is responding and working correctly."
 	else
@@ -804,7 +814,7 @@ create_docker_context() {
     else
         host="unix:///hostfs/run/user/${USER_ID}/docker.sock"
     fi
-    docker context create "$USERNAME" --docker "host=${host}" --description "$USERNAME" 2>/dev/null
+	docker context create "$USERNAME" --docker "host=${host}" --description "$USERNAME" >/dev/null 2>&1 || true
 }
 
 save_user_to_database() {
@@ -884,6 +894,7 @@ create_user_volume() {
     mkdir -p "$vol_path"
     chmod -R g+w "$vol_path"
     ln -sfn "$vol_path" "/home/${USERNAME}/files" 2>/dev/null || true
+	chown -R "$USERNAME":"$USERNAME" "/home/${USERNAME}/docker-data/volumes"
 }
 
 notify_sentinel() {
