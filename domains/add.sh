@@ -742,6 +742,7 @@ reload_bind_after_slaves(){
 notify_slave(){
 
 if ! $USE_PARENT_DNS_ZONE; then
+	# setfacl -d -m u:named:rwx /etc/bind/zones
     log "Notifying slave DNS server ($SLAVE_IP) to create a new zone for domain $domain_name"
 
     ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$SLAVE_IP "nohup bash -c '
