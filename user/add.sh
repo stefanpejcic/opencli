@@ -913,7 +913,7 @@ copy_skeleton_files &
 nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >/dev/null 2>&1 &
 disown
 
-generate_password_hash &
+generate_password_hash
 create_user_volume &
 
 nohup opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1 &
