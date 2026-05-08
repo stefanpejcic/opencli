@@ -916,12 +916,6 @@ disown
 generate_password_hash
 create_user_volume &
 
-nohup opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1 &
-disown
-
-nohup opencli user-quota >/dev/null 2>&1 &
-disown
-
 wait $PID_PORTS
 read -r P1 P2 P3 P4 P5 P6 P7 < /tmp/ports_$$
 rm -f /tmp/ports_$$
@@ -940,6 +934,15 @@ pull_images &
 ########################################################################
 # 8. save and notify
 save_user_to_database
+
+# needs to run AFTER saving user to database
+nohup opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1 &
+disown
+
+# this needs to run AFTER plan-apply to show updated du info
+nohup opencli user-quota >/dev/null 2>&1 &
+disown
+
 send_welcome_email &
 notify_sentinel
 update_reseller_account_count # must run after saving user to db
