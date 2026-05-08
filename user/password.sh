@@ -81,12 +81,42 @@ escaped_hash=$(printf "%s" "$hashed_password" | sed "s/'/''/g")
 }
 
 save_to_database() {
+    # 1. update pass
+    mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$username';"
+    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"
+
+    if [ $? -eq 0 ]; then
+        # 2. get user ID and terminate all active sessions
+        user_id_query="SELECT id FROM users WHERE username='$username' LIMIT 1;"
+        user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
+    
+        if [[ "$user_id" =~ ^[0-9]+$ ]]; then
+            session_keys=$(docker --context=default exec openpanel_redis redis-cli --scan --pattern "session:$user_id:*")
+            session_count=0
+            if [ -n "$session_keys" ]; then
+                session_count=$(echo "$session_keys" | wc -l)
+                while IFS= read -r key; do
+                    docker --context=default exec openpanel_redis redis-cli unlink "$key" > /dev/null
+                done <<< "$session_keys"
+            fi
+        fi
+
+        # 3. send notification
+        nohup opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed. $session_count session(s) terminated." >/dev/null 2>&1 &
+        disown
+        echo "Successfully changed password for user $username$([ "$random_flag" = true ] && echo ", new random generated password is: $new_password")"
+    else
+        echo "Error: Data insertion failed."
+        exit 1
+    fi
+}
+
+save_to_database() {
     mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$username';"
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
-    
+
     if [ $? -eq 0 ]; then
-        delete_sessions_query="DELETE FROM active_sessions WHERE user_id=(SELECT id FROM users WHERE username='$username');"
-        mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$delete_sessions_query"
+        docker --context=default exec openpanel_redis sh -c 'redis-cli --scan --pattern "session:1:*" | xargs -r redis-cli unlink'
         if [ $? -ne 0 ]; then
             echo "WARNING: Failed to terminate existing sessions for the user."
         fi
