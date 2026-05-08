@@ -611,25 +611,27 @@ SVCEOF
     fi
 }
 
+get_docker_service_errors() {
+    docker_service_errors=$(machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"' 2>&1)
+}
 
-check_socket_created() {
-	[ -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."; }
-	[ -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."; }
+test_docker_service() {
+    # dockerd-rootless-setuptool.sh executed?
+    [ -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."; }
 
-    local hostfs_sock="/hostfs/run/user/${USER_ID}/docker.sock"
-    local elapsed=0
+    # dockerd-rootless-setuptool.sh finished and created dockerd-rootless.sh?
+    [ -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ] || { hard_cleanup; die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."; }
 
-    while [[ $elapsed -lt 30 ]]; do
-        if [[ -S "$hostfs_sock" ]]; then
-            log "Docker service is running for user."
-            return 0
-        fi
-        sleep 1
-        (( elapsed++ ))
-    done
+    # docker service started and socket is available?
+	local elapsed=0 max_time=30
+	while [[ $elapsed -lt $max_time ]]; do [[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ]] && { log "Docker service started for user (/run/user/${USER_ID}/docker.sock)."; break; }; sleep 1; (( elapsed++ )) || true; done
+    [ -S "/hostfs/run/user/${USER_ID}/docker.sock" ] || { get_docker_service_errors; hard_cleanup; die "Docker service did not start after $max_time seconds! errors: $docker_service_errors"; }
 
-    hard_cleanup; die "Rootless Docker socket never appeared for '$USERNAME' at $hostfs_sock"
-    # Check: machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user status docker'
+    # context created and compose plugin loaded?
+    docker --context="$USERNAME" compose version >/dev/null 2>&1 || { hard_cleanup; die "Docker Compose is not working in context '$USERNAME'."; }
+
+    # is docker service ready?
+	docker --context="$USERNAME" info > /dev/null 2>&1 && log "Docker service is responding and working correctly." || { get_docker_service_errors; hard_cleanup; die "Docker service started (socket created) but has errors: $docker_service_errors"; }
 }
 
 find_available_ports_bg() { find_available_ports > /tmp/ports_$$; }
@@ -782,10 +784,6 @@ create_docker_context() {
     docker context create "$USERNAME" --docker "host=${host}" --description "$USERNAME" 2>/dev/null
 }
 
-verify_docker_context_and_compose() {
-    docker --context="$USERNAME" compose version >/dev/null 2>&1 || { hard_cleanup; die "[✘] Docker Compose is not working in context '$USERNAME'." >&2; }
-}
-
 save_user_to_database() {
     log "Saving user '$USERNAME' to database"
 
@@ -927,8 +925,7 @@ create_docker_context
 ########################################################################
 # 6. validate docker service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
-check_socket_created
-verify_docker_context_and_compose
+test_docker_service
 pull_images &
 
 ########################################################################
