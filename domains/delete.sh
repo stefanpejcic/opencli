@@ -410,8 +410,7 @@ delete_emails() {
 	
 			if [[ "$pattern" =~ @${domain//./\\.}\$ ]]; then
 	            log "Removing: $pattern -> $target"
-				changed=1;
-	            continue
+				changed=1; continue
 	        fi
 	        echo "$pattern $target" >> "$tmp_file"
 	    done < "$regex_aliases_file"
