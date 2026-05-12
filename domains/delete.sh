@@ -396,6 +396,28 @@ delete_emails() {
 	        disown
 	    fi
 	fi
+
+	# regex aliases (default email address)
+	regex_aliases_file="/usr/local/mail/openmail/docker-data/dms/config/postfix-regex.cf"
+	
+	if [ -f "$regex_aliases_file" ]; then
+		tmp_file="$(mktemp)"
+		changed=0
+	    log "Removing default email address for this domain"
+
+	    while read -r pattern target; do
+	        [ -z "$pattern" ] && continue
+	
+			if [[ "$pattern" =~ @${domain//./\\.}\$ ]]; then
+	            log "Removing: $pattern -> $target"
+				changed=1;
+	            continue
+	        fi
+	        echo "$pattern $target" >> "$tmp_file"
+	    done < "$regex_aliases_file"
+
+		[ "$changed" -eq 1 ] && mv "$tmp_file" "$regex_aliases_file"
+	fi
 }
 
 
