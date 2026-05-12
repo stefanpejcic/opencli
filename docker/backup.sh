@@ -46,6 +46,7 @@ run_for_user() {
     
     cd /home/$context/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
     start_user_time=$(date +%s)
+    # TODO: edit to docker run style so we can set cpu and ram here and run it outside of user context (if admin want backup job to use server resources instead of user's)
     docker --context=$context compose run --remove-orphans --rm --entrypoint backup backup
     end_user_time=$(date +%s)
     duration=$((end_user_time - start_user_time))
