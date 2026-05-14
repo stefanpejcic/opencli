@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: docker.sh
 # Description: Manage OpenPanel system or user containers with lazydocker.
-# Usage: opencli docker [username]
+# Usage: opencli docker [<user> [<container>]]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 07.03.2025
