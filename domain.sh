@@ -225,10 +225,10 @@ update_redirects() {
 configure_mailserver() {
     [[ ! -f "$MAILSERVER_ENV" ]] && return 0
     
-    if [[ "$new_hostname" == "$DEFAULT_DOMAIN" ]]; then
+    if [[ "$new_hostname" == "$DEFAULT_DOMAIN" || "$new_hostname" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
         log_debug "Configuring mailserver for plain-text authentication with IP"
 
-		# roundcube
+		# used by roundcube to detect if SSL should be used
 		sed -i '/^OVERRIDE_HOSTNAME=/c\OVERRIDE_HOSTNAME=' "$MAILSERVER_ENV"
         
         sed -i '/^SSL_TYPE=/c\SSL_TYPE=' "$MAILSERVER_ENV"
@@ -255,7 +255,7 @@ configure_mailserver() {
             return 0
         fi
 
-		# roundcube
+		# used by roundcube to detect if SSL should be used
 		sed -i "s|OVERRIDE_HOSTNAME=.*|OVERRIDE_HOSTNAME=$new_hostname|" "$MAILSERVER_ENV"
 
         sed -i "/^SSL_TYPE=/c\SSL_TYPE=manual" "$MAILSERVER_ENV"
