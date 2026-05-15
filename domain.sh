@@ -224,8 +224,8 @@ update_redirects() {
 # Configure mailserver
 configure_mailserver() {
     [[ ! -f "$MAILSERVER_ENV" ]] && return 0
-    
-    if [[ "$new_hostname" == "$DEFAULT_DOMAIN" || "$new_hostname" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+	
+    if [[ "$new_hostname" == "$DEFAULT_DOMAIN" ]] || is_valid_ipv4 "$new_hostname"; then
         log_debug "Configuring mailserver for plain-text authentication with IP"
 
 		# used by roundcube to detect if SSL should be used
