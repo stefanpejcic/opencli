@@ -264,7 +264,7 @@ for arg in "$@"; do
         --domain=*)         OPTMODE="domain";        OPTVAL="${arg#--domain=}" ;;
         --delete-user=*)    OPTMODE="delete-user";   OPTVAL="${arg#--delete-user=}" ;;
         --delete-domain=*)  OPTMODE="delete-domain"; OPTVAL="${arg#--delete-domain=}" ;;
-        --skip-reload)      SKIP_RELOAD=true" ;;
+        --skip-reload)      SKIP_RELOAD=true ;;
         --help|-h)          usage ;;
         *) echo "Unknown argument: $arg"; usage ;;
     esac
