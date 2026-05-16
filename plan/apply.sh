@@ -178,7 +178,7 @@ EOF
 
    	# Emails (max hourly emails per domain)
     if ! $partial || $doemail; then
-        echo "- Hourly email[OK]   $hourly_email_text"
+        echo "- Emails      [OK]   $hourly_email_text"
 		if (! $bulk); then
 			nohup opencli email-ratelimit --username="${username}" >/dev/null 2>&1 &
 		    disown
