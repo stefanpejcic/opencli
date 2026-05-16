@@ -178,20 +178,19 @@ EOF
     ID=$(rule_id "$USERNAME" "$DOMAIN")
 
     if grep -q "^id=${ID} " "$OUTPUT" 2>/dev/null; then
-        echo "Rule exists — updating: $ID"
+        echo "Updating: $ID"
         tmp=$(mktemp)
         remove_rule_by_id "$ID" "$OUTPUT" > "$tmp"
         build_rule "$USERNAME" "$LIMIT" "$DOMAIN" >> "$tmp"
         mv "$tmp" "$OUTPUT"
     else
-        echo "Rule missing — adding: $ID"
+        echo "Adding: $ID"
         build_rule "$USERNAME" "$LIMIT" "$DOMAIN" >> "$OUTPUT"
     fi
 
     chmod 644 "$OUTPUT"
     echo "OK: $USERNAME limit=${LIMIT}/hr domain=${DOMAIN}"
     echo "---"
-    echo "Done. $(wc -l < "$OUTPUT") lines in $OUTPUT"
 }
 
 mode_delete_user() {
