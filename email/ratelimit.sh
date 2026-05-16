@@ -245,6 +245,13 @@ mode_delete_domain() {
     echo "Done. $(wc -l < "$OUTPUT") lines in $OUTPUT"
 }
 
+enterprise=$(grep "^key=" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2-)
+if [ -z "$enterprise" ]; then
+    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows email management."
+    source "/usr/local/opencli/enterprise.sh"
+    echo "$ENTERPRISE_LINK"
+    exit 0 #purposely
+fi
 
 # MAIN
 OPTMODE="show"
