@@ -176,6 +176,15 @@ EOF
 		fi
     fi
 
+   	# Emails (max hourly emails per domain)
+    if ! $partial || $doemail; then
+        echo "- Hourly email[OK]   $hourly_email_text"
+		if (! $bulk); then
+			nohup opencli email-ratelimit --username="${username}" >/dev/null 2>&1 &
+		    disown
+		fi
+	fi
+
     # Bandwidth (Port Speed)
     if ! $partial || $donet; then
         cd "$compose_dir" && docker --context "${username}" compose up --no-start --pull never 2>/dev/null
@@ -239,7 +248,14 @@ echo "Completed!"
 
 # 7. refresh quotas and purge logs
 if $bulk; then
+	# collect stats for all users
     nohup opencli docker-collect_stats --all >/dev/null 2>&1 &
 	disown
+
+	# update max hourly rate limits for all domains
+	nohup opencli email-ratelimit --all-users >/dev/null 2>&1 &
+	disown
+
+	# cleanup
 	find /tmp -name 'opencli_plan_apply_*' -type f -mtime +1 -exec rm {} \; >/dev/null 2>&1
 fi
