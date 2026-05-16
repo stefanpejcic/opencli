@@ -293,5 +293,6 @@ esac
 
 if [ "$SKIP_RELOAD" = false ]; then
     # reload conf, keep counters!
-    nohup docker --context=default kill --signal=HUP postfwd & disown
+	nohup docker --context=default kill --signal=HUP postfwd >/dev/null 2>&1 &
+	disown
 fi
