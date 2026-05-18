@@ -636,7 +636,7 @@ get_docker_service_errors() {
 
 test_docker_service() {
     # dockerd-rootless-setuptool.sh executed?
-	if [ !-f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ]; then
+	if [ ! -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ]; then
 	    hard_cleanup
 	    die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."
 	fi
