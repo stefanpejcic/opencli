@@ -377,19 +377,19 @@ autostart_services() {
     mapfile -t autostart < <(grep -v '^\s*#' "$AUTOSTART_FILE" | grep -v '^\s*$')
 
     local images=()
-
-    [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]] && [[ " ${autostart[*]} " == *" $php_svc "* ]] && images+=("$php_svc")
+    local ols_ws=false
+    [[ "$ws_type" =~ ^(openlitespeed|litespeed)$ ]] && ols_ws=true
+    [[ "$ols_ws" == false ]] && [[ "$php_version" =~ ^[0-9]+\.[0-9]+$ ]] && [[ " ${autostart[*]} " == *" $php_svc "* ]] && images+=("$php_svc")
     [[ "$sql_type" =~ ^(mysql|mariadb)$ ]] && [[ " ${autostart[*]} " == *" $sql_type "* ]] && images+=("$sql_type")
 	[[ -n "$varnish" ]] && [[ " ${autostart[*]} " == *" varnish "* ]] && images+=("varnish")
     [[ "$ws_type" =~ ^(nginx|apache|openresty|openlitespeed|litespeed)$ ]] && [[ " ${autostart[*]} " == *" $ws_type "* ]] && images+=("$ws_type")
-
     local sql_ws_types="mysql mariadb nginx apache openresty openlitespeed litespeed"
     for svc in "${autostart[@]}"; do
-        [[ " $sql_ws_types " == *" $svc "* ]] && continue           # only webserver and sql type for user, ignore others
-        [[ "$svc" == php-fpm-* || "$svc" == varnish ]] && continue  # nly current default php version and varnish if enabled
+        [[ " $sql_ws_types " == *" $svc "* ]] && continue                 # only webserver and sql type for user, ignore others
+        [[ "$ols_ws" == true ]] && [[ "$svc" == php-fpm-* ]] && continue  # OLS/LS manages PHP internally, no need to start php-fpm services
+        [[ "$svc" == php-fpm-* || "$svc" == varnish ]] && continue        # only current default php version and varnish if enabled
         images+=("$svc")
     done
-
     [[ ${#images[@]} -eq 0 ]] && { warn "No autostart services match user config."; return 1; }
 	#log "Starting services in background: ${images[*]}"
 	nohup sh -c "cd /home/${USERNAME}/ && for svc in ${images[*]}; do docker --context=${USERNAME} compose up -d \$svc || true; done" </dev/null >/dev/null 2>&1 &
