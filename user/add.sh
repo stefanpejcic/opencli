@@ -979,7 +979,7 @@ create_docker_context
 # 6. validate docker service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
 test_docker_service
-autostart_services &
+autostart_services
 
 ########################################################################
 # 8. save and notify
