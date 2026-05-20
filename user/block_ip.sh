@@ -108,7 +108,7 @@ if [ "$delete_all" = true ]; then
 fi
 
 # LIST
-if [ "$delete_all" = true ]; then
+if [ "$show_ips" = true ]; then
   if [ -f "$DENY_IPS_FILE" ]; then
     grep -oP 'remote_ip\s+\K[\d./]+' "$DENY_IPS_FILE"
   fi
