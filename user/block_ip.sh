@@ -119,7 +119,7 @@ fi
 if [ -n "$list" ]; then
 
   # 1. validate IP
-  IFS=' ' read -r -a ip_array <<< "$list"
+  IFS=$' \n' read -r -a ip_array <<< "$(echo "$list" | tr '\n' ' ')"
   valid_ips=()
   
   for ip in "${ip_array[@]}"; do
