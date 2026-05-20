@@ -72,7 +72,7 @@ reload_emails_data_file_for_user() {
     local file_to_refresh="/etc/openpanel/openpanel/core/users/$owner/emails.yml"
     local all_domains all_emails
     all_domains=$(opencli domains-user "$owner")
-    sleep 2 # for https://github.com/docker-mailserver/docker-mailserver/blob/cb76075f25e22476e8fdb45adfbea8026d4ea898/target/bin/addmailuser#L16
+    sleep 1 # for https://github.com/docker-mailserver/docker-mailserver/blob/cb76075f25e22476e8fdb45adfbea8026d4ea898/target/bin/addmailuser#L16
     all_emails=$(opencli email-setup email list)
     > "$file_to_refresh"
     while IFS= read -r domain; do
