@@ -47,7 +47,28 @@ openpanel_username="$2"
 mkdir -p /etc/openpanel/ftp/users/${openpanel_username}
 touch /etc/openpanel/ftp/users/${openpanel_username}/users.list
 
+get_docker_context_for_user(){
+    context=$(mysql -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+	context=$(mysql -N -e "
+	SELECT u.server
+	FROM users u
+	WHERE u.username='$openpanel_username'
+	AND EXISTS (
+	    SELECT 1
+	    FROM domains d
+	    WHERE d.domain_url = SUBSTRING_INDEX('$username','@',-1)
+	      AND d.user_id = u.id
+	);
+	")
 
+    if [ -z "$context" ]; then
+        echo "ERROR: No context found for user '$openpanel_username' - or does not own the domain name. Aborting!"
+        exit 1
+    fi    
+}
+
+# validate our op user owns the domain and get context
+get_docker_context_for_user
 
 # ======================================================================
 # Main
