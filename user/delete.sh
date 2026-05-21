@@ -212,13 +212,8 @@ delete_ftp_users() {
         if [[ -f "$users_file" ]]; then
             local max_jobs=5
             local job_count=0
-            while IFS='|' read -r username password directories; do
-                opencli ftp-delete "$username" "$openpanel_username" &
-                (( ++job_count ))
-                if (( job_count >= max_jobs )); then
-                    wait -n 2>/dev/null || wait
-                    (( --job_count ))
-                fi
+            while IFS='|' read -r username _; do
+                cut -d'|' -f1 "$ftp_accounts_file" | xargs -I{} docker --context=default exec openadmin_ftp deluser {}
             done < "$users_file"
             wait
         fi
