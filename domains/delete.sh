@@ -430,10 +430,10 @@ delete_ftp_accounts() {
 	if [ -f "$ftp_accounts_file" ]; then
 	    log "Removing FTP accounts for domain: $domain"
 	
-	    while IFS='|' read -r email _; do
-	        if [[ "$email" == *@"$domain" ]]; then
-	            sed -i "\|^${email}|d" "$ftp_accounts_file"
-			    nohup docker --context=default exec openadmin_ftp sh -c "deluser $email" >/dev/null 2>&1 &
+	    while IFS='|' read -r ftp_account _; do
+	        if [[ "$ftp_account" == *@"$domain" ]]; then
+	            sed -i "\|^${ftp_account}|d" "$ftp_accounts_file"
+			    nohup docker --context=default exec openadmin_ftp sh -c "deluser $ftp_account" >/dev/null 2>&1 &
 			    disown
 	        fi
 	    done < "$ftp_accounts_file"
