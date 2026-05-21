@@ -43,13 +43,32 @@ DEBUG=false  # Default value for DEBUG
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
     case $arg in
-        --debug)
-            DEBUG=true
-            ;;
-        *)
-            ;;
+        --debug) DEBUG=true ;;
+        *) ;;
     esac
 done
+
+
+get_docker_context_for_user(){
+    context=$(mysql -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+	context=$(mysql -N -e "
+	SELECT u.server
+	FROM users u
+	WHERE u.username='$openpanel_username'
+	AND EXISTS (
+	    SELECT 1
+	    FROM domains d
+	    WHERE d.domain_url = SUBSTRING_INDEX('$username','@',-1)
+	      AND d.user_id = u.id
+	);
+	")
+
+    if [ -z "$context" ]; then
+        echo "ERROR: No context found for user '$openpanel_username' - or does not own the domain name. Aborting!"
+        exit 1
+    fi    
+}
+
 
 # Function to update the user's password
 update_password() {
@@ -109,6 +128,9 @@ if ! user_exists "$username"; then
     echo "Error: FTP User '$username' does not exist."
     exit 1
 fi
+
+# validate our op user owns the domain and get context
+get_docker_context_for_user
 
 # Check if password length is at least 8 characters
 if [ ${#new_password} -lt 8 ]; then
