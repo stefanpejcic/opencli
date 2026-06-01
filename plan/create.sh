@@ -66,7 +66,7 @@ if [ "$#" -lt 13 ]; then
 fi
 
 check_plan_exists() {
-    local existing_plan=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$SELECT id FROM plans WHERE name='${1}' LIMIT 1;")
+    local existing_plan=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${1}' LIMIT 1;")
     if [ -n "$existing_plan" ]; then
         echo "Error: Plan name '$1' already exists. Please choose another name."
         exit 1
