@@ -210,7 +210,7 @@ check_reseller_limits() {
 
     local max_accounts
     max_accounts="$(jq -r '.max_accounts // "unlimited"' "$limits_file")"
-    if [[ "$max_accounts" != "unlimited" && "$current_accounts" -ge "$max_accounts" ]]; then
+    if [[ "$max_accounts" != "unlimited" && "$max_accounts" != "0" && "$current_accounts" -ge "$max_accounts" ]]; then
         die "Reseller '$RESELLER' has reached the maximum account limit ($max_accounts)."
     fi
 
