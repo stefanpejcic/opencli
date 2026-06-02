@@ -193,7 +193,7 @@ check_reseller_limits() {
 
     RESELLER_ESC=$(escape "$RESELLER")
     local user_exists
-    user_exists="$(sqlite3 "$db_file" "SELECT COUNT(*) FROM user WHERE username='${RESELLER//\'/\'\'}' AND role='RESELLER';")"
+    user_exists="$(sqlite3 "$db_file" "SELECT COUNT(*) FROM user WHERE username='${RESELLER//\'/\'\'}' AND role='reseller';")"
     (( user_exists >= 1 )) || die "User '$RESELLER' is not a reseller or is not allowed to create users."
 
     local limits_file="/etc/openpanel/openadmin/resellers/${RESELLER}.json"
