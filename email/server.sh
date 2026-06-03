@@ -156,7 +156,7 @@ enable_emails_if_not_yet() {
 
 pflogsumm_get_data() {
 
-	cd /tmp || { echo "Error: Failed to enter /tmp in order to generate a summary report." >&2; exit 1 }
+	cd /tmp || { echo "Error: Failed to enter /tmp in order to generate a summary report." >&2; exit 1; }
 
 	# 1. clone from git
 	rm -rf PFLogSumm-HTML-GUI
