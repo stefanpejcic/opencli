@@ -6,8 +6,8 @@
 # Author: Stefan Pejcic
 # Created: 09.07.2024
 # Last Modified: 05.06.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Company: openpanel.com
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
