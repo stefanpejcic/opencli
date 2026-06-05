@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/docroot.sh
-# Description: AEnter docroot for a domain.
+# Description: Enter docroot for a domain.
 # Usage: opencli domains-edit <DOMAIN_NAME>
 # Author: Stefan Pejcic
 # Created: 20.08.2024
