@@ -89,7 +89,7 @@ setup_zone() {
 
 # Check for required arguments
 if [ -z "$ZONE" ]; then
-  error_exit "Usage: $0 <DOMAIN> [--update | --check]"
+  error_exit "Usage: opencli domains-dnssec <DOMAIN> [--update | --check]"
 fi
 
 # Parse optional flag
