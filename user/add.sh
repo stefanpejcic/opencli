@@ -731,10 +731,8 @@ configure_environment() {
         port_7="127.0.0.1:${P7}:80"
     fi
 
-    local postgres_pw mysql_root_pw pg_admin_pw
-    postgres_pw="$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 24)"
-    mysql_root_pw="$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 24)"
-    pg_admin_pw="$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 24)"
+    local root_password_for_services
+    root_password_for_services="$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 24)"
 
     local home_dir="/home/${USERNAME}"
     cp /etc/openpanel/docker/compose/1.0/docker-compose.yml "${home_dir}/docker-compose.yml" || die "docker-compose.yml template missing from /etc/openpanel/"
@@ -752,11 +750,8 @@ configure_environment() {
         -e "s|POSTGRES_PORT=\"[^\"]*\"|POSTGRES_PORT=\"127.0.0.1:${port_3}\"|g" \
         -e "s|PMA_PORT=\"[^\"]*\"|PMA_PORT=\"${port_4}\"|g" \
         -e "s|{PMA_PORT}|${P4}|g" \
-        -e "s|POSTGRES_PASSWORD=\"[^\"]*\"|POSTGRES_PASSWORD=\"${postgres_pw}\"|g" \
-        -e "s|PGADMIN_PW=[^\"]*|PGADMIN_PW=${pg_admin_pw}|g" \
-        -e "s|OPENSEARCH_INITIAL_ADMIN_PASSWORD=\"[^\"]*\"|OPENSEARCH_INITIAL_ADMIN_PASSWORD=\"${pg_admin_pw}\"|g" \
+		-e "s|rootpassword=[^\" ]*|rootpassword=${root_password_for_services}|g" \ # covers: pgadmin, mongodb, postgres, mysql, opensearch
         -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:${port_2}\"|g" \
-        -e "s|MYSQL_ROOT_PASSWORD=\"[^\"]*\"|MYSQL_ROOT_PASSWORD=\"${mysql_root_pw}\"|g" \
         -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"${port_7}\"|g" \
         "${home_dir}/.env"
 
