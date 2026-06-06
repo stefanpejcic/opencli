@@ -804,7 +804,6 @@ configure_environment() {
     cp /etc/openpanel/varnish/default.vcl        "${home_dir}/default.vcl"
     cp /etc/openpanel/ofelia/users.ini           "${home_dir}/crons.ini"   2>/dev/null || true
     cp /etc/openpanel/backups/backup.env         "${home_dir}/backup.env"  2>/dev/null || true
-    cp /etc/openpanel/mysql/phpmyadmin/pma.php   "${home_dir}/pma.php"     2>/dev/null || true
     cp -r /etc/openpanel/php/ini                 "${home_dir}/php.ini"
 
     chown -R "${USERNAME}:${USERNAME}" "${home_dir}/sockets"
