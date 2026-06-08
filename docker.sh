@@ -90,10 +90,9 @@ pick_user() {
 
 exec_shell() {
   local context="$1" container="$2"
-  if docker --context="$context" exec -it "$container" bash 2>/dev/null; then
-    return
-  fi
-  docker --context="$context" exec -it "$container" sh
+  local shell
+  shell=$(docker --context="$context" exec "$container" sh -c 'command -v bash || command -v sh' 2>/dev/null)
+  docker --context="$context" exec -it "$container" "$shell"
 }
 
 
