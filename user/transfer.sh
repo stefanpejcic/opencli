@@ -851,11 +851,34 @@ $SSH_CMD "systemctl daemon-reload"
 $SSH_CMD "opencli user-quota --update $USERNAME >/dev/null 2>&1" # set quotas
 $SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/coraza_waf/ /etc/openpanel/caddy/domains/ /etc/bind/zones/ /etc/openpanel/caddy/ssl/certs/ /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/ /etc/openpanel/caddy/ssl/custom/ /etc/openpanel/openpanel/core/users/"
 
-# todo: folder just for that user!
+# https://github.com/stefanpejcic/opencli/issues/159
 if [ -n "$key_value" ]; then
-  log "Syncing /var/mail ..."
-  eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
-  COMPOSE_START_MAIL=1
+    log "Syncing mail data ..."
+
+    # 1. Check local email storage location
+    STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs)
+    if [[ "$STORE_EMAILS_IN" == /* ]]; then
+        LOCAL_MAIL_PATH="$STORE_EMAILS_IN"
+    else
+        LOCAL_MAIL_PATH="/home/$USERNAME/mail/"
+    fi
+
+    # 2. Check remote email storage location
+    REMOTE_STORE_EMAILS_IN=$($SSH_CMD "grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs" 2>/dev/null)
+    if [[ "$REMOTE_STORE_EMAILS_IN" == /* ]]; then
+        REMOTE_MAIL_PATH="$REMOTE_STORE_EMAILS_IN"
+    else
+        REMOTE_MAIL_PATH="/home/$USERNAME/mail/"
+    fi
+
+    if [[ -d "$LOCAL_MAIL_PATH" ]]; then
+        log "Syncing mail from $LOCAL_MAIL_PATH (source) to $REMOTE_MAIL_PATH (destination) ..."
+        $SSH_CMD "mkdir -p $REMOTE_MAIL_PATH"
+        eval $RSYNC_CMD "$LOCAL_MAIL_PATH" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_MAIL_PATH}"
+        COMPOSE_START_MAIL=1
+    else
+        log "[!] Warning: No mail data found at $LOCAL_MAIL_PATH, skipping."
+    fi
 fi
 
 # logs and stuff
