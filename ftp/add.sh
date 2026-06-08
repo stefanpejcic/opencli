@@ -128,6 +128,7 @@ create_user() {
 
         nohup opencli sentinel --action=ftp_create --title="FTP account created" --message="New FTP account has been created for OpenPanel user: '$openpanel_username'. Directory: $directory | UID: $USER_UID | GID: $USER_GID" >/dev/null 2>&1 &
 		disown
+
         echo "Success: FTP user '$username' created successfully (UID: $USER_UID, GID: $USER_GID)."
     else
         if [ "$DEBUG" = true ]; then
