@@ -7,7 +7,7 @@
 # Created: 01.11.2023
 # Last Modified: 07.06.2026
 # Company: openpanel.com
-# Copyright (c) openpanel.comm
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
