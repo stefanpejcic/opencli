@@ -505,17 +505,20 @@ PLAN_NAME=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
 ### EXPORT PLAN (no ID)
 mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT name, description, domains_limit, websites_limit, email_limit, ftp_limit,
-         disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set
+         disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set,
+         max_email_quota, max_hourly_email
   FROM plans WHERE id = $PLAN_ID;" > "$TMP_DIR/plan.tsv"
+
+
 
 awk -v table="plans" '
 BEGIN {
   FS="\t";
-  print "INSERT INTO plans (name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set) VALUES"
+  print "INSERT INTO plans (name, description, domains_limit, websites_limit, email_limit, ftp_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set, max_email_quota, max_hourly_email) VALUES"
 }
 {
-  printf "('\''%s'\'', '\''%s'\'', %s, %s, %s, %s, '\''%s'\'', %s, %s, '\''%s'\'', '\''%s'\'', %s, '\''%s'\''),\n",
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+  printf "('\''%s'\'', '\''%s'\'', %s, %s, %s, %s, '\''%s'\'', %s, %s, '\''%s'\'', '\''%s'\'', %s, '\''%s'\'', '\''%s'\'', %s),\n",
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 }
 END { print ";" }
 ' "$TMP_DIR/plan.tsv" > "$TMP_DIR/plan_${USERNAME}_autoinc.sql"
