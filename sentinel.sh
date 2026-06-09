@@ -925,7 +925,10 @@ write_snapshot() {
     "$total_conn" \
     "$STATUS" "$PASS" "$WARN" "$FAIL"
 
-  echo "$json" >> "$SNAPSHOT_FILE"
+  local utc_json
+  utc_json=$(echo "$json" | sed 's/"ts":"[^"]*"/"ts":"'"$(date -u +"%Y-%m-%d %H:%M:%S")"'"/')
+  echo "$utc_json" >> "$SNAPSHOT_FILE"
+
 
   local line_count; line_count=$(wc -l < "$SNAPSHOT_FILE")
   if (( line_count > SNAPSHOT_MAX_LINES )); then
