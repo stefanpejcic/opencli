@@ -79,6 +79,8 @@ RAM_THRESHOLD=$(validate_number  "$(ini_get ram)"  85)
 DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
 
+is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
+
 readonly IP_CACHE_FILE="/tmp/public.ipv4"
 
 get_public_ip() {
@@ -933,6 +935,7 @@ write_snapshot() {
 }
 
 
+hr() { printf '%*s\n' "${COLUMNS:-80}" '' | tr ' ' '-'; }
 
 summary() {
   hr
