@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-if [[ -z "$REMOTE_HOST" || -z "$USER" ]]; then
+if [[ -z "$REMOTE_HOST" || -z "$USERNAME" ]]; then
     echo "Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]"
     exit 1
 fi
