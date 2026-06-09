@@ -76,7 +76,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "[ERROR] Unknown option: $1"
-            echo "Use --help to see available options"
             exit 1
             ;;
     esac
