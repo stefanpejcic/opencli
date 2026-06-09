@@ -495,10 +495,9 @@ create_caddy_domain_file() {
     # shellcheck source=/dev/null
     source "$env_file"
 
-    local non_ssl_port ssl_port ip_format_for_nginx
+    local non_ssl_port ssl_port
     non_ssl_port=$(echo "$HTTP_PORT"  | cut -d':' -f2)
     ssl_port=$(echo     "$HTTPS_PORT" | cut -d':' -f2)
-    ip_format_for_nginx=$([[ "$IPV4" == "yes" ]] && echo "$current_ip" || echo "[$current_ip]")
 
     mkdir -p /etc/openpanel/caddy/domains/
     local domains_file="/etc/openpanel/caddy/domains/${domain_name}.conf"
