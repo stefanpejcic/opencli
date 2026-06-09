@@ -81,7 +81,6 @@ parse_args() {
 
     domain_name="$1"
     user="$2"
-    container_name="$2"
     shift 2
 
     while [[ $# -gt 0 ]]; do
