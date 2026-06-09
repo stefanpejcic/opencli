@@ -815,7 +815,7 @@ $volume_to_add
 insert_domain_to_db() {
     log "Inserting domain $domain_name into database"
 
-    local safe_docroot safe_php safe_domain safe_user_id
+    local safe_docroot safe_php safe_domain
     safe_docroot=$(sql_escape "$docroot")
     safe_php=$(sql_escape "$php_version")
     safe_domain=$(sql_escape "$domain_name")
