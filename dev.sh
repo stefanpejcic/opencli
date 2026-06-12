@@ -101,6 +101,7 @@ install_tool() {
         if command_exists apt; then
             apt install -y "$package" > /dev/null 2>&1
         elif command_exists dnf; then
+            dnf install -y epel-release > /dev/null 2>&1
             dnf install -y "$package" > /dev/null 2>&1
         elif command_exists yum; then
             yum install -y "$package" > /dev/null 2>&1
