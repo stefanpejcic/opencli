@@ -135,7 +135,7 @@ extract_xml_field() {
 output_message() {
     local message="$1"
     local color="${2:-}"
-    
+
     if [[ "$JSON" == "yes" ]]; then
         echo "$message"
     else
@@ -162,7 +162,7 @@ manage_compose_volumes() {
 
     add_volumes() {
         START_LINE=$(awk "/$SERVICE:/ {flag=1} flag && /volumes:/ {print NR; exit}" "$COMPOSE_FILE")
-    
+
         for vol in "${VOLUMES[@]}"; do
             if ! volume_exists "$vol"; then
                 sed -i "$((START_LINE))a\      - $vol" "$COMPOSE_FILE"
@@ -191,13 +191,13 @@ restart_services() {
         echo "Please restart OpenAdmin service to enable new features."
         return 0
     fi
-    
+
     service admin restart > /dev/null
     if docker --context default ps -q -f name=openpanel | grep -q .; then
         nohup bash -c "cd /root && docker --context=default compose down openpanel && docker --context=default compose up -d openpanel" &> /dev/null &
         disown
     fi
-        
+
     echo "OpenPanel and OpenAdmin are restarted to apply Enterprise features."
 }
 
@@ -235,7 +235,7 @@ pagespeed_api_key_control() {
 # Save license key to file
 save_license_to_file() {
     local new_key="$1"
-    
+
     if opencli config update key "$new_key" > /dev/null; then
         output_message "License key ${new_key} added." "$GREEN"
         toggle_emails_module > /dev/null
@@ -252,9 +252,8 @@ save_license_to_file() {
 verify_and_save_license() {
     local license_key="$1"
     local license_status
-    
     license_status=$(verify_license_api "$license_key")
-    
+
     if [[ "$license_status" == "Active" ]]; then
         save_license_to_file "$license_key"
     else
@@ -266,7 +265,6 @@ verify_and_save_license() {
 # Verify existing license
 verify_existing_license() {
     local config license_key license_status
-    
     config=$(read_config)
     license_key=$(echo "$config" | grep -i 'key' | cut -d'=' -f2)
 
@@ -276,7 +274,6 @@ verify_existing_license() {
     fi
 
     license_status=$(verify_license_api "$license_key")
-    
     if [[ "$license_status" == "Active" ]]; then
         output_message "License is valid" "$GREEN"
         manage_compose_volumes "enable"
@@ -357,39 +354,22 @@ delete_license() {
     service admin restart
 }
 
-# Main function
+# Main
 main() {
     local command="${1:-}"
     
-    if [[ $# -eq 0 ]]; then
-        usage
-    fi
-    
+    [ $# -eq 0 ] && usage
+
     parse_flags "$@"
-    
+
     case "$command" in
-        "key")
-            license_key=$(get_license_key)
-            echo "$license_key"
-            ;;
-        "info")
-            show_license_info
-            ;;
-        "verify")
-            verify_existing_license
-            ;;
-        "delete")
-            delete_license
-            ;;
-        enterprise-*|noc-*|lifetime-)
-            verify_and_save_license "$command"
-            ;;
-        *)
-            output_message "Invalid command." "$RED"
-            usage
-            ;;
+        "key")                        license_key=$(get_license_key); echo "$license_key" ;;
+        "info")                       show_license_info ;;
+        "verify")                     verify_existing_license ;;
+        "delete")                     delete_license ;;
+        enterprise-*|noc-*|lifetime-) verify_and_save_license "$command" ;;
+        *)                            output_message "Invalid command." "$RED"; usage ;;
     esac
 }
 
-# Run main function with all arguments
 main "$@"
