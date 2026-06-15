@@ -80,7 +80,14 @@ cleanup() {
 
 hard_cleanup() {
     killall -u "$USERNAME" -9 > /dev/null 2>&1
-    deluser --remove-home "$USERNAME" > /dev/null 2>&1   # command is missing on alma!
+    if command -v deluser >/dev/null 2>&1; then
+        deluser --remove-home "$USERNAME" # Debian
+    elif command -v userdel >/dev/null 2>&1; then
+        userdel -r "$USERNAME"            # RHEL
+    else
+        echo "ERROR: Neither deluser nor userdel found"
+    fi
+
     rm -rf /etc/openpanel/openpanel/core/users/"$USERNAME" > /dev/null 2>&1
     docker context rm "$USERNAME"  > /dev/null 2>&1
 }
