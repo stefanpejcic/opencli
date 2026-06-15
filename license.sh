@@ -28,8 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-#set -euo pipefail
-
 # Configuration
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly WHMCS_URL="https://api.openpanel.com/enterprise/index.php"
@@ -58,7 +56,6 @@ parse_flags() {
     done
 }
 
-# Display usage information
 usage() {
     cat << EOF
 Usage: opencli license [options]
@@ -73,7 +70,6 @@ EOF
     exit 1
 }
 
-# Read configuration from file
 read_config() {
     awk -F '=' '
         /\[LICENSE\]/{flag=1; next} 
@@ -86,7 +82,6 @@ read_config() {
     ' "$CONFIG_FILE_PATH"
 }
 
-# Get license key from configuration
 get_license_key() {
     local config license_key
     config=$(read_config)
@@ -107,12 +102,10 @@ get_license_key() {
     fi
 }
 
-# Get public IP address
 get_public_ip() {
     curl --silent --max-time 1 -4 "https://ip.openpanel.com" || curl --silent --max-time 1 -4 "https://ifconfig.me/ip"
 }
 
-# Verify license with WHMCS
 verify_license_api() {
     local license_key="$1"
     local ip_address check_token response
@@ -124,14 +117,12 @@ verify_license_api() {
     echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)'
 }
 
-# Extract XML field from response
 extract_xml_field() {
     local response="$1"
     local field="$2"
     echo "$response" | grep -oP "(?<=<$field>).*?(?=</$field>)"
 }
 
-# Output message based on JSON flag
 output_message() {
     local message="$1"
     local color="${2:-}"
@@ -219,7 +210,6 @@ toggle_emails_module() {
     sed -i "s|^enabled_modules=.*|enabled_modules=\"${new_modules}\"|" "$CONFIG_FILE_PATH"
 }
 
-# add/remove pagespeed api key
 pagespeed_api_key_control() {
     local file key
     file="/etc/openpanel/openpanel/service/pagespeed.api"
@@ -232,7 +222,6 @@ pagespeed_api_key_control() {
     fi
 }
 
-# Save license key to file
 save_license_to_file() {
     local new_key="$1"
 
@@ -248,7 +237,6 @@ save_license_to_file() {
     fi
 }
 
-# Verify and save license key
 verify_and_save_license() {
     local license_key="$1"
     local license_status
@@ -262,7 +250,6 @@ verify_and_save_license() {
     fi
 }
 
-# Verify existing license
 verify_existing_license() {
     local config license_key license_status
     config=$(read_config)
@@ -284,7 +271,6 @@ verify_existing_license() {
     fi
 }
 
-# Get and display license information
 show_license_info() {
     local config license_key response license_status ip_address check_token
     
@@ -345,7 +331,6 @@ EOF
     fi
 }
 
-# Delete license and downgrade
 delete_license() {
     opencli config update key "" > /dev/null
     toggle_emails_module "disable" > /dev/null
