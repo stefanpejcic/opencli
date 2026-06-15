@@ -538,7 +538,7 @@ include <tunables/global>
 EOF
     }
 
-    mkdir -p "${home_dir}/docker-data" "${home_dir}/.config/docker" "${home_dir}/.docker/run" "${home_dir}/bin"
+    mkdir -p "${home_dir}/docker-data" "${home_dir}/.config/docker" "${home_dir}/.docker/run" "${home_dir}/bin" "/etc/apparmor.d/"
     cp /etc/openpanel/docker/daemon/rootless.json "${home_dir}/.config/docker/daemon.json"
     sed -i "s/USERNAME/${USERNAME}/g" "${home_dir}/.config/docker/daemon.json"
     chmod 755 -R "${home_dir}"
@@ -592,9 +592,7 @@ REMOTE
 
     else
         _build_apparmor_profile > "$apparmor_file"
-
         systemctl restart apparmor.service >/dev/null 2>&1 || true
-
         loginctl enable-linger "$USERNAME" >/dev/null 2>&1
 
       	if [ ! -f "$ROOTLESS_SETUP_SCRIPT" ]; then
