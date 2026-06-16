@@ -755,7 +755,7 @@ configure_environment() {
         -e "s|POSTGRES_PORT=\"[^\"]*\"|POSTGRES_PORT=\"127.0.0.1:${port_3}\"|g" \
         -e "s|PMA_PORT=\"[^\"]*\"|PMA_PORT=\"${port_4}\"|g" \
         -e "s|{PMA_PORT}|${P4}|g" \
-		-e "s|rootpassword=[^\" ]*|rootpassword=${root_password_for_services}|g" \
+		-e "s|rootpassword|${root_password_for_services}|g" \
         -e "s|MYSQL_PORT=\"[^\"]*\"|MYSQL_PORT=\"127.0.0.1:${port_2}\"|g" \
         -e "s|PROXY_HTTP_PORT=\"[^\"]*\"|PROXY_HTTP_PORT=\"${port_7}\"|g" \
         "${home_dir}/.env"
