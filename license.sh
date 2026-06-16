@@ -148,7 +148,7 @@ manage_compose_volumes() {
 
     volume_exists() {
         local vol="$1"
-        grep -qF "- $vol" "$COMPOSE_FILE"
+        grep -Fq -- "- $vol" "$COMPOSE_FILE"
     }
 
     add_volumes() {
