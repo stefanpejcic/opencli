@@ -399,8 +399,8 @@ autostart_services() {
     done
     [[ ${#images[@]} -eq 0 ]] && { echo "[!] Warning: No autostart services match user config."; return 1; }
 	log "Starting services in background: ${images[*]}"
-	nohup bash -c "cd /home/${USERNAME}/ && for svc in ${images[*]}; do docker --context=${USERNAME} compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
-    disown
+	nohup bash -c "e=0; while [[ \$e -lt 60 ]]; do docker --context=${USERNAME} info >/dev/null 2>&1 && break; sleep 2; ((e+=2)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do docker --context=${USERNAME} compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
+	disown
 }
 
 setup_ssh_key_for_user() {
