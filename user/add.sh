@@ -450,7 +450,7 @@ validate_ssh_login(){
 		if [ "$DEBUG" = true ]; then
 			if [ -f "$SSH_KEY" ]; then	
 				if [ "$(stat -c %a "$SSH_KEY")" -eq 600 ]; then	                
-                    if ssh -i "$SSH_KEY" "$NODE_IP" "exit" &> /dev/null; then
+                    if ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes "$NODE_IP" "exit" &> /dev/null; then					
                         log "SSH connection successfully established"
                         csf -a "$NODE_IP" > /dev/null 2>&1
                     else
