@@ -444,29 +444,6 @@ EOF
     log "SSH connection established for $USERNAME"
 }
 
-validate_ssh_login(){
-	if [ -n "$NODE_IP" ]; then
-		log "Validating SSH connection to the server $NODE_IP"
-		if [ "$DEBUG" = true ]; then
-			if [ -f "$SSH_KEY" ]; then	
-				if [ "$(stat -c %a "$SSH_KEY")" -eq 600 ]; then	                
-                    if ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes "$NODE_IP" "exit" &> /dev/null; then					
-                        log "SSH connection successfully established"
-                        csf -a "$NODE_IP" > /dev/null 2>&1
-                    else
-                        die "SSH connection failed to $NODE_IP"
-                    fi
-				else
-					log "SSH key permissions are incorrect. Correcting permissions to 600."
-					chmod 600 "$SSH_KEY"
-				fi
-			else
-                die "Provided ssh key path: ""$SSH_KEY"" does not exist."
-			fi
-		fi
-    fi
-}
-
 create_linux_user_local() {
     log "Creating local Linux user '$USERNAME'"
     useradd -m -d "/home/${USERNAME}" "$USERNAME" || die "Failed to create Linux user '$USERNAME' on master."
@@ -934,7 +911,6 @@ validate_password_in_lists
 resolve_node
 load_plan
 check_reseller_limits
-validate_ssh_login
 
 ########################################################################
 # 2. create system user
