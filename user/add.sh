@@ -69,7 +69,6 @@ SENTINEL=true
 RESELLER=""
 NODE_IP=""
 SSH_KEY=""
-SSH_KEY_FLAG=""
 WEBSERVER=""
 SQL_TYPE=""
 HOSTNAME_LABEL=""
@@ -110,7 +109,7 @@ die()  { echo "[✘] ERROR: $*" >&2; exit 1; }
 
 node_ssh() {
     # shellcheck disable=SC2086
-    ssh -q -o LogLevel=ERROR $SSH_KEY_FLAG  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes "root@${NODE_IP}" "$@"
+    ssh -q -o LogLevel=ERROR -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes "root@${NODE_IP}" "$@"
 }
 
 is_valid_ipv4() {
@@ -234,10 +233,8 @@ resolve_node() {
     [[ -f "$SSH_KEY" ]] || die "SSH key path '$SSH_KEY' does not exist."
     [[ "$(stat -c %a "$SSH_KEY")" == "600" ]] || { chmod 600 "$SSH_KEY"; log "Fixed SSH key permissions."; }
 
-    SSH_KEY_FLAG="-i ${SSH_KEY}"
-
     HOSTNAME_LABEL="$(node_ssh hostname 2>/dev/null)"
-    [[ -n "$HOSTNAME_LABEL" ]] || die "Cannot reach node $NODE_IP. Verify SSH access with: ssh $SSH_KEY_FLAG -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes root@$NODE_IP"
+    [[ -n "$HOSTNAME_LABEL" ]] || die "Cannot reach node $NODE_IP. Verify SSH access with: ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes root@$NODE_IP"
 
     log "Containers will be created on node: $NODE_IP ($HOSTNAME_LABEL)"
 }
@@ -335,7 +332,7 @@ EOF
 fi
 REMOTE
 
-    scp "$SSH_KEY_FLAG" -r /etc/openpanel "root@${NODE_IP}:/etc/openpanel"
+    scp -i ${SSH_KEY} -r /etc/openpanel "root@${NODE_IP}:/etc/openpanel"
 }
 
 setup_sshfs_mount() {
