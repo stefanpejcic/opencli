@@ -420,6 +420,10 @@ EOF
     cp "$SSH_KEY" "$key_copy" && chmod 600 "$key_copy"
 
     if ! grep -qF "Host ${USERNAME}" ~/.ssh/config 2>/dev/null; then
+
+		mkdir -p /tmp/ssh_cm
+		chmod 700 /tmp/ssh_cm
+		# TODO: recreate on reboot!
         cat >> ~/.ssh/config << EOF
 
 Host ${USERNAME}
