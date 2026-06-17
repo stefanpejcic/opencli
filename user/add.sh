@@ -78,7 +78,12 @@ cleanup() {
 }
 
 hard_cleanup() {
-    killall -u "$USERNAME" -9 > /dev/null 2>&1
+	[[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1}
+
+	# kill processes
+    killall -u "${USERNAME}" -9 >/dev/null 2>&1 || true
+
+	# delete user on master
     if command -v deluser >/dev/null 2>&1; then
         deluser --remove-home "$USERNAME" # Debian
     elif command -v userdel >/dev/null 2>&1; then
@@ -87,7 +92,19 @@ hard_cleanup() {
         echo "ERROR: Neither deluser nor userdel found"
     fi
 
+	# delete user on slave
+     [[ -n "$NODE_IP" ]] && node_ssh "bash -s" << EOF
+killall -u "${USERNAME}" -9 >/dev/null 2>&1 || true
+if command -v deluser >/dev/null 2>&1; then
+    deluser --remove-home "${USERNAME}"
+elif command -v userdel >/dev/null 2>&1; then
+    userdel -r "${USERNAME}"
+fi
+EOF
+
+	# delete user files
     rm -rf /etc/openpanel/openpanel/core/users/"$USERNAME" > /dev/null 2>&1
+	# delete docker context
     docker context rm "$USERNAME"  > /dev/null 2>&1
 }
 
