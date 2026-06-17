@@ -332,7 +332,7 @@ EOF
 fi
 REMOTE
 
-    scp -i ${SSH_KEY} -r /etc/openpanel "root@${NODE_IP}:/etc/openpanel"
+    scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -r /etc/openpanel "root@${NODE_IP}:/etc/openpanel"
 }
 
 setup_sshfs_mount() {
