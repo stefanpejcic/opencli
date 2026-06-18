@@ -35,7 +35,6 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 ensure_fzf() {
   command -v fzf &>/dev/null && return
-  echo "Installing fzf - please wait.."
   if command -v apt-get &>/dev/null; then
     apt-get install -y -qq fzf &>/dev/null
   elif command -v dnf &>/dev/null; then
