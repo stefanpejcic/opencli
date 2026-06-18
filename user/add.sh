@@ -305,7 +305,7 @@ validate_user_creation() {
         [[ -z "$RESELLER" ]] && log "Enterprise edition: unlimited users"
     fi
 
-    local USERNAME_ESC, result
+    local USERNAME_ESC result
 	USERNAME_ESC=$(escape "$USERNAME")
     result="$(db_query "SELECT COUNT(*), SUM(username='${USERNAME_ESC}' OR username LIKE 'SUSPENDED\_%\_${USERNAME_ESC}') FROM users")"
 
