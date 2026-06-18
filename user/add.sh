@@ -78,7 +78,7 @@ cleanup() {
 }
 
 hard_cleanup() {
-	[[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1}
+	[[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1; }
 
 	# kill processes
     killall -u "${USERNAME}" -9 >/dev/null 2>&1 || true
