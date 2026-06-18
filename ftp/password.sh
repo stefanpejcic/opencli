@@ -109,6 +109,11 @@ mv /tmp/$context.ftp_users.list.tmp /etc/openpanel/ftp/users/$context/users.list
     fi
 }
 
+# validate our op user owns the domain and get context
+get_docker_context_for_user
+
+mkdir -p /etc/openpanel/ftp/users/${context}
+touch /etc/openpanel/ftp/users/${context}/users.list
 
 # Check if the FTP user exists
 user_exists() {
@@ -121,12 +126,6 @@ if ! user_exists "$username"; then
     echo "Error: FTP User '$username' does not exist."
     exit 1
 fi
-
-# validate our op user owns the domain and get context
-get_docker_context_for_user
-
-mkdir -p /etc/openpanel/ftp/users/${context}
-touch /etc/openpanel/ftp/users/${context}/users.list
 
 # Check if password length is at least 8 characters
 if [ ${#new_password} -lt 8 ]; then
