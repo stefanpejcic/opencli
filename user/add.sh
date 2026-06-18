@@ -813,7 +813,7 @@ configure_environment() {
 
 copy_skeleton_files() {
     log "Creating configuration files for the newly created user"
-    cp -r /etc/openpanel/skeleton/ "/etc/openpanel/openpanel/core/users/${USERNAME}/" 2>/dev/null || true
+    cp -r /etc/openpanel/skeleton/* "/etc/openpanel/openpanel/core/users/${USERNAME}/" 2>/dev/null || true
 
     if [[ -n "$NODE_IP" ]]; then
         echo "{ \"ip\": \"${NODE_IP}\" }" > "/etc/openpanel/openpanel/core/users/${USERNAME}/ip.json"
