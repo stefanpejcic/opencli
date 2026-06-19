@@ -796,14 +796,13 @@ generate_dkim() {
 	fi
 
 	dkim_file="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt"
-
 	if [[ -f "$dkim_file" ]] && ! grep -q "mail\._domainkey" "$zone_file"; then
 	    printf '\n' >> "$zone_file"
-		cat "$dkim_file" >> "$zone_file"
-		printf '\n' >> "$zone_file"
-		log "DKIM was successfully generated and added in the local DNS zone for domain"
+	    sed -E "s/^mail\._domainkey[[:space:]]+IN/mail._domainkey\t14400\tIN/" "$dkim_file" >> "$zone_file"
+	    printf '\n' >> "$zone_file"
+	    log "DKIM was successfully generated and added in the local DNS zone for domain"
 	else
-		log "DKIM was not configured: generation failed or the DNS zone already includes a mail._domainkey record"
+	    log "DKIM was not configured: generation failed or the DNS zone already includes a mail._domainkey record"
 	fi
 }
 
