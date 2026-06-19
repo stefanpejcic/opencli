@@ -691,6 +691,14 @@ update_openadmin() {
         # restore report for 'OpenAdmin > Emails > Reports'
         cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
+        local pip_flags="--default-timeout=300" #--force-reinstall --ignore-installed
+        [ -f "$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')/EXTERNALLY-MANAGED" ] && pip_flags="$pip_flags --break-system-packages"
+        # shellcheck disable=SC1090
+        source "/usr/local/admin/venv/bin/activate"
+        # shellcheck disable=SC2086
+        pip install $pip_flags -r requirements.txt >/dev/null 2>&1
+        deactivate
+
         latest_commit=$(git rev-parse origin/"$current_branch")
         current_commit=$(git rev-parse HEAD)
         if [[ "$current_commit" == "$latest_commit" ]]; then
