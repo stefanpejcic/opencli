@@ -782,6 +782,31 @@ postfwd_setup() {
     disown
 }
 
+generate_dkim() {
+    [[ -n "$ENTERPRISE" ]] || return
+    local compose_file="/usr/local/mail/openmail/compose.yml"
+    [[ -f "$compose_file" ]] || return
+    log "Generating DKIM for the domain"
+    opencli email-setup config dkim domain "$domain_name"
+
+    if $USE_PARENT_DNS_ZONE; then
+        zone_file="$ZONE_FILE_DIR${apex_domain}.zone"
+	else
+		zone_file="$ZONE_FILE_DIR${domain_name}.zone"
+	fi
+
+	dkim_file="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt"
+
+	if [[ -f "$dkim_file" ]] && ! grep -q "mail\._domainkey" "$zone_file"; then
+	    printf '\n' >> "$zone_file"
+		cat "$dkim_file" >> "$zone_file"
+		printf '\n' >> "$zone_file"
+		log "DKIM was successfully generated and added in the local DNS zone for domain"
+	else
+		log "DKIM was not configured: generation failed or the DNS zone already includes a mail._domainkey record"
+	fi
+}
+
 create_mail_mountpoint() {
     [[ -n "$ENTERPRISE" ]] || return
 
@@ -859,6 +884,7 @@ run_parallel_async() {
 
     if [[ "$onion_domain" == false ]]; then
         _bg "mail"     create_mail_mountpoint
+		_bg "dkiim"     generate_dkim
         _bg "postfwd"  postfwd_setup
     fi
 
