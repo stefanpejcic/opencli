@@ -149,8 +149,8 @@ while IFS= read -r -d '' config_file_path; do
      echo "Adding website $site_name to Site Manager"
      echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$site_name', '$domain_id', '$admin_email', '$version', 'wordpress');" | mysql
 
-     echo "Enabling auto-login to wp-admin from Site Manager interface"
-     run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "package install aaemnnosttv/wp-cli-login-command"
+     #echo "Enabling auto-login to wp-admin from Site Manager interface"
+     #run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "package install aaemnnosttv/wp-cli-login-command"
 
     found_installations+=("- $site_name, domain: $domain_name, email: $admin_email, version: $version")
     ((found_count++))
