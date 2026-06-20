@@ -243,7 +243,7 @@ generate_report() {
         printf "{\n  \"timestamp\": \"%s\",\n  \"users\": [\n", ts
         first = 1
     }
-    /^[^#]/ && $2 == "--" {
+    /^[^#]/ && $2 ~ /^[-+][-+]$/ {
         user = $1
         if (!(user in uid_map)) next
         uid = uid_map[user]
