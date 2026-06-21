@@ -36,6 +36,7 @@ readonly SERVICE="openpanel"
 
 readonly EMAIL_MODULES=(
     "emails"
+    "webmail"
     "email_deliverability"
     "email_filters"
     "email_aliases"
