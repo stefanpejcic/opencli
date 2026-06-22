@@ -762,11 +762,42 @@ check_swap_usage() {
   local title="High SWAP usage!"
   local _ stotal sused _rest
   read -r _ stotal sused _rest < <(free | awk '/^Swap:/')
-  if (( stotal == 0 )); then
-    ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."; return
-  fi
-  local pct=$(( sused * 100 / stotal ))
 
+  if (( stotal == 0 )); then
+    local swap_devices
+    swap_devices=$(swapon --show=NAME --noheadings 2>/dev/null)
+    if [[ -z "$swap_devices" ]]; then
+      local fstab_swap
+      fstab_swap=$(awk '$3=="swap"{print $1}' /etc/fstab)
+      if [[ -n "$fstab_swap" ]]; then
+        echo -e "\e[38;5;214m[!]\e[0m SWAP is off but fstab entries exist. Attempting to re-enable..."
+        if swapon -a 2>/dev/null; then
+          read -r _ stotal sused _rest < <(free | awk '/^Swap:/')
+          if (( stotal > 0 )); then
+            ((WARN++))
+            write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off and re-enabled it. Now: ${stotal}kB total."
+            echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}kB total)."
+          else
+            ((WARN++))
+            echo -e "\e[38;5;214m[!]\e[0m swapon -a ran but swap still reports 0. Check swap device health."
+            write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a returned success but swap is still 0."
+            return
+          fi
+        else
+          ((WARN++))
+          echo -e "\e[31m[✘]\e[0m Failed to re-enable SWAP. Check swap device/file."
+          write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a failed on $HOSTNAME at $DISPLAY_TIME."
+          return
+        fi
+      else
+        ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."; return
+      fi
+    else
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."; return
+    fi
+  fi
+
+  local pct=$(( sused * 100 / stotal ))
   if (( pct <= SWAP_THRESHOLD )); then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m SWAP ${pct}% < threshold ${SWAP_THRESHOLD}%"
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"; return
@@ -774,18 +805,25 @@ check_swap_usage() {
 
   if [[ -f "$LOCK_FILE_FOR_SWAP_CLEANUP" ]]; then
     local age=$(( $(date +%s) - $(date -r "$LOCK_FILE_FOR_SWAP_CLEANUP" +%s) ))
-    if (( age <= 21600 )); then
+    if (( age <= 86400 )); then
       ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m SWAP cleanup already in progress. Skipping."; return
     fi
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
   fi
 
+  local available_mb
+  available_mb=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo)
+  if (( available_mb < sused )); then
+    echo "Not enough free RAM to safely clear swap (${available_mb}MB available, ${sused}MB in swap). Skipping."
+    write_notification "SWAP high but cannot safely clear" "SWAP: ${pct}%, only ${available_mb}MB RAM available vs ${sused}MB in swap."
+    ((WARN++)); return
+  fi
+
   echo -e "\e[31m[✘]\e[0m SWAP ${pct}% > threshold ${SWAP_THRESHOLD}%. Clearing..."
   write_notification "$title" "SWAP: ${pct}%. Cleanup starting."
   touch "$LOCK_FILE_FOR_SWAP_CLEANUP"
-
   sync ; echo 3 > /proc/sys/vm/drop_caches
-  swapoff -a && swapon -a
+  swapoff -a ; swapon -a
 
   local stotal2 sused2
   read -r _ stotal2 sused2 _rest < <(free | awk '/^Swap:/')
