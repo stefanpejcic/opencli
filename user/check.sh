@@ -353,7 +353,9 @@ check_files() {
     if [[ $incorrect_ownership -eq 0 ]]; then
         print_result "PASS" "All docker files are owned by UID:$current_uid"
     else
-        print_result "FAIL" "Some docker files in $home_dir are not owned by UID:$current_uid"
+        print_result "FAIL" "Some docker files in $home_dir are not owned by UID:$current_uid - fix permissions started in background."
+        nohup timeout 600 opencli files-fix_permissions $context >/dev/null 2>&1 &
+        disown
     fi
 }
 
