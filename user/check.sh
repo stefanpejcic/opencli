@@ -435,10 +435,10 @@ check_container_live_health() {
     local container="$1"
     local name="$2"
 
-    # Skip if no healthcheck configured
-    local healthcheck
-    healthcheck=$(get_container_property "$container" '{{.Config.Healthcheck}}')
-    if [[ "$healthcheck" != *"Test"* ]]; then
+    local healthcheck_test
+    healthcheck_test=$(get_container_property "$container" '{{if .Config.Healthcheck}}{{index .Config.Healthcheck.Test 0}}{{end}}')
+    
+    if [[ -z "$healthcheck_test" || "$healthcheck_test" == "NONE" ]]; then
         print_result "WARN" "$name: No HEALTHCHECK configured"
         return 0
     fi
