@@ -439,7 +439,7 @@ check_container_live_health() {
     healthcheck_test=$(get_container_property "$container" '{{if .Config.Healthcheck}}{{index .Config.Healthcheck.Test 0}}{{end}}')
     
     if [[ -z "$healthcheck_test" || "$healthcheck_test" == "NONE" ]]; then
-        print_result "WARN" "$name: No HEALTHCHECK configured"
+        print_result "WARN" "$name: No healthcheck configured"
         return 0
     fi
 
