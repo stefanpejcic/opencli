@@ -69,7 +69,7 @@ SKIP_STARTING_CONTAINERS=false
 # ======================================================================
 # Logging / error helpers
 
-log()  { [[ "$debug_mode" == true ]] && echo "[debug] $*" >&2 || true; }
+log()  { [[ "$debug_mode" == true ]] && echo "$*" >&2 || true; }
 die()  { echo "FATAL ERROR: $*" >&2; exit 1; } #TODO: hard_cleanup like on user/add.sh
 err()  { echo "ERROR: $*" >&2; exit 1; }
 warn() { echo "WARNING: $*" >&2; }
