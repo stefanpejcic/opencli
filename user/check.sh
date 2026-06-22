@@ -511,11 +511,13 @@ check_container_mounts() {
     fi
     
     # Check for Docker socket mount
-    if echo "$mounts" | grep -q "/docker.sock"; then
-        print_result "FAIL" "$name: Docker socket is mounted inside the container"
-    else
-        print_result "PASS" "$name: Docker socket is NOT mounted"
-    fi
+    if [[ "$name" != "docker-proxy" ]]; then
+        if echo "$mounts" | grep -q "/docker.sock"; then
+            print_result "FAIL" "$name: Docker socket is mounted inside the container"
+        else
+            print_result "PASS" "$name: Docker socket is NOT mounted"
+        fi
+    fi    
 }
 
 check_container_processes() {
