@@ -891,6 +891,11 @@ main() {
         exit 1
     fi
 
+    if [[ "$user" == SUSPENDED_* ]]; then
+        echo "Error: Suspended users cannot be checked."
+        exit 1
+    fi
+
     print_header "Checking user: $user"
 
     # context
