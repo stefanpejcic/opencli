@@ -376,6 +376,99 @@ check_container_user() {
     fi
 }
 
+# ====== Container Recovery ======
+
+attempt_container_recovery() {
+    local container="$1"
+    local name="$2"
+
+    print_result "INFO" "$name: Attempting recovery — trying docker restart first"
+
+    if docker --context="$context" restart "$container" 2>/dev/null; then
+        sleep 3
+        local new_status
+        new_status=$(get_container_property "$container" '{{.State.Status}}')
+        if [[ "$new_status" == "running" ]]; then
+            print_result "PASS" "$name: Recovery successful via docker restart"
+            return 0
+        fi
+    fi
+
+    print_result "WARN" "$name: docker restart failed or container still not running — trying compose down/up"
+
+    local compose_file="/home/$context/docker-compose.yml"
+    if [[ ! -f "$compose_file" ]]; then
+        print_result "FAIL" "$name: Cannot recover — compose file missing: $compose_file"
+        return 1
+    fi
+
+    local service_name
+    service_name=$(get_container_property "$container" '{{index .Config.Labels "com.docker.compose.service"}}')
+
+    if [[ -z "$service_name" ]]; then
+        print_result "FAIL" "$name: Cannot recover via compose — service label missing"
+        return 1
+    fi
+
+    if docker --context="$context" compose -f "$compose_file" down "$service_name" 2>/dev/null && \
+       docker --context="$context" compose -f "$compose_file" up -d "$service_name" 2>/dev/null; then
+        sleep 5
+        # Re-inspect by name since container ID may have changed after recreate
+        local new_container
+        new_container=$(docker --context="$context" ps -q --filter "name=^${service_name}$" 2>/dev/null | head -1)
+        if [[ -n "$new_container" ]]; then
+            local new_status
+            new_status=$(get_container_property "$new_container" '{{.State.Status}}')
+            if [[ "$new_status" == "running" ]]; then
+                print_result "PASS" "$name: Recovery successful via compose down/up"
+                return 0
+            fi
+        fi
+    fi
+
+    print_result "FAIL" "$name: All recovery attempts failed — manual intervention required"
+    return 1
+}
+
+
+check_container_live_health() {
+    local container="$1"
+    local name="$2"
+
+    # Skip if no healthcheck configured
+    local healthcheck
+    healthcheck=$(get_container_property "$container" '{{.Config.Healthcheck}}')
+    if [[ "$healthcheck" != *"Test"* ]]; then
+        print_result "WARN" "$name: No HEALTHCHECK configured"
+        return 0
+    fi
+
+    local health_status
+    health_status=$(get_container_property "$container" '{{.State.Health.Status}}')
+
+    case "$health_status" in
+        healthy)
+            print_result "PASS" "$name: Healthcheck status is healthy"
+            ;;
+        starting)
+            print_result "INFO" "$name: Healthcheck is still starting"
+            ;;
+        unhealthy)
+            print_result "FAIL" "$name: Healthcheck reports unhealthy"
+            local last_log
+            last_log=$(get_container_property "$container" '{{with index .State.Health.Log 0}}{{.Output}}{{end}}' | tr -d '\n')
+            [[ -n "$last_log" ]] && print_result "INFO" "$name: Last healthcheck output: $last_log"
+            attempt_container_recovery "$container" "$name"
+            ;;
+        "")
+            print_result "INFO" "$name: No health status available (healthcheck may not have run yet)"
+            ;;
+        *)
+            print_result "WARN" "$name: Unknown healthcheck status: $health_status"
+            ;;
+    esac
+}
+
 check_container_status() {
     local container="$1"
     local name="$2"
@@ -389,18 +482,17 @@ check_container_status() {
             ;;
         created)
             print_result "INFO" "$name: Container is created but not started"
+            attempt_container_recovery "$container" "$name"
             ;;
         paused)
             print_result "WARN" "$name: Container is paused"
             ;;
-        exited)
-            print_result "FAIL" "$name: Container has exited"
-            ;;
-        dead)
-            print_result "FAIL" "$name: Container is in dead state"
+        exited|dead)
+            print_result "FAIL" "$name: Container is not running (status: $status)"
+            attempt_container_recovery "$container" "$name"
             ;;
         *)
-            print_result "UNKNOWN" "$name: Container status is unknown ($status)"
+            print_result "WARN" "$name: Container status is unknown ($status)"
             ;;
     esac
 }
@@ -423,20 +515,6 @@ check_container_image() {
         print_result "PASS" "$name: Using specific tag for image: $image"
     else
         print_result "WARN" "$name: Image tag not specified for image: $image"
-    fi
-}
-
-check_container_health() {
-    local container="$1"
-    local name="$2"
-    
-    local healthcheck
-    healthcheck=$(get_container_property "$container" '{{.Config.Healthcheck}}')
-    
-    if [[ "$healthcheck" == *"Test"* ]]; then
-        print_result "PASS" "$name: HEALTHCHECK configured"
-    else
-        print_result "WARN" "$name: No HEALTHCHECK configured"
     fi
 }
 
@@ -740,7 +818,7 @@ check_single_container() {
     check_container_status "$container" "$name"
     check_container_user "$container" "$name"
     check_container_image "$container" "$name"
-    check_container_health "$container" "$name"
+    check_container_live_health "$container" "$name"
     check_container_security_options "$container" "$name"
     check_container_capabilities "$container" "$name"
     check_container_privileged "$container" "$name"
