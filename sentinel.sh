@@ -364,8 +364,7 @@ mysql_docker_containers_status() {
     if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
       echo "    MySQL is back online."
-      write_notification "MySQL restarted successfully!" \
-        "Sentinel restarted MySQL and it is responding now."
+      write_notification "MySQL restarted successfully!" "Sentinel restarted MySQL and it is responding now."
     else
       echo "    Error: MySQL still not responding!"
       write_notification "$title" "MySQL did not respond after restart. Please check ASAP."
@@ -505,8 +504,7 @@ check_new_logins() {
     if ! grep -qF "$username $ip_address" <<< "$seen_pairs"; then
       ((FAIL++)); STATUS=2; found_new=1
       echo -e "\e[31m[✘]\e[0m $username logged in from new IP: $ip_address"
-      write_notification "Admin $username accessed from new IP" \
-        "Admin account $username was accessed from new IP: $ip_address"
+      write_notification "Admin $username accessed from new IP" "Admin account $username was accessed from new IP: $ip_address"
     else
       echo -e "\e[32m[✔]\e[0m $username from known IP: $ip_address"
     fi
@@ -799,8 +797,7 @@ check_swap_usage() {
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m SWAP still high after cleanup: ${pct2}%"
-    write_notification "URGENT: SWAP not cleared on $HOSTNAME" \
-      "SWAP cleanup attempted at $DISPLAY_TIME but usage still ${pct2}%."
+    write_notification "URGENT: SWAP not cleared on $HOSTNAME" "SWAP cleanup attempted at $DISPLAY_TIME but usage still ${pct2}%."
   fi
 }
 
@@ -862,8 +859,7 @@ check_if_panel_domain_and_ns_resolve_to_server() {
       else
         ((FAIL++)); STATUS=2
         echo -e "\e[31m[✘]\e[0m $FORCED_DOMAIN resolves to $domain_ip, expected $SERVER_IP"
-        write_notification "$FORCED_DOMAIN does not resolve to $SERVER_IP" \
-          "$FORCED_DOMAIN should point to $SERVER_IP."
+        write_notification "$FORCED_DOMAIN does not resolve to $SERVER_IP" "$FORCED_DOMAIN should point to $SERVER_IP."
       fi
     fi
   else
