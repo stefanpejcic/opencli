@@ -415,7 +415,6 @@ autostart_services() {
     [[ ${#images[@]} -eq 0 ]] && { echo "[!] Warning: No autostart services match user config."; return 1; }
 	log "Starting services in background: ${images[*]}"
 	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if docker --context=${USERNAME} info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do docker --context=${USERNAME} compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
-	disown
 }
 
 setup_ssh_key_for_user() {
@@ -914,7 +913,6 @@ create_user_volume() {
 notify_sentinel() {
     [[ "$SENTINEL" == true ]] || return 0
     nohup opencli sentinel --action=user_create --title="User account '${USERNAME}' created" --message="Account '${USERNAME}' created; email: ${EMAIL}; plan: ${PLAN_NAME}" >/dev/null 2>&1 &
-    disown
 }
 
 
@@ -956,7 +954,6 @@ PID_PORTS=$!
 copy_skeleton_files &
 
 nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >/dev/null 2>&1 &
-disown
 
 generate_password_hash
 create_user_volume &
@@ -981,18 +978,15 @@ save_user_to_database
 
 # needs to run AFTER saving user to database
 nohup opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1 &
-disown
 
 # this needs to run AFTER plan-apply to show updated du info
 nohup opencli user-quota >/dev/null 2>&1 &
-disown
 
 send_welcome_email &
 notify_sentinel
 update_reseller_account_count # must run after saving user to db
 
-nohup chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/" 2>/dev/null &
-disown
+nohup chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/" >/dev/null 2>&1 &
 
 exit 0
 ) 200>"$LOCK_FILE"
