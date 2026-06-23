@@ -38,6 +38,7 @@ ensure_fzf() {
   if command -v apt-get &>/dev/null; then
     apt-get install -y -qq fzf &>/dev/null
   elif command -v dnf &>/dev/null; then
+    dnf install -y epel-release &>/dev/null
     dnf install -y -q fzf &>/dev/null
   elif command -v yum &>/dev/null; then
     yum install -y -q fzf &>/dev/null
