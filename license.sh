@@ -371,7 +371,7 @@ main() {
         "info")                       show_license_info ;;
         "verify")                     verify_existing_license ;;
         "delete")                     delete_license ;;
-        enterprise-*|noc-*|lifetime-) verify_and_save_license "$command" ;;
+        enterprise*|noc-*|lifetime-) verify_and_save_license "$command" ;;
         *)                            output_message "Invalid command." "$RED"; usage ;;
     esac
 }
