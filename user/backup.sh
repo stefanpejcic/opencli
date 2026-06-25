@@ -539,7 +539,7 @@ fi
 #   -C STAGE items...         appends all staged metadata
 # ---------------------------------------------------------------------------
 STAGE_ITEMS=()
-for item in manifest.env db system features core ftp caddy bind docker email; do
+for item in manifest.env db system features core ftp caddy bind docker emails; do
     [[ -e "$STAGE/$item" ]] && STAGE_ITEMS+=("$item")
 done
 [[ -d "$STAGE/mail_external" ]] && STAGE_ITEMS+=("mail_external")
