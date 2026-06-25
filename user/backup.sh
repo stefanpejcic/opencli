@@ -342,8 +342,7 @@ check_disk_space
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE"/{db,system,features,core,ftp,\
-caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,\
-bind/zones,docker}
+caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker}
 
 # --- manifest ---
 log "Writing manifest ..."
@@ -444,6 +443,7 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
         [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log"
         [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/"
         [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/"
+        [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/"
         [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/"
         [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/"
     done < "$STAGE/db/domains.list"
