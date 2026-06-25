@@ -343,9 +343,8 @@ check_disk_space
 # Staging area — small metadata only; home is streamed live
 # ---------------------------------------------------------------------------
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
-trap 'rm -rf "$STAGE"' EXIT
-mkdir -p "$STAGE"/{db,system,features,core,ftp,\
-caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
+####trap 'rm -rf "$STAGE"' EXIT
+mkdir -p "$STAGE"/{db,system,features,core,ftp,caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
 
 # --- manifest ---
 log "Writing manifest ..."
