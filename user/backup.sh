@@ -342,7 +342,7 @@ check_disk_space
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE"/{db,system,features,core,ftp,\
-caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker}
+caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
 
 # --- manifest ---
 log "Writing manifest ..."
@@ -446,6 +446,7 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
         [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/"
         [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/"
         [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/"
+        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "//usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/"        
     done < "$STAGE/db/domains.list"
 fi
 [[ -d "/var/log/caddy/stats/$USERNAME" ]] && cp -a "/var/log/caddy/stats/$USERNAME" "$STAGE/caddy/stats/"
