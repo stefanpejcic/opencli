@@ -483,18 +483,18 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
     log "Collecting email accounts information.."
     readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
     readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
-    
+
     DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
     REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
 
     # email@domain|{HASH}...|uid
     [[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
     accounts_count=$(wc -l < "$STAGE/emails/dovecot-accounts.cf") && log "Collected ${accounts_count} email accounts"
-    
+
     # /*@domain/ email@x.com
     [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
     alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
-    
+
     # email@domain:QUOTA
     [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf"
     quotas_count=$(wc -l < "$STAGE/emails/dovecot-quotas.cf") && log "Collected dovecot quota restrictions for ${quotas_count} addresses"
@@ -507,7 +507,7 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
 
     # email@domain target@other.com
     [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf"
-    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected suspended outgoing status for ${default_addresses_count} addresses"
+    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected $default_addresses_count default (catch-all) addresses"
 
     if [[ -f "$POSTFWD_SRC" ]]; then
         while IFS= read -r line; do
