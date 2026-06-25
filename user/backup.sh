@@ -488,14 +488,15 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
     readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
 
     DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
-    REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
+    REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')  # /*@domain/ email@x.com
 
     # email@domain|{HASH}...|uid
     [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
     accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
 
     # /*@domain/ email@x.com
-    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
+    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && \
+        grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
     alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
 
     # email@domain:QUOTA
