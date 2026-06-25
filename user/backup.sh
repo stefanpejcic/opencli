@@ -20,6 +20,8 @@
 #                homedir/               — /home/CONTEXT streamed directly;
 #                                         always named homedir/ so the archive
 #                                         is independent of the username
+#                emails/               —  email accounts, aliases, quotas, defaults,
+#                                         send/receive suspensions, hourly limits
 #
 #              Default output:
 #                /home/CONTEXT/docker-data/volumes/CONTEXT_html_data/_data/_backups/
