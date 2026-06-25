@@ -47,6 +47,7 @@ DRY_RUN=0
 # Runtime tracking — populated during the backup, printed in summary
 WARNINGS=()
 BACKUP_DOMAINS=()
+DOMAIN_LIST_STR="(none)"
 BACKUP_FTP_COUNT=0
 DISK_ESTIMATE_MB=0
 DISK_FREE_MB=0
@@ -464,13 +465,58 @@ fi
 [[ -f "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" ]] && cp -a "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" "$STAGE/docker/apparmor.profile"
 echo "${SYS_UID}" > "$STAGE/docker/uid.txt"
 
-# --- external mail store ---
+# --- Emails ---
 if [[ -n "$MAIL_EXTERNAL_PATH" ]]; then
     log "Archiving external mail store: $MAIL_EXTERNAL_PATH ..."
     mkdir -p "$STAGE/mail_external"
     tar -C "$(dirname "$MAIL_EXTERNAL_PATH")" --numeric-owner --acls --xattrs -cf "$STAGE/mail_external/mail.tar" "$(basename "$MAIL_EXTERNAL_PATH")" 2>>"$log_file" || warn "Failed to archive external mail store (non-fatal)."
     echo "$MAIL_EXTERNAL_PATH" > "$STAGE/mail_external/path.txt"
 fi
+
+[[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
+
+readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
+readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
+
+DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
+REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
+
+# /*@domain/ email@x.com
+grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > emails/postfix-regex.cf
+
+# email@domain:QUOTA
+grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > emails/dovecot-quotas.cf
+
+# email@domain|{HASH}...|uid
+grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > emails/postfix-accounts.cf
+
+# email@domain               REJECT
+grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > emails/postfix-receive-access.cf
+grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > emails/postfix-send-access.cf
+
+# email@domain target@other.com
+grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > emails/postfix-virtual.cf
+
+{
+    while IFS= read -r line; do
+        matched=0
+        if [[ "$line" == id=* ]]; then
+            for domain in $DOMAIN_LIST_STR; do
+                if [[ "$line" == *"@${domain}"* ]]; then
+                    matched=1
+                    break
+                fi
+            done
+        fi
+
+        if [[ $matched -eq 1 ]]; then
+            echo "$line"
+            IFS= read -r next_line
+            echo "$next_line"
+        fi
+    done < "$POSTFWD_SRC"
+} > emails/postfwd.cf
+
 
 # ---------------------------------------------------------------------------
 # Single streaming tar pass
@@ -526,9 +572,6 @@ elapsed_m=$(( (elapsed % 3600) / 60 ))
 elapsed_s=$(( elapsed % 60 ))
 
 ARCHIVE_SIZE=$(du -h "$ARCHIVE" 2>/dev/null | cut -f1)
-
-DOMAIN_LIST_STR="(none)"
-[[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
 
 CONTAINERS_STR="none"
 if [[ -f "$STAGE/docker/containers.txt" ]]; then
