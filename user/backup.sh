@@ -425,16 +425,16 @@ grep "^${CONTEXT}:" /etc/shadow 2>/dev/null > "$STAGE/system/shadow.user" || tru
 
 # --- feature set ---
 FEATURES_DIR="/etc/openpanel/openpanel/features"
-[[ -n "$PLAN_FEATURE_SET" && -f "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" ]] && cp -a "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" "$STAGE/features/"
+[[ -n "$PLAN_FEATURE_SET" && -f "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" ]] && cp -a "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" "$STAGE/features/" && log "Collected feature set for the plan"
 
 # --- per-user core config ---
 CORE_DIR="/etc/openpanel/openpanel/core/users/$USERNAME"
-[[ -d "$CORE_DIR" ]] && cp -a "$CORE_DIR/." "$STAGE/core/"
+[[ -d "$CORE_DIR" ]] && cp -a "$CORE_DIR/." "$STAGE/core/" && log "Collected system files for user"
 
 # --- FTP ---
 FTP_DIR="/etc/openpanel/ftp/users/$CONTEXT"
 if [[ -d "$FTP_DIR" ]]; then
-    cp -a "$FTP_DIR/." "$STAGE/ftp/"
+    cp -a "$FTP_DIR/." "$STAGE/ftp/" && log "Collected FTP accounts for user"
     BACKUP_FTP_COUNT=$(grep -c '.' "$FTP_DIR/users.list" 2>/dev/null || echo 0)
 fi
 
@@ -456,17 +456,17 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
 fi
 
 # --- Domlogs ---
-[[ -d "/var/log/caddy/stats/$USERNAME" ]] && cp -a "/var/log/caddy/stats/$USERNAME" "$STAGE/caddy/stats/"
+[[ -d "/var/log/caddy/stats/$USERNAME" ]] && cp -a "/var/log/caddy/stats/$USERNAME" "$STAGE/caddy/stats/" && log "Collected domlogs for domains"
 
 # --- Blocked IPs ---
-[[ -f "/etc/openpanel/caddy/deny/$CONTEXT.ips" ]] && cp -a "/etc/openpanel/caddy/deny/$CONTEXT.ips" "$STAGE/caddy/blocked.ips"
+[[ -f "/etc/openpanel/caddy/deny/$CONTEXT.ips" ]] && cp -a "/etc/openpanel/caddy/deny/$CONTEXT.ips" "$STAGE/caddy/blocked.ips" && log "Collected IP Blocker settings for domains"
 
 # --- docker metadata ---
 if [[ -f "/home/$CONTEXT/docker-compose.yml" ]]; then
     containers=$(docker --context="$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
-    echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt"
+    echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt" && log "Collected list of currently active containers for user"
 fi
-[[ -f "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" ]] && cp -a "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" "$STAGE/docker/apparmor.profile"
+[[ -f "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" ]] && cp -a "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" "$STAGE/docker/apparmor.profile" && log "Collected AppArmor profile for user"
 echo "${SYS_UID}" > "$STAGE/docker/uid.txt"
 
 # --- Emails ---
