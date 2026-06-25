@@ -343,7 +343,7 @@ check_disk_space
 # Staging area — small metadata only; home is streamed live
 # ---------------------------------------------------------------------------
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
-####trap 'rm -rf "$STAGE"' EXIT
+trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE"/{db,system,features,core,ftp,caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
 
 # --- manifest ---
@@ -488,7 +488,7 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
 
     # email@domain|{HASH}...|uid
     [[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
-    accounts_count=$(wc -l < "$STAGE/emails/dovecot-accounts.cf") && log "Collected ${accounts_count} email accounts"
+    accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
 
     # /*@domain/ email@x.com
     [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
@@ -539,7 +539,7 @@ fi
 #   -C STAGE items...         appends all staged metadata
 # ---------------------------------------------------------------------------
 STAGE_ITEMS=()
-for item in manifest.env db system features core ftp caddy bind docker; do
+for item in manifest.env db system features core ftp caddy bind docker email; do
     [[ -e "$STAGE/$item" ]] && STAGE_ITEMS+=("$item")
 done
 [[ -d "$STAGE/mail_external" ]] && STAGE_ITEMS+=("mail_external")
