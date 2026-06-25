@@ -482,22 +482,22 @@ DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\
 REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
 
 # /*@domain/ email@x.com
-grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > emails/postfix-regex.cf
+[[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
 
 # email@domain:QUOTA
-grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > emails/dovecot-quotas.cf
+[[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf"
 
 # email@domain|{HASH}...|uid
-grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > emails/postfix-accounts.cf
+[[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
 
 # email@domain               REJECT
-grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > emails/postfix-receive-access.cf
-grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > emails/postfix-send-access.cf
+[[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf"
+[[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf"
 
 # email@domain target@other.com
-grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > emails/postfix-virtual.cf
+[[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf"
 
-{
+if [[ -f "$POSTFWD_SRC" ]]; then
     while IFS= read -r line; do
         matched=0
         if [[ "$line" == id=* ]]; then
@@ -508,14 +508,13 @@ grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > emails/postfix-virtual
                 fi
             done
         fi
-
         if [[ $matched -eq 1 ]]; then
             echo "$line"
             IFS= read -r next_line
             echo "$next_line"
         fi
-    done < "$POSTFWD_SRC"
-} > emails/postfwd.cf
+    done < "$POSTFWD_SRC" > "$STAGE/emails/postfwd.cf"
+fi
 
 
 # ---------------------------------------------------------------------------
