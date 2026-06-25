@@ -487,7 +487,7 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
     REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
 
     # email@domain|{HASH}...|uid
-    [[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
+    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
     accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
 
     # /*@domain/ email@x.com
