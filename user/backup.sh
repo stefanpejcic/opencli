@@ -449,7 +449,12 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
         [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "//usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/"        
     done < "$STAGE/db/domains.list"
 fi
+
+# --- Domlogs ---
 [[ -d "/var/log/caddy/stats/$USERNAME" ]] && cp -a "/var/log/caddy/stats/$USERNAME" "$STAGE/caddy/stats/"
+
+# --- Blocked IPs ---
+[[ -f "/etc/openpanel/caddy/deny/$CONTEXT.ips" ]] && cp -a "/etc/openpanel/caddy/deny/$CONTEXT.ips" "$STAGE/caddy/blocked.ips"
 
 # --- docker metadata ---
 if [[ -f "/home/$CONTEXT/docker-compose.yml" ]]; then
