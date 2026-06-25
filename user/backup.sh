@@ -484,39 +484,44 @@ fi
 
 if [[ -s "$CORE_DIR/emails.yml" ]]; then
     log "Collecting email accounts information.."
+
     readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
     readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
 
-    DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
-    REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')  # /*@domain/ email@x.com
-    echo "REGEX_PATTERN = $REGEX_PATTERN"
-    echo "DOMAIN_LIST_STR = $DOMAIN_LIST_STR"
-    # email@domain|{HASH}...|uid
-    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
+    mkdir -p "$STAGE/emails"
+
+    DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')
+    REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')
+
+    : > "$STAGE/emails/postfix-accounts.cf"
+    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true
     accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
 
-    # /*@domain/ email@x.com
-    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && \
-        grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
+    : > "$STAGE/emails/postfix-regex.cf"
+    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf" || true
     alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
 
-    # email@domain:QUOTA
-    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf"
+    : > "$STAGE/emails/dovecot-quotas.cf"
+    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf" || true
     quotas_count=$(wc -l < "$STAGE/emails/dovecot-quotas.cf") && log "Collected dovecot quota restrictions for ${quotas_count} addresses"
 
-    # email@domain               REJECT
-    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf"
+    : > "$STAGE/emails/postfix-receive-access.cf"
+    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf" || true
     suspended_receive_count=$(wc -l < "$STAGE/emails/postfix-receive-access.cf") && log "Collected suspended incoming status for ${suspended_receive_count} addresses"
-    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf"
+
+    : > "$STAGE/emails/postfix-send-access.cf"
+    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf" || true
     suspended_send_count=$(wc -l < "$STAGE/emails/postfix-send-access.cf") && log "Collected suspended outgoing status for ${suspended_send_count} addresses"
 
-    # email@domain target@other.com
-    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf"
-    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected $default_addresses_count default (catch-all) addresses"
+    : > "$STAGE/emails/postfix-virtual.cf"
+    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf" || true
+    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected ${default_addresses_count} default (catch-all) addresses"
 
+    : > "$STAGE/emails/postfwd.cf"
     if [[ -f "$POSTFWD_SRC" ]]; then
         while IFS= read -r line; do
             matched=0
+
             if [[ "$line" == id=* ]]; then
                 for domain in $DOMAIN_LIST_STR; do
                     if [[ "$line" == *"@${domain}"* ]]; then
@@ -525,18 +530,16 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
                     fi
                 done
             fi
+
             if [[ $matched -eq 1 ]]; then
                 echo "$line"
-                IFS= read -r next_line
-                echo "$next_line"
+                IFS= read -r next_line && echo "$next_line"
             fi
         done < "$POSTFWD_SRC" > "$STAGE/emails/postfwd.cf"
-        postfwd_domain_limits_count=$(wc -l < "$STAGE/emails/postfwd.cf") && log "Collected ${postfwd_domain_limits_count} postfwd rules"
     fi
 
-    
+    postfwd_domain_limits_count=$(wc -l < "$STAGE/emails/postfwd.cf") && log "Collected ${postfwd_domain_limits_count} postfwd rules"
 fi
-
 # ---------------------------------------------------------------------------
 # Single streaming tar pass
 #   -C /home CONTEXT          streams home directly
