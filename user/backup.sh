@@ -441,7 +441,7 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
     while IFS=$'\t ' read -r domain docroot php_version; do
         [[ -z "$domain" ]] && continue
         [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/"
-        [[ -d "/var/log/caddy/domlogs/$domain" ]] && cp -a "/var/log/caddy/domlogs/$domain" "$STAGE/caddy/domlogs/"
+        [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log"
         [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/"
         [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/"
         [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/"
