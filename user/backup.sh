@@ -413,6 +413,8 @@ if [[ "$ALL_DOMAINS" != *"No domains found for user"* && -n "$ALL_DOMAINS" ]]; t
     done <<< "$ALL_DOMAINS"
 fi
 
+[[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
+
 # --- system user ---
 log "Capturing system user ($CONTEXT) ..."
 awk -F: -v u="$CONTEXT" '$1==u{print}' /etc/passwd > "$STAGE/system/passwd.user"
@@ -439,17 +441,18 @@ fi
 
 # --- per-domain caddy + bind assets ---
 if [[ -f "$STAGE/db/domains.list" ]]; then
-    log "Collecting per-domain caddy + bind assets ..."
+    log "Collecting per-domain assets ..."
     while IFS=$'\t ' read -r domain docroot php_version; do
         [[ -z "$domain" ]] && continue
-        [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/"
-        [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log"
-        [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/"
-        [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/"
-        [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/"
-        [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/"
-        [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/"
-        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "//usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/"        
+        log "- domain: $domain"
+        [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/" && log "-- Caddyfile"
+        [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log" && log "-- Domlog"
+        [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/" && log "-- WAF log"
+        [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/" && log "-- DNS zone"
+        [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/" && log "-- Suspended"
+        [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/" && log "-- Let's Encrypt SSL"
+        [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/" && log "-- Custom SSL"
+        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/" && log "-- DKIM"
     done < "$STAGE/db/domains.list"
 fi
 
@@ -475,49 +478,59 @@ if [[ -n "$MAIL_EXTERNAL_PATH" ]]; then
     echo "$MAIL_EXTERNAL_PATH" > "$STAGE/mail_external/path.txt"
 fi
 
-[[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
 
-readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
-readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
+if [[ -s "$CORE_DIR/emails.yml" ]]; then
+    log "Collecting email accounts information.."
+    readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
+    readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
+    
+    DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
+    REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
 
-DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')   # @domain1\|@domain2\|..
-REGEX_PATTERN=$(printf '/@%s/\|' $DOMAIN_LIST_STR | sed 's/\\|$//')  # /*@domain/ email@x.com
+    # email@domain|{HASH}...|uid
+    [[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
+    accounts_count=$(wc -l < "$STAGE/emails/dovecot-accounts.cf") && log "Collected ${accounts_count} email accounts"
+    
+    # /*@domain/ email@x.com
+    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
+    alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
+    
+    # email@domain:QUOTA
+    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf"
+    quotas_count=$(wc -l < "$STAGE/emails/dovecot-quotas.cf") && log "Collected dovecot quota restrictions for ${quotas_count} addresses"
 
-# /*@domain/ email@x.com
-[[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf"
+    # email@domain               REJECT
+    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf"
+    suspended_receive_count=$(wc -l < "$STAGE/emails/postfix-receive-access.cf") && log "Collected suspended incoming status for ${suspended_receive_count} addresses"
+    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf"
+    suspended_send_count=$(wc -l < "$STAGE/emails/postfix-send-access.cf") && log "Collected suspended outgoing status for ${suspended_send_count} addresses"
 
-# email@domain:QUOTA
-[[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf"
+    # email@domain target@other.com
+    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf"
+    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected suspended outgoing status for ${default_addresses_count} addresses"
 
-# email@domain|{HASH}...|uid
-[[ -f "$DMS_CONFIG/dovecot-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf"
+    if [[ -f "$POSTFWD_SRC" ]]; then
+        while IFS= read -r line; do
+            matched=0
+            if [[ "$line" == id=* ]]; then
+                for domain in $DOMAIN_LIST_STR; do
+                    if [[ "$line" == *"@${domain}"* ]]; then
+                        matched=1
+                        break
+                    fi
+                done
+            fi
+            if [[ $matched -eq 1 ]]; then
+                echo "$line"
+                IFS= read -r next_line
+                echo "$next_line"
+            fi
+        done < "$POSTFWD_SRC" > "$STAGE/emails/postfwd.cf"
+        postfwd_domain_limits_count=$(wc -l < "$STAGE/emails/postfwd.cf") && log "Collected ${postfwd_domain_limits_count} postfwd rules"
+    fi
 
-# email@domain               REJECT
-[[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf"
-[[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf"
-
-# email@domain target@other.com
-[[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf"
-
-if [[ -f "$POSTFWD_SRC" ]]; then
-    while IFS= read -r line; do
-        matched=0
-        if [[ "$line" == id=* ]]; then
-            for domain in $DOMAIN_LIST_STR; do
-                if [[ "$line" == *"@${domain}"* ]]; then
-                    matched=1
-                    break
-                fi
-            done
-        fi
-        if [[ $matched -eq 1 ]]; then
-            echo "$line"
-            IFS= read -r next_line
-            echo "$next_line"
-        fi
-    done < "$POSTFWD_SRC" > "$STAGE/emails/postfwd.cf"
+    
 fi
-
 
 # ---------------------------------------------------------------------------
 # Single streaming tar pass
