@@ -284,12 +284,15 @@ if [[ $DRY_RUN -eq 1 ]]; then
     echo ""
 
     echo "  Feature set:"
-    if [[ -n "$PLAN_FEATURE_SET" ]]; then
-        FEAT_FILE="/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt"
-        FEAT_S="[not found — will be skipped]"
-        [[ -f "$FEAT_FILE" ]] && FEAT_S="[found ✓]"
+    PER_USER_FEAT_FILE="/home/$CONTEXT/features.txt"
+    if [[ -n "$PER_USER_FEAT_FILE" ]]; then
+        FEAT_S="[custom feature set for user ✓]"
+        printf "    %-30s %s\n" "$PER_USER_FEAT_FILE" "$FEAT_S"
+    elif [[ -n "$PLAN_FEATURE_SET" ]]; then
+        [[ -f "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" ]] && FEAT_S="[default feature set on the hosting plan ✓]"
         printf "    %-30s %s\n" "$PLAN_FEATURE_SET" "$FEAT_S"
     else
+        FEAT_S="[not found — will be skipped]"
         echo "    (none)"
     fi
     echo ""
@@ -424,8 +427,9 @@ awk -F: -v u="$CONTEXT" 'BEGIN{gid=""}
 grep "^${CONTEXT}:" /etc/shadow 2>/dev/null > "$STAGE/system/shadow.user" || true
 
 # --- feature set ---
-FEATURES_DIR="/etc/openpanel/openpanel/features"
-[[ -n "$PLAN_FEATURE_SET" && -f "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" ]] && cp -a "$FEATURES_DIR/${PLAN_FEATURE_SET}.txt" "$STAGE/features/" && log "Collected feature set for the plan"
+if [[ ! -f "$FTPER_USER_FEAT_FILEP_DIR" ]]; then
+    [[ -n "$PLAN_FEATURE_SET" && -f "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" ]] && cp -a "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" "$STAGE/features/" && log "Collected feature set for the plan"
+fi
 
 # --- per-user core config ---
 CORE_DIR="/etc/openpanel/openpanel/core/users/$USERNAME"
