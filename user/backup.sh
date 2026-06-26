@@ -408,6 +408,7 @@ fi
 
 # domains.list: domain <tab> docroot <tab> php_version — used by restore
 ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version 2>/dev/null)
+# TODO: this is duplicated, we already got $DOMAIN_IDS earlier!
 if [[ "$ALL_DOMAINS" != *"No domains found for user"* && -n "$ALL_DOMAINS" ]]; then
     echo "$ALL_DOMAINS" > "$STAGE/db/domains.list"
     while IFS=$'\t ' read -r domain _; do
@@ -444,19 +445,26 @@ fi
 
 # --- per-domain caddy + bind assets ---
 if [[ -f "$STAGE/db/domains.list" ]]; then
-    log "Collecting per-domain assets ..."
-    while IFS=$'\t ' read -r domain docroot php_version; do
+    log "Collecting per-domain assets..."
+    mapfile -t domains < "$STAGE/db/domains.list"
+    for ((i=0; i<${#domains[@]}; i++)); do
+        IFS=$'\t ' read -r domain docroot php_version <<< "${domains[i]}"
         [[ -z "$domain" ]] && continue
-        log "- domain: $domain"
-        [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/" && log "-- Caddyfile"
-        [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log" && log "-- Domlog"
-        [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/" && log "-- WAF log"
-        [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/" && log "-- DNS zone"
-        [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/" && log "-- Suspended"
-        [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/" && log "-- Let's Encrypt SSL"
-        [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/" && log "-- Custom SSL"
-        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/" && log "-- DKIM"
-    done < "$STAGE/db/domains.list"
+
+        prefix="├──"
+        subprefix="│   "
+        (( i == ${#domains[@]} - 1 )) && { prefix="└──"; subprefix="    "; }
+
+        log "$prefix domain: $domain"
+        [[ -f "/var/log/caddy/domlogs/$domain/access.log" ]] && cp -a "/var/log/caddy/domlogs/$domain/access.log" "$STAGE/caddy/domlogs/$domain.log" && log "${subprefix}├── Domlog"
+        [[ -f "/var/log/caddy/coraza_waf/$domain.log" ]] && cp -a "/var/log/caddy/coraza_waf/$domain.log" "$STAGE/caddy/waf/" && log "${subprefix}├── WAF log"
+        [[ -f "/etc/bind/zones/$domain.zone" ]] && cp -a "/etc/bind/zones/$domain.zone" "$STAGE/bind/zones/" && log "${subprefix}├── DNS zone"
+        [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/" && log "${subprefix}├── Suspended"
+        [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/" && log "${subprefix}├── Let's Encrypt SSL"
+        [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/" && log "${subprefix}├── Custom SSL"
+        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/" && log "${subprefix}├── DKIM"
+        [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/" && log "${subprefix}└── Caddyfile"
+    done
 fi
 
 # --- Domlogs ---
