@@ -95,6 +95,16 @@ PLAN_FEATURE_SET=$(mysql_q "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
 SYS_UID=$(awk -F: -v u="$CONTEXT" '$1==u{print $3}' /etc/passwd)
 SYS_GID=$(awk -F: -v u="$CONTEXT" '$1==u{print $4}' /etc/passwd)
 
+if [ -z "$SYS_UID" ] || [ -z "$SYS_GID" ]; then
+    if [ -d "/home/$CONTEXT" ]; then
+        SYS_UID=$(stat -c '%u' "/home/$CONTEXT")
+        SYS_GID=$(stat -c '%g' "/home/$CONTEXT")
+    else
+        echo "$CONTEXT not found in /etc/passwd and /home/$CONTEXT does not exist" >&2
+        exit 1
+    fi
+fi
+
 DOMAIN_IDS=$(mysql_q "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
 DOMAIN_COUNT=0
 [[ -n "$DOMAIN_IDS" ]] && DOMAIN_COUNT=$(echo "$DOMAIN_IDS" | wc -l | tr -d ' ')
