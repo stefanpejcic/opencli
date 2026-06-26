@@ -573,24 +573,47 @@ done
 
 ESCAPED_CTX=$(printf '%s\n' "$CONTEXT" | sed 's|[|\\.*^$()+?{}]|\\&|g')
 
-TAR_ARGS=(
-    -czf "$ARCHIVE"
-    --numeric-owner --acls --xattrs
-    "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
-    "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
-)
+# Use pigz for multi-core compression if available, otherwise fall back to gzip
+if command -v pigz &>/dev/null; then
+    log "Using pigz for multi-core compression"
+    TAR_ARGS=(
+        -cf -
+        --numeric-owner --acls --xattrs
+        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
+        "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
+    )
 
-if [[ -d "/home/$CONTEXT" ]]; then
-    log "Streaming /home/$CONTEXT  →  homedir/ ..."
-    TAR_ARGS+=(-C /home "$CONTEXT")
+    if [[ -d "/home/$CONTEXT" ]]; then
+        log "Streaming /home/$CONTEXT  →  homedir/ ..."
+        TAR_ARGS+=(-C /home "$CONTEXT")
+    else
+        warn "/home/$CONTEXT not found — archive will not contain home files."
+    fi
+
+    [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
+
+    mkdir -p "$DEST_DIR"
+    tar "${TAR_ARGS[@]}" 2>>"$log_file" | pigz > "$ARCHIVE" || die "tar failed creating: $ARCHIVE"
 else
-    warn "/home/$CONTEXT not found — archive will not contain home files."
+    TAR_ARGS=(
+        -czf "$ARCHIVE"
+        --numeric-owner --acls --xattrs
+        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
+        "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
+    )
+
+    if [[ -d "/home/$CONTEXT" ]]; then
+        log "Streaming /home/$CONTEXT  →  homedir/ ..."
+        TAR_ARGS+=(-C /home "$CONTEXT")
+    else
+        warn "/home/$CONTEXT not found — archive will not contain home files."
+    fi
+
+    [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
+
+    mkdir -p "$DEST_DIR"
+    tar "${TAR_ARGS[@]}" 2>>"$log_file" || die "tar failed creating: $ARCHIVE"
 fi
-
-[[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
-
-mkdir -p "$DEST_DIR"
-tar "${TAR_ARGS[@]}" 2>>"$log_file" || die "tar failed creating: $ARCHIVE"
 
 # ---------------------------------------------------------------------------
 # Permissions + ownership
@@ -624,7 +647,10 @@ slog "════════════════════════�
 slog "  BACKUP COMPLETE — $ARCHIVE_NAME"
 slog "══════════════════════════════════════════════════════════"
 slog "$(printf "  %-24s %s\n"   "Archive:"       "$ARCHIVE")"
+COMPRESS_USED="gzip"
+command -v pigz &>/dev/null && COMPRESS_USED="pigz (multi-core)"
 slog "$(printf "  %-24s %s\n"   "Size:"          "$ARCHIVE_SIZE")"
+slog "$(printf "  %-24s %s\n"   "Compression:"   "$COMPRESS_USED")"
 slog "$(printf "  %-24s %dh %dm %ds\n" "Time taken:" "$elapsed_h" "$elapsed_m" "$elapsed_s")"
 slog ""
 slog "  Contents:"
