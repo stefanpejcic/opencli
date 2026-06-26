@@ -1,38 +1,32 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/backup.sh
-# Description: Creates a full, self-contained .tar.gz backup of a single
-#              OpenPanel user account.  Home directory is streamed in a single
-#              tar pass — no intermediate copy is written to disk.
-#
-#              Archive layout:
-#                manifest.env           — identity, plan, source IP, format ver
-#                db/                    — plan / user / domains / sites as SQL
-#                system/                — passwd, group, shadow entries
-#                features/              — plan feature-set file
-#                core/                  — /etc/openpanel/.../core/users/<user>/
-#                ftp/                   — FTP users.list + context config
-#                caddy/                 — vhosts, ssl, domlogs, waf, stats
-#                bind/zones/            — BIND DNS zone files
-#                docker/                — running container list, apparmor, uid
-#                mail_external/         — only present when mail lives outside
-#                                         /home (admin.ini override)
-#                homedir/               — /home/CONTEXT streamed directly;
-#                                         always named homedir/ so the archive
-#                                         is independent of the username
-#                emails/               —  email accounts, aliases, quotas, defaults,
-#                                         send/receive suspensions, hourly limits
-#
-#              Default output:
-#                /home/CONTEXT/docker-data/volumes/CONTEXT_html_data/_data/_backups/
-#              Accessible via OpenPanel file manager / GUI.
-#              _backups/ is automatically excluded from the home tree so
-#              archives never nest inside each other.
-#              Override the output directory with --output.
-#
-# Usage: opencli user-backup --account <USER> [--output <DIR>] [--dry-run] [--quiet]
+# Description: Creates a full account .tar.gz backup of a single OpenPanel user account.
+# Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet]
+# Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
-# Based on: user/transfer.sh (openpanel.com)
+# Created: 01.10.2023
+# Last Modified: 26.06.2026
+# Company: openpanel.com
+# Copyright (c) openpanel.com
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
 ################################################################################
 
 set -o pipefail
@@ -44,7 +38,6 @@ BACKUP_FORMAT_VERSION="1"
 USERNAME=""
 CUSTOM_OUTPUT=""
 QUIET=0
-DRY_RUN=0
 
 # Runtime tracking — populated during the backup, printed in summary
 WARNINGS=()
@@ -59,38 +52,31 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --account)  USERNAME="$2"; shift 2 ;;
         --output)   CUSTOM_OUTPUT="$2"; shift 2 ;;
-        --dry-run)  DRY_RUN=1; shift ;;
         --quiet)    QUIET=1; shift ;;
         *) echo "[ERROR] Unknown option: $1"; exit 1 ;;
     esac
 done
 
-[[ -z "$USERNAME" ]] && {
-    echo "Usage: opencli user-backup --account <USER> [--output <DIR>] [--dry-run] [--quiet]"
-    exit 1
-}
+[[ -z "$USERNAME" ]] && { echo "Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet]"; exit 1; }
 
-# ---------------------------------------------------------------------------
 # DB connection  (provides $config_file and $mysql_database)
-# ---------------------------------------------------------------------------
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] DB config not found: $DB_CONFIG_FILE"; exit 1; }
 # shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
 mysql_q() { mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
 
-# ---------------------------------------------------------------------------
 # Resolve account identity
-# ---------------------------------------------------------------------------
 USER_ID=$(mysql_q "SELECT id FROM users WHERE username = '$USERNAME';")
 [[ -z "$USER_ID" ]] && { echo "[ERROR] No user found: $USERNAME"; exit 1; }
 
 CONTEXT=$(mysql_q "SELECT server FROM users WHERE username = '$USERNAME';")
 [[ -z "$CONTEXT" ]] && { echo "[ERROR] Could not resolve context (server) for '$USERNAME'"; exit 1; }
 
-PLAN_ID=$(mysql_q "SELECT plan_id FROM users WHERE id = $USER_ID;")
-PLAN_NAME=$(mysql_q "SELECT name FROM plans WHERE id = $PLAN_ID;")
-PLAN_FEATURE_SET=$(mysql_q "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
+read -r PLAN_ID PLAN_NAME PLAN_FEATURE_SET < <(mysql_q "
+    SELECT p.id, p.name, p.feature_set
+    FROM plans p JOIN users u ON p.id = u.plan_id
+    WHERE u.id = $USER_ID;")
 
 SYS_UID=$(awk -F: -v u="$CONTEXT" '$1==u{print $3}' /etc/passwd)
 SYS_GID=$(awk -F: -v u="$CONTEXT" '$1==u{print $4}' /etc/passwd)
@@ -107,7 +93,7 @@ fi
 
 DOMAIN_IDS=$(mysql_q "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
 DOMAIN_COUNT=0
-[[ -n "$DOMAIN_IDS" ]] && DOMAIN_COUNT=$(echo "$DOMAIN_IDS" | wc -l | tr -d ' ')
+[[ -n "$DOMAIN_IDS" ]] && DOMAIN_COUNT=$(wc -l <<< "$DOMAIN_IDS")
 
 SITE_COUNT=0
 if [[ -n "$DOMAIN_IDS" ]]; then
@@ -115,9 +101,7 @@ if [[ -n "$DOMAIN_IDS" ]]; then
     SITE_COUNT=$(mysql_q "SELECT COUNT(*) FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST);" 2>/dev/null || echo 0)
 fi
 
-# External mail — fires only when admin set email_storage_location to a path
-# outside /home.  Default: mail lives in /home/CONTEXT/mail/ and is captured
-# automatically with the home directory.
+# External mail fires only when admin set email_storage_location to a path outside /home.  Default for <1.7.5: mail lives in /home/CONTEXT/mail/
 STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null | cut -d'=' -f2- | xargs)
 MAIL_EXTERNAL_PATH=""
 MAIL_EXTERNAL_SIZE="n/a"
@@ -132,9 +116,7 @@ timestamp="$(date +'%Y-%m-%d_%H-%M-%S')"
 ARCHIVE_NAME="${USERNAME}_${timestamp}.tar.gz"
 ARCHIVE="${DEST_DIR}/${ARCHIVE_NAME}"
 
-# ---------------------------------------------------------------------------
 # Logging
-# ---------------------------------------------------------------------------
 base_name="$(basename "$USERNAME")"
 log_dir="/var/log/openpanel/admin/backups"
 mkdir -p "$log_dir"
@@ -156,14 +138,7 @@ die() { log "[✘] $1"; exit "${2:-1}"; }
 # Summary always prints to stdout + log regardless of --quiet
 slog() { echo "$1" | tee -a "$log_file"; }
 
-# ---------------------------------------------------------------------------
 # Disk space check
-# Uses repquota to read how much disk the account actually occupies; that
-# figure is our estimate for how much space the backup will need.
-# Falls back to du if repquota is unavailable or returns nothing.
-# Checks free space at the destination filesystem — not at /home — because
-# they may be on different partitions.
-# ---------------------------------------------------------------------------
 check_disk_space() {
     log "Checking disk space ..."
     mkdir -p "$DEST_DIR" 2>/dev/null || true
@@ -172,8 +147,6 @@ check_disk_space() {
     local used_kb=0
 
     if command -v repquota &>/dev/null; then
-        # repquota -au  reports all quota-enabled filesystems, 1 KB blocks
-        # Output line format:
         #   username  --  used_blocks  soft  hard  grace  used_inodes ...
         local rq
         rq=$(repquota -au 2>/dev/null | awk -v u="$CONTEXT" '$1==u {print $3; exit}')
@@ -223,140 +196,17 @@ check_disk_space() {
     fi
 }
 
-# ---------------------------------------------------------------------------
-# DRY RUN — analyse and report; exit without writing anything
-# ---------------------------------------------------------------------------
-if [[ $DRY_RUN -eq 1 ]]; then
-    mkdir -p "$DEST_DIR" 2>/dev/null || true
 
-    # Disk estimate for dry-run (same logic, non-fatal)
-    DRY_USED_KB=0; DRY_USED_SOURCE="unknown"
-    if command -v repquota &>/dev/null; then
-        rq=$(repquota -au 2>/dev/null | awk -v u="$CONTEXT" '$1==u {print $3; exit}')
-        if [[ "$rq" =~ ^[0-9]+$ && "$rq" -gt 0 ]]; then
-            DRY_USED_KB="$rq"; DRY_USED_SOURCE="repquota"
-        fi
-    fi
-    if [[ "$DRY_USED_KB" -eq 0 && -d "/home/$CONTEXT" ]]; then
-        DRY_USED_KB=$(du -sk --exclude="docker-data/volumes/${CONTEXT}_html_data/_data/_backups" "/home/$CONTEXT" 2>/dev/null | cut -f1)
-        DRY_USED_SOURCE="du"
-    fi
-    DRY_USED_MB=$(( ${DRY_USED_KB:-0} / 1024 ))
-    DRY_FREE_KB=$(df -k "$DEST_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
-    DRY_FREE_MB=$(( ${DRY_FREE_KB:-0} / 1024 ))
-
-    echo ""
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║  DRY RUN — Backup of '$USERNAME'"
-    echo "║  No files will be written."
-    echo "╚══════════════════════════════════════════════════════════╝"
-    echo ""
-    printf "  %-22s %s\n" "Username:"   "$USERNAME"
-    printf "  %-22s %s\n" "Context:"    "$CONTEXT"
-    printf "  %-22s %s\n" "Plan:"       "${PLAN_NAME:-none}"
-    printf "  %-22s %s\n" "UID / GID:"  "${SYS_UID:-?} / ${SYS_GID:-?}"
-    echo ""
-
-    echo "  Database:"
-    printf "    %-20s %s\n" "users row:"  "1"
-    printf "    %-20s %s\n" "plans row:"  "1  (\"${PLAN_NAME}\")"
-    printf "    %-20s %s\n" "domains:"    "$DOMAIN_COUNT"
-    printf "    %-20s %s\n" "sites:"      "$SITE_COUNT"
-    echo ""
-
-    echo "  Domains:"
-    ALL_DOMAINS_DRY=$(opencli domains-user "$USERNAME" --docroot --php_version 2>/dev/null)
-    if [[ "$ALL_DOMAINS_DRY" == *"No domains found"* || -z "$ALL_DOMAINS_DRY" ]]; then
-        echo "    (none)"
-    else
-        while IFS=$'\t ' read -r domain docroot php_version; do
-            [[ -z "$domain" ]] && continue
-            cm="-"; zm="-"; sm="-"
-            [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cm="✓"
-            [[ -f "/etc/bind/zones/$domain.zone" ]]              && zm="✓"
-            { [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] || [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]]; } && sm="✓"
-            printf "    %-42s [caddy %s] [zone %s] [ssl %s]\n" "$domain" "$cm" "$zm" "$sm"
-        done <<< "$ALL_DOMAINS_DRY"
-    fi
-    echo ""
-
-    echo "  FTP accounts:"
-    FTP_LIST_DRY="/etc/openpanel/ftp/users/$CONTEXT/users.list"
-    FTP_COUNT_DRY=0
-    [[ -f "$FTP_LIST_DRY" ]] && FTP_COUNT_DRY=$(grep -c '.' "$FTP_LIST_DRY" 2>/dev/null || echo 0)
-    if [[ $FTP_COUNT_DRY -eq 0 ]]; then
-        echo "    (none)"
-    else
-        while IFS='|' read -r ftpuser _; do
-            [[ -n "$ftpuser" ]] && echo "    - $ftpuser"
-        done < "$FTP_LIST_DRY"
-    fi
-    echo ""
-
-    echo "  Feature set:"
-    PER_USER_FEAT_FILE="/home/$CONTEXT/features.txt"
-    if [[ -n "$PER_USER_FEAT_FILE" ]]; then
-        FEAT_S="[custom feature set for user ✓]"
-        printf "    %-30s %s\n" "$PER_USER_FEAT_FILE" "$FEAT_S"
-    elif [[ -n "$PLAN_FEATURE_SET" ]]; then
-        [[ -f "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" ]] && FEAT_S="[default feature set on the hosting plan ✓]"
-        printf "    %-30s %s\n" "$PLAN_FEATURE_SET" "$FEAT_S"
-    else
-        FEAT_S="[not found — will be skipped]"
-        echo "    (none)"
-    fi
-    echo ""
-
-    echo "  Home directory:"
-    if [[ -d "/home/$CONTEXT" ]]; then
-        printf "    %-22s %s\n" "Path:"       "/home/$CONTEXT/"
-        printf "    %-22s %s MB  (via %s)\n"  "Estimated size:" "$DRY_USED_MB" "$DRY_USED_SOURCE"
-        printf "    %-22s %s\n" "Excluding:"  "_data/_backups/ (previous backups)"
-    else
-        echo "    [!] /home/$CONTEXT not found — home files would NOT be archived"
-    fi
-    echo ""
-
-    [[ -n "$MAIL_EXTERNAL_PATH" ]] && {
-        echo "  External mail store:"
-        printf "    %-22s %s  (%s)\n" "Path:" "$MAIL_EXTERNAL_PATH" "$MAIL_EXTERNAL_SIZE"
-        echo "    (captured as mail_external/ nested tar)"
-        echo ""
-    }
-
-    echo "  Disk space check:"
-    printf "    %-22s ~%s MB  (from %s)\n"  "Estimated need:"  "$DRY_USED_MB"  "$DRY_USED_SOURCE"
-    printf "    %-22s ~%s MB  at %s\n"       "Free at dest:"    "$DRY_FREE_MB"  "$DEST_DIR"
-    if [[ "${DRY_FREE_KB:-0}" -lt $(( ${DRY_USED_KB:-1} / 3 )) ]]; then
-        echo "    [✘] WOULD ABORT: insufficient space (free < 1/3 of estimated source)."
-    elif [[ "${DRY_FREE_KB:-0}" -lt "${DRY_USED_KB:-0}" ]]; then
-        echo "    [!] Low — compressed archive is usually smaller, but space is tight."
-    else
-        echo "    [✓] OK"
-    fi
-    echo ""
-
-    echo "  Archive destination: $ARCHIVE"
-    echo ""
-    echo "  No files have been written."
-    echo "  Re-run without --dry-run to create the backup."
-    echo ""
-    exit 0
-fi
-
-# ---------------------------------------------------------------------------
-# REAL BACKUP
-# ---------------------------------------------------------------------------
+# REAL BACKUP STARTS HERE
 log "Backup started  log: $log_file  (PID: $pid)"
 log "Account: $USERNAME  Context: $CONTEXT  UID:${SYS_UID:-?} GID:${SYS_GID:-?}  Plan: ${PLAN_NAME:-none}"
 
 check_disk_space
 
-# ---------------------------------------------------------------------------
-# Staging area — small metadata only; home is streamed live
-# ---------------------------------------------------------------------------
+# Staging area: small metadata only; home is streamed live
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
-trap 'rm -rf "$STAGE"' EXIT
+BACKUP_OK=0
+trap '[[ $BACKUP_OK -eq 0 && -f "$ARCHIVE" ]] && rm -f "$ARCHIVE"; rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE"/{db,system,features,core,ftp,caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
 
 # --- manifest ---
@@ -438,7 +288,8 @@ awk -F: -v u="$CONTEXT" 'BEGIN{gid=""}
 grep "^${CONTEXT}:" /etc/shadow 2>/dev/null > "$STAGE/system/shadow.user" || true
 
 # --- feature set ---
-if [[ ! -f "$FTPER_USER_FEAT_FILEP_DIR" ]]; then
+PER_USER_FEAT_FILE="/home/$CONTEXT/features.txt"
+if [[ ! -f "$PER_USER_FEAT_FILE" ]]; then
     [[ -n "$PLAN_FEATURE_SET" && -f "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" ]] && cp -a "/etc/openpanel/openpanel/features/${PLAN_FEATURE_SET}.txt" "$STAGE/features/" && log "Collected feature set for the plan"
 fi
 
@@ -512,28 +363,22 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
     REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')
 
     : > "$STAGE/emails/postfix-accounts.cf"
-    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true
-    accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
+    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true &
 
     : > "$STAGE/emails/postfix-regex.cf"
-    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf" || true
-    alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
+    [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf" || true &
 
     : > "$STAGE/emails/dovecot-quotas.cf"
-    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf" || true
-    quotas_count=$(wc -l < "$STAGE/emails/dovecot-quotas.cf") && log "Collected dovecot quota restrictions for ${quotas_count} addresses"
+    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf" || true &
 
     : > "$STAGE/emails/postfix-receive-access.cf"
-    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf" || true
-    suspended_receive_count=$(wc -l < "$STAGE/emails/postfix-receive-access.cf") && log "Collected suspended incoming status for ${suspended_receive_count} addresses"
+    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf" || true &
 
     : > "$STAGE/emails/postfix-send-access.cf"
-    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf" || true
-    suspended_send_count=$(wc -l < "$STAGE/emails/postfix-send-access.cf") && log "Collected suspended outgoing status for ${suspended_send_count} addresses"
+    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf" || true &
 
     : > "$STAGE/emails/postfix-virtual.cf"
-    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf" || true
-    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected ${default_addresses_count} default (catch-all) addresses"
+    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf" || true &
 
     : > "$STAGE/emails/postfwd.cf"
     if [[ -f "$POSTFWD_SRC" ]]; then
@@ -556,15 +401,16 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
         done < "$POSTFWD_SRC" > "$STAGE/emails/postfwd.cf"
     fi
 
+    wait  # wait for all to complete before starting compressions
+    accounts_count=$(wc -l < "$STAGE/emails/postfix-accounts.cf") && log "Collected ${accounts_count} email accounts"
+    alias_count=$(wc -l < "$STAGE/emails/postfix-regex.cf") && log "Collected ${alias_count} aliases"
+    quotas_count=$(wc -l < "$STAGE/emails/dovecot-quotas.cf") && log "Collected dovecot quota restrictions for ${quotas_count} addresses"
+    suspended_receive_count=$(wc -l < "$STAGE/emails/postfix-receive-access.cf") && log "Collected suspended incoming status for ${suspended_receive_count} addresses"
+    suspended_send_count=$(wc -l < "$STAGE/emails/postfix-send-access.cf") && log "Collected suspended outgoing status for ${suspended_send_count} addresses"
+    default_addresses_count=$(wc -l < "$STAGE/emails/postfix-virtual.cf") && log "Collected ${default_addresses_count} default (catch-all) addresses"
     postfwd_domain_limits_count=$(wc -l < "$STAGE/emails/postfwd.cf") && log "Collected ${postfwd_domain_limits_count} postfwd rules"
 fi
-# ---------------------------------------------------------------------------
-# Single streaming tar pass
-#   -C /home CONTEXT          streams home directly
-#   --transform               renames CONTEXT/ → homedir/
-#   --exclude                 blocks _backups/ from archiving itself
-#   -C STAGE items...         appends all staged metadata
-# ---------------------------------------------------------------------------
+
 STAGE_ITEMS=()
 for item in manifest.env db system features core ftp caddy bind docker emails; do
     [[ -e "$STAGE/$item" ]] && STAGE_ITEMS+=("$item")
@@ -615,9 +461,10 @@ else
     tar "${TAR_ARGS[@]}" 2>>"$log_file" || die "tar failed creating: $ARCHIVE"
 fi
 
-# ---------------------------------------------------------------------------
+# verify archive integrity ---
+gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHIVE"
+
 # Permissions + ownership
-# ---------------------------------------------------------------------------
 chmod 640 "$ARCHIVE"
 BACKUP_UID=$(id -u "$CONTEXT" 2>/dev/null)
 BACKUP_GID=$(id -g "$CONTEXT" 2>/dev/null)
@@ -625,9 +472,7 @@ if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" ]]; then
     chown "${BACKUP_UID}:${BACKUP_GID}" "$ARCHIVE" 2>/dev/null && log "Ownership: $CONTEXT (${BACKUP_UID}:${BACKUP_GID})" || warn "Could not chown archive to $CONTEXT (non-fatal)."
 fi
 
-# ---------------------------------------------------------------------------
 # Summary
-# ---------------------------------------------------------------------------
 end_time=$(date +%s)
 elapsed=$(( end_time - start_time ))
 elapsed_h=$(( elapsed / 3600 ))
@@ -675,5 +520,6 @@ fi
 slog "══════════════════════════════════════════════════════════"
 slog ""
 
+BACKUP_OK=1
 echo "$ARCHIVE"
 exit 0
