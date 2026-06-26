@@ -418,7 +418,6 @@ fi
 
 # domains.list: domain <tab> docroot <tab> php_version — used by restore
 ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version 2>/dev/null)
-# TODO: this is duplicated, we already got $DOMAIN_IDS earlier!
 if [[ "$ALL_DOMAINS" != *"No domains found for user"* && -n "$ALL_DOMAINS" ]]; then
     echo "$ALL_DOMAINS" > "$STAGE/db/domains.list"
     while IFS=$'\t ' read -r domain _; do
@@ -429,6 +428,7 @@ fi
 [[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
 
 # --- system user ---
+# TODO: fails in container, do we need it for restore?
 log "Capturing system user ($CONTEXT) ..."
 awk -F: -v u="$CONTEXT" '$1==u{print}' /etc/passwd > "$STAGE/system/passwd.user"
 awk -F: -v u="$CONTEXT" 'BEGIN{gid=""}
