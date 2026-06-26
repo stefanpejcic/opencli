@@ -971,8 +971,8 @@ $SSH_CMD "mkdir -p /var/log/caddy/stats/ /var/log/caddy/domlogs/ /var/log/caddy/
 if [ -n "$key_value" ]; then
     log "Syncing mail data ..."
 
-    readonly DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
-    readonly POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
+    DMS_CONFIG="/usr/local/mail/openmail/docker-data/dms/config"
+    POSTFWD_SRC="/usr/local/mail/openmail/postfwd/postfwd.cf"
 
     # Resolve domain list for grep patterns
     ALL_DOMAINS_FOR_MAIL=$(opencli domains-user "$USERNAME" --docroot --php_version 2>/dev/null)
