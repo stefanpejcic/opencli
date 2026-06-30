@@ -42,7 +42,7 @@ if [ -z "$1" ]; then
                 continue
             fi
             echo "FTP sub-users for '$user_dir_name':"
-            while IFS='|' read -r username password directory; do
+            while IFS='|' read -r username password directory uid gid; do
                 echo "$username | $directory"
             done < "$users_file"
             echo
@@ -51,13 +51,14 @@ if [ -z "$1" ]; then
 else
     # SINGLE USER
     context="$1"
+    user_dir_name="$context"
     users_file="/etc/openpanel/ftp/users/${context}/users.list"
     if [ ! -f "$users_file" ]; then
         echo "No FTP sub-users for OpenPanel user: '$user_dir_name'."
         exit 1
     fi
     echo "FTP sub-users for '$context':"
-    while IFS='|' read -r username password directory; do
+    while IFS='|' read -r username password directory uid gid; do
         echo "$username | $directory"
     done < "$users_file"
 fi
