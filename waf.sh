@@ -221,7 +221,10 @@ enable_coraza_waf() {
 
     echo "Downloading OWASP CRS.."
     git clone https://github.com/coreruleset/coreruleset /etc/openpanel/caddy/coreruleset/
-    
+
+    # avoid SecDefaultAction collision with coraza_rules.conf (which sets phase:3/4/5)
+    sed -i -E 's/^(SecDefaultAction "phase:[345])/#\1/' /etc/openpanel/caddy/coreruleset/crs-setup.conf.example
+
     # 2. enable module
     echo "Enabling WAF module.."
     sed -i '/^enabled_modules=/ { /waf/! s/$/,waf/ }' /etc/openpanel/openpanel/conf/openpanel.config
