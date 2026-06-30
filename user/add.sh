@@ -670,6 +670,7 @@ StartLimitInterval=60s
 WantedBy=default.target
 SVCEOF
             systemctl --user daemon-reload >/dev/null 2>&1
+			systemctl --user enable docker >/dev/null 2>&1
             systemctl --user restart docker >/dev/null 2>&1
         " 2>/dev/null || true
     fi
