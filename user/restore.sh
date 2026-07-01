@@ -203,6 +203,9 @@ restore_home() {
 
     # so containers can later start without permission issues
     rm -f /home/"$CONTEXT"/sockets/*/*.sock
+    
+    # MARIADB ERROR: Bad magic header in tc log
+    rm -f /home/"$CONTEXT"/volumes/"${CONTEXT}_mysql_data"/_data/tc.log
 
     if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" ]]; then
         local gid; gid=$(id -g "$CONTEXT" 2>/dev/null)
