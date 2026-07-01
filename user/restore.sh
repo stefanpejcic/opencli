@@ -296,7 +296,7 @@ restore_domains() {
             continue
         fi
 
-        if ! opencli domains-add "$domain" "$USERNAME" --docroot "$docroot" --php_version "$php_version" --skip_caddy --skip_vhost --skip_containers --skip_dns >>"$log_file" 2>&1; then
+        if ! opencli domains-add "$domain" "$USERNAME" --docroot "$docroot" --php_version "$php_version" --skip_caddy --skip_vhost --skip_containers --skip_dns --skip-sentinel >>"$log_file" 2>&1; then
             warn "opencli domains-add failed for '$domain' — skipping assets."
             DOMAINS_SKIPPED=$((DOMAINS_SKIPPED+1))
             continue
