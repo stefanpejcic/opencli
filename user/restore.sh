@@ -207,10 +207,14 @@ restore_home() {
     # MARIADB ERROR: Bad magic header in tc log
     rm -f /home/"$CONTEXT"/volumes/"${CONTEXT}_mysql_data"/_data/tc.log
 
+
+    local gid; gid=$(id -g "$CONTEXT" 2>/dev/null)
     if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" ]]; then
-        local gid; gid=$(id -g "$CONTEXT" 2>/dev/null)
         log "UID changed ($SOURCE_UID → $REMAPPED_UID); chowning /home/$CONTEXT ..."
         chown -R "${REMAPPED_UID}:${gid:-$REMAPPED_UID}" "/home/$CONTEXT"
+    else
+        log "UID not changed ($gid); chowning /home/$CONTEXT/docker-data/volumes/ ..."
+        chown -R "${gid}:${gid}" "/home/$CONTEXT/docker-data/volumes/" &
     fi
 
     if [[ -f "$WORK/mail_external/path.txt" && -f "$WORK/mail_external/mail.tar" ]]; then
