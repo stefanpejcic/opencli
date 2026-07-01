@@ -426,6 +426,7 @@ if command -v pigz &>/dev/null; then
         -cf -
         --numeric-owner --acls --xattrs
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
+        "--exclude=${CONTEXT}/sockets/*/*/*.sock"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 
@@ -445,6 +446,7 @@ else
         -czf "$ARCHIVE"
         --numeric-owner --acls --xattrs
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
+        "--exclude=${CONTEXT}/sockets/*/*/*.sock"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 
