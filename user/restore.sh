@@ -356,6 +356,7 @@ restore_ftp() {
     [[ "$GID" =~ ^[0-9]+$ ]] || { warn "Cannot get GID for $CONTEXT — FTP container step skipped."; return; }
     docker exec openadmin_ftp sh -c "getent group '$GID' >/dev/null 2>&1" || docker exec openadmin_ftp addgroup -g "$GID" "$CONTEXT" 2>/dev/null || true
 
+    # TODO: check if UID already taken and not our username, in which case assign new UID and update in $LDIR/users.list 
     while IFS='|' read -r fu hp dir uid gid; do
         [[ -z "$fu" ]] && continue
         if docker exec openadmin_ftp id "$fu" >/dev/null 2>&1; then
