@@ -188,6 +188,9 @@ restore_home() {
     # Pipe through rename transform: homedir → CONTEXT
     tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs -xf - 2>>"$log_file" || die "Failed to restore home directory."
 
+    # so containers can later start without permission issues
+    rm -f /home/"$CONTEXT"/sockets/*/*.sock
+
     if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" ]]; then
         local gid; gid=$(id -g "$CONTEXT" 2>/dev/null)
         log "UID changed ($SOURCE_UID → $REMAPPED_UID); chowning /home/$CONTEXT ..."
