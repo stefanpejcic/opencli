@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/restore.sh
 # Description: Restores a single OpenPanel user account from a full account .tar.gz backup.
-# Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--quiet]
+# Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--quiet] [--temp-dir=<PATH> ]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -53,16 +53,15 @@ while [[ $# -gt 0 ]]; do
         --file)             ARCHIVE="$2"; shift 2 ;;
         --force)            FORCE=1; shift ;;
         --quiet)            QUIET=1; shift ;;
+        --temp-dir=*)       WORK="${1#*=}"; shift ;;
         --new-username=*)   NEW_USERNAME="${1#*=}"; shift ;;
         --new-username)     NEW_USERNAME="$2"; shift 2 ;;
         *) echo "[ERROR] Unknown option: $1"; exit 1 ;;
     esac
 done
 
-[[ -z "$ARCHIVE" ]] && {
-    echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--quiet]"
-    exit 1
-}
+[[ -n "$(ls -A "$WORK" 2>/dev/null)" ]] && echo "[ERROR] WORK dir not empty: $WORK - remove the --temp-dir= flag to use /tmp/ instead OR create a new subdirectory (e.g. --temp-dir=/home/restore_process)"
+[[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
 [[ -f "$ARCHIVE" ]] || { echo "[ERROR] Archive not found: $ARCHIVE"; exit 1; }
 ARCHIVE=$(realpath "$ARCHIVE")
 
@@ -83,7 +82,6 @@ get_server_ip() {
     echo "$ip"
 }
 
-WORK=$(mktemp -d /tmp/oprestore.XXXXXX)
 trap 'rm -rf "$WORK"' EXIT
 
 # ── REAL RESTORE ─────────────────────────────────────────────────────────────
