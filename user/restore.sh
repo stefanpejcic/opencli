@@ -61,9 +61,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$(ls -A "$WORK" 2>/dev/null)" ]] && { echo "[ERROR] WORK dir not empty: $WORK - remove the --temp-dir= flag to use /tmp/ instead OR create a new subdirectory (e.g. --temp-dir=/home/restore_process)"; exit 1; }
+
 [[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
 [[ -f "$ARCHIVE" ]] || { echo "[ERROR] Archive not found: $ARCHIVE"; exit 1; }
 ARCHIVE=$(realpath "$ARCHIVE")
+mkdir -p "$WORK"
 
 # DB
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
