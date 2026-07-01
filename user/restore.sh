@@ -399,7 +399,7 @@ restore_domains() {
     if [[ -f "$WORK/db/sites.sql" ]]; then
         tail -n +2 "$WORK/db/sites.sql" | sed 's/),/)\n/g' | while read -r line; do
             local clean; clean=$(echo "$line" | sed "s/[()']//g" | sed 's/,$//')
-            [[ -z "$clean" ]] && continue
+            [[ -z "$clean" || "$clean" == ";" ]] && continue
             local sname; sname=$(echo "$clean" | cut -d',' -f1)
             local email; email=$(echo "$clean" | cut -d',' -f3)
             local ver;   ver=$(echo "$clean"   | cut -d',' -f4)
