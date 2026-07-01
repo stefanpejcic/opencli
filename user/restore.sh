@@ -105,6 +105,40 @@ slog() { echo "$1" | tee -a "$log_file"; }
 log "Restore started  log: $log_file  (PID: $pid)"
 log "Archive: $ARCHIVE"
 
+# Disk space check — extraction target must fit the fully uncompressed archive
+check_disk_space_extract() {
+    log "Checking disk space for extraction ..."
+
+    local compressed_kb
+    compressed_kb=$(( $(stat -c%s "$ARCHIVE" 2>/dev/null || echo 0) / 1024 ))
+
+    local estimated_kb gzip_size
+    gzip_size=$(gzip -l "$ARCHIVE" 2>/dev/null | awk 'NR==2{print $2}')
+    if [[ "$gzip_size" =~ ^[0-9]+$ && "$gzip_size" -gt 0 ]]; then
+        estimated_kb=$(( gzip_size / 1024 ))
+        # gzip stores the uncompressed size mod 2^32 — if it looks smaller than
+        # the compressed archive itself, the field wrapped and can't be trusted.
+        [[ "$estimated_kb" -lt "$compressed_kb" ]] && estimated_kb=$(( compressed_kb * 3 ))
+    else
+        estimated_kb=$(( compressed_kb * 3 ))
+    fi
+
+    local free_kb
+    free_kb=$(df -k "$WORK" 2>/dev/null | awk 'NR==2 {print $4}')
+    if [[ ! "$free_kb" =~ ^[0-9]+$ ]]; then
+        warn "Cannot read free space at $WORK — disk space check skipped."
+        return
+    fi
+
+    log "  Estimated extracted size (~$(( estimated_kb / 1024 )) MB)"
+    log "  Free at $WORK  (~$(( free_kb / 1024 )) MB)"
+
+    if [[ "$free_kb" -lt "$estimated_kb" ]]; then
+        die "Not enough disk space to extract archive. Estimated ~$(( estimated_kb / 1024 )) MB needed, ~$(( free_kb / 1024 )) MB free at $WORK. Aborting."
+    fi
+}
+check_disk_space_extract
+
 # Extract
 log "Extracting archive ..."
 tar -C "$WORK" --acls --xattrs -xzf "$ARCHIVE" 2>>"$log_file" || die "Failed to extract archive."
@@ -196,8 +230,28 @@ restore_system_user
 # ── 2) Home directory ────────────────────────────────────────────────────────
 restore_home() {
     [[ -d "$WORK/homedir" ]] || { warn "No homedir/ in archive — skipping file restore."; return; }
-    log "Restoring /home/$CONTEXT ..."
+
+    log "Checking disk space for home directory restore ..."
+    local home_used_kb
+    home_used_kb=$(du -sk "$WORK/homedir" 2>/dev/null | cut -f1)
     mkdir -p /home
+    if [[ "$home_used_kb" =~ ^[0-9]+$ && "$home_used_kb" -gt 0 ]]; then
+        local home_free_kb
+        home_free_kb=$(df -k /home 2>/dev/null | awk 'NR==2 {print $4}')
+        if [[ "$home_free_kb" =~ ^[0-9]+$ ]]; then
+            log "  Home directory size (~$(( home_used_kb / 1024 )) MB)"
+            log "  Free at /home  (~$(( home_free_kb / 1024 )) MB)"
+            if [[ "$home_free_kb" -lt "$home_used_kb" ]]; then
+                die "Not enough disk space at /home. Needed ~$(( home_used_kb / 1024 )) MB, free ~$(( home_free_kb / 1024 )) MB. Aborting to avoid a partial restore."
+            fi
+        else
+            warn "Cannot read free space at /home — disk space check skipped."
+        fi
+    else
+        warn "Cannot determine home directory size — disk space check skipped."
+    fi
+
+    log "Restoring /home/$CONTEXT ..."
     # Pipe through rename transform: homedir → CONTEXT
     tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs -xf - 2>>"$log_file" || die "Failed to restore home directory."
 
@@ -347,14 +401,21 @@ restore_domains() {
             local clean; clean=$(echo "$line" | sed "s/[()']//g" | sed 's/,$//')
             [[ -z "$clean" ]] && continue
             local sname; sname=$(echo "$clean" | cut -d',' -f1)
-            local did;   did=$(echo "$clean"   | cut -d',' -f2 | xargs)
             local email; email=$(echo "$clean" | cut -d',' -f3)
             local ver;   ver=$(echo "$clean"   | cut -d',' -f4)
             local typ;   typ=$(echo "$clean"   | cut -d',' -f6)
             local ports; ports=$(echo "$clean" | cut -d',' -f7)
             local path;  path=$(echo "$clean"  | cut -d',' -f8)
-            local valid; valid=$(mysql_q "SELECT COUNT(*) FROM domains WHERE domain_id=$did AND user_id=$USER_ID;" 2>/dev/null)
-            [[ "${valid:-0}" -ge 1 ]] && mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path) VALUES ('$sname',$did,'$email','$ver','$typ',$ports,'$path');" || true
+            local domain_url; domain_url=$(echo "$clean" | cut -d',' -f9 | xargs)
+
+            # domains-add assigns a fresh domain_id on restore, so resolve the current
+            # one by name rather than trusting the source server's ID.
+            local did; did=$(mysql_q "SELECT domain_id FROM domains WHERE domain_url='$domain_url' AND user_id=$USER_ID;" 2>/dev/null)
+            if [[ -z "$did" ]]; then
+                warn "Site '$sname' — could not resolve destination domain_id, skipped."
+                continue
+            fi
+            mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path) VALUES ('$sname',$did,'$email','$ver','$typ',$ports,'$path');" || true
         done
     fi
 }
