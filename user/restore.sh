@@ -142,7 +142,20 @@ restore_system_user() {
     local PW="$WORK/system/passwd.user"
     local GR="$WORK/system/group.user"
     local SH="$WORK/system/shadow.user"
-    [[ -f "$PW" ]] || { warn "system/passwd.user missing — skipping system user."; return; }
+    if [[ ! -s "$PW" ]]; then
+        warn "No system user data in backup — creating '$CONTEXT' fresh (no password hash available, account will be locked)."
+        if id "$CONTEXT" &>/dev/null; then
+            REMAPPED_UID=$(id -u "$CONTEXT")
+            SYSTEM_USER_STATUS="already existed"
+        else
+            useradd -m -d "/home/$CONTEXT" -s /bin/bash "$CONTEXT"
+            usermod -L "$CONTEXT"
+            REMAPPED_UID=$(id -u "$CONTEXT")
+            SYSTEM_USER_STATUS="created fresh (UID $REMAPPED_UID, locked — no password restored)"
+        fi
+        return
+    fi
+
     log "Restoring system user ($CONTEXT) ..."
 
     [[ -f "$GR" ]] && while IFS=: read -r group _ gid _; do
