@@ -65,6 +65,7 @@ SKIP_VHOST_CREATE=false
 SKIP_CADDY_CREATE=false
 SKIP_DNS_ZONE=false
 SKIP_STARTING_CONTAINERS=false
+SKIP_NOTIFY=false
 
 # ======================================================================
 # Logging / error helpers
@@ -89,6 +90,7 @@ parse_args() {
             --skip_caddy)          SKIP_CADDY_CREATE=true; shift ;;
             --skip_vhost)          SKIP_VHOST_CREATE=true; shift ;;
             --skip_dns)            SKIP_DNS_ZONE=true; shift ;;
+            --skip-sentinel)         SKIP_NOTIFY=true; shift ;;
             --skip_containers)     SKIP_STARTING_CONTAINERS=true; shift ;;
             --docroot)
                 [[ -z "${2:-}" ]] && die "Missing value for --docroot"
@@ -896,8 +898,10 @@ run_parallel_async() {
 }
 
 notify_sentinel() {
-    nohup opencli sentinel --action=domains_create --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1 &
-    disown
+	if ! $SKIP_NOTIFY; then
+	    nohup opencli sentinel --action=domains_create --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1 &
+	    disown
+	fi
 }
 
 # Main
