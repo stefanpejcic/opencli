@@ -269,6 +269,7 @@ restore_home() {
     else
         log "UID not changed ($gid); chowning /home/$CONTEXT/docker-data/volumes/ ..."
         chown -R "${gid}:${gid}" "/home/$CONTEXT/docker-data/volumes/" &
+        chown -R "${gid}:${gid}" "/home/$CONTEXT/sockets" &
     fi
 
     if [[ -f "$WORK/mail_external/path.txt" && -f "$WORK/mail_external/mail.tar" ]]; then
