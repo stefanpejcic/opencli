@@ -38,7 +38,7 @@ log() {
 run_for_user() {
     local username="$1"
     source /usr/local/opencli/db.sh
-    username_query="SELECT server FROM users WHERE username = '$username'"
+    username_query="SELECT server FROM users WHERE username = '$(mysql_escape "$username")'"
     context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
     if [ -z "$context" ]; then
         context=$username

@@ -78,7 +78,7 @@ source "/usr/local/opencli/db.sh"
 # Functions
 
 get_docker_context() {
-    local query="SELECT id, server FROM users WHERE username = '$USERNAME';"
+    local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$USERNAME")';"
     user_info=$(mysql -se "$query")
     
     user_id=$(echo "$user_info" | awk '{print $1}')
@@ -151,7 +151,7 @@ stop_user_containers() {
 
 rename_user_in_db() {
     local new_username="SUSPENDED_$(date +'%Y%m%d%H%M%S')_${USERNAME}"
-    local query="UPDATE users SET username='${new_username}' WHERE username='${USERNAME}';"
+    local query="UPDATE users SET username='$(mysql_escape "$new_username")' WHERE username='$(mysql_escape "$USERNAME")';"
     local session_count=0
 
     if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then

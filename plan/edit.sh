@@ -221,7 +221,12 @@ fi
 
 
 
-local sql="UPDATE plans SET name='$new_plan_name', description='$description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, feature_set='$feature_set', max_email_quota='$max_email_quota', max_hourly_email='$max_hourly_email' WHERE id='$plan_id';"
+local escaped_new_plan_name escaped_description escaped_feature_set
+escaped_new_plan_name=$(mysql_escape "$new_plan_name")
+escaped_description=$(mysql_escape "$description")
+escaped_feature_set=$(mysql_escape "$feature_set")
+
+local sql="UPDATE plans SET name='$escaped_new_plan_name', description='$escaped_description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, feature_set='$escaped_feature_set', max_email_quota='$max_email_quota', max_hourly_email='$max_hourly_email' WHERE id='$plan_id';"
 mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
     local sql="SELECT name FROM plans WHERE id='$plan_id'"
@@ -327,6 +332,21 @@ validate_fields_first() {
     done
 }
 
+validate_name_and_feature_set() {
+    local name="$1"
+    local feature_set="$2"
+
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_.\ -]+$ ]]; then
+        echo "Error: name may only contain letters, numbers, spaces, '.', '_' and '-'"
+        exit 1
+    fi
+
+    if [[ ! "$feature_set" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: feature_set may only contain letters, numbers, '_' and '-'"
+        exit 1
+    fi
+}
+
 
 
 
@@ -417,5 +437,6 @@ if [ -z "$existing_plan" ]; then
 fi
 
 validate_fields_first "$plan_id" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$max_email_quota" "$max_hourly_email"
+validate_name_and_feature_set "$new_plan_name" "$feature_set"
 update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$feature_set" "$max_email_quota" "$max_hourly_email"
 flush_redis_cache
