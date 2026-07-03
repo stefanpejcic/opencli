@@ -67,7 +67,6 @@ mkdir -p "$WORK" || { echo "[ERROR] Cannot create WORK dir: $WORK"; exit 1; }
 [[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
 [[ -f "$ARCHIVE" ]] || { echo "[ERROR] Archive not found: $ARCHIVE"; exit 1; }
 ARCHIVE=$(realpath "$ARCHIVE")
-mkdir -p "$WORK"
 
 # DB
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
