@@ -60,6 +60,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+WORK="${WORK:-/home/restore_tmp}"
+mkdir -p "$WORK" || { echo "[ERROR] Cannot create WORK dir: $WORK"; exit 1; }
 [[ -n "$(ls -A "$WORK" 2>/dev/null)" ]] && { echo "[ERROR] WORK dir not empty: $WORK - remove the --temp-dir= flag to use /tmp/ instead OR create a new subdirectory (e.g. --temp-dir=/home/restore_process)"; exit 1; }
 
 [[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
