@@ -70,7 +70,7 @@ EOF
 }
 
 log_command() {
-    echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $1" >> "$LOG_FILE" 2>/dev/null
+    [[ -f "$LOG_FILE" ]] && echo "$(date +"%Y-%m-%d %H:%M:%S") | opencli $1" >> "$LOG_FILE" 2>/dev/null
 }
 
 run_hook() {
