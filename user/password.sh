@@ -76,18 +76,18 @@ print(generate_password_hash(sys.argv[1]))
 EOF
 )
 
-# added in 1.6.8 to handle ' and " in passwords
-escaped_hash=$(printf "%s" "$hashed_password" | sed "s/'/''/g") 
 }
 
 save_to_database() {
     # 1. update pass
-    mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$username';"
+    local escaped_hash
+    escaped_hash=$(mysql_escape "$hashed_password")
+    mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$(mysql_escape "$username")';"
     mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"
 
     if [ $? -eq 0 ]; then
         # 2. get user ID and terminate all active sessions
-        user_id_query="SELECT id FROM users WHERE username='$username' LIMIT 1;"
+        user_id_query="SELECT id FROM users WHERE username='$(mysql_escape "$username")' LIMIT 1;"
         user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
     
         if [[ "$user_id" =~ ^[0-9]+$ ]]; then

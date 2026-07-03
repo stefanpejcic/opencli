@@ -87,10 +87,10 @@ get_plan_limits() {
     fi
     
     # 2. fetch plan limits
-    query="SELECT p.inodes_limit, p.disk_limit 
+    query="SELECT p.inodes_limit, p.disk_limit
            FROM users u
            JOIN plans p ON u.plan_id = p.id
-           WHERE u.username = '$username'"
+           WHERE u.username = '$(mysql_escape "$username")'"
     
     local result
     result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query" 2>/dev/null)

@@ -43,7 +43,7 @@ get_all_sites() {
     local query="SELECT site_name FROM sites"
 
     if [ -n "$site_type" ]; then
-        query+=" WHERE type = '$site_type'"
+        query+=" WHERE type = '$(mysql_escape "$site_type")'"
     fi
 
     local sites

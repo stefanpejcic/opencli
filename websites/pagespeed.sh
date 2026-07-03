@@ -49,7 +49,7 @@ get_api_key() {
   
 if [ -n "$owner" ]; then
   source /usr/local/opencli/db.sh
-  query="SELECT server FROM users WHERE username = '$owner'"
+  query="SELECT server FROM users WHERE username = '$(mysql_escape "$owner")'"
   context=$(mysql -D "$mysql_database" -e "$query" -sN)
   if [ -z "$context" ]; then
     api_key=""

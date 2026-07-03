@@ -75,7 +75,7 @@ process_resellers() {
     
     for reseller in $resellers; do
         users=$(mysql --defaults-extra-file="$config_file" -N -D "$mysql_database" \
-            -e "SELECT username FROM users WHERE owner='$reseller';")
+            -e "SELECT username FROM users WHERE owner='$(mysql_escape "$reseller")';")
         
         if [ -z "$users" ]; then
             echo "$reseller has no user accounts - skipping.."
