@@ -45,6 +45,7 @@ for arg in "$@"; do
 done
 
 source /usr/local/opencli/db.sh
+source /usr/local/opencli/lib/redis.sh
 
 # For old plan: id, name, context
 IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT < <(
@@ -155,9 +156,12 @@ change_plan_name_in_db() {
 }
 
 drop_redis_cache() {
-    # TODO: drop by key for the user only!
-    nohup docker --context=default exec openpanel_redis sh -c "redis-cli --raw KEYS 'openpanel_cache_*' | xargs -r redis-cli DEL" >/dev/null 2>&1 &
-    disown
+    # A plan change only affects the user's plan/feature-set lookups, not
+    # unrelated cached data for other users - so only drop those.
+    redis_drop_memver \
+        "app.get_user_details_with_plan" \
+        "app.get_feature_set_on_plan" \
+        "app._load_user_features_cached"
 }
 
 

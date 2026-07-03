@@ -31,6 +31,7 @@
 
 # DB
 source /usr/local/opencli/db.sh
+source /usr/local/opencli/lib/redis.sh
 
 flags=()
 
@@ -75,8 +76,18 @@ edit_docker_network() {
 }
 
 
-flush_redis_cache() {
-        docker --context=default exec openpanel_redis bash -c "redis-cli FLUSHALL" > /dev/null 2>&1
+drop_plan_cache() {
+        # Only invalidate what a plan edit can actually change - name, feature
+        # set, email/mailbox limits and the per-user feature lists derived
+        # from them. Do NOT flush the whole cache: that also drops unrelated
+        # data (dashboard stats, sessions info, etc.) for every user on the
+        # panel, not just the ones on this plan.
+        redis_drop_memver \
+            "app.get_user_details_with_plan" \
+            "app.get_feature_set_on_plan" \
+            "app._load_user_features_cached" \
+            "modules.json.helpers.query_plan_details_by_id" \
+            "modules.json.helpers.query_plan_email_mailbox_limits"
 }
 
 
@@ -439,4 +450,4 @@ fi
 validate_fields_first "$plan_id" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$max_email_quota" "$max_hourly_email"
 validate_name_and_feature_set "$new_plan_name" "$feature_set"
 update_plan "$plan_id" "$new_plan_name" "$description" "$ftp_limit" "$emails_limit" "$domains_limit" "$websites_limit" "$disk_limit" "$inodes_limit" "$db_limit" "$cpu" "$ram" "$bandwidth" "$feature_set" "$max_email_quota" "$max_hourly_email"
-flush_redis_cache
+drop_plan_cache
