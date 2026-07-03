@@ -40,6 +40,8 @@ new_password="$2"
 openpanel_username="$3"
 DEBUG=false  # Default value for DEBUG
 
+source /usr/local/opencli/lib/password_strength.sh
+
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
     case $arg in
@@ -156,6 +158,9 @@ if ! [[ $new_password =~ [[:punct:]] ]]; then
     echo "ERROR: New password must contain at least one special character."
     exit 1
 fi
+
+# Check against the admin-configured strength threshold
+require_password_strength "$new_password"
 
 # Call the function to update the password
 update_password

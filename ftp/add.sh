@@ -40,6 +40,8 @@ directory="$3"
 openpanel_username="$4"
 DEBUG=false  # Default value for DEBUG
 
+source /usr/local/opencli/lib/password_strength.sh
+
 
 # Parse optional flags to enable debug mode when needed!
 for arg in "$@"; do
@@ -227,6 +229,9 @@ validate_data() {
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
 	    exit 1
 	fi
+
+	# Check against the admin-configured strength threshold
+	require_password_strength "$password"
 }
 
 # check if ftp user exists
