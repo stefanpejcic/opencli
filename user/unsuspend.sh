@@ -64,6 +64,8 @@ get_docker_context() {
     local server_name
     server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
     CONTEXT_FLAG="--context $server_name"
+
+    [[ -z "$server_name" ]] && { echo "Error: No username '$USERNAME'" >&2; exit 1; }
 }
 
 unsuspend_user_domains() {
