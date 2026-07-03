@@ -260,7 +260,7 @@ restore_home() {
     tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs -xf - 2>>"$log_file" || die "Failed to restore home directory."
 
     # so containers can later start without permission issues
-    rm -f /home/"$CONTEXT"/sockets/*/*.sock
+    rm -f /home/"$CONTEXT"/sockets/*/*.sock /home/"$CONTEXT"/sockets/*/*.pid
     
     # MARIADB ERROR: Bad magic header in tc log
     rm -f /home/"$CONTEXT"/volumes/"${CONTEXT}_mysql_data"/_data/tc.log
