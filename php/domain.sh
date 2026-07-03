@@ -103,6 +103,7 @@ fi
 # SHOW
 if [ "$update_flag" == false ]; then
 	echo "Domain '$domain' (owned by user: $owner) uses PHP version: $php_version"
+	exit 0
 fi
 
 # UPDATE
