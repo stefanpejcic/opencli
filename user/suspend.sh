@@ -83,6 +83,7 @@ get_docker_context() {
     
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
+    [[ -z "$user_id" || -z "$context" ]] && { echo "Error: No username '$USERNAME'" >&2; exit 1; }
 }
 
 suspend_user_domains() {
