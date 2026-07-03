@@ -4,11 +4,9 @@
 # passwords (ftp/add.sh, ftp/password.sh, user/add.sh, user/password.sh).
 #
 # Keep this 6-check rubric in sync with:
-#   - /home/stefan/2083/modules/core/validators.py (password_strength_score)
-#   - /home/stefan/2083/static/js/password-strength.js (passwordStrengthScore)
+#   - modules/core/validators.py (password_strength_score)
+#   - static/js/password-strength.js (passwordStrengthScore)
 #
-# This file only defines functions - it has no top-level logic/exit, so it
-# is safe to `source` from any script.
 # ======================================================================
 
 PASSWORD_STRENGTH_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -30,7 +28,7 @@ password_strength_score() {
     echo $(( (score * 100 + 3) / 6 ))
 }
 
-# Echoes the admin-configured threshold (1-100), defaulting to 50.
+# Echoes the admin-configured threshold (1-100), default is 50.
 get_password_strength_threshold() {
     local _pw_raw _pw_val
     _pw_raw=$(grep "^password_strength=" "$PASSWORD_STRENGTH_CONFIG_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"'"'"'')
@@ -47,8 +45,7 @@ get_password_strength_threshold() {
     echo "$_pw_val"
 }
 
-# Exits the calling script with an error if the password doesn't meet the
-# admin-configured threshold.
+# Exits the calling script with an error if the password doesn't meet the threshold.
 require_password_strength() {
     local password="$1"
     local score threshold
