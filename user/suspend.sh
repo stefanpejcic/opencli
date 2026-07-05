@@ -39,7 +39,6 @@ readonly CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
 # ======================================================================
 # Variables
 DEBUG=false
-COMMENT=""
 USERNAME="$1"
 
 
@@ -59,7 +58,7 @@ confirm() {
 # ======================================================================
 # Validations
 if [[ "$#" -lt 1 || "$#" -gt 4 ]]; then
-    echo "Usage: opencli user-suspend <username> [-y] [--debug] [--comment='reason']"
+    echo "Usage: opencli user-suspend <username> [-y] [--debug]"
     exit 1
 fi
 
@@ -68,7 +67,6 @@ for arg in "${@:2}"; do
     case "$arg" in
         --debug)     DEBUG=true ;;
         -y)          SKIP_CONFIRM=true ;;
-        --comment=*) COMMENT="${arg#--comment=}" ;;
         *)           echo "Unknown option: $arg"; exit 1 ;;
     esac
 done
@@ -124,7 +122,6 @@ suspend_user_domains() {
 
         # /etc/openpanel/caddy/templates/suspended_user.html
         {
-            [[ -n "$COMMENT" ]] && printf '# comment: %s\n' "$COMMENT"
             sed "s|<DOMAIN_NAME>|$domain_name|g" "$TEMPLATE_CONF"
         } > "${CADDY_VHOST_DIR}/${domain_name}.conf"
     done
