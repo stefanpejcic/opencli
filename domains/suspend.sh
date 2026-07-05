@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/suspend.sh
 # Description: Suspend a domain name
-# Usage: opencli domains-suspend <DOMAIN-NAME>
+# Usage: opencli domains-suspend <DOMAIN-NAME> [--comment="<COMMENT>"]
 # Author: Stefan Pejcic
 # Created: 04.11.2024
 # Last Modified: 05.07.2026
