@@ -325,7 +325,6 @@ restore_database() {
                 mysql_q "DELETE FROM sites WHERE domain_id IN (SELECT domain_id FROM domains WHERE user_id=$old_id);"
                 mysql_q "DELETE FROM domains WHERE user_id=$old_id;"
                 mysql_q "DELETE FROM mcp_tokens WHERE user_id=$old_id;"
-                mysql_q "DELETE FROM user_passkeys WHERE user_id=$old_id;"
                 mysql_q "DELETE FROM users WHERE id=$old_id;"
             fi
         fi
@@ -336,57 +335,6 @@ restore_database() {
     [[ -z "$USER_ID" ]] && die "Failed to import user row for '$USERNAME'."
     log "User row ready (ID: $USER_ID)."
 
-    # MCP tokens and passkeys: exported rows carry a placeholder user_id in the
-    # trailing field (see backup.sh) — patch it to the just-resolved USER_ID,
-    # same trick used above for plan_id.
-
-    ensure_child_table() {
-        local table="$1" ddl=""
-        case "$table" in
-            mcp_tokens) ddl="CREATE TABLE IF NOT EXISTS mcp_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    token_prefix VARCHAR(20) NOT NULL,
-    token_hash CHAR(64) NOT NULL UNIQUE,
-    read_only TINYINT(1) NOT NULL DEFAULT 0,
-    expires_at TIMESTAMP NULL DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TIMESTAMP NULL,
-    INDEX idx_user_id (user_id)
-) ENGINE=InnoDB;" ;;
-            user_passkeys) ddl="CREATE TABLE IF NOT EXISTS user_passkeys (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    credential_id VARCHAR(255) NOT NULL UNIQUE,
-    public_key TEXT NOT NULL,
-    sign_count INT NOT NULL DEFAULT 0,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TIMESTAMP NULL,
-    INDEX idx_user_id (user_id)
-) ENGINE=InnoDB;" ;;
-            *) return ;;
-        esac
-        mysql_run -D "$mysql_database" -e "$ddl" 2>>"$log_file" || warn "Failed to create table '$table' — $2 import may fail."
-    }
-
-    restore_child_rows() {
-        local table="$1" src="$WORK/db/${1}.sql" label="$2"
-        [[ -f "$src" ]] || return
-        ensure_child_table "$table"
-        sed -i -E ':a;N;$!ba;s/,\s*;\s*/;/g' "$src"
-        local tmp_child="$WORK/db/_${table}_local.sql"
-        sed -E "s/,[[:space:]]*[0-9]+\)([,;])\$/,${USER_ID})\1/" "$src" | sed "s/'NULL'/NULL/g" > "$tmp_child"
-        if ( echo "USE \`$mysql_database\`;"; cat "$tmp_child" ) | mysql_run 2>>"$log_file"; then
-            log "$label restored."
-        else
-            warn "Some $label could not be restored (possibly duplicate unique keys) — check $log_file."
-        fi
-    }
-    
-    restore_child_rows "mcp_tokens" "MCP tokens"
-    restore_child_rows "user_passkeys" "Passkeys"
 }
 restore_database
 
