@@ -411,8 +411,8 @@ restore_domains() {
             local typ;   typ=$(echo "$clean"   | cut -d',' -f6 | xargs)
             local ports; ports=$(echo "$clean" | cut -d',' -f7 | xargs)
             local path;  path=$(echo "$clean"  | cut -d',' -f8 | xargs)
-            local domain_url; domain_url=$(echo "$clean" | cut -d',' -f9 | xargs)
-
+            local container; container=$(echo "$clean" | cut -d',' -f9 | xargs)
+            local domain_url; domain_url=$(echo "$clean" | cut -d',' -f10 | xargs)
             # domains-add assigns a fresh domain_id on restore, so resolve the current
             # one by name rather than trusting the source server's ID.
             local did; did=$(mysql_q "SELECT domain_id FROM domains WHERE domain_url='$domain_url' AND user_id=$USER_ID;" 2>/dev/null)
@@ -420,7 +420,7 @@ restore_domains() {
                 warn "Site '$sname' — could not resolve destination domain_id, skipped."
                 continue
             fi
-            mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path) VALUES ('$sname',$did,'$email','$ver','$typ',$ports,'$path');" || true
+            mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path,container) VALUES ('$sname',$did,'$email','$ver','$typ',$ports,'$path','$container');" || true
         done
     fi
 }
