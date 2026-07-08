@@ -137,7 +137,7 @@ set_user_quota() {
     file_limit="$PLAN_FILE_LIMIT"
     
     # 2. setquota for user
-    if sudo setquota -u "$username" "$block_limit" "$block_limit" "$file_limit" "$file_limit" /; then
+    if setquota -u "$username" "$block_limit" "$block_limit" "$file_limit" "$file_limit" /; then
         log "Quota set for user $username: $block_limit blocks (${PLAN_DISK_LIMIT}) and $file_limit inodes"
         return 0
     else
