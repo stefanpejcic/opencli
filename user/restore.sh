@@ -181,7 +181,7 @@ restore_system_user() {
     local GR="$WORK/system/group.user"
     local SH="$WORK/system/shadow.user"
     if [[ ! -s "$PW" ]]; then
-        warn "No system user data in backup — creating '$CONTEXT' fresh (no password hash available, account will be locked)."
+        warn "No system user data in backup — creating '$CONTEXT' fresh (backup was generated via OpenPanel UI)."
         if id "$CONTEXT" &>/dev/null; then
             REMAPPED_UID=$(id -u "$CONTEXT")
             SYSTEM_USER_STATUS="already existed"
