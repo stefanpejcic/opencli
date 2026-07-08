@@ -580,7 +580,7 @@ multitail_admin_logs(){
         if command -v apt &> /dev/null; then
             echo "Installing multitail using apt..."
             apt update  > /dev/null 2>&1
-            sudo apt install -y multitail > /dev/null 2>&1
+            apt install -y multitail > /dev/null 2>&1
         elif command -v dnf &> /dev/null; then
             echo "Installing multitail using dnf..."
             dnf install -y multitail > /dev/null 2>&1
