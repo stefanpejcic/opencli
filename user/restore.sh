@@ -282,10 +282,13 @@ restore_home() {
         local mp; mp=$(cat "$WORK/mail_external/path.txt")
         log "Restoring external mail → $mp ..."
         mkdir -p "$(dirname "$mp")"
-        tar -C "$(dirname "$mp")" --numeric-owner --acls --xattrs -xf "$WORK/mail_external/mail.tar" 2>>"$log_file" || warn "External mail restore failed."
+        local mail_list="$WORK/mail_external/.extracted.list"
+        tar -C "$mp" --numeric-owner --acls --xattrs -xvf "$WORK/mail_external/mail.tar" >"$mail_list" 2>>"$log_file" || warn "External mail restore failed."
         local mail_uid; mail_uid=$(id -u "$CONTEXT" 2>/dev/null)
-        if [[ -n "$mail_uid" && -d "$mp" ]]; then
-            chown -R "${mail_uid}:${$mail_uid}" "$mp" 2>>"$log_file" || warn "chown failed for external mail at $mp"
+        if [[ -n "$mail_uid" && -s "$mail_list" ]]; then
+            awk -F/ '{print $1}' "$mail_list" | sort -u | while read -r d; do
+                [[ -n "$d" && -e "$mp/$d" ]] && { nohup chown -R "${mail_uid}:${gid:-$mail_uid}" "$mp/$d" >>"$log_file" 2>&1 & disown; }
+            done
         fi
     fi
 }
