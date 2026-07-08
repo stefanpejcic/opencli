@@ -44,8 +44,6 @@ WARNINGS=()
 BACKUP_DOMAINS=()
 DOMAIN_LIST_STR="(none)"
 BACKUP_FTP_COUNT=0
-BACKUP_MCP_TOKENS_COUNT=0
-BACKUP_PASSKEYS_COUNT=0
 DISK_ESTIMATE_MB=0
 DISK_FREE_MB=0
 DISK_CHECK_SOURCE="unknown"
@@ -252,40 +250,6 @@ awk 'BEGIN{FS="\t";
     $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11}
   END{print ";"}' "$STAGE/db/user.tsv" > "$STAGE/db/user.sql"
 rm -f "$STAGE/db/user.tsv"
-
-# --- MCP tokens ---
-# user_id is re-resolved at restore time (see restore.sh), so the value exported
-# here is just a placeholder that restore replaces via the trailing-field sed.
-mysql_q "
-  SELECT name, token_prefix, token_hash, read_only, expires_at, created_at, last_used_at
-  FROM mcp_tokens WHERE user_id = $USER_ID;" > "$STAGE/db/mcp_tokens.tsv"
-BACKUP_MCP_TOKENS_COUNT=$(wc -l < "$STAGE/db/mcp_tokens.tsv")
-
-if [[ -s "$STAGE/db/mcp_tokens.tsv" ]]; then
-    awk -v uid="$USER_ID" 'BEGIN{FS="\t";
-      print "INSERT INTO mcp_tokens (name, token_prefix, token_hash, read_only, expires_at, created_at, last_used_at, user_id) VALUES"}
-      {printf "('\''%s'\'', '\''%s'\'', '\''%s'\'', %s, '\''%s'\'', '\''%s'\'', '\''%s'\'', %s),\n",
-        $1,$2,$3,$4,$5,$6,$7,uid}
-      END{print ";"}' "$STAGE/db/mcp_tokens.tsv" > "$STAGE/db/mcp_tokens.sql"
-    log "Collected $BACKUP_MCP_TOKENS_COUNT MCP token(s)."
-fi
-rm -f "$STAGE/db/mcp_tokens.tsv"
-
-# --- Passkeys ---
-mysql_q "
-  SELECT credential_id, public_key, sign_count, name, created_at, last_used_at
-  FROM user_passkeys WHERE user_id = $USER_ID;" > "$STAGE/db/user_passkeys.tsv"
-BACKUP_PASSKEYS_COUNT=$(wc -l < "$STAGE/db/user_passkeys.tsv")
-
-if [[ -s "$STAGE/db/user_passkeys.tsv" ]]; then
-    awk -v uid="$USER_ID" 'BEGIN{FS="\t";
-      print "INSERT INTO user_passkeys (credential_id, public_key, sign_count, name, created_at, last_used_at, user_id) VALUES"}
-      {printf "('\''%s'\'', '\''%s'\'', %s, '\''%s'\'', '\''%s'\'', '\''%s'\'', %s),\n",
-        $1,$2,$3,$4,$5,$6,uid}
-      END{print ";"}' "$STAGE/db/user_passkeys.tsv" > "$STAGE/db/user_passkeys.sql"
-    log "Collected $BACKUP_PASSKEYS_COUNT passkey(s)."
-fi
-rm -f "$STAGE/db/user_passkeys.tsv"
 
 if [[ -n "$DOMAIN_IDS" ]]; then
     DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
@@ -547,8 +511,6 @@ slog "$(printf "    %-22s %s\n" "Domains (${#BACKUP_DOMAINS[@]}):" "$DOMAIN_LIST
 slog "$(printf "    %-22s %s\n" "Sites:"         "$SITE_COUNT")"
 slog "$(printf "    %-22s %s\n" "Feature set:"   "${PLAN_FEATURE_SET:-none}")"
 slog "$(printf "    %-22s %s\n" "FTP accounts:"  "$BACKUP_FTP_COUNT")"
-slog "$(printf "    %-22s %s\n" "MCP tokens:"    "$BACKUP_MCP_TOKENS_COUNT")"
-slog "$(printf "    %-22s %s\n" "Passkeys:"      "$BACKUP_PASSKEYS_COUNT")"
 slog "$(printf "    %-22s %s\n" "Home dir:"      "homedir/  (source ~${DISK_ESTIMATE_MB} MB)")"
 slog "$(printf "    %-22s %s\n" "Docker:"        "${CONTAINERS_STR}")"
 [[ -n "$MAIL_EXTERNAL_PATH" ]] && slog "$(printf "    %-22s %s\n" "External mail:" "$MAIL_EXTERNAL_PATH  ($MAIL_EXTERNAL_SIZE)")"
