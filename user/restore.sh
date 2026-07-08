@@ -93,9 +93,9 @@ trap 'rm -rf "$WORK"' EXIT
 # ── REAL RESTORE ─────────────────────────────────────────────────────────────
 timestamp="$(date +'%Y-%m-%d_%H-%M-%S')"
 base_name="$(basename "$ARCHIVE" .tar.gz)"
-log_dir="/var/log/openpanel/admin/restores"
+log_dir="/var/log/openpanel/admin/imports"
 mkdir -p "$log_dir"
-log_file="$log_dir/${base_name}_restore_${timestamp}.log"
+log_file="$log_dir/openpanel-import_${timestamp}.log"
 
 log() {
     local msg="$1"; local ts; ts=$(date +'%Y-%m-%d %H:%M:%S')
