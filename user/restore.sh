@@ -102,11 +102,13 @@ log() {
     if [[ $QUIET -eq 1 ]]; then echo "[$ts] $msg" >> "$log_file"
     else echo "[$ts] $msg" | tee -a "$log_file"; fi
 }
-warn() { WARNINGS+=("$1"); log "[!] $1"; }
-die()  { log "[✘] $1"; exit "${2:-1}"; }
+warn() { WARNINGS+=("$1"); log "WARNING: $1"; }
+die()  { log "FATAL ERROR: $1"; exit "${2:-1}"; }
 slog() { echo "$1" | tee -a "$log_file"; }
 
-log "Restore started  log: $log_file  (PID: $pid)"
+echo "Import started, log file: $log_file"
+log "Log file: $log_file"
+log "PID: $pid"
 log "Archive: $ARCHIVE"
 
 # Disk space check — extraction target must fit the fully uncompressed archive
@@ -648,4 +650,10 @@ else
 fi
 slog "══════════════════════════════════════════════════════════"
 slog ""
+log "Elapsed time: ${elapsed_h}h ${elapsed_m}m ${elapsed_s}s"
+log "SUCCESS: Import for user $USERNAME completed successfully."
+
+nohup opencli sentinel --action=user_create --title="User account '$USERNAME' restored from OpenPanel backup" --message="User account '$USERNAME' has been successfully restored from backup file '$(basename "$ARCHIVE")'" >/dev/null 2>&1 &
+disown
+
 exit 0
