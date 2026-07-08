@@ -580,9 +580,8 @@ restore_docker
 [[ -d "$WORK/caddy/stats/$ORIG_USERNAME" ]] && { mkdir -p /var/log/caddy/stats/; cp -a "$WORK/caddy/stats/$ORIG_USERNAME" /var/log/caddy/stats/; }
 
 log "Reloading services ..."
-(cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1; systemctl restart admin >/dev/null 2>&1) || true
+(cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1) || true
 docker --context default exec caddy caddy reload >/dev/null 2>&1 || true
-systemctl daemon-reload >/dev/null 2>&1 || true
 log "Recalculating quotas ..."
 opencli user-quota --update "$USERNAME" >/dev/null 2>&1 || true
 
