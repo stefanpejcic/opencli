@@ -240,6 +240,10 @@ delete_ftp_users() {
         fi
         ionice -c3 rm -rf "${users_dir:?}/${context:?}"
     fi
+
+    if docker --context=default exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
+        docker --context=default exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
+    fi
 }
 
 delete_all_user_files() {
