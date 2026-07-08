@@ -479,7 +479,7 @@ remove_mailserver_and_all_config(){
       echo ""
   fi
 
-  echo "Are you sure you want to uninstall the MailServer and remove all its configuration? (yes/no)"
+  echo "Are you sure you want to uninstall the MailServer and remove all its configuration? (y/n)"
 
 	if ! read -t 10 -n 1 -r user_input; then
 	    echo ""
