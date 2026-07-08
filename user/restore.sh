@@ -466,6 +466,13 @@ restore_ftp() {
         docker exec openadmin_ftp sh -c "usermod -p '$hp' '$fu'"
         log "FTP user restored: $fu"; FTP_CREATED=$((FTP_CREATED+1))
     done < "$LDIR/users.list"
+
+    log "Setting +rx permissions for FTP paths"
+    chmod +rx "/home/$CONTEXT"
+    chmod +rx "/home/$CONTEXT/docker-data"
+    chmod +rx "/home/$CONTEXT/docker-data/volumes"
+    chmod +rx "/home/$CONTEXT/docker-data/volumes/${CONTEXT}_html_data"
+    chmod +rx "/home/$CONTEXT/docker-data/volumes/${CONTEXT}_html_data/_data"
 }
 restore_ftp
 
