@@ -283,6 +283,10 @@ restore_home() {
         log "Restoring external mail → $mp ..."
         mkdir -p "$(dirname "$mp")"
         tar -C "$(dirname "$mp")" --numeric-owner --acls --xattrs -xf "$WORK/mail_external/mail.tar" 2>>"$log_file" || warn "External mail restore failed."
+        local mail_uid; mail_uid=$(id -u "$CONTEXT" 2>/dev/null)
+        if [[ -n "$mail_uid" && -d "$mp" ]]; then
+            chown -R "${mail_uid}:${$mail_uid}" "$mp" 2>>"$log_file" || warn "chown failed for external mail at $mp"
+        fi
     fi
 }
 restore_home
