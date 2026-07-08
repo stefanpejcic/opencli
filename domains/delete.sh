@@ -437,8 +437,11 @@ delete_ftp_accounts() {
 			    disown
 	        fi
 	    done < "$ftp_accounts_file"
-	
 	fi
+
+    if docker --context=default exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
+        docker --context=default exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
+    fi
 }
 
 
