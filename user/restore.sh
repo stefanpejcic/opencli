@@ -322,6 +322,8 @@ restore_database() {
             if [[ -n "$old_id" ]]; then
                 mysql_q "DELETE FROM sites WHERE domain_id IN (SELECT domain_id FROM domains WHERE user_id=$old_id);"
                 mysql_q "DELETE FROM domains WHERE user_id=$old_id;"
+                mysql_q "DELETE FROM mcp_tokens WHERE user_id=$old_id;"
+                mysql_q "DELETE FROM user_passkeys WHERE user_id=$old_id;"
                 mysql_q "DELETE FROM users WHERE id=$old_id;"
             fi
         fi
@@ -331,6 +333,24 @@ restore_database() {
     USER_ID=$(mysql_q "SELECT id FROM users WHERE username='$USERNAME';")
     [[ -z "$USER_ID" ]] && die "Failed to import user row for '$USERNAME'."
     log "User row ready (ID: $USER_ID)."
+
+    # MCP tokens and passkeys: exported rows carry a placeholder user_id in the
+    # trailing field (see backup.sh) — patch it to the just-resolved USER_ID,
+    # same trick used above for plan_id.
+    restore_child_rows() {
+        local table="$1" src="$WORK/db/${1}.sql" label="$2"
+        [[ -f "$src" ]] || return
+        sed -i -E ':a;N;$!ba;s/,\s*;\s*/;/g' "$src"
+        local tmp_child="$WORK/db/_${table}_local.sql"
+        sed -E "s/,[[:space:]]*[0-9]+\)([,;])\$/,${USER_ID})\1/" "$src" | sed "s/'NULL'/NULL/g" > "$tmp_child"
+        if ( echo "USE \`$mysql_database\`;"; cat "$tmp_child" ) | mysql_run 2>>"$log_file"; then
+            log "$label restored."
+        else
+            warn "Some $label could not be restored (possibly duplicate unique keys) — check $log_file."
+        fi
+    }
+    restore_child_rows "mcp_tokens" "MCP tokens"
+    restore_child_rows "user_passkeys" "Passkeys"
 }
 restore_database
 
