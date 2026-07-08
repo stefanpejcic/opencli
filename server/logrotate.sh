@@ -40,11 +40,11 @@ install_logrotate() {
     echo "logrotate is not installed. Installing..."
 
     if command -v apt-get &>/dev/null; then
-        sudo apt-get update -qq && sudo apt-get install -y -qq logrotate
+        apt-get update -qq && apt-get install -y -qq logrotate
     elif command -v yum &>/dev/null; then
-        sudo yum install -y -q logrotate
+        yum install -y -q logrotate
     elif command -v dnf &>/dev/null; then
-        sudo dnf install -y -q logrotate
+        dnf install -y -q logrotate
     else
         echo "No supported package manager found."
         exit 1
