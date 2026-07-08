@@ -191,7 +191,7 @@ restore_system_user() {
             useradd -m -d "/home/$CONTEXT" -s /bin/bash "$CONTEXT"
             usermod -L "$CONTEXT"
             REMAPPED_UID=$(id -u "$CONTEXT")
-            SYSTEM_USER_STATUS="created fresh (UID $REMAPPED_UID, locked — no password restored)"
+            SYSTEM_USER_STATUS="created fresh (UID $REMAPPED_UID)"
         fi
         return
     fi
