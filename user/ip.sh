@@ -59,11 +59,11 @@ fi
 ensure_jq_installed() {
     if ! command -v jq &> /dev/null; then
         if command -v apt-get &> /dev/null; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq jq
+            apt-get update -qq && apt-get install -y -qq jq
         elif command -v yum &> /dev/null; then
-            sudo yum install -y -q jq
+            yum install -y -q jq
         elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q jq
+            dnf install -y -q jq
         else
             echo "Error: No compatible package manager found. Please install jq manually."
             exit 1
