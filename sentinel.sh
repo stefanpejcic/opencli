@@ -725,11 +725,13 @@ check_https_traffic() {
       split($4, a, ":")
       port = a[length(a)]
       peer = $5
-      if (match(peer, /^\[(.+)\]:[0-9]+$/, m)) {
-          ip = m[1]
+      if (peer ~ /^\[.*\]:[0-9]+$/) {
+          sub(/^\[/, "", peer)
+          sub(/\]:[0-9]+$/, "", peer)
+          ip = peer
       } else {
-          n = split(peer, b, ":")
-          ip = b[1]
+          sub(/:[0-9]+$/, "", peer)
+          ip = peer
       }
       sub(/^::ffff:/, "", ip)
       print port, ip
