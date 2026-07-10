@@ -28,12 +28,14 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
+
 # ---------------------- CONSTANTS ---------------------- #
 readonly COMPOSE_FILE="/root/docker-compose.yml"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly SKIP_VERSIONS_FILE="/etc/openpanel/upgrade/skip_versions"
-readonly DOCKER_CONTEXT="default"
 readonly KEEP_KERNELS=2
 readonly UPDATE_TIMEOUT=300
 
@@ -99,7 +101,7 @@ command_exists() {
 
 # ---------------------- DOCKER IMAGE ---------------------- #
 # added in 1.7.42 to detect if custom image is used
-IMAGE_NAME=$(docker --context=default compose -f "$COMPOSE_FILE" config | awk '
+IMAGE_NAME=$(podman-compose -f "$COMPOSE_FILE" config | awk '
   $1=="openpanel:" {f=1; next}
   f && $1=="image:" {
     split($2, arr, ":")
@@ -405,96 +407,19 @@ check_reboot_required() {
 
 # ---------------------- HELPER: RUNS AFTER DOWNLOADING NEW IMAGE ---------------------- #
 purge_previous_images() {
-    log_info "Cleaning up old Docker images"
+    log_info "Cleaning up old Podman images"
     local all_images
-    all_images=$(docker --context "$DOCKER_CONTEXT" images --format "{{.Repository}} {{.ID}}" | grep "^$IMAGE_NAME" | awk '{print $2}')
+    all_images=$(podman images --format "{{.Repository}} {{.ID}}" | grep "^$IMAGE_NAME" | awk '{print $2}')
     local used_images
-    used_images=$(docker --context "$DOCKER_CONTEXT" ps --format "{{.Image}}" | xargs -n1 docker inspect --format '{{.Id}}' 2>/dev/null | sort | uniq)
+    used_images=$(podman ps --format "{{.Image}}" | xargs -n1 podman inspect --format '{{.Id}}' 2>/dev/null | sort | uniq)
     for img in $all_images; do
         if echo "$used_images" | grep -q "$img"; then
             log_debug "Skipping in-use image: $img"
         else
             log_info "Removing unused image: $img"
-            docker --context "$DOCKER_CONTEXT" rmi "$img" 2>/dev/null || true
+            podman rmi "$img" 2>/dev/null || true
         fi
     done
-}
-
-# ---------------------- RUNS ONLY ON MAJOR ---------------------- #
-update_docker_compose() {
-    log_info "Checking Docker Compose version"
-    local dest="$HOME/.docker/cli-plugins/docker-compose"
-    local backup="${dest}.bak"
-    local local_version="0.0.0"
-    
-    if command_exists docker-compose; then
-        local_version=$(docker-compose version --short 2>/dev/null || echo "0.0.0")
-    elif docker compose version &> /dev/null; then
-        local_version=$(docker compose version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    fi
-    
-    log_debug "Local Docker Compose version: $local_version"
-    local latest_version
-    latest_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest \
-        | jq -r '.tag_name' 2>/dev/null | sed 's/^v//')
-    
-    if [[ -z "$latest_version" ]]; then
-        log_warn "[!] Could not fetch latest Docker Compose version"
-        return 1
-    fi
-    
-    log_debug "Latest Docker Compose version: $latest_version"
-    
-    # Compare versions
-    if [[ "$(printf "%s\n%s" "$latest_version" "$local_version" | sort -V | tail -n1)" != "$local_version" ]]; then
-        log_info "Updating Docker Compose to $latest_version"
-        
-        local arch
-        arch=$(uname -m)
-        local binary
-        
-        case $arch in
-            x86_64)
-                binary="docker-compose-linux-x86_64"
-                ;;
-            aarch64)
-                binary="docker-compose-linux-aarch64"
-                ;;
-            *)
-                log_error "Unsupported architecture: $arch"
-                return 1
-                ;;
-        esac
-        
-        local url="https://github.com/docker/compose/releases/download/v${latest_version}/${binary}"
-        
-        if [[ -f "$dest" ]]; then
-            log_debug "Backing up current Docker Compose binary"
-            cp "$dest" "$backup"
-        fi
-        
-        mkdir -p "$(dirname "$dest")"
-        if curl -L "$url" -o "$dest" && chmod +x "$dest"; then
-            if docker compose version &>/dev/null; then
-                log_info "[✔] Docker Compose updated successfully"
-                [[ -f "$backup" ]] && rm -f "$backup"
-            else
-                log_error "[✘] Docker Compose update failed! Reverting"
-                if [[ -f "$backup" ]]; then
-                    mv "$backup" "$dest"
-                    log_info "[!] Reverted to previous version"
-                else
-                    log_error "[✘] Backup not found. Manual intervention required"
-                    return 1
-                fi
-            fi
-        else
-            log_error "[!] Failed to download Docker Compose"
-            return 1
-        fi
-    else
-        log_info "[✔] Docker Compose is already up to date"
-    fi
 }
 
 # ---------------------- RUNS AFTER UPDATE ---------------------- #
@@ -568,8 +493,8 @@ update_locales() {
     if [[ $updated -gt 0 ]]; then
         local compile_msg="Compiling updated .mo files"
         [[ "$no_log" == "--no-log" ]] && echo "$compile_msg" || log "$compile_msg"
-        docker --context=default exec openpanel sh -c "pybabel compile -f -d $babel_translations &>/dev/null"
-        docker exec openpanel_redis redis-cli DEL openpanel_cache_app.get_available_locales_memver &>/dev/null
+        podman exec openpanel sh -c "pybabel compile -f -d $babel_translations &>/dev/null"
+        redis_drop_key openpanel_cache_app.get_available_locales_memver &>/dev/null
     fi
 
     local summary="Locales updated: $updated, failed: $failed"
@@ -659,15 +584,15 @@ run_update_immediately() {
     write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
     
     # ---------------------- 3. DOWNLOAD NEW IMAGE FROM DOCKER HUB
-    log "Updating OpenPanel Docker image"
-    if ! timeout 60 docker image pull "${IMAGE_NAME}:${version}" 2>&1 | tee -a "$log_file"; then
-        log_error "Failed to pull Docker image or command timed out: docker image pull ${IMAGE_NAME}:${version}"
+    log "Updating OpenPanel container image"
+    if ! timeout 60 podman image pull "${IMAGE_NAME}:${version}" 2>&1 | tee -a "$log_file"; then
+        log_error "Failed to pull image or command timed out: podman image pull ${IMAGE_NAME}:${version}"
         remove_notifications_by_pattern "OpenPanel update started MESSAGE"
         write_notification "OpenPanel update failed!" "OpenPanel failed to update to version $version - Log file: $log_file"
-        log "Update failed!"       
+        log "Update failed!"
         return 1
     else
-        log "[✔] docker image ${IMAGE_NAME}:${version} downloaded successfully"
+        log "[✔] image ${IMAGE_NAME}:${version} downloaded successfully"
 
         log "Updating version in /root/.env"     # ------------------ 3.1 UPDATE TAG
         if [[ -f /root/.env ]]; then
@@ -676,12 +601,12 @@ run_update_immediately() {
 
         log "Restarting OpenPanel service"       # ------------------ 3.2 RESTART PANEL
         if [[ -f /root/docker-compose.yml ]] || [[ -f /root/compose.yml ]]; then
-            cd /root && docker --context "$DOCKER_CONTEXT" compose down openpanel && \
-            docker --context "$DOCKER_CONTEXT" compose up -d openpanel 2>&1 | tee -a "$log_file"
+            cd /root && podman-compose down openpanel && \
+            podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
         fi
 
-        log "Cleaning up previous docker images" # ------------------ 3.3 DELETE PREVIOUS
-        purge_previous_images       
+        log "Cleaning up previous images" # ------------------ 3.3 DELETE PREVIOUS
+        purge_previous_images
     fi
 
     # ---------------------- 4. DOWNLOAD BASH SCRIPTS FROM GITHUB
@@ -709,10 +634,8 @@ run_update_immediately() {
         #update_system_packages
         #remove_old_kernels
         #check_reboot_required
-        #log "Updating Docker Compose"
-        #update_docker_compose
     else
-        log "[✔] Minor update - skipping system and Docker Compose updates"
+        log "[✔] Minor update - skipping system updates"
     fi
 
     # ---------------------- 9. RUN POST-UPDATE HOOK IF EXISTS        
@@ -748,7 +671,7 @@ update_openpanel() {
             sed -i "s/^VERSION=.*/VERSION=\"${base_version}-beta\"/" /root/.env
         fi
     fi
-    docker --context=default compose up -d openpanel --force-recreate --pull always
+    podman-compose up -d openpanel --force-recreate --pull always
 }
 
 update_openadmin() {

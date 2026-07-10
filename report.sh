@@ -106,7 +106,7 @@ collect_admin_info() {
 
 collect_docker_info() {
   local tmp="$1"
-  run_command "docker info" "Collecting host docker information" "$tmp"
+  run_command "podman info" "Collecting host podman information" "$tmp"
 }
 
 collect_openpanel_settings() {
@@ -127,30 +127,31 @@ collect_openadmin_settings() {
 collect_mysql_information() {
   local tmp="$1"
   echo "=== MySQL Information ===" >> "$tmp"
-  run_command "docker logs --tail 30 openpanel_mysql"  "Checking MySQL service for errors"   "$tmp"
+  run_command "podman logs --tail 30 openpanel_mysql"  "Checking MySQL service for errors"   "$tmp"
   run_command "cat /etc/openpanel/mysql/*_my.cnf"      "Viewing MySQL login information"      "$tmp"
 }
 
 collect_services_status() {
   local tmp="$1"
   echo "=== Services Status ===" >> "$tmp"
-  run_command "docker --context=default compose ls"       "Listing OpenPanel Stack"                      "$tmp"
-  run_command "docker --context=default ps -a"           "Checking system containers status"            "$tmp"
+  run_command "podman-compose ls"                        "Listing OpenPanel Stack"                      "$tmp"
+  run_command "podman ps -a"                              "Checking system containers status"            "$tmp"
   run_command "systemctl status admin"                   "Checking status of OpenAdmin service"         "$tmp"
-  run_command "systemctl status docker"                  "Checking status of Docker service"            "$tmp"
+  run_command "systemctl status podman.socket"           "Checking status of Podman service"            "$tmp"
   run_command "systemctl status csf"                     "Checking if Sentinel Firewall (CSF) is running" "$tmp"
 }
 
 # NOT USED ANYMORE
 collect_user_services() {
   local tmp="$1"
-  echo "=== Docker Context Services ===" >> "$tmp"
+  echo "=== Podman Context Services ===" >> "$tmp"
   for dir in /home/*; do
       local file="$dir/docker-compose.yml"
       local user
       user=$(basename "$dir")
       if [[ -f "$file" ]]; then
-        run_command "echo '- User: $user' && echo '' && docker --context=$user compose -f $dir/docker-compose.yml config --services" \
+        local uid; uid=$(id -u "$user" 2>/dev/null)
+        run_command "echo '- User: $user' && echo '' && CONTAINER_HOST=unix:///run/user/${uid}/podman/podman.sock podman-compose -f $dir/docker-compose.yml config --services" \
           "Listing services for user: $user" "$tmp"
       fi
   done
