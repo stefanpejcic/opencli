@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 # Constants
 readonly PANEL_CONFIG_FILE='/etc/openpanel/openpanel/conf/openpanel.config'
 readonly CADDYFILE='/etc/openpanel/caddy/Caddyfile'
@@ -383,18 +386,15 @@ get_server_ip() {
     [[ -n "$current_ip" ]] || die "Unable to determine server IP address"
 
     # Check for dedicated IP
+    # NOTE: this used to also detect whether the IP belonged to a registered
+    # remote/slave "docker context" (multi-node clustering). That registration
+    # mechanism doesn't exist anymore (see user/add.sh) - contexts aren't
+    # created at all now, so REMOTE_SERVER can never legitimately be "yes"
+    # under the current architecture. Left as the (already-default) "no".
     local json_file="/etc/openpanel/openpanel/core/users/$user/ip.json"
     if [[ -f "$json_file" ]]; then
         dedicated_ip=$(jq -r '.ip // empty' "$json_file")
-        if [[ -n "$dedicated_ip" ]]; then
-            if docker context ls | grep -q "$dedicated_ip"; then
-                REMOTE_SERVER="yes"
-                log "IP belongs to a node (slave) server"
-            else
-                REMOTE_SERVER="no"
-                log "User has dedicated IP: $dedicated_ip"
-            fi
-        fi
+        [[ -n "$dedicated_ip" ]] && log "User has dedicated IP: $dedicated_ip"
     fi
 }
 
@@ -472,8 +472,10 @@ create_vhost_file() {
         [[ "$VARNISH" == true ]] && services="$services varnish"
 	    local service_count=$(echo "$services" | wc -w)
 	    local container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
-	    log "Starting $service_count $container_word ($services)"	
-        nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
+	    log "Starting $service_count $container_word ($services)"
+        # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
+        local sock; sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+        nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 
@@ -488,7 +490,8 @@ create_vhost_file() {
 	sed -i -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" "$vhost_file"
 
     if ! $SKIP_STARTING_CONTAINERS; then
-        nohup sh -c "cd /home/$context/ && docker --context $context restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
+        local sock; sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -557,12 +560,12 @@ create_caddy_domain_file() {
     fi
 
     # Reload / start Caddy
-    if docker --context default ps -q -f name=caddy | grep -q .; then
+    if podman ps -q -f name=caddy | grep -q .; then
         log "Reloading Caddy"
-        docker --context=default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 && log "Caddy reloaded successfully" || log "Caddy reload failed — check config"
+        podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 && log "Caddy reloaded successfully" || log "Caddy reload failed — check config"
     else
         log "Caddy not running, starting in background"
-        nohup sh -c "cd /root && docker --context default compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /root && podman-compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -644,12 +647,12 @@ update_named_conf() {
 }
 
 reload_bind() {
-    if docker --context default ps -q -f name=openpanel_dns | grep -q .; then
+    if podman ps -q -f name=openpanel_dns | grep -q .; then
         log "Reloading BIND"
-        docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+        podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
         log "BIND not running, starting in background"
-        nohup sh -c "cd /root && docker --context default compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /root && podman-compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -660,9 +663,9 @@ notify_slave() {
 
     # Prefer rndc-based notification over root SSH
 	# https://www.ibm.com/docs/en/aix/7.2.0?topic=security-transaction-signatures-bind-version-94
-	if docker --context=default exec openpanel_dns rndc -s "$SLAVE_IP" -p 953 -k /etc/bind/rndc.key status 2>/dev/null | grep -q 'number of zones'; then
+	if podman exec openpanel_dns rndc -s "$SLAVE_IP" -p 953 -k /etc/bind/rndc.key status 2>/dev/null | grep -q 'number of zones'; then
         log "Slave reachable via rndc — adding zone $domain_name"
-        if docker --context=default exec openpanel_dns rndc -s "$SLAVE_IP" -p 953 -k /etc/bind/rndc.key addzone "$domain_name { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/${domain_name}.zone\"; allow-notify { $MASTER_IP; }; };" 2>/dev/null; then
+        if podman exec openpanel_dns rndc -s "$SLAVE_IP" -p 953 -k /etc/bind/rndc.key addzone "$domain_name { type slave; masters { $MASTER_IP; }; file \"/etc/bind/zones/${domain_name}.zone\"; allow-notify { $MASTER_IP; }; };" 2>/dev/null; then
             log "Zone $domain_name successfully added to slave $SLAVE_IP"
             return
         else
@@ -688,10 +691,10 @@ ZONE
     mkdir -p /etc/bind/zones/
     touch /etc/bind/zones/${domain_name}.zone
 fi
-if docker --context default ps -q -f name=openpanel_dns >/dev/null; then
-    docker --context default exec openpanel_dns rndc reconfig
+if podman ps -q -f name=openpanel_dns >/dev/null; then
+    podman exec openpanel_dns rndc reconfig
 else
-    cd /root && docker --context default compose up -d bind9
+    cd /root && podman-compose up -d bind9
 fi
 SSHEOF
 }
@@ -781,13 +784,15 @@ setup_tor_for_user() {
 }
 
 start_tor_for_user() {
-    if docker --context "$context" ps -q -f name=tor | grep -q .; then
+    if podman_user "$context" ps -q -f name=tor | grep -q .; then
         log "Tor running — restarting to apply new config"
-        nohup sh -c "cd /home/$context/ && docker --context $context restart tor" </dev/null >nohup.out 2>nohup.err &
+        local sock; sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart tor" </dev/null >nohup.out 2>nohup.err &
 		disown
     else
         log "Starting Tor"
-        nohup sh -c "cd /home/$context/ && docker --context $context compose up -d tor" </dev/null >nohup.out 2>nohup.err &
+        local sock; sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -800,7 +805,8 @@ start_php_fpm() {
     [[ "$WEB_SERVER" == *litespeed* ]] && return
     is_module_enabled "php" || { log "PHP module disabled — skipping"; return; }
     log "Starting PHP-FPM $php_version"
-    nohup sh -c "docker --context $context compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+    local sock; sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+    nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
 	disown
 }
 
@@ -865,7 +871,7 @@ $volume_to_add
     }" "$compose_file"
 
     log "Reconfiguring mailserver in background"
-    nohup sh -c "cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
 	disown
 }
 
