@@ -74,14 +74,24 @@ get_docker_context_for_user(){
 # Function to update the user's password
 update_password() {
 
-    PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
-    HASHED_PASS=$(
-        PASSWORD="$new_password" $PYTHON_PATH -W ignore -c '
-import crypt, random, string, os
-salt = "".join(random.choices(string.ascii_letters + string.digits, k=16))
-print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
-    '
-    )
+    HASHED_PASS=$(printf '%s' "$new_password" | openssl passwd -6 -stdin)
+
+    # fallback for python<3.13
+	if [ -z "$HASHED_PASS" ]; then
+		PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
+	    HASHED_PASS=$(
+	        PASSWORD="$new_password" $PYTHON_PATH -W ignore -c '
+	import crypt, random, string, os
+	salt = "".join(random.choices(string.ascii_letters + string.digits, k=16))
+	print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
+	    '
+	    )
+    fi
+
+    if [ -z "$HASHED_PASS" ]; then
+        echo "ERROR: Failed to hash password."
+        exit 1
+    fi
 
     docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
     
