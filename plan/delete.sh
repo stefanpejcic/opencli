@@ -100,15 +100,15 @@ else
     if [ "$output_json" -eq 1 ]; then
         # Delete the plan data
         mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        # Delete the Docker network
-        docker network rm "$plan_name" > /dev/null 2>&1
-        echo "{\"message\": \"Plan '$plan_name' and Docker network '$plan_name' deleted successfully.\"}"
+        # Delete the Podman network
+        podman network rm "$plan_name" > /dev/null 2>&1
+        echo "{\"message\": \"Plan '$plan_name' and Podman network '$plan_name' deleted successfully.\"}"
     else
         # Delete the plan data
         mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        # Delete the Docker network
-        docker network rm "$plan_name" > /dev/null 2>&1
-        echo "Docker network '$plan_name' deleted successfully."
+        # Delete the Podman network
+        podman network rm "$plan_name" > /dev/null 2>&1
+        echo "Podman network '$plan_name' deleted successfully."
         echo "Plan '$plan_name' deleted successfully."
     fi
 fi

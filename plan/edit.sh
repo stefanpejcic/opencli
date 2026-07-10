@@ -67,11 +67,15 @@ usage() {
 
 
 
-# Apply rate limit using tc command for the gateway of existing Docker network
+# Apply rate limit using tc command for the gateway of existing Podman network
+# NOTE: unused (only ever called commented-out below) - and even if wired up,
+# podman/netavark's network model isn't the same as Docker's bridge driver, so
+# this needs verification before relying on it, same as the other bandwidth
+# shaping code stripped from plan/apply.sh and docker/collect_stats.sh.
 edit_docker_network() {
     local name="$1"
     local bandwidth="$2"
-    gateway_interface=$(docker network inspect "$name" -f '{{(index .IPAM.Config 0).Gateway}}')
+    gateway_interface=$(podman network inspect "$name" -f '{{(index .IPAM.Config 0).Gateway}}')
     tc qdisc change dev "$gateway_interface" root tbf rate "$bandwidth"mbit burst "$bandwidth"mbit latency 3ms
 }
 
@@ -126,7 +130,7 @@ check_if_we_need_to_edit_docker_containers() {
     # BANDWIDTH CHANGE
     if [ "$old_bandwidth" != "$bandwidth" ]; then
         if [ "$DEBUG" = true ]; then
-            echo "DEBUG: Port speed limit is changed, applying new bandwidth limit to the docker network."
+            echo "DEBUG: Port speed limit is changed, applying new bandwidth limit to the podman network."
         fi
         flags+=( "--net" )
         # TODO

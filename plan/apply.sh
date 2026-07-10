@@ -68,6 +68,8 @@ done
 
 # 1. get plan limits
 source /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 IFS=$'\t' read -r cpu ram disk_limit inodes_limit max_hourly_email bandwidth < <(
     mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT cpu, ram, disk_limit, inodes_limit, max_hourly_email, bandwidth FROM plans WHERE id = '$(mysql_escape "$new_plan_id")' LIMIT 1;"
@@ -187,59 +189,17 @@ EOF
 
     # Bandwidth (Port Speed)
     if ! $partial || $donet; then
-        cd "$compose_dir" && docker --context "${username}" compose up --no-start --pull never 2>/dev/null
+        cd "$compose_dir" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
 
-        USER_PID=$(pgrep -u "$username" -x dockerd | head -n 1)
-        [ -z "$USER_PID" ] && { echo "- Bandwidth:[WARN]   Could not find dockerd PID for $username"; continue; }
-
-        if [ "$bandwidth" -eq 0 ]; then
-            nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
-            nsenter -t "$USER_PID" -n ip link del ifb0 2>/dev/null
-            for suffix in "www" "db"; do
-                full_net_name="${username}_${suffix}"
-                BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
-                if [ -n "$BRIDGE_ID" ]; then
-                    IFACE="br-$BRIDGE_ID"
-                    nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
-                    nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
-                    echo "- Bandwidth:  [OK]   $bandwidth_text ($IFACE)"
-                fi
-            done
-        else
-			# Calculate r2q to avoid HTB quantum warnings
-			# quantum = rate_bps / r2q, should be between 1500–60000
-			# r2q = rate_bps / quantum_target (we target 1500, the minimum)
-			RATE_BPS=$(( bandwidth * 125000 ))         # mbit → bytes/sec
-			R2Q=$(( RATE_BPS / 1500 ))
-			[ "$R2Q" -lt 1 ] && R2Q=1                  # clamp to minimum
-            nsenter -t "$USER_PID" -n ip link add ifb0 type ifb 2>/dev/null
-            nsenter -t "$USER_PID" -n ip link set dev ifb0 up
-            nsenter -t "$USER_PID" -n tc qdisc del dev ifb0 root 2>/dev/null
-			nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 root handle 1: htb default 10 r2q "$R2Q"
-            nsenter -t "$USER_PID" -n tc class add dev ifb0 parent 1: classid 1:10 htb rate "${bandwidth}mbit"
-            nsenter -t "$USER_PID" -n tc qdisc add dev ifb0 parent 1:10 handle 10: sfq perturb 10
-    
-            IFACES=()
-            for suffix in "www" "db"; do
-                full_net_name="${username}_${suffix}"
-                BRIDGE_ID=$(docker --context "$username" network inspect "$full_net_name" -f '{{.Id}}' 2>/dev/null | cut -c1-12)
-                [ -z "$BRIDGE_ID" ] && continue
-                IFACE="br-$BRIDGE_ID"
-                IFACES+=("$IFACE")
-    
-                nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" ingress 2>/dev/null
-                nsenter -t "$USER_PID" -n tc qdisc del dev "$IFACE" root 2>/dev/null
-                nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" handle ffff: ingress
-                nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
-                nsenter -t "$USER_PID" -n tc qdisc add dev "$IFACE" root handle 1: htb
-                nsenter -t "$USER_PID" -n tc filter add dev "$IFACE" parent 1: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0
-            done
-            if [ ${#IFACES[@]} -gt 0 ]; then
-                echo "- Bandwidth:  [OK]   ${bandwidth}mbit hard cap on www and db networks (bridges: ${IFACES[*]})"
-            else
-                echo "- Bandwidth:[WARN]   Could not find bridge ID for any networks - does user $username have any containers running?"
-            fi
-        fi
+        # NOTE: bandwidth shaping used to nsenter into rootless dockerd's shared
+        # network namespace (one dockerd PID per user, holding docker-created
+        # "br-<hash>" bridges for that user's compose networks) and apply tc
+        # qdiscs there. There's no equivalent single per-user daemon/netns under
+        # rootless podman, and netavark doesn't create the same bridge naming
+        # convention - this needs a fresh design (see docker/collect_stats.sh,
+        # same underlying issue on the measurement side) rather than a
+        # find-and-replace, so it's stripped for now rather than guessed at.
+        echo "- Bandwidth:[WARN]   Bandwidth limiting is not implemented yet under podman."
     fi
 done
 
