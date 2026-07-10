@@ -66,7 +66,7 @@ REBOOT=$(validate_yes_no "$(ini_get reboot)")
 MAIN_DOMAIN_AND_NS=$(validate_yes_no "$(ini_get dns)")
 LOGIN=$(validate_yes_no "$(ini_get login)")
 SSH_LOGIN=$(validate_yes_no "$(ini_get ssh)")
-SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,docker,mysql,csf,panel}"
+SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,podman,mysql,csf,panel}"
 
 LIMIT=$(validate_yes_no "$(ini_get limit)")
 ATTACK=$(validate_yes_no "$(ini_get attack)")
@@ -258,9 +258,9 @@ check_service_status() {
 
 # Cache docker ps once per run — called 6+ times otherwise
 DOCKER_PS_CACHE=""
-_docker_ps_refresh() { DOCKER_PS_CACHE=$(docker --context=default ps --format "{{.Names}}" 2>/dev/null); }
+_docker_ps_refresh() { DOCKER_PS_CACHE=$(podman ps --format "{{.Names}}" 2>/dev/null); }
 _docker_ps() { echo "$DOCKER_PS_CACHE"; }
-_docker_log() { docker --context=default logs --tail 10 "$1" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n",$0}'; }
+_docker_log() { podman logs --tail 10 "$1" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n",$0}'; }
 
 _caddy_http_ok() {
   local code
@@ -290,8 +290,8 @@ docker_containers_status() {
         ((PASS++)); echo -e "\e[32m[✔]\e[0m caddy is active and responding."
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m caddy running but unresponsive — restarting."
-        docker --context=default restart caddy &>/dev/null
-        cd /root && docker --context=default compose up -d caddy &>/dev/null
+        podman restart caddy &>/dev/null
+        cd /root && podman-compose up -d caddy &>/dev/null
         sleep 2
         _docker_ps_refresh
         if _caddy_http_ok; then
@@ -304,7 +304,7 @@ docker_containers_status() {
         fi
       fi
     else
-      ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc docker container is active."
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc container is active."
     fi
     return
   fi
@@ -316,7 +316,7 @@ docker_containers_status() {
       if [[ -z "$users" || "$users" == "No users." ]]; then
         ((WARN--)); echo "  - No users found; $svc not needed."
       else
-        cd /root && docker --context=default compose up -d openpanel &>/dev/null
+        cd /root && podman-compose up -d openpanel &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       fi ;;
     openpanel_dns)
@@ -324,7 +324,7 @@ docker_containers_status() {
       if [[ "$enabled_modules_line" == *"dns"* ]]; then
           if ls /etc/bind/zones/*.zone &>/dev/null; then
               cd /root
-              docker --context=default compose up -d bind9 &>/dev/null
+              podman-compose up -d bind9 &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -339,7 +339,7 @@ docker_containers_status() {
       if [[ "$enabled_modules_line" == *"phpmyadmin"* ]]; then
           if ls /home/*/sockets/mysqld/mysqld.sock &>/dev/null; then
               cd /root
-              docker --context=default compose up -d phpmyadmin &>/dev/null
+              podman-compose up -d phpmyadmin &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -351,13 +351,13 @@ docker_containers_status() {
       fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
-        cd /root && docker --context=default compose up -d caddy &>/dev/null
+        cd /root && podman-compose up -d caddy &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       else
         ((WARN--)); echo "  - No domains; caddy not needed."
       fi ;;
     *)
-      docker --context=default restart "$svc" &>/dev/null
+      podman restart "$svc" &>/dev/null
       _docker_check_after_restart "$svc" "$title" ;;
   esac
 }
@@ -370,12 +370,12 @@ mysql_docker_containers_status() {
     else
       echo -e "\e[31m[✘]\e[0m MySQL running but not responding — restarting."
       write_notification "MySQL service restarted!" "MySQL service running but not responding, attempting restart."
-      cd /root && docker --context=default compose up -d openpanel_mysql &>/dev/null
+      cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     fi
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m MySQL container not running — restarting."
-    cd /root && docker --context=default compose up -d openpanel_mysql &>/dev/null
+    cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     sleep 5
     if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
@@ -390,14 +390,16 @@ mysql_docker_containers_status() {
 
 check_services() {
   local svc
-  for svc in caddy csf admin docker panel mysql phpmyadmin named; do
+  # "docker" kept as an accepted alias for "podman" so existing services= ini
+  # entries from before the podman migration keep working unchanged
+  for svc in caddy csf admin docker podman panel mysql phpmyadmin named; do
     [[ ",$SERVICES," != *",$svc,"* ]] && continue
     case "$svc" in
       caddy)  docker_containers_status  'caddy'         'Caddy not active — websites down!'             ;;
       phpmyadmin)  docker_containers_status  'phpmyadmin'         'phpmyadmin not active — users can not access databases!'             ;;
       csf)    check_service_status      'csf'           'CSF Firewall not active — server unprotected!' ;;
       admin)  check_service_status      'admin'         'OpenAdmin service not accessible!'             ;;
-      docker) check_service_status      'docker'        'Docker not active — user websites down!'       ;;
+      docker|podman) check_service_status 'podman.socket' 'Podman not active — user websites down!'     ;;
       panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'              ;;
       mysql)  mysql_docker_containers_status                                                            ;;
       named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'                ;;
@@ -594,11 +596,14 @@ check_disk_usage() {
 
     local kb_before; kb_before=$(df / | awk 'NR==2 {print $3}')
 
-    timeout 30 docker --context="default" system prune -f --filter "until=24h" > /dev/null 2>&1
+    timeout 30 podman system prune -f --filter "until=24h" > /dev/null 2>&1
     for context in /home/*; do
        [ -d "$context" ] || continue
        context_name=$(basename "$context")
-       timeout 15 docker --context="$context_name" system prune -f --filter "until=24h" > /dev/null 2>&1
+       # timeout execs a binary directly and can't invoke podman_user (a bash function),
+       # so the socket is inlined via CONTAINER_HOST instead
+       context_uid=$(id -u "$context_name" 2>/dev/null) || continue
+       timeout 15 env CONTAINER_HOST="unix:///run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
     done
     touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
 

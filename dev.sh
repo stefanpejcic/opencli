@@ -34,7 +34,6 @@ set -e
 # ======================================================================
 # Constants
 readonly CONTAINER_NAME="openpanel"
-readonly DOCKER_CONTEXT="default"
 readonly LAST_PATH_FILE="/tmp/last_dev_path"
 readonly SUPPORTED_EXTENSIONS=("py" "html")
 
@@ -121,7 +120,7 @@ install_tool() {
 }
 
 is_container_running() {
-    docker --context "$DOCKER_CONTEXT" ps --format "table {{.Names}}" | grep -q "^$CONTAINER_NAME$"
+    podman ps --format "table {{.Names}}" | grep -q "^$CONTAINER_NAME$"
 }
 
 get_all_available_files() {
@@ -132,7 +131,7 @@ get_all_available_files() {
         exit 1
     fi
     
-    available_files=$(docker --context "$DOCKER_CONTEXT" exec "$CONTAINER_NAME" \
+    available_files=$(podman exec "$CONTAINER_NAME" \
         find / -maxdepth 3 \( -name "app.py" -o -path "/modules/*.py" -o -path "/templates/*.html" \) \
         2>/dev/null | sort | uniq)
     
@@ -195,7 +194,7 @@ copy_to_container() {
     local source_file="$1"
     local target_path="$2"
     
-    if ! docker --context "$DOCKER_CONTEXT" cp "$source_file" "$CONTAINER_NAME:/$target_path"; then
+    if ! podman cp "$source_file" "$CONTAINER_NAME:/$target_path"; then
         log_error "Failed to copy file to container"
         return 1
     fi
@@ -207,13 +206,13 @@ copy_to_container() {
 restart_container_and_follow_logs() {
     log_info "Restarting OpenPanel container to pick up the new file..."
     
-    if ! docker --context "$DOCKER_CONTEXT" restart "$CONTAINER_NAME"; then
+    if ! podman restart "$CONTAINER_NAME"; then
         log_error "Failed to restart container"
         return 1
     fi
     
     log_info "Following new logs:"
-    docker --context "$DOCKER_CONTEXT" logs --follow --since=0s "$CONTAINER_NAME"
+    podman logs --follow --since=0s "$CONTAINER_NAME"
 }
 
 process_file() {
