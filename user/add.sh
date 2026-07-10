@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|openresty|openlitespeed|litespeed|varnish+nginx|varnish+apache|varnish+openresty|varnish+openlitespeed>"] [--sql=<mysql|mariadb>] [--RESELLER=<RESELLER_USERNAME>][--server=<IP_ADDRESS>]  [--key=<SSH_KEY_PATH>] [--private-note="this user.."] [--no-sentinel]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|openresty|openlitespeed|litespeed|varnish+nginx|varnish+apache|varnish+openresty|varnish+openlitespeed>"] [--sql=<mysql|mariadb>] [--RESELLER=<RESELLER_USERNAME>] [--private-note="this user.."] [--no-sentinel]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 09.07.2026
+# Last Modified: 10.07.2026
 # Company: openpanel.com
 # Copyright (c) openpanel.com
 # 
@@ -33,13 +33,12 @@ readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_use
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
-readonly DOCKER_COMPOSE_VERSION="2.36.0"
-readonly DOCKER_COMPOSE_ARM="https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-aarch64"
-readonly DOCKER_COMPOSE_X86="https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64"
-readonly ROOTLESS_SETUP_SCRIPT="/etc/openpanel/docker/dockerd-rootless-setuptool.sh"
+# shared, read-only image store populated once at install time (see PODMAN_INSTALL.sh) so
+# per-user rootless podman stores don't each duplicate the same pulled images
+readonly SHARED_STORE="/var/lib/openpanel/shared-containers/storage"
 
-if [[ "$#" -lt 4 || "$#" -gt 11 ]]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--server=<IP_ADDRESS>] [--key=<KEY_PATH>] [--private-note=<NOTE>]"
+if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
+    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>]"
     echo
     echo "Required arguments:"
     echo "  <username>                 The username of the new user."
@@ -68,11 +67,8 @@ SKIP_IMAGE_PULL=false
 SEND_EMAIL=false
 SENTINEL=true
 RESELLER=""
-NODE_IP=""
-SSH_KEY=""
 WEBSERVER=""
 SQL_TYPE=""
-HOSTNAME_LABEL=""
 
 cleanup() {
     rm -f "$LOCK_FILE"
@@ -93,20 +89,8 @@ hard_cleanup() {
         echo "ERROR: Neither deluser nor userdel found"
     fi
 
-	# delete user on slave
-     [[ -n "$NODE_IP" ]] && node_ssh "bash -s" << EOF
-killall -u "${USERNAME}" -9 >/dev/null 2>&1 || true
-if command -v deluser >/dev/null 2>&1; then
-    deluser --remove-home "${USERNAME}"
-elif command -v userdel >/dev/null 2>&1; then
-    userdel -r "${USERNAME}"
-fi
-EOF
-
 	# delete user files
     rm -rf /etc/openpanel/openpanel/core/users/"$USERNAME" > /dev/null 2>&1
-	# delete docker context
-    docker context rm "$USERNAME"  > /dev/null 2>&1
 }
 
 trap cleanup EXIT
@@ -125,48 +109,7 @@ read_config_file() {
 
 die()  { echo "[✘] ERROR: $*" >&2; exit 1; }
 
-node_ssh() {
-    # shellcheck disable=SC2086
-    ssh -q -o LogLevel=ERROR -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes "root@${NODE_IP}" "$@"
-}
-
-is_valid_ipv4() {
-    local ip="$1"
-    local re='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
-    [[ "$ip" =~ $re ]] || return 1
-    IFS='.' read -r -a octets <<< "$ip"
-    for o in "${octets[@]}"; do
-        (( o >= 0 && o <= 255 )) || return 1
-    done
-}
-
-load_default_node() {
-    local default_node default_key
-
-	: '
-	[CLUSTERING]
-	default_node="11.22.33.44"
-	default_ssh_key_path="/root/some-key.rsa"
-	'
-
-    while IFS='=' read -r key value; do
-        case "$key" in
-            default_node) default_node="$value" ;;
-            default_ssh_key_path) default_key="$value" ;;
-        esac
-    done < "/etc/openpanel/openadmin/config/admin.ini"
-
-    [[ -z "$default_node" ]] && return 0
-
-    if [[ -n "$default_key" ]]; then
-        NODE_IP="$default_node"
-        SSH_KEY="$default_key"
-    fi
-}
-
-
 read_config_file
-load_default_node         # we run it before parse args so it can be overwritten!
 
 # Parse args
 for arg in "$@"; do
@@ -176,8 +119,6 @@ for arg in "$@"; do
         --skip-images)    SKIP_IMAGE_PULL=true ;;
         --no-sentinel)    SENTINEL=false ;;
         --reseller=*)     RESELLER="${arg#*=}" ;;
-        --server=*)       NODE_IP="${arg#*=}" ;;
-        --key=*)          SSH_KEY="${arg#*=}" ;;
         --sql=*)          SQL_TYPE="${arg#*=}" ;;
         --webserver=*)    WEBSERVER="${arg#*=}" ;;
         --private-note=*) PRIVATE_NOTE="${arg#*=}" ;;
@@ -192,6 +133,8 @@ log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 . "$DB_CONFIG_FILE"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/password_strength.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 escape() {
     printf "%s" "$1" | sed "s/'/''/g"
@@ -244,20 +187,6 @@ check_reseller_limits() {
     local allowed_plans
     allowed_plans="$(jq -r '.allowed_plans | join(",")' "$limits_file")"
     grep -wq "$PLAN_ID" <<< "$allowed_plans" || die "Plan ID '$PLAN_ID' is not assigned to reseller '$RESELLER'."
-}
-
-resolve_node() {
-    if [[ -z "$NODE_IP" ]]; then HOSTNAME_LABEL="$(hostname)"; return 0; fi
-
-    is_valid_ipv4 "$NODE_IP" || die "'$NODE_IP' is not a valid IPv4 address."
-    [[ -n "$SSH_KEY" ]] || die "--key is required when --server is specified."
-    [[ -f "$SSH_KEY" ]] || die "SSH key path '$SSH_KEY' does not exist."
-    [[ "$(stat -c %a "$SSH_KEY")" == "600" ]] || { chmod 600 "$SSH_KEY"; log "Fixed SSH key permissions."; }
-
-    HOSTNAME_LABEL="$(node_ssh hostname 2>/dev/null)"
-    [[ -n "$HOSTNAME_LABEL" ]] || die "Cannot reach node $NODE_IP. Verify SSH access with: ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes root@$NODE_IP"
-
-    log "Containers will be created on node: $NODE_IP ($HOSTNAME_LABEL)"
 }
 
 validate_password_in_lists() {
@@ -321,57 +250,6 @@ validate_user_creation() {
     [[ "${username_taken:-0}" -gt 0 ]] && die "Username '$USERNAME' is already taken."
 }
 
-bootstrap_node() {
-    [[ -n "$NODE_IP" ]] || return 0
-
-    log "Bootstrapping node $NODE_IP"
-
-    node_ssh 'bash -s' << 'REMOTE'
-set -e
-if [[ ! -d /etc/openpanel/openpanel ]]; then
-    grep -qxF 'PubkeyAuthentication yes' /etc/ssh/sshd_config || echo 'PubkeyAuthentication yes' >> /etc/ssh/sshd_config
-    grep -qxF 'AuthorizedKeysFile .ssh/authorized_keys' /etc/ssh/sshd_config || echo 'AuthorizedKeysFile .ssh/authorized_keys' >> /etc/ssh/sshd_config
-    service ssh restart >/dev/null 2>&1 || true
-
-    if command -v apt-get &>/dev/null; then
-        DEBIAN_FRONTEND=noninteractive apt-get -yq update >/dev/null 2>&1
-        DEBIAN_FRONTEND=noninteractive apt-get -yq install systemd-container uidmap >/dev/null 2>&1
-    elif command -v dnf &>/dev/null; then
-        dnf install -y systemd-container uidmap >/dev/null 2>&1
-    elif command -v yum &>/dev/null; then
-        yum install -y systemd-container uidmap >/dev/null 2>&1
-    else
-        echo "ERROR: Cannot install prerequisites." >&2; exit 1
-    fi
-
-    mkdir -p /etc/systemd/system/user@.service.d
-    cat > /etc/systemd/system/user@.service.d/delegate.conf << 'EOF'
-[Service]
-Delegate=cpu cpuset io memory pids
-EOF
-    systemctl daemon-reload
-fi
-REMOTE
-	# TODO: dont scp if already exists!
-	scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -r /etc/openpanel "root@${NODE_IP}:/etc/openpanel"
-}
-
-setup_sshfs_mount() {
-    [[ -n "$NODE_IP" ]] || return 0
-
-    if ! command -v sshfs &>/dev/null; then
-        local pm
-        if command -v apt-get &>/dev/null; then pm="apt-get install -y";
-        elif command -v dnf &>/dev/null;     then pm="dnf install -y";
-        elif command -v yum &>/dev/null;     then pm="yum install -y";
-        else die "Cannot install sshfs; no supported package manager found."; fi
-        # shellcheck disable=SC2086
-        $pm sshfs
-    fi
-
-    sshfs -o "IdentityFile=${SSH_KEY},StrictHostKeyChecking=no" "root@${NODE_IP}:/home/${USERNAME}" "/home/${USERNAME}" || die "sshfs mount failed for $NODE_IP:/home/$USERNAME"
-}
-
 load_plan() {
     log "Looking up plan '$PLAN_NAME'"
 	local PLAN_NAME_ESC
@@ -418,52 +296,9 @@ autostart_services() {
     done
     [[ ${#images[@]} -eq 0 ]] && { echo "[!] Warning: No autostart services match user config."; return 1; }
 	log "Starting services in background: ${images[*]}"
-	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if docker --context=${USERNAME} info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do docker --context=${USERNAME} compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
-}
-
-setup_ssh_key_for_user() {
-    [[ -n "$NODE_IP" ]] || return 0
-    log "Configuring SSH key for user '$USERNAME'"
-
-    local pub_key
-    pub_key="$(ssh-keygen -y -f "$SSH_KEY")" || die "Cannot read public key from $SSH_KEY"
-
-    node_ssh "bash -s" << EOF
-mkdir -p /home/${USERNAME}/.ssh
-touch /home/${USERNAME}/.ssh/authorized_keys
-chown "${USERNAME}" -R /home/${USERNAME}/.ssh
-grep -qF '${pub_key}' /home/${USERNAME}/.ssh/authorized_keys || echo '${pub_key}' >> /home/${USERNAME}/.ssh/authorized_keys
-EOF
-
-    mkdir -p ~/.ssh/cm_socket
-    chmod 700 ~/.ssh
-    local key_copy="${HOME}/.ssh/${NODE_IP}"
-    cp "$SSH_KEY" "$key_copy" && chmod 600 "$key_copy"
-
-    if ! grep -qF "Host ${USERNAME}" ~/.ssh/config 2>/dev/null; then
-
-		mkdir -p /tmp/ssh_cm
-		chmod 700 /tmp/ssh_cm
-		# TODO: recreate on reboot!
-        cat >> ~/.ssh/config << EOF
-
-Host ${USERNAME}
-    HostName ${NODE_IP}
-    User ${USERNAME}
-    IdentityFile ~/.ssh/${NODE_IP}
-    StrictHostKeyChecking no
-    UserKnownHostsFile /dev/null
-    ControlPath /tmp/ssh_cm/%r@%h:%p
-    ControlMaster auto
-    ControlPersist 5m
-    TCPKeepAlive yes
-    ServerAliveInterval 15
-    ServerAliveCountMax 3
-EOF
-    fi
-
-    ssh "${USERNAME}" exit &>/dev/null || die "Failed to establish SSH connection for user '$USERNAME'."
-    log "SSH connection established for $USERNAME"
+	# a fresh subshell doesn't inherit lib/podman.sh's functions, so the socket is inlined directly
+	local sock="unix:///run/user/${USER_ID}/podman/podman.sock"
+	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if CONTAINER_HOST=${sock} podman --remote info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do CONTAINER_HOST=${sock} podman-compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
 }
 
 create_linux_user_local() {
@@ -472,51 +307,11 @@ create_linux_user_local() {
     USER_ID="$(id -u "$USERNAME")"
 }
 
-create_linux_user_remote() {
-    [[ -n "$NODE_IP" ]] || return 0
-    log "Creating Linux user '$USERNAME' on node $NODE_IP"
-    local id_flag=""
-    [[ -n "${USER_ID:-}" ]] && id_flag="-u $USER_ID"
-
-    # shellcheck disable=SC2086
-    node_ssh "useradd -m -s /bin/bash -d /home/${USERNAME} ${id_flag} ${USERNAME}" || { hard_cleanup; die "Failed to create Linux user '$USERNAME' on node $NODE_IP"; }
-    USER_ID="$(node_ssh "id -u ${USERNAME}")"
-}
-
-ensure_docker_on_node() {
-    [[ -n "$NODE_IP" ]] || return 0
-
-    if ! node_ssh "command -v docker >/dev/null 2>&1"; then
-        log "Installing Docker on $NODE_IP"
-        node_ssh "bash -s" << 'REMOTE'
-set -e
-apt-get update -qq
-apt-get install -y docker.io
-systemctl enable --now docker
-REMOTE
-    fi
-
-    log "Adding '$USERNAME' to docker group on $NODE_IP"
-    node_ssh "bash -s" << EOF
-if ! id -nG "${USERNAME}" 2>/dev/null | grep -qw docker; then
-    usermod -aG docker "${USERNAME}"
-fi
-EOF
-}
-
-setup_docker_compose() {
-    log "Setting up Docker Compose for '$USERNAME'"
-    local arch link system_file
-    arch="$(uname -m)"
-    case "$arch" in
-        aarch64) link="$DOCKER_COMPOSE_ARM" ;;
-        *)       link="$DOCKER_COMPOSE_X86" ;;
-    esac
-    system_file="/etc/openpanel/docker/docker-compose-linux-${arch}"
-    [[ -f "$system_file" ]] || curl -fsSL "$link" -o "$system_file"
-    chmod +x "$system_file"
-    mkdir -p "/home/${USERNAME}/.docker/cli-plugins"
-    ln -sf "$system_file" "/home/${USERNAME}/.docker/cli-plugins/docker-compose"
+ensure_subuid_subgid() {
+    # rootless podman needs a user/group ID range in /etc/subuid and /etc/subgid;
+    # modern useradd assigns this automatically, but add it if it's missing
+    grep -q "^${USERNAME}:" /etc/subuid 2>/dev/null || usermod --add-subuids 100000-165535 "$USERNAME" || die "Failed to assign subuid range for '$USERNAME'."
+    grep -q "^${USERNAME}:" /etc/subgid 2>/dev/null || usermod --add-subgids 100000-165535 "$USERNAME" || die "Failed to assign subgid range for '$USERNAME'."
 }
 
 readonly PASTA_SELINUX_MODULE="/etc/openpanel/docker/selinux/pasta_local.pp"
@@ -528,7 +323,7 @@ fix_pasta_selinux() {
     command -v pasta >/dev/null 2>&1 || return 0  # pasta not in use on this box
     semodule -l 2>/dev/null | grep -qx 'pasta_local' && return 0  # already applied
 
-    log "Applying SELinux policy fix for rootless docker (pasta netns access)"
+    log "Applying SELinux policy fix for rootless podman (pasta netns access)"
     if [[ -f "$PASTA_SELINUX_MODULE" ]]; then
         semodule -i "$PASTA_SELINUX_MODULE" 2>/dev/null || echo "[!] Warning: Failed to load pasta SELinux module."
         return 0
@@ -561,176 +356,89 @@ EOF
     rm -rf "$tmpdir"
 }
 
-setup_docker_rootless() {
-    log "Configuring rootless Docker for '$USERNAME'"
+setup_podman_rootless() {
+    log "Configuring rootless Podman for '$USERNAME'"
 
     local home_dir="/home/${USERNAME}"
-    local apparmor_file="/etc/apparmor.d/home.${USERNAME}.bin.rootlesskit"
+    local config_dir="${home_dir}/.config/containers"
 
-    _build_apparmor_profile() {
-        sed "s/USERNAME/${USERNAME}/g" << 'EOF'
-abi <abi/4.0>,
-include <tunables/global>
+    # graphroot stays under docker-data/ so the rest of opencli (backups, quota,
+    # restore, ...) keeps working with the same ~/docker-data/volumes/... layout
+    # that was used under rootless Docker; additionalimagestores points at the
+    # shared, read-only image store populated once by PODMAN_INSTALL.sh so this
+    # user's containers can reuse already-pulled images without duplicating them
+    mkdir -p "${home_dir}/docker-data" "$config_dir"
+    cat > "${config_dir}/storage.conf" << EOF
+[storage]
+driver = "overlay"
+graphroot = "${home_dir}/docker-data"
 
-"/home/USERNAME/bin/rootlesskit" flags=(unconfined) {
-  userns,
-  include if exists <local/home.USERNAME.bin.rootlesskit>
-}
+[storage.options]
+additionalimagestores = [
+  "${SHARED_STORE}"
+]
 EOF
-    }
 
-    mkdir -p "${home_dir}/docker-data" "${home_dir}/.config/docker" "${home_dir}/.docker/run" "${home_dir}/bin" "/etc/apparmor.d/"
-    cp /etc/openpanel/docker/daemon/rootless.json "${home_dir}/.config/docker/daemon.json"
-    sed -i "s/USERNAME/${USERNAME}/g" "${home_dir}/.config/docker/daemon.json"
     chmod 755 -R "${home_dir}"
-    [[ -f "${home_dir}/.bashrc" ]] && sed -i "1i export PATH=/home/${USERNAME}/bin:\$PATH" "${home_dir}/.bashrc"
+    chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
 
-    if [[ -n "$NODE_IP" ]]; then
-        node_ssh "bash -s" << REMOTE
-set -e
-$(_build_apparmor_profile | cat > "/etc/apparmor.d/home.${USERNAME}.bin.rootlesskit")
-systemctl restart apparmor.service >/dev/null 2>&1 || true
-loginctl enable-linger "${USERNAME}" >/dev/null 2>&1
-mkdir -p /home/${USERNAME}/.docker/run
-chmod 700 /home/${USERNAME}/.docker/run
-chmod 755 -R /home/${USERNAME}/
-chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/
-REMOTE
+    fix_pasta_selinux
+    loginctl enable-linger "$USERNAME" >/dev/null 2>&1
 
-        node_ssh "bash -s" << REMOTE
-su - "${USERNAME}" -c 'bash -l -c "
-    mkdir -p ~/bin
-    curl -fsSL https://get.docker.com/rootless -o ~/bin/dockerd-rootless-setuptool.sh
-    chmod +x ~/bin/dockerd-rootless-setuptool.sh
-    ~/bin/dockerd-rootless-setuptool.sh install >/dev/null 2>&1
-
-    grep -qF XDG_RUNTIME_DIR ~/.bashrc || echo \"export XDG_RUNTIME_DIR=/home/${USERNAME}/.docker/run\" >> ~/.bashrc
-    grep -qF DBUS_SESSION_BUS_ADDRESS ~/.bashrc || echo \"export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus\" >> ~/.bashrc
-
-    mkdir -p ~/.config/systemd/user/
-    cat > ~/.config/systemd/user/docker.service << EOF
-[Unit]
-Description=Docker Application Container Engine (Rootless)
-After=network.target
-[Service]
-Environment=PATH=/home/${USERNAME}/bin:\$PATH
-Environment=DOCKER_HOST=unix:///home/${USERNAME}/.docker/run/docker.sock
-ExecStart=/home/${USERNAME}/bin/dockerd-rootless.sh -H unix:///home/${USERNAME}/.docker/run/docker.sock
-Restart=on-failure
-StartLimitBurst=3
-StartLimitInterval=60s
-[Install]
-WantedBy=default.target
-EOF
-"'
-REMOTE
-
-        node_ssh "machinectl shell ${USERNAME}@ /bin/bash -c '
-            systemctl --user daemon-reload >/dev/null 2>&1
-            systemctl --user enable docker >/dev/null 2>&1
-            systemctl --user start docker >/dev/null 2>&1
-        ' 2>/dev/null" || true
-
-    else
-		fix_pasta_selinux
-        _build_apparmor_profile > "$apparmor_file"
-        systemctl restart apparmor.service >/dev/null 2>&1 || true
-        loginctl enable-linger "$USERNAME" >/dev/null 2>&1
-
-      	if [ ! -f "$ROOTLESS_SETUP_SCRIPT" ]; then
-			curl -sSL https://get.docker.com/rootless -o "$ROOTLESS_SETUP_SCRIPT"
-   			chmod +x "$ROOTLESS_SETUP_SCRIPT"
-		fi
-
-        mkdir -p "${home_dir}/.docker/run" "${home_dir}/bin"
-        chmod 700 "${home_dir}/.docker/run"
-        chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
-        ln -sf "$ROOTLESS_SETUP_SCRIPT" "${home_dir}/bin/dockerd-rootless-setuptool.sh"
-
-        machinectl shell "${USERNAME}@" /bin/bash -c "
-            source ~/.bashrc 2>/dev/null || true
-            /home/${USERNAME}/bin/dockerd-rootless-setuptool.sh install >/dev/null 2>&1
-
-            grep -qF XDG_RUNTIME_DIR ~/.bashrc || echo 'export XDG_RUNTIME_DIR=/home/${USERNAME}/.docker/run' >> ~/.bashrc
-            grep -qF 'export PATH=/home/${USERNAME}/bin' ~/.bashrc || echo 'export PATH=/home/${USERNAME}/bin:\$PATH' >> ~/.bashrc
-            grep -qF DOCKER_HOST ~/.bashrc || echo 'export DOCKER_HOST=unix:///home/${USERNAME}/.docker/run/docker.sock' >> ~/.bashrc
-
-            source ~/.bashrc 2>/dev/null || true
-            mkdir -p ~/.config/systemd/user/
-            cat > ~/.config/systemd/user/docker.service << 'SVCEOF'
-[Unit]
-Description=Docker Application Container Engine (Rootless)
-After=network.target
-[Service]
-Environment=PATH=/home/${USERNAME}/bin:$PATH
-Environment=DOCKER_HOST=unix://%t/docker.sock
-ExecStart=/home/${USERNAME}/bin/dockerd-rootless.sh
-Restart=on-failure
-StartLimitBurst=3
-StartLimitInterval=60s
-[Install]
-WantedBy=default.target
-SVCEOF
-            systemctl --user daemon-reload >/dev/null 2>&1
-			systemctl --user enable docker >/dev/null 2>&1
-            systemctl --user restart docker >/dev/null 2>&1
-        " 2>/dev/null || true
-    fi
+    # podman.socket is a user unit shipped by the podman package itself (unlike
+    # rootless Docker, there's no per-user daemon to install) - just enable it
+    machinectl shell "${USERNAME}@" /bin/bash -c "
+        systemctl --user daemon-reload >/dev/null 2>&1
+        systemctl --user reset-failed podman.socket >/dev/null 2>&1
+        systemctl --user enable --now podman.socket >/dev/null 2>&1
+    " 2>/dev/null || true
 }
 
-get_docker_service_errors() {
-    docker_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status docker --no-pager 2>&1' 2>&1) #systemctl --user status docker --no-pager 2>&1 | grep -i "error\|failed\|fatal"
+get_podman_service_errors() {
+    podman_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status podman.socket --no-pager 2>&1' 2>&1)
 }
 
-test_docker_service() {
-    # dockerd-rootless-setuptool.sh executed?
-	if [ ! -f "/home/${USERNAME}/bin/dockerd-rootless-setuptool.sh" ]; then
-	    hard_cleanup
-	    die "Installer script '${ROOTLESS_SETUP_SCRIPT}' exists but installation appears incomplete."
-	fi
-
-    # dockerd-rootless-setuptool.sh finished and created dockerd-rootless.sh?
-	if [ ! -e "/home/${USERNAME}/bin/dockerd-rootless.sh" ]; then
-	    hard_cleanup
-	    die "Installer script '${ROOTLESS_SETUP_SCRIPT}' failed."
-	fi
-
-    # wait for the docker socket to be available (docker started and initialized)
+test_podman_service() {
+    # wait for the rootless podman socket to be available (podman.socket started and initialized)
 	local elapsed=0 max_time=30
     while [[ $elapsed -lt $max_time ]]; do
-        if [[ -S "/hostfs/run/user/${USER_ID}/docker.sock" ]]; then
-            log "Docker service started (socket: /run/user/${USER_ID}/docker.sock)"
+        if [[ -S "/hostfs/run/user/${USER_ID}/podman/podman.sock" ]]; then
+            log "Podman service started (socket: /run/user/${USER_ID}/podman/podman.sock)"
             break
         fi
         sleep 1
         (( elapsed++ )) || true
     done
 
-	# is docker socket available?
-	if [ ! -S "/hostfs/run/user/${USER_ID}/docker.sock" ]; then
-	    get_docker_service_errors
+	# is podman socket available?
+	if [ ! -S "/hostfs/run/user/${USER_ID}/podman/podman.sock" ]; then
+	    get_podman_service_errors
 	    hard_cleanup
-	    die "Docker service did not start after $max_time seconds!"
+	    die "Podman service did not start after $max_time seconds! ${podman_service_errors:-}"
 	fi
 
-    # context created and compose plugin loaded?
-	docker_compose_output=$(timeout 3 docker --context="$USERNAME" compose version 2>&1)
-	if echo "$docker_compose_output" | grep -q "Docker Compose version"; then
-	    log "Docker context is working and compose plugin is loaded."
+    # `timeout` execs a binary directly and can't invoke a bash function, so the
+    # socket is inlined here via CONTAINER_HOST instead of calling podman_user/podman_compose_user
+	local sock="unix:///run/user/${USER_ID}/podman/podman.sock"
+
+    # podman-compose can reach this user's rootless podman instance?
+	compose_output=$(cd "/home/${USERNAME}" && CONTAINER_HOST="$sock" timeout 5 podman-compose ps 2>&1)
+	if [[ $? -eq 0 ]]; then
+	    log "podman-compose is working against '$USERNAME's rootless podman."
 	else
 		hard_cleanup
-		die "Docker Compose is not working in context '$USERNAME'."
+		die "podman-compose is not working for '$USERNAME': $compose_output"
 	fi
 
-	# is docker service ready?
-	docker_info_output=$(timeout 5 docker --context="$USERNAME" info 2>&1)
-	if echo "$docker_info_output" | grep -q "Server Version"; then
-	    log "Docker service is responding and working correctly."
+	# is podman service ready?
+	info_output=$(CONTAINER_HOST="$sock" timeout 5 podman --remote info 2>&1)
+	if [[ $? -eq 0 ]]; then
+	    log "Podman service is responding and working correctly."
 	else
-	    log "docker info output: $docker_info_output"
-		get_docker_service_errors
+	    log "podman info output: $info_output"
+		get_podman_service_errors
 	    hard_cleanup
-	    die "Docker service started (socket created) but is not running: $docker_service_errors"
+	    die "Podman service started (socket created) but is not running: ${podman_service_errors:-}"
 	fi
 }
 
@@ -761,23 +469,13 @@ configure_environment() {
     log "Configuring environment for '$USERNAME'"
 
     local port_1 port_2 port_3 port_4 port_5 port_6 port_7
-    if [[ -n "$NODE_IP" ]]; then
-        port_1="${NODE_IP}:${P1}:80"
-        port_2="${NODE_IP}:${P2}:3306"
-        port_3="${NODE_IP}:${P3}:5432"
-        port_4="${NODE_IP}:${P4}:80"
-        port_5="${NODE_IP}:${P5}:80"
-        port_6="${NODE_IP}:${P6}:443"
-        port_7="${NODE_IP}:${P7}:80"
-    else
-        port_1="${P1}:80"
-        port_2="${P2}:3306"
-        port_3="${P3}:5432"
-        port_4="${P4}:80"
-        port_5="127.0.0.1:${P5}:80"
-        port_6="127.0.0.1:${P6}:443"
-        port_7="127.0.0.1:${P7}:80"
-    fi
+    port_1="${P1}:80"
+    port_2="${P2}:3306"
+    port_3="${P3}:5432"
+    port_4="${P4}:80"
+    port_5="127.0.0.1:${P5}:80"
+    port_6="127.0.0.1:${P6}:443"
+    port_7="127.0.0.1:${P7}:80"
 
     local root_password_for_services
     root_password_for_services="$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 24)"
@@ -867,20 +565,6 @@ configure_environment() {
 copy_skeleton_files() {
     log "Creating configuration files for the newly created user"
     cp -r /etc/openpanel/skeleton/ "/etc/openpanel/openpanel/core/users/${USERNAME}/" 2>/dev/null || true
-
-    if [[ -n "$NODE_IP" ]]; then
-        echo "{ \"ip\": \"${NODE_IP}\" }" > "/etc/openpanel/openpanel/core/users/${USERNAME}/ip.json"
-    fi
-}
-
-create_docker_context() {
-    local host
-    if [[ -n "$NODE_IP" ]]; then
-        host="ssh://${USERNAME}"
-    else
-        host="unix:///hostfs/run/user/${USER_ID}/docker.sock"
-    fi
-	docker context create "$USERNAME" --docker "host=${host}" --description "$USERNAME" >/dev/null 2>&1 || true
 }
 
 save_user_to_database() {
@@ -980,27 +664,21 @@ flock -n 200 || { echo "[✘] Error: A user creation process is already running.
 validate_user_creation
 validate_username
 validate_password_in_lists
-resolve_node
 load_plan
 check_reseller_limits
 
 ########################################################################
 # 2. create system user
 create_linux_user_local
-# if slave server: create remote user, mount homedir, install docker
-create_linux_user_remote
-bootstrap_node
-setup_sshfs_mount
-ensure_docker_on_node
-setup_ssh_key_for_user
+ensure_subuid_subgid
 
 ########################################################################
-# 3. setup docker rootless for user
-setup_docker_rootless &
+# 3. setup podman rootless for user
+setup_podman_rootless &
 PID_ROOTLESS_INSTALL=$!
 
 ########################################################################
-# 4. do background stuff while docker install is running
+# 4. do background stuff while podman setup is running
 
 find_available_ports_bg() { find_available_ports > /tmp/ports_$$; }
 find_available_ports_bg &
@@ -1008,7 +686,7 @@ PID_PORTS=$!
 
 copy_skeleton_files &
 
-nohup sh -c "cd /root && docker compose up -d openpanel" </dev/null >/dev/null 2>&1 &
+nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 &
 
 generate_password_hash
 create_user_volume &
@@ -1018,13 +696,10 @@ read -r P1 P2 P3 P4 P5 P6 P7 < /tmp/ports_$$
 rm -f /tmp/ports_$$
 configure_environment
 
-setup_docker_compose
-create_docker_context
-
 ########################################################################
-# 6. validate docker service is started for user (socket exists), compose command and context are working
+# 6. validate podman service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
-test_docker_service
+test_podman_service
 autostart_services
 
 ########################################################################
