@@ -30,6 +30,10 @@
 ################################################################################
 
 set -o pipefail
+
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 pid=$$
 start_time=$(date +%s)
 MAIL_CONTAINER="openadmin_mailserver"
@@ -408,8 +412,8 @@ restore_domains() {
         log "Domain restored: $domain"
     done < "$WORK/db/domains.list"
 
-    docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1 || true
-    (cd /root && docker --context default compose up -d bind9 >/dev/null 2>&1) || true
+    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1 || true
+    (cd /root && podman-compose up -d bind9 >/dev/null 2>&1) || true
 
     # Sites table
     if [[ -f "$WORK/db/sites.sql" ]]; then
@@ -447,23 +451,23 @@ restore_ftp() {
     mkdir -p "$LDIR"; cp -a "$WORK/ftp/." "$LDIR/"
     [[ -f "$LDIR/users.list" ]] || { log "No users.list — skipping container step."; return; }
 
-    [[ -z "$(docker ps -q -f name=openadmin_ftp 2>/dev/null)" ]] && { (cd /root && docker --context default compose up -d openadmin_ftp >/dev/null 2>&1) || true; sleep 2; }
+    [[ -z "$(podman ps -q -f name=openadmin_ftp 2>/dev/null)" ]] && { (cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1) || true; sleep 2; }
 
     local GID; GID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
     [[ "$GID" =~ ^[0-9]+$ ]] || { warn "Cannot get GID for $CONTEXT — FTP container step skipped."; return; }
-    docker exec openadmin_ftp sh -c "getent group '$GID' >/dev/null 2>&1" || docker exec openadmin_ftp addgroup -g "$GID" "$CONTEXT" 2>/dev/null || true
+    podman exec openadmin_ftp sh -c "getent group '$GID' >/dev/null 2>&1" || podman exec openadmin_ftp addgroup -g "$GID" "$CONTEXT" 2>/dev/null || true
 
-    # TODO: check if UID already taken and not our username, in which case assign new UID and update in $LDIR/users.list 
+    # TODO: check if UID already taken and not our username, in which case assign new UID and update in $LDIR/users.list
     while IFS='|' read -r fu hp dir uid gid; do
         [[ -z "$fu" ]] && continue
-        if docker exec openadmin_ftp id "$fu" >/dev/null 2>&1; then
+        if podman exec openadmin_ftp id "$fu" >/dev/null 2>&1; then
             log "[skip] FTP user '$fu' exists."; FTP_SKIPPED=$((FTP_SKIPPED+1)); continue
         fi
         local rp="/home/${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/"
         local nd="${rp}${dir##/var/www/html/}"
         mkdir -p "$nd"; chown -R "$GID:$GID" "$nd"; chmod -R 2775 "$nd"
-        docker exec openadmin_ftp useradd -d "$nd" -s /sbin/nologin -g "$CONTEXT" -M "$fu" --badname 2>/dev/null || true
-        docker exec openadmin_ftp sh -c "usermod -p '$hp' '$fu'"
+        podman exec openadmin_ftp useradd -d "$nd" -s /sbin/nologin -g "$CONTEXT" -M "$fu" --badname 2>/dev/null || true
+        podman exec openadmin_ftp sh -c "usermod -p '$hp' '$fu'"
         log "FTP user restored: $fu"; FTP_CREATED=$((FTP_CREATED+1))
     done < "$LDIR/users.list"
 
@@ -494,13 +498,13 @@ restore_email() {
     local asrc="$EMAILS_DIR/postfix-accounts.cf"
     [[ -s "$asrc" ]] || { log "No postfix-accounts.cf in archive — skipping email merge."; return; }
 
-    [[ -z "$(docker ps -q -f name=${MAIL_CONTAINER} 2>/dev/null)" ]] && {
-        [[ -d /usr/local/mail/openmail ]] && (cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1) || true
+    [[ -z "$(podman ps -q -f name=${MAIL_CONTAINER} 2>/dev/null)" ]] && {
+        [[ -d /usr/local/mail/openmail ]] && (cd /usr/local/mail/openmail && podman-compose up -d mailserver roundcube >/dev/null 2>&1) || true
         sleep 2
     }
 
     local MNT
-    MNT=$(docker inspect "$MAIL_CONTAINER" --format '{{ range .Mounts }}{{ if eq .Destination "/tmp/docker-mailserver" }}{{ .Source }}{{ end }}{{ end }}' 2>/dev/null)
+    MNT=$(podman inspect "$MAIL_CONTAINER" --format '{{ range .Mounts }}{{ if eq .Destination "/tmp/docker-mailserver" }}{{ .Source }}{{ end }}{{ end }}' 2>/dev/null)
 
     # Helper: merge a simple line-based config file, skipping lines whose key (up to first |/space) already exists
     merge_cf() {
@@ -558,23 +562,32 @@ restore_email() {
         log "postfwd.cf: $pf_added rule(s) added."
     fi
 
-    [[ $EMAILS_ADDED -gt 0 ]] && { docker exec "$MAIL_CONTAINER" postfix reload >/dev/null 2>&1 || docker restart "$MAIL_CONTAINER" >/dev/null 2>&1 || true; }
+    [[ $EMAILS_ADDED -gt 0 ]] && { podman exec "$MAIL_CONTAINER" postfix reload >/dev/null 2>&1 || podman restart "$MAIL_CONTAINER" >/dev/null 2>&1 || true; }
 }
 restore_email
 
-# ── 8) Docker ────────────────────────────────────────────────────────────────
+# ── 8) Podman ────────────────────────────────────────────────────────────────
 restore_docker() {
+    # NOTE: rootless Docker needed a per-user AppArmor profile for rootlesskit;
+    # podman rootless doesn't use rootlesskit, so this is only relevant when
+    # restoring a backup taken before the podman migration - harmless either way,
+    # the profile just won't be enforced against anything if rootlesskit isn't in use.
     [[ -f "$WORK/docker/apparmor.profile" ]] && {
         cp -a "$WORK/docker/apparmor.profile" "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit"
         systemctl restart apparmor.service >/dev/null 2>&1 || true
     }
-    if [[ -d "/home/$CONTEXT/.docker" ]]; then
+    if [[ -d "/home/$CONTEXT/.config/containers" ]]; then
         local uid_now; uid_now=$(id -u "$CONTEXT" 2>/dev/null)
         if [[ -n "$uid_now" ]]; then
-            docker context create "$CONTEXT" --docker "host=unix:///hostfs/run/user/${uid_now}/docker.sock" --description "$CONTEXT" >/dev/null 2>&1 || true
+            # context resolution is dynamic (based on /home/$CONTEXT's owner uid) -
+            # there's no context to register anymore, just make sure the user's
+            # rootless podman.socket is enabled and running (mirrors user/add.sh)
             loginctl enable-linger "$CONTEXT" >/dev/null 2>&1 || true
-            machinectl shell "${CONTEXT}@" /bin/bash -c 'systemctl --user daemon-reload' >/dev/null 2>&1 || true
-            machinectl shell "${CONTEXT}@" /bin/bash -c 'systemctl --user --quiet restart docker' >/dev/null 2>&1 || true
+            machinectl shell "${CONTEXT}@" /bin/bash -c '
+                systemctl --user daemon-reload
+                systemctl --user reset-failed podman.socket
+                systemctl --user enable --now podman.socket
+            ' >/dev/null 2>&1 || true
         fi
     fi
     if [[ -f "$WORK/docker/containers.txt" && -f "/home/$CONTEXT/docker-compose.yml" ]]; then
@@ -583,8 +596,8 @@ restore_docker() {
         ctx=$(echo "$ctx" | xargs); containers=$(echo "$containers" | xargs)
         if [[ -n "$ctx" && "$containers" != "no containers" && -n "$containers" ]]; then
             log "Starting containers for $ctx ..."
-            docker --context="$ctx" compose -f "/home/$ctx/docker-compose.yml" down >/dev/null 2>&1 || true
-            docker --context="$ctx" compose -f "/home/$ctx/docker-compose.yml" up -d $containers >/dev/null 2>&1 || true
+            podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" down >/dev/null 2>&1 || true
+            podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" up -d $containers >/dev/null 2>&1 || true
         fi
     fi
 }
@@ -594,8 +607,8 @@ restore_docker
 [[ -d "$WORK/caddy/stats/$ORIG_USERNAME" ]] && { mkdir -p /var/log/caddy/stats/; cp -a "$WORK/caddy/stats/$ORIG_USERNAME" /var/log/caddy/stats/; }
 
 log "Reloading services ..."
-(cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1) || true
-docker --context default exec caddy caddy reload >/dev/null 2>&1 || true
+(cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1) || true
+podman exec caddy caddy reload >/dev/null 2>&1 || true
 log "Recalculating quotas ..."
 opencli user-quota --update "$USERNAME" >/dev/null 2>&1 || true
 

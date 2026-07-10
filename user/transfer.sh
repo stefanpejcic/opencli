@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 pid=$$
 script_dir=$(dirname "$0")
 start_time=$(date +%s) #used to calculate elapsed time at the end
@@ -350,8 +353,8 @@ output_file="/tmp/docker_containers_names.txt"
 
 compose_file="/home/$CONTEXT/docker-compose.yml"
 if [ -f "$compose_file" ]; then
-    log "Checking docker context ...."
-    containers=$(docker --context="$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null)
+    log "Checking podman context ...."
+    containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null)
     if [ -n "$containers" ]; then
         containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
         echo "$CONTEXT: $containers_single_line" >> "$output_file"
@@ -397,8 +400,8 @@ while IFS=: read -r ctx containers <&3; do
         continue
     fi
 
-    log "Starting containers inside docker context on remote server ..."
-    $SSH_CMD "docker --context=$ctx compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1 && docker --context=$ctx compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
+    log "Starting containers inside podman context on remote server ..."
+    $SSH_CMD "remote_uid=\$(id -u $ctx); CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
 # Close FD 3
@@ -769,11 +772,11 @@ EOF
 
  done <<< "$ALL_DOMAINS"
 
- docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
- cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
+ podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
+ cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 
  if [[ "$LIVE_TRANSFER" == true ]]; then
-   docker --context default exec caddy caddy reload >/dev/null 2>&1
+   podman exec caddy caddy reload >/dev/null 2>&1
  fi
 
 fi
@@ -781,57 +784,43 @@ fi
 
 
 
-copy_docker_context() {
-
-    eval $RSYNC_CMD /run/user/$CONTEXT ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$CONTEXT >/dev/null 2>&1
-    eval $RSYNC_CMD /etc/apparmor.d/home.$CONTEXT.bin.rootlesskit ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/ >/dev/null 2>&1
-    # TODO!
-
-    $SSH_CMD "systemctl restart apparmor.service" >/dev/null 2>&1
-    
-	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
-
-	# Open the file on FD 3
-	exec 3</tmp/userlist.txt
-	
-    SRC="/home/$CONTEXT/.docker"
+setup_remote_podman() {
+    # context resolution is dynamic (based on /home/$CONTEXT's owner uid) under
+    # podman - there's no context to register, and no per-user AppArmor profile
+    # (that was for rootless Docker's rootlesskit, which podman doesn't use).
+    # ~/.config/containers/{storage,containers}.conf already ride along with
+    # the rest of the home directory via rsync_files_for_user - the paths in
+    # them (graphroot under the same username, the shared store's fixed system
+    # path) stay valid as-is on the destination.
+    SRC="/home/$CONTEXT/.config/containers"
     if [[ -d "$SRC" ]]; then
         REMOTE_UID=$($SSH_CMD "id -u $CONTEXT" 2>/dev/null)
 
         if [[ -z "$REMOTE_UID" ]]; then
             log "FATAL ERROR: Failed to get UID for user $CONTEXT on remote server"
             exit 1
-        else
-            log "Creating Docker context: $CONTEXT on destination ..."
-            $SSH_CMD "docker context create $CONTEXT --docker 'host=unix:///hostfs/run/user/${REMOTE_UID}/docker.sock' --description '$CONTEXT'" >/dev/null 2>&1 || \
-                log "Failed context for $CONTEXT"
         fi
 
-        log "Configuring docker service ..."
+        log "Enabling rootless podman for $CONTEXT on destination ..."
 
         $SSH_CMD "loginctl enable-linger $CONTEXT" \
             >/dev/null 2>&1 || log "Failed to enable linger for $CONTEXT"
 
-        $SSH_CMD "machinectl shell ${CONTEXT}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-            >/dev/null 2>&1 || log "Failed to reload daemon for $CONTEXT"
-
-        $SSH_CMD "machinectl shell ${CONTEXT}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-            >/dev/null 2>&1 || log "Failed to restart docker for $CONTEXT"
+        $SSH_CMD "machinectl shell ${CONTEXT}@ /bin/bash -c 'systemctl --user daemon-reload; systemctl --user reset-failed podman.socket; systemctl --user enable --now podman.socket'" \
+            >/dev/null 2>&1 || log "Failed to enable podman.socket for $CONTEXT"
     else
-        log "No .docker directory for $CONTEXT on source!"
+        log "No .config/containers directory for $CONTEXT on source!"
         exit 1
     fi
-	# Close FD 3
-	exec 3<&-
 }
 
 restart_services_on_target() {
         log "Reloading services on ${REMOTE_HOST} server ..."
-	$SSH_CMD "cd /root && docker compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+	$SSH_CMD "cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             log "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
-            $SSH_CMD "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
+            $SSH_CMD "cd /usr/local/mail/openmail && podman-compose up -d mailserver roundcube >/dev/null 2>&1"
 	fi
 
 	#todo: clamav 
@@ -869,8 +858,8 @@ set -e
 context="$CONTEXT"
 
 # Start the FTP server if it isn't running
-if [ -z "\$(docker ps -q -f name=openadmin_ftp)" ]; then
-    cd /root && docker --context default compose up -d openadmin_ftp >/dev/null 2>&1
+if [ -z "\$(podman ps -q -f name=openadmin_ftp)" ]; then
+    cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1
     sleep 2
 fi
 
@@ -882,9 +871,9 @@ if [[ ! "\$GID" =~ ^[0-9]+\$ ]]; then
 fi
 
 # Ensure the shared group exists inside the container
-EXISTING_GROUP=\$(docker exec openadmin_ftp sh -c "getent group '\$GID' | cut -d: -f1")
+EXISTING_GROUP=\$(podman exec openadmin_ftp sh -c "getent group '\$GID' | cut -d: -f1")
 if [[ -z "\$EXISTING_GROUP" ]]; then
-    docker exec openadmin_ftp addgroup -g "\$GID" "\$context" 2>/dev/null || true
+    podman exec openadmin_ftp addgroup -g "\$GID" "\$context" 2>/dev/null || true
 fi
 
 USERS_LIST="/etc/openpanel/ftp/users/\${context}/users.list"
@@ -898,7 +887,7 @@ while IFS='|' read -r username hashed_pass directory uid gid; do
     new_directory="\${real_path}\${relative_path}"
 
     # Skip if the user already exists in the container
-    if docker exec openadmin_ftp id "\$username" >/dev/null 2>&1; then
+    if podman exec openadmin_ftp id "\$username" >/dev/null 2>&1; then
         echo "[FTP] \$username already exists in container, skipping."
         continue
     fi
@@ -914,9 +903,9 @@ while IFS='|' read -r username hashed_pass directory uid gid; do
     chmod -R 2775 "\$new_directory"
 
     # Recreate the container user with the SAME hashed password (no re-hashing)
-    docker exec openadmin_ftp useradd -d "\$new_directory" -s /sbin/nologin \\
+    podman exec openadmin_ftp useradd -d "\$new_directory" -s /sbin/nologin \\
         -g "\$context" -M "\$username" --badname 2>/dev/null || true
-    docker exec openadmin_ftp sh -c "usermod -p '\$hashed_pass' '\$username'"
+    podman exec openadmin_ftp sh -c "usermod -p '\$hashed_pass' '\$username'"
 
     echo "[FTP] restored \$username -> \$directory"
 done < "\$USERS_LIST"
@@ -961,7 +950,7 @@ copy_feature_set
 copy_user_account "$CONTEXT"
 get_remote_nameservers
 rsync_files_for_user
-copy_docker_context # create context on dest, start service
+setup_remote_podman # enable rootless podman.socket on dest
 restore_ftp_for_user # recreate ftp sub-accounts in remote container
 $SSH_CMD "systemctl daemon-reload" 
 $SSH_CMD "opencli user-quota --update $USERNAME >/dev/null 2>&1" # set quotas
