@@ -129,13 +129,14 @@ get_current_domain() {
         sed -n "/$start_marker/,/$end_marker/p" "$CADDY_FILE" | sed -n 's/^\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\)[[:space:]]*{.*/\1/p' | head -n1
     }
 
-    domain=""
-    if [ -f /.dockerenv ]; then
-        domain=$(extract_domain "# START USERPANEL DOMAIN #" "# END USERPANEL DOMAIN #")
-        if [[ -z "$domain" ]]; then
-            domain=$(extract_domain "# START HOSTNAME DOMAIN #" "# END HOSTNAME DOMAIN #")
-        fi
-    else
+    # NOTE: this used to branch on /.dockerenv (running inside a container) to
+    # decide whether to check the separate USERPANEL DOMAIN block. OpenAdmin
+    # now always runs natively on the host (see PODMAN_INSTALL.sh), so
+    # /.dockerenv never exists anymore - check both markers unconditionally,
+    # since the USERPANEL DOMAIN feature (set_hostname() in PODMAN_INSTALL.sh)
+    # is unrelated to whether the panel itself is containerized.
+    domain=$(extract_domain "# START USERPANEL DOMAIN #" "# END USERPANEL DOMAIN #")
+    if [[ -z "$domain" ]]; then
         domain=$(extract_domain "# START HOSTNAME DOMAIN #" "# END HOSTNAME DOMAIN #")
     fi
 
@@ -278,18 +279,18 @@ configure_mailserver() {
     fi
     
     log_debug "Restarting mailserver and webmail to apply new configuration"
-    nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default compose down && docker --context default compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down && podman-compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
 }
 
 
 # Restart services
 restart_services() {
 
-	if docker --context default compose -f /root/docker-compose.yml ps -q caddy >/dev/null 2>&1; then
-        nohup docker --context default restart caddy >/dev/null 2>&1 &
+	if podman-compose -f /root/docker-compose.yml ps -q caddy >/dev/null 2>&1; then
+        nohup podman restart caddy >/dev/null 2>&1 &
         disown
     else
-        nohup bash -c "cd /root && docker --context default compose up -d caddy" >/dev/null 2>&1 &
+        nohup bash -c "cd /root && podman-compose up -d caddy" >/dev/null 2>&1 &
         disown
     fi
 
@@ -313,7 +314,7 @@ restart_services() {
     cd /root || return 1
     
     # Restart OpenPanel
-    docker --context default restart openpanel >/dev/null 2>&1	
+    podman restart openpanel >/dev/null 2>&1
 }
 
 # Display success message
