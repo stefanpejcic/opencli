@@ -31,6 +31,9 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 ensure_fzf() {
@@ -64,13 +67,13 @@ get_context() {
     " 2>/dev/null
   )
 
-  [ -n "$context" ] || die "No docker context found for username: $username"
+  [ -n "$context" ] || die "No podman context found for username: $username"
   echo "$context"
 }
 
 list_containers() {
   local context="$1"
-  docker --context="$context" ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null
+  podman_ctx "$context" ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null
 }
 
 pick_container() {
@@ -89,8 +92,8 @@ pick_user() {
 exec_shell() {
   local context="$1" container="$2"
   local shell
-  shell=$(docker --context="$context" exec "$container" sh -c 'command -v bash || command -v sh' 2>/dev/null)
-  docker --context="$context" exec -it "$container" "$shell"
+  shell=$(podman_ctx "$context" exec "$container" sh -c 'command -v bash || command -v sh' 2>/dev/null)
+  podman_ctx "$context" exec -it "$container" "$shell"
 }
 
 

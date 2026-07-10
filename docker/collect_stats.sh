@@ -39,19 +39,11 @@ source /usr/local/opencli/db.sh
 (
 flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
-declare -A DOCKERD_PIDS
-
-build_dockerd_pid_map() {
-    while IFS= read -r pid; do
-        local uid_line
-        uid_line=$(awk '/^Uid:/{print $2; exit}' "/proc/$pid/status" 2>/dev/null)
-        [[ -z "$uid_line" ]] && continue
-        local uname
-        uname=$(getent passwd "$uid_line" 2>/dev/null | cut -d: -f1)
-        [[ -z "$uname" ]] && continue
-        [[ -z "${DOCKERD_PIDS[$uname]}" ]] && DOCKERD_PIDS[$uname]=$pid
-    done < <(pgrep -x dockerd 2>/dev/null)
-}
+# NOTE: bandwidth measurement used to nsenter into rootless dockerd's shared
+# network namespace (one dockerd PID per user) and read `tc` stats from it.
+# There's no equivalent single per-user daemon/netns under rootless podman,
+# so bandwidth is reported as 0 for now until that's redesigned; CPU/memory
+# stats below are cgroup-based and unaffected by the docker->podman migration.
 
 SEMAPHORE_DIR=$(mktemp -d /run/openpanel_stats_XXXXXX)
 SEMAPHORE_FIFO="$SEMAPHORE_DIR/sem"
@@ -117,30 +109,9 @@ process_user() {
         fi
         MEM_STAT=$(< "$CGROUP/memory.stat")
 
+        # bandwidth measurement removed with the docker->podman migration (see NOTE
+        # above); fields stay in the JSON output as 0 so consumers don't break
         local BW_LIMIT_BITS=0 BW_USED_BYTES=0 BW_USAGE_PCT=0
-        local DOCKERD_PID="${DOCKERD_PIDS[$USER_NAME]:-}"
-        if [[ -n "$DOCKERD_PID" ]]; then
-            local TC_OUTPUT
-            TC_OUTPUT=$(nsenter -t "$DOCKERD_PID" -n tc -s class show dev ifb0 2>/dev/null)
-            BW_USED_BYTES=$(awk '/class htb 1:10/{found=1} found && /Sent/{print $2; exit}' <<< "$TC_OUTPUT")
-            BW_LIMIT_BITS=$(awk '/class htb 1:10/{
-                for(i=1;i<=NF;i++){
-                    if($i=="ceil"){
-                        val=$(i+1)
-                        if(val~/Gbit/) { gsub(/Gbit/,"",val); val=val*1000000000 }
-                        else if(val~/Mbit/) { gsub(/Mbit/,"",val); val=val*1000000 }
-                        else if(val~/Kbit/) { gsub(/Kbit/,"",val); val=val*1000 }
-                        printf "%d", val; exit
-                    }
-                }
-            }' <<< "$TC_OUTPUT")
-            [[ -z "$BW_USED_BYTES"  ]] && BW_USED_BYTES=0
-            [[ -z "$BW_LIMIT_BITS"  ]] && BW_LIMIT_BITS=0
-            local BW_LIMIT_BYTES=$(( BW_LIMIT_BITS / 8 ))
-            if [[ "$BW_LIMIT_BYTES" -gt 0 ]]; then
-                BW_USAGE_PCT=$(awk "BEGIN {printf \"%d\", ($BW_USED_BYTES / $BW_LIMIT_BYTES) * 100}")
-            fi
-        fi
 
         sleep "$SAMPLE_DELAY"
 
@@ -310,8 +281,6 @@ if [ "$1" == "--all" ]; then
         exit 0
     fi
 
-    build_dockerd_pid_map
-
     MAX_JOBS=$(( SERVER_CPUS * 2 ))
     [[ $MAX_JOBS -gt 8 ]] && MAX_JOBS=8
     [[ $MAX_JOBS -lt 2 ]] && MAX_JOBS=2
@@ -327,7 +296,6 @@ if [ "$1" == "--all" ]; then
     done
     wait
 else
-    build_dockerd_pid_map
     semaphore_init 1
 
     process_user "$1"

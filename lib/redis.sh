@@ -24,7 +24,7 @@ REDIS_CONTAINER="openpanel_redis"
 
 # Runs a redis-cli command inside the redis container.
 redis_cli() {
-    docker --context=default exec "$REDIS_CONTAINER" redis-cli "$@"
+    podman exec "$REDIS_CONTAINER" redis-cli "$@"
 }
 
 # Deletes one or more exact keys. No-op if called with no args.

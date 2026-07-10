@@ -32,11 +32,17 @@ print_logs() {
     local context=$1
     local log_dir
 
+    # NOTE: this assumes the json-file/k8s-file log driver, which lays logs out as
+    # <container-id>/<container-id>-json.log under the storage graphroot. Podman
+    # defaults to the journald log driver on systemd hosts (true for every distro
+    # PODMAN_INSTALL.sh supports), in which case this directory won't exist and
+    # print_logs will just report nothing found below - it won't crash or lie,
+    # but log sizes need a journald-based query instead if that's the case here.
     if [ -z "$context" ] || [ "$context" == "default" ]; then
-        log_dir="/var/lib/docker/containers"
+        log_dir="/var/lib/containers/storage/overlay-containers"
         echo "System Containers"
     else
-        log_dir="/home/$context/docker-data/containers"
+        log_dir="/home/$context/docker-data/overlay-containers"
         echo "Context: ${context}"
     fi
 
@@ -54,7 +60,7 @@ print_logs() {
 
         container_id=$(basename "$(dirname "$log_file")")
 
-        container_name=$(docker --context=${context:-default} inspect --format='{{.Name}}' "$container_id" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
+        container_name=$(podman_ctx "${context:-default}" inspect --format='{{.Name}}' "$container_id" 2>/dev/null | sed 's/^\/\(.*\)/\1/')
 
         if [ -z "$container_name" ]; then
             continue
@@ -97,16 +103,25 @@ usage() {
 
 
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
+# there's no registered "docker context" list anymore - enumerate users from the DB instead
+list_user_contexts() {
+    opencli user-list --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'
+}
+
 # Main logic
 if [ "$1" == "--all" ]; then
     # including system
-    contexts=$(docker context ls --format '{{.Name}}')
+    print_logs "default"
+    contexts=$(list_user_contexts)
     for ctx in $contexts; do
         print_logs "$ctx"
     done
-elif [ "$1" == "--users" ]; then 
+elif [ "$1" == "--users" ]; then
     # exclude system
-    contexts=$(docker context ls --format '{{.Name}}' | grep -v '^default$')
+    contexts=$(list_user_contexts)
     for ctx in $contexts; do
         print_logs "$ctx"
     done

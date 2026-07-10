@@ -6,7 +6,6 @@ opencli docker-autostart
 opencli docker-backup
 opencli docker-collect_stats
 opencli docker-images
-opencli docker-limits
 opencli docker-logs
 opencli domain
 opencli domains-add

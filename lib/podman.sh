@@ -49,3 +49,25 @@ podman_compose_user() {
     sock="$(podman_user_socket "$user")" || return 1
     CONTAINER_HOST="$sock" podman-compose "$@"
 }
+
+# many scripts carry a "context" value pulled from the users table's `server`
+# column (a holdover from when it could be a remote node/ssh host - now it's
+# always either a username or "default"/"root"/"" for root's own system stack)
+# usage: podman_ctx <context> <podman-args...>
+podman_ctx() {
+    local context="$1"; shift
+    case "$context" in
+        ""|default|root) podman "$@" ;;
+        *)                podman_user "$context" "$@" ;;
+    esac
+}
+
+# same as podman_ctx but for podman-compose
+# usage: podman_compose_ctx <context> <podman-compose-args...>
+podman_compose_ctx() {
+    local context="$1"; shift
+    case "$context" in
+        ""|default|root) podman-compose "$@" ;;
+        *)                podman_compose_user "$context" "$@" ;;
+    esac
+}

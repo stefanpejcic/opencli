@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 GLOBAL_LOCK="/tmp/cup_global.lock"
 DIGEST_CACHE="/tmp/cup_digest_cache.tmp"
 DIGEST_CACHE_LOCK="/tmp/cup_digest_cache.lock"
@@ -60,7 +63,7 @@ usage() {
 }
 
 detect_manifest_support() {
-    if docker manifest --help > /dev/null 2>&1; then
+    if podman manifest --help > /dev/null 2>&1; then
         MANIFEST_AVAILABLE=true
     else
         MANIFEST_AVAILABLE=false
@@ -180,7 +183,7 @@ get_remote_digest() {
 
     # Fetch from registry
     local digest
-    digest=$(docker manifest inspect --verbose "$image" 2>/dev/null | python3 -c "
+    digest=$(podman manifest inspect --verbose "$image" 2>/dev/null | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 # manifest inspect --verbose returns either a single object or a list (multi-arch)
@@ -199,7 +202,7 @@ print(d.get('digest', ''))
 get_local_digest() {
     local ctx="$1"
     local image="$2"
-    docker --context="$ctx" image inspect "$image" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F'@' '{print $2}' || true
+    podman_user "$ctx" image inspect "$image" --format='{{index .RepoDigests 0}}' 2>/dev/null | awk -F'@' '{print $2}' || true
 }
 
 image_has_remote_update() {
@@ -244,7 +247,7 @@ validate_compose_file() {
         log_error "Compose file not found: $compose_file"
         return 1
     fi
-    if ! docker --context="$ctx" compose -f "$compose_file" config --quiet 2>/dev/null; then
+    if ! podman_compose_user "$ctx" -f "$compose_file" config --quiet 2>/dev/null; then
         log_error "Compose file is invalid: $compose_file"
         return 1
     fi
@@ -305,7 +308,7 @@ check_user_quota() {
 get_image_size_kb() {
     local ctx="$1"
     local image="$2"
-    docker --context="$ctx" image inspect "$image" \
+    podman_user "$ctx" image inspect "$image" \
         --format='{{.Size}}' 2>/dev/null | awk '{printf "%d", $1/1024}'
 }
 
@@ -316,10 +319,10 @@ wait_for_healthy() {
 
     while [ "$waited" -lt "$HEALTH_MAX_WAIT" ]; do
         local health status
-        health=$(docker --context="$ctx" inspect \
+        health=$(podman_user "$ctx" inspect \
             --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
             "$container_id" 2>/dev/null)
-        status=$(docker --context="$ctx" inspect \
+        status=$(podman_user "$ctx" inspect \
             --format='{{.State.Status}}' \
             "$container_id" 2>/dev/null)
 
@@ -376,7 +379,7 @@ update_image() {
     old_digest=$(get_local_digest "$ctx" "$image")
 
     log_info "[$service] Pulling $image ..."
-    if ! timeout "$PULL_TIMEOUT" docker --context="$ctx" pull "$image" >> "$LOG_FILE" 2>&1; then
+    if ! timeout "$PULL_TIMEOUT" podman_user "$ctx" pull "$image" >> "$LOG_FILE" 2>&1; then
         log_error "[$service] Pull failed or timed out for $image."
         SUMMARY_FAILED=$(( ${SUMMARY_FAILED:-0} + 1 ))
         SUMMARY_ERRORS=$(( ${SUMMARY_ERRORS:-0} + 1 ))
@@ -384,16 +387,16 @@ update_image() {
     fi
 
     log_info "[$service] Stopping service ..."
-    if ! docker --context="$ctx" compose -f "$compose_file" stop "$service" >> "$LOG_FILE" 2>&1; then
+    if ! podman_compose_user "$ctx" -f "$compose_file" stop "$service" >> "$LOG_FILE" 2>&1; then
         log_error "[$service] Failed to stop service."
         SUMMARY_FAILED=$(( ${SUMMARY_FAILED:-0} + 1 ))
         SUMMARY_ERRORS=$(( ${SUMMARY_ERRORS:-0} + 1 ))
         return
     fi
-    docker --context="$ctx" compose -f "$compose_file" rm -f "$service" >> "$LOG_FILE" 2>&1 || true
+    podman_compose_user "$ctx" -f "$compose_file" rm -f "$service" >> "$LOG_FILE" 2>&1 || true
 
     log_info "[$service] Starting service with new image ..."
-    if ! docker --context="$ctx" compose -f "$compose_file" up -d "$service" >> "$LOG_FILE" 2>&1; then
+    if ! podman_compose_user "$ctx" -f "$compose_file" up -d "$service" >> "$LOG_FILE" 2>&1; then
         log_error "[$service] Failed to start service after update."
         SUMMARY_FAILED=$(( ${SUMMARY_FAILED:-0} + 1 ))
         SUMMARY_ERRORS=$(( ${SUMMARY_ERRORS:-0} + 1 ))
@@ -401,7 +404,7 @@ update_image() {
     fi
 
     local container_id
-    container_id=$(docker --context="$ctx" compose -f "$compose_file" ps -q "$service" 2>/dev/null | head -1)
+    container_id=$(podman_compose_user "$ctx" -f "$compose_file" ps -q "$service" 2>/dev/null | head -1)
 
     if wait_for_healthy "$ctx" "$container_id"; then
         log_info "[$service] Healthy after update. ✓"
@@ -411,7 +414,7 @@ update_image() {
 
         if [ -n "$old_digest" ]; then
             log_info "[$service] Removing old digest: $old_digest"
-            docker --context="$ctx" rmi "$old_digest" >> "$LOG_FILE" 2>&1 \
+            podman_user "$ctx" rmi "$old_digest" >> "$LOG_FILE" 2>&1 \
                 || log_warn "[$service] Could not remove $old_digest (may be shared)."
         fi
     else
@@ -457,9 +460,11 @@ run_for_user() {
     [ "$FORCE_UPDATE" = true ] && flags+=" [FORCE-UPDATE]"
     log_info "Starting for user: $username$flags"
 
-    # 3. check if context exists
-    if ! docker context inspect "$username" > /dev/null 2>&1; then
-        log_error "Docker context '$username' does not exist."
+    # 3. check the user's rootless podman socket is actually up
+    local user_id
+    user_id=$(id -u "$username" 2>/dev/null)
+    if [ -z "$user_id" ] || [ ! -S "/hostfs/run/user/$user_id/podman/podman.sock" ]; then
+        log_error "Podman socket for '$username' does not exist or is not running."
         SUMMARY_ERRORS=$(( SUMMARY_ERRORS + 1 ))
         write_summary "$username"
         return 1
@@ -467,7 +472,7 @@ run_for_user() {
 
     # 4. check if all services are stopped = suspended user
     local running_containers
-    running_containers=$(docker --context="$username" ps -q 2>/dev/null)
+    running_containers=$(podman_user "$username" ps -q 2>/dev/null)
     if [ -z "$running_containers" ]; then
         log_skip "No running containers — skipping."
         write_summary "$username"
@@ -485,7 +490,7 @@ run_for_user() {
 
     # 6. list active services for user
     local active_services
-    active_services=$(docker --context="$username" compose -f "$compose_file" ps \
+    active_services=$(podman_compose_user "$username" -f "$compose_file" ps \
         --filter "status=running" --format "{{.Service}}" 2>/dev/null)
 
     if [ -z "$active_services" ]; then
@@ -503,15 +508,14 @@ run_for_user() {
         return 1
     fi
 
-    # 8. get socket for step 10
-    local user_id mount_flag
-    user_id=$(stat -c %u "/home/$username" 2>/dev/null)
-    if [ -n "$user_id" ] && [ -S "/hostfs/run/user/$user_id/docker.sock" ]; then
-        mount_flag="-v /hostfs/run/user/$user_id/docker.sock:/var/run/docker.sock:ro"
-    elif [ -S "/var/run/docker.sock" ]; then
-        mount_flag="-v /var/run/docker.sock:/var/run/docker.sock:ro"
+    # 8. get socket for step 10 (cup speaks the docker-compatible subset of the API,
+    # which podman's socket also implements, so mounting it at the same in-container
+    # path works unchanged)
+    local mount_flag
+    if [ -S "/hostfs/run/user/$user_id/podman/podman.sock" ]; then
+        mount_flag="-v /hostfs/run/user/$user_id/podman/podman.sock:/var/run/docker.sock:ro"
     else
-        log_error "No Docker socket available."
+        log_error "No Podman socket available."
         SUMMARY_ERRORS=$(( SUMMARY_ERRORS + 1 ))
         write_summary "$username"
         return 1
@@ -519,7 +523,7 @@ run_for_user() {
 
     # 9. build image→service map for active services
     local compose_json
-    compose_json=$(docker --context="$username" compose -f "$compose_file" \
+    compose_json=$(podman_compose_user "$username" -f "$compose_file" \
         config --format json 2>/dev/null)
 
     declare -A image_to_service
@@ -545,13 +549,13 @@ print(svc.get('image', ''))
     local cup_json="$cup_output_dir/cup.json"
 
     log_info "Running cup check ..."
-    if ! docker --context="$username" run --rm $mount_flag "$CUP_IMAGE" check -r > "$cup_json" 2>>"$LOG_FILE"; then
+    if ! podman_user "$username" run --rm $mount_flag "$CUP_IMAGE" check -r > "$cup_json" 2>>"$LOG_FILE"; then
         log_error "cup check failed."
         SUMMARY_ERRORS=$(( SUMMARY_ERRORS + 1 ))
         write_summary "$username"
         return 1
     fi
-    docker --context="$username" rmi -f "$CUP_IMAGE" >> "$LOG_FILE" 2>&1 || true
+    podman_user "$username" rmi -f "$CUP_IMAGE" >> "$LOG_FILE" 2>&1 || true
     log_info "cup output saved to $cup_json"
 
     # 11. extract images cup flagged as having updates
@@ -608,7 +612,7 @@ for img, info in data.get('images', {}).items():
     # 16. prune remaining dangling images
     if [ "$DRY_RUN" = false ]; then
         log_info "Pruning dangling images ..."
-        docker --context="$username" image prune -f >> "$LOG_FILE" 2>&1 || true
+        podman_user "$username" image prune -f >> "$LOG_FILE" 2>&1 || true
     fi
 
     # 17. create summary to be later used on notifications
@@ -617,8 +621,9 @@ for img, info in data.get('images', {}).items():
 
 # ALL USERS
 run_for_all_users() {
+    # there's no registered "docker context" list anymore - enumerate users from the DB instead
     local contexts
-    contexts=$(docker context ls --format '{{.Name}}' | grep -v '^default$')
+    contexts=$(opencli user-list --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
 
     local pids=()
 

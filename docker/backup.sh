@@ -30,6 +30,9 @@
 
 readonly LOG_FILE="/var/log/openpanel/admin/docker-backup.log"
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 log() {
     local message="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "$LOG_FILE"
@@ -46,8 +49,8 @@ run_for_user() {
     
     cd /home/$context/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
     start_user_time=$(date +%s)
-    # TODO: edit to docker run style so we can set cpu and ram here and run it outside of user context (if admin want backup job to use server resources instead of user's)
-    docker --context=$context compose run --remove-orphans --rm --entrypoint backup backup
+    # TODO: edit to podman run style so we can set cpu and ram here and run it outside of user context (if admin want backup job to use server resources instead of user's)
+    podman_compose_ctx "$context" run --remove-orphans --rm --entrypoint backup backup
     end_user_time=$(date +%s)
     duration=$((end_user_time - start_user_time))
     log "Backup completed for user: $username (context: $context) | Time taken: ${duration}s"
