@@ -43,7 +43,7 @@ suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
 cp "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
 
 # 2. reload caddy
-nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
 disown
 
 # 3. notify

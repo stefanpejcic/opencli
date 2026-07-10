@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 if [ "$#" -lt 1 ]; then
     echo "Usage: opencli domains-edit <DOMAIN_NAME>"
     exit 1
@@ -59,7 +62,7 @@ if [ "$USE_WS" -eq 1 ]; then
         nano "$FINAL_PATH"
         echo "Restarting $WEB_SERVER webserver to save changes.."
         get_webserver_for_user
-        docker --context=$CONTEXT restart $WEB_SERVER
+        podman_user "$CONTEXT" restart $WEB_SERVER
     else
         echo "ERROR: VirtualHosts for domain $DOMAIN does not exist: $FINAL_PATH"
         exit 1

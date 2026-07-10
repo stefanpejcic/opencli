@@ -61,7 +61,7 @@ cp $domain_vhost $suspended_dir  > /dev/null 2>&1
 } > "$domain_vhost"
 
 # 3. reload caddy
-nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
 disown
 
 # 4. notify

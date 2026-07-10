@@ -137,8 +137,8 @@ esac
 
 
 # Reload BIND service
-docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
-cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
+podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
+cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 
 echo "Nameservers have been updated and BIND9 zones reloaded."
 exit 0

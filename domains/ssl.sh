@@ -150,7 +150,7 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 	fi
 	
 	# 5. reload caddy
-	nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+	nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
 	disown
 
 	# 6. notify
@@ -190,10 +190,13 @@ show_ssl_logs() {
 
     echo "Showing SSL-related log lines for $DOMAIN"	
     echo "-------------------------------------------------------"
-	# docker --context=default logs --tail 1000 caddy 2>&1  | grep "$DOMAIN" | grep -Ei 'tls|acme|certificate|renew|obtain|challenge'
+	# podman logs --tail 1000 caddy 2>&1  | grep "$DOMAIN" | grep -Ei 'tls|acme|certificate|renew|obtain|challenge'
 
+    # NOTE: LogPath is only populated for the json-file/k8s-file log drivers;
+    # if this container is using podman's default journald driver instead,
+    # log_path will come back empty and hit the same error path below.
     local log_path
-    log_path=$(docker inspect --format='{{.LogPath}}' caddy 2>/dev/null)
+    log_path=$(podman inspect --format='{{.LogPath}}' caddy 2>/dev/null)
 
     if [ -z "$log_path" ] || [ ! -f "$log_path" ]; then
         echo "ERROR: Could not determine Caddy log file path."
@@ -272,7 +275,7 @@ if [ -n "$2" ]; then
         sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|  tls {\n    on_demand\n  }|g" "$CONFIG_FILE"
 
 		# 2. reload caddy
-	    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+	    nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
 	    disown
 
 		# 3. notify

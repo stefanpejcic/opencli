@@ -44,7 +44,7 @@ error_exit() {
 }
 
 sign_and_reload() {
-  docker exec $CONTAINER bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
+  podman exec $CONTAINER bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
   opencli domains-dns reload $ZONE >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
 }
 
@@ -58,12 +58,12 @@ setup_zone() {
   cd $ZONEDIR >/dev/null 2>&1 || error_exit "Failed to change directory to $ZONEDIR"
 
   # Generate key pairs
-  docker exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 2048 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 2048-bit key'
-  docker exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 4096 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 4096-bit key'
+  podman exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 2048 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 2048-bit key'
+  podman exec $CONTAINER bash -c "dnssec-keygen -a NSEC3RSASHA1 -b 4096 -n ZONE ${ZONE} >/dev/null 2>&1" || error_exit 'Failed to generate 4096-bit key'
 
   # Allow bind group to read the keys
-  docker exec $CONTAINER bash -c "chgrp bind K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to change group of key files'
-  docker exec $CONTAINER bash -c "chmod g=r,o= K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to set permissions on key files'
+  podman exec $CONTAINER bash -c "chgrp bind K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to change group of key files'
+  podman exec $CONTAINER bash -c "chmod g=r,o= K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to set permissions on key files'
 
   # Include keys to the zone file
   for key in K${ZONE}.*.key; do
@@ -71,7 +71,7 @@ setup_zone() {
     echo "\$INCLUDE $key" >> ${ZONEFILE}
   done
 
-  docker exec openpanel_dns bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
+  podman exec openpanel_dns bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
 
   # Use sed to append .signed to the filename on the specific line containing the zone
   sed -i "/zone \"${ZONE}\"/,/file/s|\(file \"/etc/bind/zones/${ZONE}\.zone\)|\1.signed|" "$CONFIG_FILE" >/dev/null 2>&1 || error_exit "Failed to update the config file"

@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 [ $# -lt 1 ] && { echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"; exit 1; }
 
 # ======================================================================
@@ -101,7 +104,7 @@ remove_onion_files() {
 
 restart_tor_for_user() {
     log "Restarting Tor service.."
-    nohup docker --context "$context" restart tor >/dev/null 2>&1 &
+    nohup podman_user "$context" restart tor >/dev/null 2>&1 &
     disown
 }
 
@@ -149,7 +152,7 @@ get_slave_dns_option() {
 EOF
 	
 		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
-	    docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1
+	    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 EOF
 	}
 
@@ -187,7 +190,7 @@ vhost_files_delete() {
 	rm $vhost_in_docker_file >/dev/null 2>&1
 
  	log "Restarting $WEB_SERVER to apply changes"
-	docker --context=$context $user restart $WEB_SERVER >/dev/null 2>&1
+	podman_user "$context" restart $WEB_SERVER >/dev/null 2>&1
 }
 
 
@@ -197,9 +200,9 @@ delete_domain_file() {
 	rm -f "/etc/openpanel/caddy/domains/$domain_name.conf"              # domain
 	rm -f "/etc/openpanel/caddy/suspended_domains/$domain_name.conf"    # suspended domain
 
-	if [ $(docker --context=default ps -q -f name=caddy) ]; then
+	if [ $(podman ps -q -f name=caddy) ]; then
  	    log "Caddy is running, reloading configuration"
-	    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload " >/dev/null 2>&1 &
+	    nohup podman exec caddy sh -c "caddy validate && caddy reload " >/dev/null 2>&1 &
 	    disown
 	fi
 
@@ -263,9 +266,9 @@ remove_dns_entries_from_apex_zone() {
 				sed -i "/^${escaped_domain_name}[[:space:]]/d" "$zone_file"
 				sed -i "/^${escaped_domain_name}\.[[:space:]]/d" "$zone_file"
 
-                if docker ps -q -f name=openpanel_dns >/dev/null 2>&1; then
+                if podman ps -q -f name=openpanel_dns >/dev/null 2>&1; then
                     log "Reloading BIND DNS to apply changes"
-                    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+                    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
                 fi
             else
                 log "Zone file for apex domain $apex_domain not found."
@@ -276,9 +279,9 @@ remove_dns_entries_from_apex_zone() {
                 log "Deleting DNS zone $zone_file"
 				rm -rf $zone_file
 
-                if docker ps -q -f name=openpanel_dns >/dev/null 2>&1; then
+                if podman ps -q -f name=openpanel_dns >/dev/null 2>&1; then
                     log "Reloading BIND DNS to apply changes"
-                    docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+                    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
                 fi
             else
                 log "Zone file for domain $domain_name not found."
@@ -297,9 +300,9 @@ delete_zone_file() {
 	if [ -f "$zone_file" ]; then
 	    log "Removing DNS zone file: $zone_file"
 	    rm "$zone_file"
-	    if [ $(docker --context=default ps -q -f name=openpanel_dns) ]; then
+	    if [ $(podman ps -q -f name=openpanel_dns) ]; then
 	        log "DNS service is running, reloading the zones"
-	      	docker exec openpanel_dns rndc reconfig >/dev/null 2>&1
+	      	podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 	    fi
 	else
 	    log "DNS zone file does not exist: $ZONE_FILE"
@@ -343,7 +346,7 @@ delete_mail_mountpoint(){
             }" "$COMPOSE_FILE"
 
             log "Reloading mailserver to apply changes"
-            (cd /usr/local/mail/openmail/ && docker-compose up -d --force-recreate mailserver) > /dev/null 2>&1 & disown
+            (cd /usr/local/mail/openmail/ && podman-compose up -d --force-recreate mailserver) > /dev/null 2>&1 & disown
         fi
     fi
 }
@@ -433,14 +436,14 @@ delete_ftp_accounts() {
 	    while IFS='|' read -r ftp_account _; do
 	        if [[ "$ftp_account" == *@"$domain" ]]; then
 	            sed -i "\|^${ftp_account}|d" "$ftp_accounts_file"
-			    nohup docker --context=default exec openadmin_ftp sh -c "deluser $ftp_account" >/dev/null 2>&1 &
+			    nohup podman exec openadmin_ftp sh -c "deluser $ftp_account" >/dev/null 2>&1 &
 			    disown
 	        fi
 	    done < "$ftp_accounts_file"
 	fi
 
-    if docker --context=default exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
-        docker --context=default exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
+    if podman exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
+        podman exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
     fi
 }
 

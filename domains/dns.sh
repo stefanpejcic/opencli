@@ -48,7 +48,7 @@ usage() {
   echo -e " ${GREEN}$command count${RESET}                  - Display total number of DNS zones present on the server."
   echo -e " ${GREEN}$command config${RESET}                 - Check main bind configuration file for syntax errros."
   echo -e " ${GREEN}$command start${RESET}                  - Start the DNS server."
-  echo -e " ${GREEN}$command restart${RESET}                - Soft restart of bind9 docker container."
+  echo -e " ${GREEN}$command restart${RESET}                - Soft restart of bind9 podman container."
   echo -e " ${GREEN}$command hard-restart${RESET}           - Hard restart: terminates container and start again."
   echo -e " ${GREEN}$command stop${RESET}                   - Stop the DNS server."
   exit 1
@@ -75,7 +75,7 @@ fi
 
 reconfig_command(){
   echo "Loading new DNS zones.."
-  docker --context default exec openpanel_dns rndc reconfig
+  podman exec openpanel_dns rndc reconfig
   exit 0
 }
 
@@ -83,7 +83,7 @@ reconfig_command(){
 
 check_named_main_conf(){
   echo "Checking /etc/bind/named.conf configuration:"
-  docker --context default exec openpanel_dns named-checkconf  /etc/bind/named.conf
+  podman exec openpanel_dns named-checkconf  /etc/bind/named.conf
   exit 0
 }
 
@@ -93,10 +93,10 @@ reload_one_or_all_dns_zone(){
   DOMAIN=$1
   if [[ -n "$DOMAIN" ]]; then
     echo "Reloading DNS zone for domain: $DOMAIN"
-    docker --context default exec openpanel_dns rndc reload $DOMAIN
+    podman exec openpanel_dns rndc reload $DOMAIN
   else
     echo "Reloading all DNS zones.."
-    docker --context default exec openpanel_dns rndc reload
+    podman exec openpanel_dns rndc reload
   fi
   exit 0
 }
@@ -195,7 +195,7 @@ add_subdomains_to_zone() {
   done
 
   # Reload BIND zone
-  docker --context default exec openpanel_dns rndc reload "$apex_domain"
+  podman exec openpanel_dns rndc reload "$apex_domain"
 }
 
 
@@ -335,8 +335,8 @@ create_dns_zone_for_domain(){
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-	docker --context default exec openpanel_dns rndc reload $domain_name >/dev/null 2>&1
-    cd /root && docker --context default compose up -d bind9  >/dev/null 2>&1
+	podman exec openpanel_dns rndc reload $domain_name >/dev/null 2>&1
+    cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 }
 
 
@@ -346,19 +346,19 @@ check_single_dns_zone(){
   if [[ -n "$DOMAIN" ]]; then
     echo "Checking DNS zone for domain: $DOMAIN"
   fi
-  docker --context default exec openpanel_dns named-checkzone  $DOMAIN /etc/bind/zones/$DOMAIN.zone
+  podman exec openpanel_dns named-checkzone  $DOMAIN /etc/bind/zones/$DOMAIN.zone
   exit 0
 }
 
 start_dns_server(){
   echo "Starting DNS service.."
-  cd /root && docker --context default compose up -d bind9
+  cd /root && podman-compose up -d bind9
   exit 0
 }
 
 stop_dns_server(){
   echo "Stopping DNS service.."
-  docker stop openpanel_dns && docker rm openpanel_dns
+  podman stop openpanel_dns && podman rm openpanel_dns
   exit 0
 }
 
@@ -366,7 +366,7 @@ stop_dns_server(){
 
 soft_reset(){
   echo "Restarting DNS service.."
-  docker restart openpanel_dns
+  podman restart openpanel_dns
   exit 0
 }
 

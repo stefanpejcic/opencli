@@ -76,7 +76,7 @@ configure_goaccess() {
 process_logs() {
     local username="$1"
     local excluded_ips_file="/etc/openpanel/openpanel/core/users/$username/domains/excluded_ips_for_goaccess"
-    #local container_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
+    #local container_ip=$(podman inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $username)
     local excluded_ips=""
 
     if [ -f "$excluded_ips_file" ] && [ -s "$excluded_ips_file" ]; then
@@ -97,7 +97,7 @@ process_logs() {
     
             mkdir -p "$output_dir"
             if [ -s "$log_file" ]; then
-                docker run --memory="256m" --cpus="0.5" \
+                podman run --memory="256m" --cpus="0.5" \
                    -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
                    -v ${log_file}:/var/log/caddy/access.log \
                    -v ${output_dir}:${output_dir}\

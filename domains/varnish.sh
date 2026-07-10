@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 # ======================================================================
 # ARGS
 DOMAIN="$1"
@@ -79,7 +82,7 @@ get_context() {
 }
 
 reload_caddy() {
-	docker --context default restart caddy  > /dev/null	
+	podman restart caddy  > /dev/null
 	if ! $JSON_OUTPUT; then
 		echo "Caddy container reloaded."
 	fi
@@ -87,7 +90,7 @@ reload_caddy() {
 
 start_varnish() {
 	get_context
-	if docker --context $context ps -q -f name="varnish" > /dev/null; then
+	if podman_user "$context" ps -q -f name="varnish" > /dev/null; then
 		if ! $JSON_OUTPUT; then
 		    echo "The Varnish ontainer is running."
 		fi
@@ -95,7 +98,7 @@ start_varnish() {
 		if ! $JSON_OUTPUT; then
 	    	echo "Varnish is not running, starting.."
 	    fi
-	    cd /home/$context/ && docker --context $context compose up -d varnish > /dev/null
+	    cd /home/$context/ && podman_compose_user "$context" up -d varnish > /dev/null
 	fi
 }
 
