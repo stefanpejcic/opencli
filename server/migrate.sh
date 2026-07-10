@@ -32,6 +32,9 @@
 Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <password>] [--exclude-home] [--exclude-logs] [--exclude-mail] [--exclude-bind] [--exclude-openpanel] [--exclude-mysql] [--exclude-stack] [--exclude-postupdate] [--exclude-users]
 '
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 REMOTE_HOST=""
 REMOTE_USER=""
 REMOTE_PASS=""
@@ -270,8 +273,8 @@ for userdir in /home/*; do
         compose_file="$userdir/docker-compose.yml"
 
         if [ -f "$compose_file" ]; then
-            echo "Checking docker context for user: $username"
-            containers=$(docker --context="$username" ps -a --format "{{.Names}}" 2>/dev/null)
+            echo "Checking podman context for user: $username"
+            containers=$(podman_user "$username" ps -a --format "{{.Names}}" 2>/dev/null)
 
             if [ -n "$containers" ]; then
                 containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
@@ -307,68 +310,53 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
+        "remote_uid=\$(id -u $username); CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
 # Close FD 3
 exec 3<&-
 }
 
-copy_docker_contexts() {
-
-    eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
-    eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
-
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"systemctl restart apparmor.service"
-    
+setup_remote_podman_for_all_users() {
+    # context resolution is dynamic (based on /home/$USERNAME's owner uid) under
+    # podman - there's no context to register, and no per-user AppArmor profile
+    # (that was for rootless Docker's rootlesskit, which podman doesn't use), and
+    # no /run/user/* to rsync (ephemeral, host-specific - sockets are created
+    # fresh by systemd on the destination). ~/.config/containers/{storage,containers}.conf
+    # already ride along with the rest of each home directory rsync elsewhere in
+    # this script - the paths in them stay valid on the destination as-is.
 	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
 	TOTALCOUNT=$(wc -l < /tmp/userlist.txt)
 	CURRENT=0
-	
+
 	# Open the file on FD 3
 	exec 3</tmp/userlist.txt
-	
+
 	while IFS=: read -r USERNAME USER_ID <&3; do
 	    CURRENT=$((CURRENT+1))
-	    SRC="/home/$USERNAME/.docker"
+	    SRC="/home/$USERNAME/.config/containers"
 	    if [[ -d "$SRC" ]]; then
 	        echo "Setting linger for: $USERNAME"
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "loginctl enable-linger $USERNAME" \
 		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
-     
-     		eval $RSYNC_CMD /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "
-		    if [ -d /run/user/$USER_ID ]; then
-		        ls -l /run/user/$USER_ID
-		    else
-		        echo '❌ Transfer failed for /run/user/$USER_ID/'
-		        exit 1
-		    fi
-      "
-
-	        echo "Creating Docker context: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
-	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
-	
-	        echo "Configuring docker service for: $USERNAME"
+	        echo "Enabling rootless podman for: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
 		    >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
 
 		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
-		    >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
+		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user reset-failed podman.socket; systemctl --user enable --now podman.socket'" \
+		    >/dev/null 2>&1 || echo "Failed to enable podman.socket for $USERNAME"
 	    else
-	        echo "No .docker directory for $USERNAME, skipping."
+	        echo "No .config/containers directory for $USERNAME, skipping."
 	    fi
             echo "[OK] Context $USERNAME processed"
 	    echo ""
 	done
-	
+
 	# Close FD 3
 	exec 3<&-
 }
@@ -376,12 +364,12 @@ copy_docker_contexts() {
 restart_services_on_target() {
             echo "Restarting services on ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && docker compose compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+                "cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Starting mailserver and webmail on ${REMOTE_HOST} server ..."
             sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
+                "cd /usr/local/mail/openmail && podman-compose up -d mailserver roundcube >/dev/null 2>&1"
 	fi
 
 	#todo: ftp, clamav 
@@ -446,8 +434,8 @@ if [[ $EXCLUDE_HOME -eq 0 ]]; then
 fi
 
 if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
-    echo "Syncing docker contexts ..."
-    copy_docker_contexts # create docker context, start docker, set quotas
+    echo "Enabling rootless podman for all users ..."
+    setup_remote_podman_for_all_users
 fi
 
 
@@ -510,10 +498,10 @@ fi
 
 if [[ $EXCLUDE_MYSQL -eq 0 ]]; then
     echo "Syncing root_mysql Docker volume ..."
-    if [[ -d "/var/lib/docker/volumes/root_mysql/_data" ]]; then
-        eval $RSYNC_CMD /var/lib/docker/volumes/root_mysql/_data/ ${REMOTE_USER}@${REMOTE_HOST}:/var/lib/docker/volumes/root_mysql/_data/
+    if [[ -d "/var/lib/containers/storage/volumes/root_mysql/_data" ]]; then
+        eval $RSYNC_CMD /var/lib/containers/storage/volumes/root_mysql/_data/ ${REMOTE_USER}@${REMOTE_HOST}:/var/lib/containers/storage/volumes/root_mysql/_data/
     else
-        echo "/var/lib/docker/volumes/root_mysql/_data does not exist! Skipping."
+        echo "/var/lib/containers/storage/volumes/root_mysql/_data does not exist! Skipping."
     fi
 fi
 
