@@ -67,9 +67,9 @@ required_cmd() {
 		} >&2
 	done
 
-	# docker compose
-	docker compose version &>/dev/null || {
-		echo "Error: 'docker compose' not available."
+	# podman-compose
+	podman-compose version &>/dev/null || {
+		echo "Error: 'podman-compose' not available."
 		echo
 		exit 1
 	} >&2
@@ -77,7 +77,7 @@ required_cmd() {
 
 check_mailserver() {
 	if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
-		if [ -z "$(docker --context=default ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -z "$(podman ps -q --filter "name=^$CONTAINER$")" ]; then
 			echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
 			exit 1
 		fi
@@ -94,15 +94,15 @@ execute_cmd_and_print() {
 }
 
 check_exposed_ports_for_container() {
-	docker port "$CONTAINER"
+	podman port "$CONTAINER"
 }
 
 execute_cmd_in_container() {
 	if [ "$1" == "-it" ]; then
 		shift
-		docker --context=default exec -it "$CONTAINER" "$@"
+		podman exec -it "$CONTAINER" "$@"
 	else
-		docker --context=default exec "$CONTAINER" "$@"
+		podman exec "$CONTAINER" "$@"
 	fi
 }
 
@@ -145,11 +145,11 @@ enable_emails_if_not_yet() {
 	echo "'emails' module is not enabled. Enabling.."
 		sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
 		echo "Restarting OpenPanel container to enable email pages.."
-	if [ "$(docker --context=default ps -q -f name=openpanel)" ]; then
-		docker restart openpanel  >/dev/null 2>&1
+	if [ "$(podman ps -q -f name=openpanel)" ]; then
+		podman restart openpanel  >/dev/null 2>&1
 	else
-		cd /root && docker --context default compose up -d openpanel  >/dev/null 2>&1
-	fi  
+		cd /root && podman-compose up -d openpanel  >/dev/null 2>&1
+	fi
 	fi
 }
 
@@ -162,16 +162,16 @@ pflogsumm_get_data() {
 	rm -rf PFLogSumm-HTML-GUI
 	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
 	ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env > /dev/null 2>&1
- 	docker cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh > /dev/null 2>&1
+ 	podman cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
-	docker exec openadmin_mailserver sh -c "mkdir -p /usr/local/admin/static/reports" > /dev/null 2>&1	
-	docker cp /usr/local/admin/templates/emails/data openadmin_mailserver:/usr/local/admin/static/reports/data > /dev/null 2>&1	
-	docker --context=default exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
+	podman exec openadmin_mailserver sh -c "mkdir -p /usr/local/admin/static/reports" > /dev/null 2>&1
+	podman cp /usr/local/admin/templates/emails/data openadmin_mailserver:/usr/local/admin/static/reports/data > /dev/null 2>&1
+	podman exec openadmin_mailserver sh -c "bash /opt/pflogsummUIReport.sh"
 	echo "Done, adding reports to OpenAdmin interface"
 	mkdir -p /usr/local/admin/static/reports /usr/local/admin/templates/emails > /dev/null 2>&1
-	docker cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html > /dev/null 2>&1
-	docker cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/ > /dev/null 2>&1
- 	docker exec openadmin_mailserver sh -c "rm -rf /usr/local/admin/static/reports" > /dev/null 2>&1	
+	podman cp openadmin_mailserver:/usr/local/admin/static/reports/reports.html /usr/local/admin/templates/emails/reports.html > /dev/null 2>&1
+	podman cp openadmin_mailserver:/usr/local/admin/static/reports/data /usr/local/admin/templates/emails/ > /dev/null 2>&1
+ 	podman exec openadmin_mailserver sh -c "rm -rf /usr/local/admin/static/reports" > /dev/null 2>&1
 
 	systemctl reload admin > /dev/null 2>&1
 	echo "Completed"
@@ -240,7 +240,7 @@ set_ssl_for_mailserver() {
     fi
 
     #echo "Restarting mailserver and webmail to apply new configuration"
-    #nohup sh -c "cd /usr/local/mail/openmail/ && docker --context default compose down ; cd /usr/local/mail/openmail/ && docker --context default compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
+    #nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down ; cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
  }
 
 
@@ -257,14 +257,14 @@ install_mailserver(){
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail
 	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
-      cd /usr/local/mail/openmail/ && docker --context default compose up -d mailserver roundcube
+      cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
 	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
-      cd /usr/local/mail/openmail/ && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1
+      cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube >/dev/null 2>&1
   fi
 
   enable_emails_if_not_yet
@@ -436,7 +436,7 @@ process_all_domains_and_start(){
 	#	echo "WARNING: $STORE_EMAILS_IN is invalid."
 	fi
   
-cd $DIR && docker --context default compose up -d mailserver >/dev/null 2>&1
+cd $DIR && podman-compose up -d mailserver >/dev/null 2>&1
 echo "MailServer started successfully."
 }
 
@@ -447,10 +447,10 @@ stop_mailserver_if_running(){
       echo ""
       echo "----------------- STOP MAILSERVER ------------------"
       echo ""
-  	  cd $DIR && docker --context default compose down mailserver
+  	  cd $DIR && podman-compose down mailserver
       echo ""
   else
-  	cd $DIR && docker --context default compose down mailserver >/dev/null 2>&1
+  	cd $DIR && podman-compose down mailserver >/dev/null 2>&1
   	echo "MailServer stopped succesfully."
   fi
   
@@ -494,11 +494,11 @@ remove_mailserver_and_all_config(){
   fi
 
   if [ "$DEBUG" = true ]; then
-      cd $DIR && docker --context default compose down
+      cd $DIR && podman-compose down
       rm -rf $DIR
       echo ""
   else
-      cd $DIR && docker --context default compose down >/dev/null 2>&1
+      cd $DIR && podman-compose down >/dev/null 2>&1
       rm -rf $DIR >/dev/null 2>&1
       echo "MailServer uninstalled successfully."
   fi
@@ -524,7 +524,7 @@ remove_mailserver_and_all_config(){
 # ======================================================================
 # MAIN
 check_ent
-required_cmd "cat" "cut" "docker" "fold" "printf" "sed" "tail" "tput" "tr"
+required_cmd "cat" "cut" "podman" "podman-compose" "fold" "printf" "sed" "tail" "tput" "tr"
 check_debug_flag
 check_mailserver
 
@@ -538,9 +538,9 @@ case "${1:-}" in
         pflogsumm_get_data
 		;;
 	status) 	# Show status
-		if [ -n "$(docker --context=default ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -n "$(podman ps -q --filter "name=^$CONTAINER$")" ]; then
 			# uptime
-			execute_cmd_and_print "Container" "$(docker --context=default ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
+			execute_cmd_and_print "Container" "$(podman ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
 			echo
 
 			# version
@@ -658,7 +658,7 @@ case "${1:-}" in
 	            ;;
 	        edit)
 	            nano "$RULES_CF"
-				nohup docker --context=default exec openadmin_mailserver sh -c "postfix reload" >/dev/null 2>&1 &
+				nohup podman exec openadmin_mailserver sh -c "postfix reload" >/dev/null 2>&1 &
 	            ;;				
 			enable)
 	            if [ -f "$ACTIVE_CF" ]; then
@@ -666,8 +666,8 @@ case "${1:-}" in
 	            else
 	                cd "$DIR" || exit
 	                mv postfwd/postfix-main.cf docker-data/dms/config/postfix-main.cf
-	                nohup docker --context=default compose up -d postfwd >/dev/null 2>&1 &
-	                nohup docker --context=default restart openadmin_mailserver >/dev/null 2>&1 &
+	                nohup podman-compose up -d postfwd >/dev/null 2>&1 &
+	                nohup podman restart openadmin_mailserver >/dev/null 2>&1 &
 	                echo "Rate-limiting has been ENABLED."
 	            fi
 	            ;;
@@ -677,8 +677,8 @@ case "${1:-}" in
 	            else
 	                cd "$DIR" || exit
 	                mv docker-data/dms/config/postfix-main.cf postfwd/postfix-main.cf
-	                nohup docker --context=default compose down postfwd >/dev/null 2>&1 &
-	                nohup docker --context=default restart openadmin_mailserver >/dev/null 2>&1 &
+	                nohup podman-compose down postfwd >/dev/null 2>&1 &
+	                nohup podman restart openadmin_mailserver >/dev/null 2>&1 &
 	                echo "Rate-limiting has been DISABLED."
 	            fi
 	            ;;
@@ -746,9 +746,9 @@ case "${1:-}" in
 
 	logs)		# logs
 		if [ "${2:-}" == "-f" ]; then
-			docker logs -f "$CONTAINER"
+			podman logs -f "$CONTAINER"
 		else
-			docker logs "$CONTAINER"
+			podman logs "$CONTAINER"
 		fi
 		;;
 

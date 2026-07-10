@@ -143,8 +143,8 @@ ${new_domain} {\\
         echo "Webmail domain updated to ${proto}://${new_domain}"
 
         # Restart Caddy
-        cd /root && docker --context default compose down caddy >/dev/null 2>&1
-        cd /root && docker --context default compose up -d caddy >/dev/null 2>&1
+        cd /root && podman-compose down caddy >/dev/null 2>&1
+        cd /root && podman-compose up -d caddy >/dev/null 2>&1
         # TODO: RELOAD!
         exit 0
     else

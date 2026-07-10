@@ -68,7 +68,7 @@ get_docker_context_for_user
 mkdir -p /etc/openpanel/ftp/users/${context}
 touch /etc/openpanel/ftp/users/${context}/users.list
 
-docker --context=default exec openadmin_ftp sh -c "deluser $username"
+podman exec openadmin_ftp sh -c "deluser $username"
 if [ $? -eq 0 ]; then
     sed -i "/^$username|/d" /etc/openpanel/ftp/users/${context}/users.list
     nohup opencli sentinel --action=ftp_delete --title="FTP account deleted" --message="FTP account '$username' has been deleted." >/dev/null 2>&1 &

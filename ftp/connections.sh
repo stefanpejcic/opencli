@@ -42,7 +42,7 @@ if [ -n "$1" ]; then
         echo "ERROR: No context found for user '$1'. Aborting!"
         exit 1
     fi
-    docker exec openadmin_ftp sh -c "ps | grep 'vsftpd:' | grep '$1' | grep -w -v grep"
+    podman exec openadmin_ftp sh -c "ps | grep 'vsftpd:' | grep '$1' | grep -w -v grep"
 else
-    docker exec openadmin_ftp sh -c 'ps | grep "vsftpd:" | grep -w -v grep'
+    podman exec openadmin_ftp sh -c 'ps | grep "vsftpd:" | grep -w -v grep'
 fi

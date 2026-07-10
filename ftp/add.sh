@@ -55,8 +55,8 @@ done
 
 
 check_and_start_ftp_server(){
-	if [ -z "$(docker ps -q -f name=openadmin_ftp)" ]; then
-	    cd /root && docker --context default compose up -d openadmin_ftp >/dev/null 2>&1
+	if [ -z "$(podman ps -q -f name=openadmin_ftp)" ]; then
+	    cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1
 	fi
 }
 
@@ -73,9 +73,9 @@ create_user() {
         exit 1
     fi
 
-    EXISTING_GROUP=$(docker exec openadmin_ftp sh -c "getent group '$GID' | cut -d: -f1")
+    EXISTING_GROUP=$(podman exec openadmin_ftp sh -c "getent group '$GID' | cut -d: -f1")
     if [[ -z "$EXISTING_GROUP" ]]; then
-        docker exec openadmin_ftp addgroup -g "$GID" "$context"
+        podman exec openadmin_ftp addgroup -g "$GID" "$context"
     fi
 
     mkdir -p "$new_directory"
@@ -102,9 +102,9 @@ h = hashlib.sha512(pw + salt).hexdigest()
 print('\$6\$' + salt.hex() + '\$' + h)
 " "$password")
 
-    docker exec openadmin_ftp useradd -d "${new_directory}" -s /sbin/nologin -g "$context" -M "$username" --badname
+    podman exec openadmin_ftp useradd -d "${new_directory}" -s /sbin/nologin -g "$context" -M "$username" --badname
 
-    if docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
+    if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
         mkdir -p "$new_directory"
         chown -R "$GID:$GID" "$new_directory"
         chmod -R 2775 "$new_directory"
@@ -114,8 +114,8 @@ print('\$6\$' + salt.hex() + '\$' + h)
         chmod +rx "/home/$context/docker-data/volumes/${context}_html_data"
         chmod +rx "/home/$context/docker-data/volumes/${context}_html_data/_data"
 
-        USER_UID=$(docker exec openadmin_ftp id -u "$username")
-        USER_GID=$(docker exec openadmin_ftp id -g "$username")
+        USER_UID=$(podman exec openadmin_ftp id -u "$username")
+        USER_GID=$(podman exec openadmin_ftp id -g "$username")
 
         echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${context}/users.list"
 
@@ -126,7 +126,7 @@ print('\$6\$' + salt.hex() + '\$' + h)
     else
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to create FTP user with command:"
-            echo "docker exec openadmin_ftp useradd -d $new_directory -s /sbin/nologin -g $context $username"
+            echo "podman exec openadmin_ftp useradd -d $new_directory -s /sbin/nologin -g $context $username"
         else
             echo "ERROR: Failed to create FTP user. To debug, run: opencli ftp-add $username $password '$new_directory' $context --debug"
         fi

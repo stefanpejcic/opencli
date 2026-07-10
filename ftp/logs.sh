@@ -36,4 +36,4 @@ fi
 
 # ======================================================================
 # Main
-docker --context=default logs openadmin_ftp
+podman logs openadmin_ftp

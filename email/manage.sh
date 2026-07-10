@@ -46,4 +46,4 @@ if [ -z "$key_value" ]; then
 fi
 
 command="$@"
-docker exec openadmin_mailserver $command
+podman exec openadmin_mailserver $command

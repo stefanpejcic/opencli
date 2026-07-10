@@ -101,7 +101,7 @@ change_path() {
     relative_path="${path##/var/www/html/}"
     container_path="${real_path}${relative_path}"
 
-    docker exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"
+    podman exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"
     
     if [ $? -eq 0 ]; then
         sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/$context/users.list
@@ -109,7 +109,7 @@ change_path() {
     else
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to change FTP path with usermod command:"
-            echo "docker exec openadmin_ftp sh -c 'usermod -d ${container_path} ${username}'"
+            echo "podman exec openadmin_ftp sh -c 'usermod -d ${container_path} ${username}'"
         else
             echo "ERROR: Failed to change FTP path. To debug, run this command on terminal: opencli ftp-path $username $path $openpanel_username --debug"
         fi

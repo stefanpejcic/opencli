@@ -83,7 +83,7 @@ print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
     '
     )
 
-    docker exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
+    podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
     
     if [ $? -eq 0 ]; then
 # Update users.list with new hashed password
@@ -101,7 +101,7 @@ mv /tmp/$context.ftp_users.list.tmp /etc/openpanel/ftp/users/$context/users.list
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to update FTP user password with command:"
             echo ""
-            echo "docker exec openadmin_ftp sh -c 'usermod -p <hash> $username'"
+            echo "podman exec openadmin_ftp sh -c 'usermod -p <hash> $username'"
             echo ""
             echo "Run the command manually to check for errors."
         else

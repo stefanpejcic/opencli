@@ -85,7 +85,7 @@ reload_emails_data_file_for_user() {
 validate_first
 command="$@" 
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
-docker exec openadmin_mailserver setup $command  
+podman exec openadmin_mailserver setup $command
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
     if is_valid_email "$3"; then
@@ -94,7 +94,7 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
             sed -i "/^$3|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "/usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf"
             # TODO: after 2.0 edit to only run on 'add' and not on 'update'!
-            nohup timeout 300 docker --context=default exec openadmin_mailserver bash -c "chown -R \"${UID_OVERRIDE}:${UID_OVERRIDE}\" \"/var/mail/${DOMAIN}/${USER}\"" &
+            nohup timeout 300 podman exec openadmin_mailserver bash -c "chown -R \"${UID_OVERRIDE}:${UID_OVERRIDE}\" \"/var/mail/${DOMAIN}/${USER}\"" &
         fi
 
         # if email add/del OR quita set/del then we need to reload the cached user file for OpenPanel UI to display to user
