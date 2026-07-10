@@ -75,6 +75,10 @@ $SKIP_CONFIRM || confirm
 
 
 source "/usr/local/opencli/db.sh"
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
 
 
 # ======================================================================
@@ -127,8 +131,8 @@ suspend_user_domains() {
     done
 
     # 3. reload caddy
-    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
-    disown   
+    nohup podman exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
+    disown
 }
 
 stop_user_containers() {
@@ -139,7 +143,7 @@ stop_user_containers() {
     $DEBUG && echo "Stopping containers for user: $USERNAME"
 
     local running
-    running=$(docker --context "$context" ps -a --format "{{.Names}}")
+    running=$(podman_user "$context" ps -a --format "{{.Names}}")
 
     if [ -z "$running" ]; then
         $DEBUG && echo "No running containers for $USERNAME"
@@ -150,9 +154,13 @@ stop_user_containers() {
     echo "$running" > "$names_file"
     $DEBUG && echo "Saved stopped containers to $names_file"
 
+    # xargs execs a binary directly and can't invoke a bash function, so the
+    # socket is inlined via CONTAINER_HOST instead of calling podman_user here
+    local sock
+    sock="$(podman_user_socket "$context")"
     echo "$running" |
         xargs -r -n1 -P "$jobs" -I{} \
-        docker --context "$context" stop {} > /dev/null 2>&1
+        env CONTAINER_HOST="$sock" podman --remote stop {} > /dev/null 2>&1
 }
 
 rename_user_in_db() {
@@ -164,14 +172,9 @@ rename_user_in_db() {
         echo "User '$USERNAME' suspended successfully."
         # delete active sessions
         if [ -n "$user_id" ]; then
-            session_keys=$(docker --context=default exec openpanel_redis redis-cli --scan --pattern "session:$user_id:*")
-            if [ -n "$session_keys" ]; then
-                session_count=$(echo "$session_keys" | wc -l | tr -d ' ')
-                while IFS= read -r key; do
-                    docker --context=default exec openpanel_redis redis-cli unlink "$key" > /dev/null
-                done <<< "$session_keys"
-            fi
-        fi       
+            session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)
+            redis_drop_user_sessions "$user_id"
+        fi
     else
         echo "ERROR: Failed to suspend user '$USERNAME'."
         exit 1

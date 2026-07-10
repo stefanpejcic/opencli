@@ -28,18 +28,18 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 USER=$1
 ACTION=$2
 
 [ -z "$USER" ] && { echo "Usage: opencli user-varnish <user> [enable|disable]"; exit 1; }
 
-get_docker_context(){
-	IFS=',' read -r user_id CONTEXT <<< "$(mysql -se "SELECT CONCAT(id, ',', server) FROM users WHERE username='${user}';")"
-	if [ -z "$user_id" ] || [ -z "$CONTEXT" ]; then
-	    echo "FATAL ERROR: Missing user ID or context for user $user."
-	    exit 1
-	fi
-}
+# NOTE: this used to be resolved via a (dead - never actually called, and
+# referencing the wrong variable) get_docker_context() DB lookup; context
+# always equals the username in the current single-node setup
+CONTEXT="$USER"
 
 ENV_FILE="/home/$CONTEXT/.env"
 [ -f "$ENV_FILE" ] || { echo "Error: $ENV_FILE not found!"; exit 1; }
@@ -56,13 +56,13 @@ check_status() {
   echo "Current status: $STATUS"
 }
 
-toggle_service() { cd /home/$CONTEXT && docker --context="$CONTEXT" compose "$@" 2>/dev/null; }
+toggle_service() { cd /home/$CONTEXT && podman_compose_user "$CONTEXT" "$@" 2>/dev/null; }
 
 check_varnish_status() {
   local action="$1"
   local running=1
 
-  if cd "/home/$CONTEXT" && docker --context="$CONTEXT" compose ps -q varnish | grep -q .; then
+  if cd "/home/$CONTEXT" && podman_compose_user "$CONTEXT" ps -q varnish | grep -q .; then
     running=0
   fi
 

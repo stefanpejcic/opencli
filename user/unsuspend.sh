@@ -55,6 +55,8 @@ done
 
 
 source "/usr/local/opencli/db.sh"
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 
 # ======================================================================
@@ -63,7 +65,7 @@ get_docker_context() {
     local query="SELECT server FROM users WHERE username LIKE 'SUSPENDED\_%$(mysql_escape "$USERNAME")';"
     local server_name
     server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
-    CONTEXT_FLAG="--context $server_name"
+    context="$server_name"
 
     [[ -z "$server_name" ]] && { echo "Error: No username '$USERNAME'" >&2; exit 1; }
 }
@@ -81,7 +83,7 @@ unsuspend_user_domains() {
     done
 
     # 3. reload caddy
-    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
+    nohup podman exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1 &
     disown
 }
 
@@ -92,13 +94,18 @@ start_user_containers() {
 
     $DEBUG && echo "Starting containers for user: $USERNAME"
 
+    # xargs execs a binary directly and can't invoke a bash function, so the
+    # socket is inlined via CONTAINER_HOST instead of calling podman_user here
+    local sock
+    sock="$(podman_user_socket "$context")"
+
     if [ ! -f "$names_file" ] || [ ! -s "$names_file" ]; then
         $DEBUG && echo "No saved containers to start for $USERNAME"
         # fallback for <1.7.51
-        docker $CONTEXT_FLAG ps -a --format "{{.Names}}" |
+        podman_user "$context" ps -a --format "{{.Names}}" |
             xargs -r -n1 -P "$jobs" bash -c '
                 '"$DEBUG"' && echo "- Starting container: $0"
-                docker '"$CONTEXT_FLAG"' start "$0" > /dev/null 2>&1
+                CONTAINER_HOST='"$sock"' podman --remote start "$0" > /dev/null 2>&1
             '
         return 0
     fi
@@ -106,13 +113,13 @@ start_user_containers() {
     while IFS= read -r container; do
         [ -z "$container" ] && continue
 
-        if docker $CONTEXT_FLAG inspect "$container" > /dev/null 2>&1; then
+        if podman_user "$context" inspect "$container" > /dev/null 2>&1; then
             $DEBUG && echo "Starting container: $container"
-            docker $CONTEXT_FLAG start "$container" > /dev/null 2>&1
+            podman_user "$context" start "$container" > /dev/null 2>&1
         else
             #no contianer = compose up
             $DEBUG && echo "Container $container not found, running compose up"
-            (cd "/home/$context" && docker $CONTEXT_FLAG compose up -d "$container" > /dev/null 2>&1)
+            (cd "/home/$context" && podman_compose_user "$context" up -d "$container" > /dev/null 2>&1)
         fi
 
     done < "$names_file"

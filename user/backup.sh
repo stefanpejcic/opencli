@@ -31,6 +31,9 @@
 
 set -o pipefail
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 pid=$$
 start_time=$(date +%s)
 BACKUP_FORMAT_VERSION="2"
@@ -339,9 +342,12 @@ fi
 
 # --- docker metadata ---
 if [[ -f "/home/$CONTEXT/docker-compose.yml" ]]; then
-    containers=$(docker --context="$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+    containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
     echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt" && log "Collected list of currently active containers for user"
 fi
+# NOTE: rootless Docker needed a per-user AppArmor profile for rootlesskit;
+# podman rootless doesn't use rootlesskit at all, so this file never exists
+# anymore and the backup step below is a permanent no-op (harmless: guarded by -f)
 [[ -f "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" ]] && cp -a "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" "$STAGE/docker/apparmor.profile" && log "Collected AppArmor profile for user"
 echo "${SYS_UID}" > "$STAGE/docker/uid.txt"
 
