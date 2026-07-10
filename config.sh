@@ -77,7 +77,7 @@ update_config() {
 
         # restart openpanel container
         if [[ ! "$param_name" =~ ^(email|autoupdate|autopatch|key|default_php_version|max_cpu|max_ram)$ ]]; then
-            docker --context=default restart openpanel &> /dev/null &
+            podman restart openpanel &> /dev/null &
         fi
     else
         echo "ERROR: Parameter '$param_name' was not found in the configuration file."

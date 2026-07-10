@@ -36,7 +36,11 @@ PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 
 get_current_port() {
-  if [ -f /.dockerenv ] && [ -f /etc/openpanel/no_port ]; then
+  # NOTE: this used to also require /.dockerenv (running inside a container).
+  # OpenAdmin now always runs natively on the host (see PODMAN_INSTALL.sh), so
+  # /.dockerenv never exists anymore, and this would have silently stopped
+  # detecting the no_port case - the file's presence is the actual signal.
+  if [ -f /etc/openpanel/no_port ]; then
       current_port=443
   fi
   if [ -z "$current_port" ]; then
@@ -62,7 +66,7 @@ success_msg() {
   echo "$new_port is now set for accessing the OpenPanel interface."             
 }
 
-# for docker compose
+# for podman compose
 update_env() {
   sed -i "s/^PORT=\"[^\"]*\"/PORT=\"$new_port\"/" "$ENV_FILE"
 }
@@ -72,8 +76,8 @@ do_reload() {
   if [[ "$3" != '--no-restart' ]]; then
     # restart caddy and openpanel
     cd $COMPOSE_DIR
-    nohup docker compose restart caddy > /dev/null 2>&1 < /dev/null &
-    nohup bash -c "docker --context=default compose down openpanel && docker --context=default compose up -d openpanel" > /dev/null 2>&1 &
+    nohup podman-compose restart caddy > /dev/null 2>&1 < /dev/null &
+    nohup bash -c "podman-compose down openpanel && podman-compose up -d openpanel" > /dev/null 2>&1 &
 
     # open port on csf
     local csf_conf="/etc/csf/csf.conf"

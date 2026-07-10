@@ -195,8 +195,8 @@ restart_services() {
     fi
 
     service admin restart > /dev/null
-    if docker --context default ps -q -f name=openpanel | grep -q .; then
-        nohup bash -c "cd /root && docker --context=default compose down openpanel && docker --context=default compose up -d openpanel" &> /dev/null &
+    if podman ps -q -f name=openpanel | grep -q .; then
+        nohup bash -c "cd /root && podman-compose down openpanel && podman-compose up -d openpanel" &> /dev/null &
         disown
     fi
 

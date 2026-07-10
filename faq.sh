@@ -160,14 +160,14 @@ questions=(
 answers=(
     "LINK: ${GREEN}${admin_url}${NC}"
     "LINK: ${GREEN}${user_url}${NC}"
-    "OpenPanel: ${RED}docker restart openpanel${NC}\n- OpenAdmin: ${RED}service admin restart${NC}"
+    "OpenPanel: ${RED}podman restart openpanel${NC}\n- OpenAdmin: ${RED}service admin restart${NC}"
     "execute command ${GREEN}opencli admin password USERNAME NEW_PASSWORD${NC}"
     "execute command ${GREEN}opencli admin new USERNAME PASSWORD${NC}"
     "execute command ${GREEN}opencli admin list${NC}"
     "execute command ${GREEN}opencli --version${NC}"
     "execute command ${GREEN}opencli update --force${NC}"
     "execute command ${GREEN}opencli config update autoupdate off${NC}"
-    "User panel errors:      ${GREEN}docker logs -f openpanel${NC}\n- User panel access log:  ${GREEN}/var/log/openpanel/user/access.log${NC}\n- Admin panel errors:     ${GREEN}/var/log/openpanel/admin/error.log${NC}\n- Admin panel access log: ${GREEN}/var/log/openpanel/admin/access.log${NC}\n- Admin panel API access: ${GREEN}/var/log/openpanel/admin/api.log${NC}\n- Admin panel logins:     ${GREEN}/var/log/openpanel/admin/login.log${NC}\n- Admin panel alerts:     ${GREEN}/var/log/openpanel/admin/notifications.log${NC}\n- Admin panel crons:      ${GREEN}/var/log/openpanel/admin/cron.log${NC}"
+    "User panel errors:      ${GREEN}podman logs -f openpanel${NC}\n- User panel access log:  ${GREEN}/var/log/openpanel/user/access.log${NC}\n- Admin panel errors:     ${GREEN}/var/log/openpanel/admin/error.log${NC}\n- Admin panel access log: ${GREEN}/var/log/openpanel/admin/access.log${NC}\n- Admin panel API access: ${GREEN}/var/log/openpanel/admin/api.log${NC}\n- Admin panel logins:     ${GREEN}/var/log/openpanel/admin/login.log${NC}\n- Admin panel alerts:     ${GREEN}/var/log/openpanel/admin/notifications.log${NC}\n- Admin panel crons:      ${GREEN}/var/log/openpanel/admin/cron.log${NC}"
     "${GREEN}opencli config update dev_mode yes${NC}"
 )
 

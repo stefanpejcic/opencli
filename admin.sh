@@ -727,7 +727,7 @@ case "$1" in
 				systemctl restart admin
 				if [[ "$new_port" == "443" ]]; then
 					echo "Restarting Caddy.."
-					docker restart caddy
+					podman restart caddy
 				fi
 			else
 				if [[ "$new_port" == "443" ]]; then

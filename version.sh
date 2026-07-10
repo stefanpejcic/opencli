@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: version.sh
-# Description: Displays the current (installed) version of OpenPanel docker image.
+# Description: Displays the current (installed) version of OpenPanel container image.
 # Usage: opencli version 
 # Author: Stefan Pejcic
 # Created: 15.11.2023
@@ -35,12 +35,12 @@ fi
 
 # used inside openpanel ui
 if [ -z "$version" ]; then
-    version=$(docker --context=default images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+    version=$(podman images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
 fi
 
 if [ -n "$version" ]; then
     echo "$version"
 else
-    echo '{"error": "Docker image or .env files are missing."}' >&2
+    echo '{"error": "Podman image or .env files are missing."}' >&2
     exit 1
 fi
