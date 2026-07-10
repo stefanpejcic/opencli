@@ -108,7 +108,7 @@ check_coraza_status() {
 }
 
 reload_caddy_now() {
-    nohup docker --context=default exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
+    nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
     disown
 }
 
@@ -230,7 +230,7 @@ enable_coraza_waf() {
     sed -i '/^enabled_modules=/ { /waf/! s/$/,waf/ }' /etc/openpanel/openpanel/conf/openpanel.config
 
     # 3. set image to openpanel/caddy-coraza
-    echo "Setting docker image 'openpanel/caddy-coraza'.."
+    echo "Setting container image 'openpanel/caddy-coraza'.."
     sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="openpanel/caddy-coraza"|' /root/.env
 
     # 4. enable WAF for ALL user domains
@@ -242,7 +242,7 @@ enable_coraza_waf() {
         echo "Failed to cd to /root - are you root?" >&2
         exit 1
     }
-    docker --context=default compose down caddy && docker --context=default compose up -d caddy
+    podman-compose down caddy && podman-compose up -d caddy
 
     nohup opencli sentinel --action=waf_status --title="WAF configured" --message="CorazaWAF has been configured on the server and WAF will be auto-enabled for new domains." >/dev/null 2>&1 &
     disown

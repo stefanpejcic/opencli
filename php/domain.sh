@@ -111,10 +111,13 @@ fi
 sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
 
 # 2. start new php version container if not running
-nohup sh -c "cd /home/$owner && docker --context=$owner compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
+# sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
+owner_sock="unix:///run/user/$(id -u "$owner")/podman/podman.sock"
+nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
 
 # 3. restart webserver
-nohup sh -c "docker --context $context restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
+context_sock="unix:///run/user/$(id -u "$context")/podman/podman.sock"
+nohup sh -c "CONTAINER_HOST=$context_sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
 
 # 4. save in database
 update_query="UPDATE domains SET php_version='$(mysql_escape "$new_php_version")' WHERE domain_url='$(mysql_escape "$domain")';"
@@ -131,8 +134,8 @@ default_php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "/home/$cont
 if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_version" ]; then
 	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
 	user_vhost_files=$(find "$user_vhost_dir" -type f -name "*.conf" -user "$owner")
-    if ! grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf"; then	
-		nohup sh -c "cd /home/$owner && docker --context=$owner compose down php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
+    if ! grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf"; then
+		nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose down php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
         disown
     fi
 fi

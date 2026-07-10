@@ -53,7 +53,7 @@ success_msg() {
   echo "/$new_path is now set for accessing the OpenPanel interface."             
 }
 
-# for docker compose
+# for podman compose
 update_redirects() {
   sed -i 's|\(@openpanel path /\)[^*]*\*|\1'"$new_path"'*|' "$REDIRECTS_FILE"
 }
@@ -62,7 +62,7 @@ update_redirects() {
 do_reload() {
   if [[ "$3" != '--no-restart' ]]; then
     cd $COMPOSE_DIR
-    nohup docker compose restart openpanel > /dev/null 2>&1 &
+    nohup podman-compose restart openpanel > /dev/null 2>&1 &
    fi
 }
 

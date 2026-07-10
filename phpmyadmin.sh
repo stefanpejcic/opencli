@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 readonly CADDYFILE="/etc/openpanel/caddy/Caddyfile"
 START_MARKER="# START PHPMYADMIN DOMAIN #"
 END_MARKER="# END PHPMYADMIN DOMAIN #"
@@ -134,11 +137,11 @@ update_env_for_existing_users() {
       fi
     fi
 
-    if docker --context "$context" compose ps --services 2>/dev/null | grep "^phpmyadmin$"; then
-      echo "Restarting running phpmyadmin service for docker context: $context"
-      docker --context "$context" compose down phpmyadmin &>/dev/null
-      docker --context "$context" compose up -d phpmyadmin &>/dev/null
-    fi  
+    if podman_compose_user "$context" ps --services 2>/dev/null | grep "^phpmyadmin$"; then
+      echo "Restarting running phpmyadmin service for podman context: $context"
+      podman_compose_user "$context" down phpmyadmin &>/dev/null
+      podman_compose_user "$context" up -d phpmyadmin &>/dev/null
+    fi
   done
 }
 
@@ -154,11 +157,11 @@ update_env_for_new_users() {
 
     touch "/etc/openpanel/caddy/domains/$DOMAIN.conf"
 
-    if docker --context default compose ps -q caddy >/dev/null 2>&1; then
-        nohup docker --context default restart caddy >/dev/null 2>&1 &
+    if podman-compose ps -q caddy >/dev/null 2>&1; then
+        nohup podman restart caddy >/dev/null 2>&1 &
         disown
     else
-        nohup bash -c "cd /root && docker --context default compose up -d caddy" >/dev/null 2>&1 &
+        nohup bash -c "cd /root && podman-compose up -d caddy" >/dev/null 2>&1 &
         disown
     fi
 }
