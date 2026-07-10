@@ -28,10 +28,14 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
+
 # ======================================================================
 # Variables
 skip_confirmation=false
-node_ip_address=""
 
 
 
@@ -77,16 +81,7 @@ get_user_info() {
     ")
 
 	[ -n "$user_id" ] || { echo "ERROR: User '$USERNAME' not found in the database."; exit 1; }
-	[ -n "$context" ]  || { echo "ERROR: Could not determine Docker context for '$USERNAME'."; exit 1; }
-
-    # 2. check if remote
-	context_endpoint=$(docker context inspect "$context" --format '{{.Endpoints.docker.Host}}' 2>/dev/null)
-    if [[ "$context_endpoint" == ssh://* ]]; then
-	    ssh_host=${context_endpoint#ssh://}
-	    node_ip_address=${ssh_host#*@}
-    else
-        node_ip_address=""
-    fi
+	[ -n "$context" ]  || { echo "ERROR: Could not determine podman context for '$USERNAME'."; exit 1; }
 }
 
 delete_user_from_database() {
@@ -113,13 +108,7 @@ delete_user_from_database() {
 
 	# 3. terminate redis sessions
 	# TODO: drop all cache by username!
-	session_keys=$(docker --context=default exec openpanel_redis redis-cli --scan --pattern "session:$user_id:*")
-	if [ -n "$session_keys" ]; then
-		session_count=$(echo "$session_keys" | wc -l | tr -d ' ')
-		while IFS= read -r key; do
-			docker --context=default exec openpanel_redis redis-cli unlink "$key" > /dev/null
-		done <<< "$session_keys"
-	fi
+	redis_drop_user_sessions "$user_id"
 
 	# 4. delete domain files, emails and reload Caddy
 	ionice -c3 rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
@@ -146,10 +135,10 @@ delete_user_from_database() {
         done
 		[[ ${#paths_to_delete[@]} -gt 0 ]] && ionice -c3 rm -rf "${paths_to_delete[@]}"
 		# reload webserver
-        nohup docker --context default exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
+        nohup podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
         disown
 		# reload dns
-        nohup docker --context default exec openpanel_dns rndc reconfig >/dev/null 2>&1 &
+        nohup podman exec openpanel_dns rndc reconfig >/dev/null 2>&1 &
         disown
     fi
 }
@@ -236,25 +225,19 @@ delete_ftp_users() {
 
     if [[ -d "${users_dir}/${context}" ]]; then
         if [[ -f "$ftp_accounts_file" ]]; then
-            cut -d'|' -f1 "$ftp_accounts_file" | xargs -I{} docker --context=default exec openadmin_ftp deluser {}
+            cut -d'|' -f1 "$ftp_accounts_file" | xargs -I{} podman exec openadmin_ftp deluser {}
         fi
         ionice -c3 rm -rf "${users_dir:?}/${context:?}"
     fi
 
-    if docker --context=default exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
-        docker --context=default exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
+    if podman exec openadmin_ftp getent group "$context" >/dev/null 2>&1; then
+        podman exec openadmin_ftp delgroup "$context" >/dev/null 2>&1
     fi
 }
 
 delete_all_user_files() {
 	local context="$1"
-	local node_ip_address="$2" 
-
-    if [ -n "$node_ip_address" ]; then
-		# 1. unmount from master
-		umount "/home/$context" >/dev/null 2>&1
-    fi
-	# 2. delete files
+	# 1. delete files
     [ -d /home/"$context" ] && rm -rf "/home/${context:?}"
     [ -d /etc/openpanel/openpanel/core/users/"$context" ] && rm -rf "/etc/openpanel/openpanel/core/users/$context"
 }
@@ -262,25 +245,6 @@ delete_all_user_files() {
 
 delete_system_user() {
 	local context="$1"
-	local node_ip_address="$2" 
-
-    if [ -n "$node_ip_address" ]; then
-		# 1. delete from node
-		ssh "root@$node_ip_address" bash -s -- "$context" <<'EOF'
-		user="$1"
-		
-		pkill -u "$user" -9 2>/dev/null || true
-		
-		if command -v deluser >/dev/null 2>&1; then
-			deluser --remove-home "$user" >/dev/null 2>&1 || true
-		elif command -v userdel >/dev/null 2>&1; then
-			userdel -r "$user" >/dev/null 2>&1 || true
-		fi
-		
-		[ -d "/home/$user" ] && ionice -c3 rm -rf "/home/$user"
-EOF
-    fi
-	# 2. delete on master 
 	pkill -u "$context" -9 2>/dev/null || true
 
     if command -v userdel >/dev/null 2>&1; then
@@ -288,13 +252,6 @@ EOF
     elif command -v deluser >/dev/null 2>&1; then
         deluser --remove-home "$context" # Debian
     fi
-}
-
-
-
-delete_context() {
-	local context="$1"
-    docker context rm "$context"  > /dev/null 2>&1
 }
 
 refresh_resellers_data() {
@@ -339,14 +296,13 @@ confirm_action "$USERNAME"
 # 2. get docker context and user ID from database
 get_user_info
 
-# 3. in parallel: delete emails, delete ftp accounts, user/sites/domains from database, homedir, postfwd limits, docker context
+# 3. in parallel: delete emails, delete ftp accounts, user/sites/domains from database, homedir, postfwd limits
 delete_emails "$USERNAME"
 delete_ftp_users "$context" &
 delete_user_from_database "$USERNAME" &
-delete_all_user_files "$context" "$node_ip_address" &
-delete_system_user "$context" "$node_ip_address" #& NOT DETACHED TO TEST FOR https://github.com/stefanpejcic/OpenPanel/issues/1023
+delete_all_user_files "$context" &
+delete_system_user "$context" #& NOT DETACHED TO TEST FOR https://github.com/stefanpejcic/OpenPanel/issues/1023
 postfwd_setup "$USERNAME" &
-delete_context "$context" &
 
 # 4. wait for all of the above functions to finish
 wait

@@ -379,6 +379,15 @@ additionalimagestores = [
 ]
 EOF
 
+    # security hardening that used to live in rootless Docker's daemon.json
+    # (no-new-privileges + custom DNS resolvers) - containers.conf is the podman
+    # equivalent, applied as the default for every container this user creates
+    cat > "${config_dir}/containers.conf" << 'EOF'
+[containers]
+no_new_privileges = true
+dns_servers = ["1.1.1.1", "1.0.0.1"]
+EOF
+
     chmod 755 -R "${home_dir}"
     chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
 

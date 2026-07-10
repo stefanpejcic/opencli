@@ -119,7 +119,7 @@ update_resource() {
     fi
 
     ((success_count++))
-    echo "[✔] Total ${type^^} limit ($value) set successfully for docker context."
+    echo "[✔] Total ${type^^} limit ($value) set successfully."
 }
 
 update_disk_inodes() {
@@ -166,65 +166,16 @@ drop_redis_cache() {
 
 
 # Main
+# NOTE: this used to check `docker context inspect --format '{{.Endpoints.docker.Host}}'`
+# for an ssh:// endpoint to detect a remote/multi-node context and enforce limits there
+# over ssh. Multi-node support has no equivalent yet under the podman migration (contexts
+# aren't registered at all anymore - see user/add.sh), so only the local path remains.
 user_id=$(id -u $CONTEXT)
 
-context_endpoint=$(docker context inspect "$CONTEXT" --format '{{.Endpoints.docker.Host}}' 2>/dev/null)
-if [[ "$context_endpoint" == ssh://* ]]; then
-    ssh_host=${context_endpoint#ssh://}
-    node_ip_address=${ssh_host#*@}
-
-    echo "Remote context detected ($node_ip_address), enforcing limits on remote node ..."
-    ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR "$ssh_host" bash -s <<REMOTE
-set -e
-USERNAME="$USERNAME"
-CONTEXT="$CONTEXT"
-Ncpu="$Ncpu"
-numNram="$numNram"
-Ndisk_limit="$Ndisk_limit"
-Ninodes_limit="$Ninodes_limit"
-storage_in_blocks="$storage_in_blocks"
-user_id=\$(id -u "\$CONTEXT" 2>/dev/null)
-
-if [ -z "\$user_id" ]; then
-    echo "[✘] User '\$CONTEXT' not found on remote node \$HOSTNAME"
-    exit 1
-fi
-
-# CPU
-if [[ "\$Ncpu" -eq 0 ]]; then
-    systemctl set-property "user-\${user_id}.slice" CPUQuota=infinity
-else
-    cpu_percent=\$(echo "\$Ncpu * 100" | bc)
-    systemctl set-property "user-\${user_id}.slice" CPUQuota="\${cpu_percent}%"
-fi
-echo "[✔] Total CPU limit (\$Ncpu) set successfully on remote node."
-
-# RAM
-ram_val="\$numNram"
-[[ "\$ram_val" != *G ]] && ram_val="\${ram_val}G"
-if [[ "\$numNram" -eq 0 ]]; then
-    systemctl set-property "user-\${user_id}.slice" MemoryMax=infinity
-else
-    systemctl set-property "user-\${user_id}.slice" MemoryMax="\$ram_val"
-fi
-echo "[✔] Total RAM limit (\$ram_val) set successfully on remote node."
-
-# Disk + inodes
-if setquota -u "\$USERNAME" "\$storage_in_blocks" "\$storage_in_blocks" "\$Ninodes_limit" "\$Ninodes_limit" /; then
-    echo "[✔] Disk limit (\$Ndisk_limit) and inodes (\$Ninodes_limit) applied successfully on remote node."
-else
-    echo "[✘] Error setting disk/inodes limits on remote node."
-fi
-REMOTE
-
-else
-    # Local context
-    update_resource cpu "$Ncpu"
-    update_resource ram "$numNram"
-    # update_total_tc   # TODO
-    update_disk_inodes
-fi
-
+update_resource cpu "$Ncpu"
+update_resource ram "$numNram"
+# update_total_tc   # TODO
+update_disk_inodes
 
 change_plan_name_in_db
 drop_redis_cache

@@ -29,6 +29,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
+
 # ======================================================================
 # Variables
 username=$1
@@ -107,14 +110,8 @@ save_to_database() {
         user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
     
         if [[ "$user_id" =~ ^[0-9]+$ ]]; then
-            session_keys=$(docker --context=default exec openpanel_redis redis-cli --scan --pattern "session:$user_id:*")
-            session_count=0
-            if [ -n "$session_keys" ]; then
-                session_count=$(echo "$session_keys" | wc -l)
-                while IFS= read -r key; do
-                    docker --context=default exec openpanel_redis redis-cli unlink "$key" > /dev/null
-                done <<< "$session_keys"
-            fi
+            session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)
+            redis_drop_user_sessions "$user_id"
         fi
 
         # 3. send notification

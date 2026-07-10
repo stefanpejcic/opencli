@@ -170,12 +170,12 @@ edit_domain_files() {
     done
     
     if $caddy_changed; then
-        docker --context=default exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1
+        podman exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1
         $DEBUG && echo "- Reloaded webserver"
     fi
 
     if $bind_changed; then
-        docker --context=default restart openpanel_bind9 >/dev/null 2>&1 || service bind9 restart >/dev/null 2>&1
+        podman restart openpanel_bind9 >/dev/null 2>&1 || service bind9 restart >/dev/null 2>&1
         $DEBUG && echo "- Restarted DNS server"
     fi
 }

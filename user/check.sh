@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/check.sh
-# Description: Performs comprehensive security checks on user files, Docker daemon and containers.
+# Description: Performs comprehensive security checks on user files, rootless Podman instance and containers.
 # Usage: opencli user-check <USERNAME>
 # Author: Stefan Pejcic
 # Created: 26.07.2025
@@ -127,107 +127,60 @@ get_docker_context() {
 
 
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 # Get container property safely
 get_container_property() {
     local container="$1"
     local format="$2"
-    docker --context="$context" inspect --format="$format" "$container" 2>/dev/null || echo ""
+    podman_user "$context" inspect --format="$format" "$container" 2>/dev/null || echo ""
 }
 
 # ====== Docker Daemon Security Checks ======
 
 check_daemon_security() {
-    print_subheader "Docker Daemon Security"
+    print_subheader "Podman Rootless Security"
 
-    # Check if Docker is installed and running
-    if ! command_exists docker; then
-        print_result "FAIL" "Docker is not installed or not in PATH"
-        return 1
-    fi
-
-    if ! docker info >/dev/null 2>&1; then
-        print_result "FAIL" "Docker daemon is not running or not accessible"
+    # Check if Podman is installed and running
+    if ! command_exists podman; then
+        print_result "FAIL" "Podman is not installed or not in PATH"
         return 1
     fi
 
     current_user="$1"
     print_result "INFO" "Running for user: $current_user"
 
-    # Inter-container communication
-    if docker --context="$context" network inspect bridge 2>/dev/null | grep -q '"EnableICC": false'; then
-        print_result "PASS" "Inter-container communication on default bridge is restricted"
+    if ! podman_user "$context" info >/dev/null 2>&1; then
+        print_result "FAIL" "Podman is not running or not accessible for '$context'"
+        return 1
+    fi
+    print_result "PASS" "Podman is reachable for '$context'"
+
+    # rootless: the socket only exists under /run/user/<uid>/ for a rootless instance
+    # (note: $user_id from get_docker_context is the users-table row id, NOT the linux uid)
+    local linux_uid
+    linux_uid=$(id -u "$context" 2>/dev/null)
+    if [[ -n "$linux_uid" && -S "/hostfs/run/user/${linux_uid}/podman/podman.sock" ]]; then
+        print_result "PASS" "Rootless podman is configured"
     else
-        print_result "WARN" "Inter-container communication on default bridge is allowed"
+        print_result "FAIL" "Rootless podman socket not found for '$context'"
     fi
 
-    # Docker daemon logging level
-    local log_level
-    log_level=$(ps -ef | grep dockerd | grep -oP '(?<=--log-level=)\w+' || echo "")
-    if [[ "$log_level" == "info" ]]; then
-        print_result "PASS" "Docker logging level is set to 'info'"
-    else
-        print_result "WARN" "Docker logging level is not set to 'info' (${log_level:-'default'})"
-    fi
-
-    # iptables manipulation
-    if docker --context="$context" info 2>/dev/null | grep -q "iptables: true"; then
-        print_result "FAIL" "Docker is allowed to make changes to iptables"
-    else
-        print_result "PASS" "Docker is not allowed to modify iptables"
-    fi
-
-    # Storage driver check
-    if docker info 2>/dev/null | grep -q "Storage Driver: aufs"; then
-        print_result "FAIL" "Deprecated aufs storage driver is being used"
-    else
-        print_result "PASS" "Not using deprecated aufs storage driver"
-    fi
-
-    # TLS authentication
-    if pgrep -f "dockerd.*--tlsverify" >/dev/null 2>&1; then
-        print_result "PASS" "TLS authentication for Docker daemon is configured"
-    else
-        print_result "WARN" "TLS authentication for Docker daemon is NOT configured"
-    fi
-
-    # TCP socket exposure
-    if pgrep -f "dockerd.*-H tcp://" >/dev/null 2>&1; then
-        print_result "FAIL" "Docker daemon is listening on TCP socket"
-    else
-        print_result "PASS" "Docker daemon is NOT listening on TCP socket"
-    fi
-
-
-    # Experimental features
-    local experimental
-    experimental=$(docker version -f '{{.Server.Experimental}}' 2>/dev/null || echo "false")
-    if [[ "$experimental" == "true" ]]; then
-        print_result "FAIL" "Experimental features are enabled in production"
-    else
-        print_result "PASS" "Experimental features are NOT enabled"
-    fi
-
-    # rootless
-    if grep -q '"currentContext": "rootless"' "/home/$context/.docker/config.json"; then
-        print_result "PASS" "Rootless context is configured"
-    else
-        print_result "FAIL" "Rootless context is not configured"
-    fi
-
-    # no-new-privileges
-    if grep -q '"no-new-privileges": true' "/home/$context/.config/docker/daemon.json"; then
+    # no-new-privileges (set as the per-user default in containers.conf, see user/add.sh)
+    local containers_conf="/home/$context/.config/containers/containers.conf"
+    if grep -q 'no_new_privileges *= *true' "$containers_conf" 2>/dev/null; then
         print_result "PASS" "Containers can not get new privileges"
     else
-        print_result "FAIL" "Containers can escalate privileges (--no-new-privileges is not set)"
+        print_result "FAIL" "Containers can escalate privileges (no_new_privileges is not set in $containers_conf)"
     fi
 
     # dns
-    if grep -q 'dns' "/home/$context/.config/docker/daemon.json"; then
+    if grep -q 'dns_servers' "$containers_conf" 2>/dev/null; then
         print_result "PASS" "Custom DNS resolvers are configured"
     else
         print_result "FAIL" "Custom resolvers are NOT configured - this will cause dns issues"
     fi
-
 }
 
 
@@ -245,27 +198,29 @@ check_files() {
     current_gid=$(id -g "$current_user")
 
     # custom path
-    if grep -q "\"data-root\": \"/home/$context/docker-data\"" "/home/$context/.config/docker/daemon.json"; then
-        print_result "PASS" "/home/$context/docker-data is configured for docker data."
+    if grep -q "graphroot *= *\"/home/$context/docker-data\"" "/home/$context/.config/containers/storage.conf" 2>/dev/null; then
+        print_result "PASS" "/home/$context/docker-data is configured for podman storage."
     else
-        print_result "FAIL" "/home/$context/docker-data is NOT confiugred for docker."
+        print_result "FAIL" "/home/$context/docker-data is NOT configured for podman storage."
     fi
-    
+
     # system files
     check_file() {
         local filepath=$1
         local filename=$(basename "$filepath")
         local fail_msg=${2:-"$filename missing."}
         local success_msg="$filename file exists."
-    
+
         if file_readable "$filepath"; then
             print_result "PASS" "$success_msg"
         else
             print_result "FAIL" "$fail_msg"
         fi
     }
-    
-    check_file "/etc/apparmor.d/home.$context.bin.rootlesskit" "AppArmor profile for user does not exist."
+
+    # NOTE: rootless Docker needed a per-user AppArmor profile for the
+    # rootlesskit binary; podman rootless doesn't run rootlesskit at all, so
+    # there's no equivalent file to check here anymore.
     check_file "/home/$context/.env"
     check_file "/home/$context/docker-compose.yml" "compose file does not exist - no containers can be started."
     check_file "/home/$context/backup.env" "backup.env missing - Backups can not be configured via UI"
@@ -386,7 +341,7 @@ attempt_container_recovery() {
 
     print_result "INFO" "$name: Attempting recovery — trying docker restart first"
 
-    if docker --context="$context" restart "$container" 2>/dev/null; then
+    if podman_user "$context" restart "$container" 2>/dev/null; then
         sleep 3
         local new_status
         new_status=$(get_container_property "$container" '{{.State.Status}}')
@@ -412,12 +367,12 @@ attempt_container_recovery() {
         return 1
     fi
 
-    if docker --context="$context" compose -f "$compose_file" down "$service_name" 2>/dev/null && \
-       docker --context="$context" compose -f "$compose_file" up -d "$service_name" 2>/dev/null; then
+    if podman_compose_user "$context" -f "$compose_file" down "$service_name" 2>/dev/null && \
+       podman_compose_user "$context" -f "$compose_file" up -d "$service_name" 2>/dev/null; then
         sleep 5
         # Re-inspect by name since container ID may have changed after recreate
         local new_container
-        new_container=$(docker --context="$context" ps -q --filter "name=^${service_name}$" 2>/dev/null | head -1)
+        new_container=$(podman_user "$context" ps -q --filter "name=^${service_name}$" 2>/dev/null | head -1)
         if [[ -n "$new_container" ]]; then
             local new_status
             new_status=$(get_container_property "$new_container" '{{.State.Status}}')
@@ -590,22 +545,22 @@ check_container_mounts() {
         print_result "PASS" "$name: No sensitive host directories mounted"
     fi
     
-    # Check for Docker socket mount
+    # Check for Docker/Podman socket mount
     if [[ "$name" != "docker-proxy" ]]; then
-        if echo "$mounts" | grep -q "/docker.sock"; then
-            print_result "FAIL" "$name: Docker socket is mounted inside the container"
+        if echo "$mounts" | grep -qE "/(docker|podman)\.sock"; then
+            print_result "FAIL" "$name: Container engine socket is mounted inside the container"
         else
-            print_result "PASS" "$name: Docker socket is NOT mounted"
+            print_result "PASS" "$name: Container engine socket is NOT mounted"
         fi
-    fi    
+    fi
 }
 
 check_container_processes() {
     local container="$1"
     local name="$2"
-    
+
     # Check for SSH daemon
-    if docker --context="$context" exec "$container" ps aux 2>/dev/null | grep -q "[s]shd"; then
+    if podman_user "$context" exec "$container" ps aux 2>/dev/null | grep -q "[s]shd"; then
         print_result "FAIL" "$name: sshd is running inside container"
     else
         print_result "PASS" "$name: sshd is NOT running inside container"
@@ -632,7 +587,7 @@ check_container_networking() {
     
     # Port binding checks
     local ports
-    ports=$(docker --context="$context" port "$container" 2>/dev/null || true)
+    ports=$(podman_user "$context" port "$container" 2>/dev/null || true)
     
     if [[ -n "$ports" ]]; then
         # Check for privileged ports (< 1024)
@@ -837,9 +792,9 @@ check_single_container() {
 
 check_all_containers() {
     print_subheader "Container Security Checks"
-    
+
     local containers
-    containers=$(docker --context="$context" ps -q)
+    containers=$(podman_user "$context" ps -q)
     
     if [[ -z "$containers" ]]; then
         print_result "INFO" "No running containers found"

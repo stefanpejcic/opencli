@@ -30,6 +30,9 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
+
 # ======================================================================
 # Constants and Variables
 readonly GB_TO_BLOCKS=1024000
@@ -324,7 +327,7 @@ main() {
     generate_report &>/dev/null
 
     # 6. flush cache on OpenPanel UI
-    docker exec openpanel_redis redis-cli DEL openpanel_cache_modules.dashboard.get_disk_and_inodes_for_user_memver openpanel_cache_modules.dashboard._load_quota_report_memver &>/dev/null
+    redis_drop_key openpanel_cache_modules.dashboard.get_disk_and_inodes_for_user_memver openpanel_cache_modules.dashboard._load_quota_report_memver &>/dev/null
 
     exit $exit_code
 }
