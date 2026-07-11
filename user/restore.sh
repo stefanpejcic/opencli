@@ -189,12 +189,12 @@ restore_system_user() {
     if [[ ! -s "$PW" ]]; then
         warn "No system user data in backup — creating '$CONTEXT' fresh (backup was generated via OpenPanel UI)."
         if id "$CONTEXT" &>/dev/null; then
-            REMAPPED_UID=$(id -u "$CONTEXT")
+            REMAPPED_UID=$(stat -c '%u' "/home/$CONTEXT")
             SYSTEM_USER_STATUS="already existed"
         else
             useradd -m -d "/home/$CONTEXT" -s /bin/bash "$CONTEXT"
             usermod -L "$CONTEXT"
-            REMAPPED_UID=$(id -u "$CONTEXT")
+            REMAPPED_UID=$(stat -c '%u' "/home/$CONTEXT")
             SYSTEM_USER_STATUS="created fresh (UID $REMAPPED_UID)"
         fi
         return
@@ -220,7 +220,7 @@ restore_system_user() {
         local target_home="/home/$CONTEXT"
         if id "$target_user" &>/dev/null; then
             log "System user $target_user already exists — skipping creation."
-            REMAPPED_UID=$(id -u "$target_user")
+            REMAPPED_UID=$(stat -c '%u' "$target_home")
             SYSTEM_USER_STATUS="already existed"
         else
             local free_uid; free_uid=$(find_free_uid "$uid")
@@ -288,7 +288,7 @@ if [[ -f "$WORK/mail_external/path.txt" && -f "$WORK/mail_external/mail.tar" ]];
         mkdir -p "$mp"
         local mail_list="$WORK/mail_external/.extracted.list"
         tar -C "$mp" --numeric-owner --acls --xattrs --strip-components=1 -xvf "$WORK/mail_external/mail.tar" >"$mail_list" 2>>"$log_file" || warn "External mail restore failed."
-        local mail_uid; mail_uid=$(id -u "$CONTEXT" 2>/dev/null)
+        local mail_uid; mail_uid=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
         if [[ -n "$mail_uid" && -s "$mail_list" ]]; then
             awk -F/ '{print $1}' "$mail_list" | sort -u | while read -r d; do
                 [[ -n "$d" && -e "$mp/$d" ]] && { nohup chown -R "${mail_uid}:${gid:-$mail_uid}" "$mp/$d" >>"$log_file" 2>&1 & disown; }
@@ -577,7 +577,7 @@ restore_docker() {
         systemctl restart apparmor.service >/dev/null 2>&1 || true
     }
     if [[ -d "/home/$CONTEXT/.config/containers" ]]; then
-        local uid_now; uid_now=$(id -u "$CONTEXT" 2>/dev/null)
+        local uid_now; uid_now=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
         if [[ -n "$uid_now" ]]; then
             # context resolution is dynamic (based on /home/$CONTEXT's owner uid) -
             # there's no context to register anymore, just make sure the user's

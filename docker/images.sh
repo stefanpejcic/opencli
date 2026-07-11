@@ -462,7 +462,7 @@ run_for_user() {
 
     # 3. check the user's rootless podman socket is actually up
     local user_id
-    user_id=$(id -u "$username" 2>/dev/null)
+    user_id=$(stat -c '%u' "/home/$username" 2>/dev/null)
     if [ -z "$user_id" ] || [ ! -S "/hostfs/run/user/$user_id/podman/podman.sock" ]; then
         log_error "Podman socket for '$username' does not exist or is not running."
         SUMMARY_ERRORS=$(( SUMMARY_ERRORS + 1 ))

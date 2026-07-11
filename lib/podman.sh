@@ -22,7 +22,7 @@
 # echoes the CONTAINER_HOST URL for <username>'s rootless podman socket
 podman_user_socket() {
     local user="$1" uid
-    uid="$(id -u "$user" 2>/dev/null)" || { echo "podman_user_socket: no such user '$user'" >&2; return 1; }
+    uid="$(stat -c '%u' "/home/$user" 2>/dev/null)" || { echo "podman_user_socket: no such user '$user'" >&2; return 1; }
     echo "unix:///run/user/${uid}/podman/podman.sock"
 }
 

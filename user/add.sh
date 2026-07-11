@@ -304,7 +304,7 @@ autostart_services() {
 create_linux_user_local() {
     log "Creating local Linux user '$USERNAME'"
     useradd -m -d "/home/${USERNAME}" "$USERNAME" || die "Failed to create Linux user '$USERNAME' on master."
-    USER_ID="$(id -u "$USERNAME")"
+    USER_ID="$(stat -c '%u' "/home/${USERNAME}")"
 }
 
 ensure_subuid_subgid() {

@@ -479,7 +479,7 @@ gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHI
 
 # Permissions + ownership
 chmod 640 "$ARCHIVE"
-BACKUP_UID=$(id -u "$CONTEXT" 2>/dev/null)
+BACKUP_UID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
 BACKUP_GID=$(id -g "$CONTEXT" 2>/dev/null)
 if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" ]]; then
     chown "${BACKUP_UID}:${BACKUP_GID}" "$ARCHIVE" 2>/dev/null && log "Ownership: $CONTEXT (${BACKUP_UID}:${BACKUP_GID})" || warn "Could not chown archive to $CONTEXT (non-fatal)."

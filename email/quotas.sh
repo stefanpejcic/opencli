@@ -76,7 +76,7 @@ for FOLDER_NAME in "$FOLDER"/*; do
   else
     USERNAME=$(log "$owner" | sed -n '1p')
     CONTEXT=$(log "$owner" | sed -n '2p')
-    USER_ID=(id -u $CONTEXT)
+    USER_ID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
     log "USERNAME: $USERNAME - CONTEXT: $CONTEXT (UID: $USER_ID)"
     log "Setting permissions to: $CONTEXT:$CONTEXT for all mails in: $FOLDER_NAME"
     #sed -i "/@$DOMAIN/ {

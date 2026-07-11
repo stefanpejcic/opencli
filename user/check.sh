@@ -194,7 +194,7 @@ check_files() {
     # User privilege check
     local current_uid current_gid
     current_user="$1"
-    current_uid=$(id -u "$current_user")
+    current_uid=$(stat -c '%u' "/home/$current_user")
     current_gid=$(id -g "$current_user")
 
     # custom path

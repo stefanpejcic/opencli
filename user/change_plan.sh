@@ -170,7 +170,7 @@ drop_redis_cache() {
 # for an ssh:// endpoint to detect a remote/multi-node context and enforce limits there
 # over ssh. Multi-node support has no equivalent yet under the podman migration (contexts
 # aren't registered at all anymore - see user/add.sh), so only the local path remains.
-user_id=$(id -u $CONTEXT)
+user_id=$(stat -c '%u' "/home/$CONTEXT")
 
 update_resource cpu "$Ncpu"
 update_resource ram "$numNram"

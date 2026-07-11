@@ -116,7 +116,7 @@ users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e 
 
 uid_mapped_data=""
 while IFS=$'\t' read -r username server owner package_name package_owner email locale_code; do
-    uid=$(id -u "$server" 2>/dev/null || echo "null")
+    uid=$(stat -c '%u' "/home/$server" 2>/dev/null || echo "null")
     uid_mapped_data+=$uid$'\t'$username$'\t'$server$'\t'$owner$'\t'$package_name$'\t'$package_owner$'\t'$email$'\t'$locale_code$'\n'
 done <<< "$users_data"
 

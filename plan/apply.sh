@@ -120,7 +120,7 @@ for username in "${usernames[@]}"; do
     # user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
 
     # 5. if cpu / ram, then create the user slice first
-    user_id=$(id -u "$username")
+    user_id=$(stat -c '%u' "/home/$username")
 	if ( (! $partial) || ( $docpu && $doram ) ); then
         if [ ! -f "/etc/systemd/system/user-$user_id.slice.d/override.conf" ]; then
             mkdir -p /etc/systemd/system/user-$user_id.slice.d/
