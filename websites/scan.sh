@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 # Function to get domain ID from the database
 get_domain_id() {
@@ -54,7 +56,7 @@ run_wp_cli() {
     local username="$1"
     local path="$2"
     local command="$3"
-	docker --context=$context exec "php-fpm-$default_php_version" sh -c "php -d memory_limit=-1 -d open_basedir=none -d disable_functions= -d display_errors=0 -d error_log=/dev/null /usr/local/bin/wp --allow-root --path=${path} ${command}"
+	podman_ctx "$context" exec "php-fpm-$default_php_version" sh -c "php -d memory_limit=-1 -d open_basedir=none -d disable_functions= -d display_errors=0 -d error_log=/dev/null /usr/local/bin/wp --allow-root --path=${path} ${command}"
 }
 
 check_site_already_exists_in_db() {
