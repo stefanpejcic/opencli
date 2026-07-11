@@ -671,7 +671,7 @@ update_openpanel() {
             sed -i "s/^VERSION=.*/VERSION=\"${base_version}-beta\"/" /root/.env
         fi
     fi
-    podman-compose up -d openpanel --force-recreate --pull always
+    podman-compose up -d openpanel --force-recreate --pull
 }
 
 update_openadmin() {
