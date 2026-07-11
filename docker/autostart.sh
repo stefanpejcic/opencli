@@ -28,119 +28,93 @@
 # THE SOFTWARE.
 ################################################################################
 
-readonly COMPOSE_FILE="/etc/openpanel/docker/compose/1.0/docker-compose.yml"
-AUTOSTART_FILE="/etc/openpanel/docker/compose/1.0/autostart.services"
-
-usage() {
-    echo "Usage: opencli docker-autostart [--set <service1,service2,...> | --add <service> | --remove <service> | --clear]"
-    echo ""
-    echo "  (no args)              Show current autostart services"
-    echo "  --set svc1,svc2        Replace autostart list with given services"
-    echo "  --add svc              Add a service to autostart"
-    echo "  --remove svc           Remove a service from autostart"
-    echo "  --clear                Clear all autostart services"
-    exit 1
-}
-
-get_available() {
-    awk '/^services:/{f=1; next} /^[a-zA-Z]/{f=0} f && /^  [a-zA-Z]/{print $1}' "$COMPOSE_FILE" 2>/dev/null | tr -d ':'
-}
-
-get_current() {
-    [[ -f "$AUTOSTART_FILE" ]] && grep -v '^\s*#' "$AUTOSTART_FILE" | grep -v '^\s*$' | sort
-}
-
-save_list() {
-    # $1: newline-separated list!
-    local dir
-    dir=$(dirname "$AUTOSTART_FILE")
-    mkdir -p "$dir"
-    echo "$1" | grep -v '^\s*$' | sort -u > "$AUTOSTART_FILE"
-}
-
-validate_service() {
-    local svc="$1"
-    local available
-    available=$(get_available)
-    if ! echo "$available" | grep -qx "$svc"; then
-        echo "Error: '$svc' is not a known service." >&2
-        echo "Available: $(echo "$available" | tr '\n' ' ')" >&2
-        exit 1
-    fi
-}
-
-show_status() {
-    local available current
-
-    [[ -f "$COMPOSE_FILE" ]] || { echo "Compose file not found: $COMPOSE_FILE" >&2; exit 1; }
-
-    available=$(get_available)
-    current=$(get_current)
-
-    echo "Available services:"
-    while IFS= read -r svc; do
-        if echo "$current" | grep -qx "$svc"; then
-            echo "  [x] $svc"
-        else
-            echo "  [ ] $svc"
-        fi
-    done <<< "$available"
-
-    echo ""
-    if [[ -z "$current" ]]; then
-        echo "Autostart: (none)"
-    else
-        echo "Autostart: $(echo "$current" | tr '\n' ' ')"
-    fi
-}
-
-# No args = show status
-if [[ $# -eq 0 ]]; then
-    show_status
+COMPOSE_DIR="/etc/openpanel/docker/compose/1.0"
+COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
+AUTOSTART_FILE="${COMPOSE_DIR}/autostart.services"
+SHARED_STORE="/var/lib/openpanel/shared-containers/storage"
+FORCE=false
+[[ "$1" == "-f" || "$1" == "--force" ]] && FORCE=true
+# disk check (free space on /), skippable with -f/--force
+disk_mb=$(( $(df / --output=avail | tail -1) / 1024 ))
+if [[ "$FORCE" == true ]]; then
+    echo "Force flag set — skipping disk check (free: $(( disk_mb / 1024 ))GB)."
+elif (( disk_mb <= 81920 )); then
+    echo "Root disk free is $(( disk_mb / 1024 ))GB (<=80GB) — skipping prefetch."
+    echo "Re-run with -f or --force to prefetch anyway."
     exit 0
+else
+    echo "Root disk free is $(( disk_mb / 1024 ))GB — proceeding with prefetch."
 fi
-
-case "$1" in
-    --set)
-        [[ -z "$2" ]] && usage
-        IFS=',' read -ra services <<< "$2"
-        for svc in "${services[@]}"; do
-            svc="${svc// /}"
-            validate_service "$svc"
-        done
-        new_list=$(printf '%s\n' "${services[@]}" | tr -d ' ')
-        save_list "$new_list"
-        echo "Autostart set to: $(echo "$new_list" | tr '\n' ' ')"
-        ;;
-
-    --add)
-        [[ -z "$2" ]] && usage
-        svc="${2// /}"
-        validate_service "$svc"
-        current=$(get_current)
-        if echo "$current" | grep -qx "$svc"; then
-            echo "'$svc' is already in autostart."
-        else
-            save_list "$(printf '%s\n%s' "$current" "$svc")"
-            echo "Added '$svc' to autostart."
-        fi
-        ;;
-
-    --remove)
-        [[ -z "$2" ]] && usage
-        svc="${2// /}"
-        current=$(get_current)
-        new_list=$(echo "$current" | grep -vx "$svc")
-        save_list "$new_list"
-        echo "Removed '$svc' from autostart."
-        ;;
-
-    --clear)
-        save_list ""
-        echo "Autostart list cleared."
-        ;;
-
-    *)
-        usage
-        ;;
-esac
+[[ -f "$COMPOSE_FILE" ]]   || { echo "compose file not found: $COMPOSE_FILE"; exit 1; }
+[[ -f "$AUTOSTART_FILE" ]] || { echo "autostart file not found: $AUTOSTART_FILE"; exit 1; }
+mkdir -p "$SHARED_STORE"
+cd "$COMPOSE_DIR" || exit 1
+# awk that emits "service image" pairs. Tracks 2-space service headers,
+# turns off inside top-level networks/volumes/configs/secrets blocks.
+read -r -d '' PARSE <<'AWK'
+BEGIN { s=1 }
+/^services:[[:space:]]*$/ { s=1; next }
+/^(networks|volumes|configs|secrets):[[:space:]]*$/ { s=0; next }
+s && /^  [A-Za-z0-9._-]+:[[:space:]]*$/ { svc=$1; sub(/:$/,"",svc); next }
+s && /image:[[:space:]]/ {
+    line=$0
+    sub(/.*image:[[:space:]]*/,"",line)
+    gsub(/["'\'']/,"",line)
+    sub(/[[:space:]].*$/,"",line)
+    if (svc!="") print svc, line
+}
+AWK
+# primary: podman-compose config (resolves ${VAR} from adjacent .env)
+mapfile -t pairs < <(podman-compose -f "$COMPOSE_FILE" config 2>/dev/null | awk "$PARSE")
+# fallback: raw file with ${VAR:-default} -> default (may give compose-default tags)
+if (( ${#pairs[@]} == 0 )); then
+    echo "compose config produced nothing — falling back to raw parse (tags may be compose defaults)."
+    mapfile -t pairs < <(sed -E 's/\$\{[A-Za-z0-9_]+:-([^}]*)\}/\1/g' "$COMPOSE_FILE" | awk "$PARSE")
+fi
+declare -A SVC_IMAGE
+for p in "${pairs[@]}"; do
+    svc="${p%% *}"; img="${p#* }"
+    [[ -z "$svc" || -z "$img" || "$img" == *'${'* ]] && continue
+    SVC_IMAGE["$svc"]="$img"
+done
+# autostart service set (strip comments/blanks/whitespace)
+declare -A AUTO
+while IFS= read -r line; do
+    line="$(echo "$line" | sed 's/#.*//; s/[[:space:]]//g')"
+    [[ -n "$line" ]] && AUTO["$line"]=1
+done < "$AUTOSTART_FILE"
+echo
+echo "Autostart services: ${!AUTO[*]}"
+echo "Compose services with images: ${#SVC_IMAGE[@]}"
+echo
+# iterate compose services in sorted order; pull only if in autostart
+mapfile -t sorted < <(printf '%s\n' "${!SVC_IMAGE[@]}" | sort)
+for svc in "${sorted[@]}"; do
+    img="${SVC_IMAGE[$svc]}"
+    if [[ -z "${AUTO[$svc]}" ]]; then
+        echo "skip   $svc (not in autostart)"
+        continue
+    fi
+    echo -n "pull   $svc -> $img ... "
+    if podman --root "$SHARED_STORE" pull --policy always "$img" >/dev/null 2>&1; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+done
+# autostart entries that have no image in compose (typos / imageless services)
+for svc in "${!AUTO[@]}"; do
+    [[ -z "${SVC_IMAGE[$svc]}" ]] && echo "note   '$svc' in autostart but no image found in compose"
+done
+echo
+echo "Fixing permissions on $SHARED_STORE ..."
+chmod -R o+rX "$SHARED_STORE"
+find "$SHARED_STORE" -name '*.lock' -exec chmod o+rw {} \; 2>/dev/null || true
+echo "Done."
+echo
+echo "Store contents:"
+podman --root "$SHARED_STORE" images
+echo
+size_h="$(du -sh "$SHARED_STORE" 2>/dev/null | cut -f1)"
+size_gb="$(du -sm "$SHARED_STORE" 2>/dev/null | cut -f1 | awk '{printf "%.2f", $1/1024}')"
+echo "Shared store disk usage: ${size_h} (${size_gb} GB) at ${SHARED_STORE}"
