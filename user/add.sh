@@ -377,6 +377,9 @@ graphroot = "${home_dir}/docker-data"
 additionalimagestores = [
   "${SHARED_STORE}"
 ]
+
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs"
 EOF
 
     # security hardening that used to live in rootless Docker's daemon.json
