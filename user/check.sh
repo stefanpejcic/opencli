@@ -160,7 +160,7 @@ check_daemon_security() {
     # rootless: the socket only exists under /run/user/<uid>/ for a rootless instance
     # (note: $user_id from get_docker_context is the users-table row id, NOT the linux uid)
     local linux_uid
-    linux_uid=$(id -u "$context" 2>/dev/null)
+    linux_uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
     if [[ -n "$linux_uid" && -S "/hostfs/run/user/${linux_uid}/podman/podman.sock" ]]; then
         print_result "PASS" "Rootless podman is configured"
     else

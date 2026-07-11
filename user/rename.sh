@@ -194,7 +194,7 @@ if [ -z "$user_id" ]; then
     exit 1
 fi
 
-context_uid=$(id -u "$context" 2>/dev/null)
+context_uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
 if [[ -z "$context_uid" || ! -S "/hostfs/run/user/${context_uid}/podman/podman.sock" ]]; then
     echo "ERROR: Context '$context' not found."
     exit 1
