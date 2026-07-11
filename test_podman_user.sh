@@ -13,7 +13,7 @@ echo "== Testing user: $USERNAME =="
 echo
 
 # 1. linux user + uid
-UID_N=$(id -u "$USERNAME" 2>/dev/null)
+UID_N=$(stat -c '%u' "/home/$USERNAME" 2>/dev/null)
 if [[ -n "$UID_N" ]]; then
     echo -e "[$PASS] linux user exists, uid=$UID_N"
 else

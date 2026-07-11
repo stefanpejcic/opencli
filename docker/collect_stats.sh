@@ -80,7 +80,7 @@ process_user() {
 
     {
         local UID_NUM
-        if ! UID_NUM=$(id -u "$USER_NAME" 2>/dev/null); then
+        if ! UID_NUM=$(stat -c '%u' "/home/$USER_NAME" 2>/dev/null); then
             echo '{"error": "Context '"$USER_NAME"' not found"}' >&2
             semaphore_release
             return 1
