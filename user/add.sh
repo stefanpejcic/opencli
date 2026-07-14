@@ -633,24 +633,7 @@ generate_password_hash() {
 
     require_password_strength "$PASSWORD"
 
-    local python3
-    if [[ -x /usr/local/admin/venv/bin/python3 ]]; then
-        python3=/usr/local/admin/venv/bin/python3
-    elif command -v python3 &>/dev/null; then
-        python3=python3
-    else
-        hard_cleanup; die "No Python 3 interpreter found. Install Python 3 or check the venv."
-    fi
-
-    # stdin to avoid it appearing in the process list!
-    HASHED_PASSWORD="$(echo "$PASSWORD" \
-        | "$python3" -c "
-import sys
-from werkzeug.security import generate_password_hash
-pw = sys.stdin.readline().rstrip('\n')
-print(generate_password_hash(pw))
-")"
-
+	HASHED_PASSWORD=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$PASSWORD")
 }
 
 create_user_volume() {
