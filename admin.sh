@@ -335,7 +335,7 @@ add_new_user() {
     local username="$1"
     local password="$2"
     local flag="$3"
-    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$password")    
+	local password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$password")
 
 	# ---------------------- check total user count and license
     total_users=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user;")
@@ -495,7 +495,7 @@ update_password() {
     local escaped_username
     escaped_username=$(sqlite_escape "$username")
     local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_username';")
-    local password_hash=$(/usr/local/admin/venv/bin/python3 /usr/local/admin/core/users/hash "$new_password")
+	local password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 $db_file_path "UPDATE user SET password_hash='$(sqlite_escape "$password_hash")' WHERE username='$escaped_username';"
