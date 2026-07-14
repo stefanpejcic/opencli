@@ -78,6 +78,7 @@ case "$1" in
     fi
     ;;
   list)
+    # TODO: handle Python to Go port
     if [ "$2" = "--save" ]; then
       # can only be run BEFORE pyarmor encoding
       python3 /usr/local/admin/modules/api/generate.py --save
