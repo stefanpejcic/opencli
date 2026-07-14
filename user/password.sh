@@ -67,34 +67,14 @@ generate_random_password() {
     echo "$pw" | fold -w1 | shuf | tr -d '\n'
 }
 
-determine_python_path() {
-    if [ -x /usr/local/admin/venv/bin/python3 ]; then
-        PYTHON_EXEC=/usr/local/admin/venv/bin/python3
-    elif command -v python3 &>/dev/null; then
-        PYTHON_EXEC=python3
-    else
-        echo "Warning: No Python 3 interpreter found. Please install Python 3 or check the virtual environment."
-        exit 1
-    fi
-}
-
 generate_and_hash_password() {
-
     if [ "$new_password" == "random" ]; then
         new_password=$(generate_random_password)
         random_flag=true
     fi
 
     require_password_strength "$new_password"
-
-hashed_password=$(
-"$PYTHON_EXEC" - "$new_password" << 'EOF'
-import sys
-from werkzeug.security import generate_password_hash
-print(generate_password_hash(sys.argv[1]))
-EOF
-)
-
+    hashed_password=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
 }
 
 save_to_database() {
@@ -128,7 +108,6 @@ save_to_database() {
 
 # ======================================================================
 # Main
-determine_python_path
 generate_and_hash_password
 source /usr/local/opencli/db.sh
 save_to_database
