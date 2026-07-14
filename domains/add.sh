@@ -169,14 +169,22 @@ sql_escape() {
 
 idn_decode() { # punycode -> unicode
     local d="$1"
-    python3 -c 'import sys; print(sys.argv[1].encode("ascii").decode("idna"))' "$d" 2>/dev/null || printf '%s' "$d"
+    if command -v python3 &>/dev/null; then
+        python3 -c 'import sys; print(sys.argv[1].encode("ascii").decode("idna"))' "$d" 2>/dev/null || printf '%s' "$d"
+    else
+        printf '%s' "$d"
+    fi
 }
 
 idn_encode() { # any form -> punycode
     local d="$1"
     case "$d" in
         *[!a-zA-Z0-9.-]*)
-            python3 -c 'import sys; print(sys.argv[1].encode("idna").decode("ascii"))' "$d" 2>/dev/null || printf '%s' "$d"
+            if command -v python3 &>/dev/null; then
+                python3 -c 'import sys; print(sys.argv[1].encode("idna").decode("ascii"))' "$d" 2>/dev/null || printf '%s' "$d"
+            else
+                printf '%s' "$d"
+            fi
             ;;
         *) printf '%s' "$d" ;;
     esac
