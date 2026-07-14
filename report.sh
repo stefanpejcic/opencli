@@ -99,11 +99,6 @@ collect_mysql_info() {
   run_command "mysql --protocol=tcp --version" "Checking MySQL Version" "$tmp"
 }
 
-collect_admin_info() {
-  local tmp="$1"
-  run_command "/usr/local/admin/venv/bin/python3 --version" "Checking Python version for OpenAdmin venv" "$tmp"
-}
-
 collect_docker_info() {
   local tmp="$1"
   run_command "podman info" "Collecting host podman information" "$tmp"
@@ -177,7 +172,6 @@ ORDERED_FUNCS=(
   collect_os_info
   collect_opencli_info
   collect_mysql_info
-  collect_admin_info
   collect_docker_info
   collect_openpanel_settings
   collect_openadmin_settings
@@ -193,7 +187,6 @@ export -f run_command \
            collect_os_info \
            collect_opencli_info \
            collect_mysql_info \
-           collect_admin_info \
            collect_docker_info \
            collect_openpanel_settings \
            collect_openadmin_settings \
