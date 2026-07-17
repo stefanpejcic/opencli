@@ -686,6 +686,10 @@ update_openadmin() {
         [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
         [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
 
+	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$VERSION/$admin_binary" -o "/usr/local/admin/$admin_binary"
+
+        # TODO: update binaries from relases
+
         # restore report for 'OpenAdmin > Emails > Reports'
         [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
