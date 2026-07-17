@@ -677,34 +677,30 @@ update_openpanel() {
 update_openadmin() {
     [[ "$1" == "--no-log" ]] && echo "Updating OpenAdmin" || log "Updating OpenAdmin"
     if [[ -d /usr/local/admin ]]; then
-        cd /usr/local/admin || return 
+        cd /usr/local/admin || return
+
+        local bin
+        if [[ -f openadmin-amd64 ]]; then
+            bin=openadmin-amd64
+        elif [[ -f openadmin-arm64 ]]; then
+            bin=openadmin-arm64
+        else
+            return
+        fi
 
         # keep report for 'OpenAdmin > Emails > Reports'
-        cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup
+        cp templates/emails/reports.html /tmp/report.html.backup
 
-        current_branch=$(git rev-parse --abbrev-ref HEAD)
-        [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
-        [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
-
-        # restore report for 'OpenAdmin > Emails > Reports'
-        cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
-
-        local pip_flags="--default-timeout=300" #--force-reinstall --ignore-installed
-        [ -f "$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')/EXTERNALLY-MANAGED" ] && pip_flags="$pip_flags --break-system-packages"
-        # shellcheck disable=SC1090
-        source "/usr/local/admin/venv/bin/activate"
-        # shellcheck disable=SC2086
-        pip install $pip_flags -r requirements.txt >/dev/null 2>&1
-        deactivate
-
-        latest_commit=$(git rev-parse origin/"$current_branch")
-        current_commit=$(git rev-parse HEAD)
-        if [[ "$current_commit" == "$latest_commit" ]]; then
+        if curl -fsSL "https://github.com/stefanpejcic/openadmin/raw/refs/heads/main/$bin" -o "$bin"; then
+            chmod +x "$bin"
             [[ "$1" == "--no-log" ]] && echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
         else
-            message="OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
-            [[ "$1" == "--no-log" ]] && echo ${message} || log_error ${message}
+            message="OpenAdmin is NOT up-to-date - github.com is unreachable."
+            [[ "$1" == "--no-log" ]] && echo "$message" || log_error "$message"
         fi
+
+        # restore report for 'OpenAdmin > Emails > Reports'
+        cp /tmp/report.html.backup templates/emails/reports.html
     fi
 }
 
