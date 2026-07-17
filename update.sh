@@ -680,14 +680,14 @@ update_openadmin() {
         cd /usr/local/admin || return 
 
         # keep report for 'OpenAdmin > Emails > Reports'
-        cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup
+        [[ -f "/usr/local/admin/templates/emails/reports.html" ]] && cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup      
 
         current_branch=$(git rev-parse --abbrev-ref HEAD)
         [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
         [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
 
         # restore report for 'OpenAdmin > Emails > Reports'
-        cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
+        [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
         latest_commit=$(git rev-parse origin/"$current_branch")
         current_commit=$(git rev-parse HEAD)
