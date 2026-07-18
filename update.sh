@@ -682,13 +682,15 @@ update_openadmin() {
         # keep report for 'OpenAdmin > Emails > Reports'
         [[ -f "/usr/local/admin/templates/emails/reports.html" ]] && cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup      
 
+		# update static and modules
         current_branch=$(git rev-parse --abbrev-ref HEAD)
         [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
         [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
 
-	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$VERSION/$admin_binary" -o "/usr/local/admin/$admin_binary"
-
-        # TODO: update binaries from relases
+		# update binary
+    	local remote_version
+		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
+	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary" -o "/usr/local/admin/$admin_binary"
 
         # restore report for 'OpenAdmin > Emails > Reports'
         [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
