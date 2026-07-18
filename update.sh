@@ -687,8 +687,15 @@ update_openadmin() {
         [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
         [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
 
-		# update binary
-    	local remote_version
+		# update binary	
+    	local remote_version admin_binary
+
+	    case "$(uname -m)" in
+	        x86_64|amd64)  admin_binary="openadmin-amd64" ;;
+	        aarch64|arm64) admin_binary="openadmin-arm64" ;;
+	        *)             architecture="$(uname -m)" ;;
+	    esac
+
 		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
 	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary" -o "/usr/local/admin/$admin_binary"
 
