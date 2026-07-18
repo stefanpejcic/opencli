@@ -693,7 +693,7 @@ update_openadmin() {
 	    case "$(uname -m)" in
 	        x86_64|amd64)  admin_binary="openadmin-amd64" ;;
 	        aarch64|arm64) admin_binary="openadmin-arm64" ;;
-	        *)             architecture="$(uname -m)" ;;
+	        *)             admin_binary="$(uname -m)" ;;
 	    esac
 
 		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
