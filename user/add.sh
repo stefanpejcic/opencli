@@ -33,8 +33,6 @@ readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_use
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
-# shared, read-only image store populated once at install time (see PODMAN_INSTALL.sh) so
-# per-user rootless podman stores don't each duplicate the same pulled images
 readonly SHARED_STORE="/var/lib/openpanel/shared-containers/storage"
 
 if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
@@ -303,7 +301,17 @@ autostart_services() {
 
 create_linux_user_local() {
     log "Creating local Linux user '$USERNAME'"
-    useradd -m -d "/home/${USERNAME}" "$USERNAME" || die "Failed to create Linux user '$USERNAME' on master."
+
+    # never hand out uid 1000
+    local uid
+    uid="$(getent passwd | awk -F: '{print $3}' | sort -n | awk '
+        BEGIN{c=1000}
+        {while ($1==c) {c++; if (c==1000) c++}}
+        END{print c}
+    ')"
+    [[ "$uid" == "1000" ]] && uid=1001
+
+    useradd -m -d "/home/${USERNAME}" -u "$uid" "$USERNAME" || die "Failed to create Linux user '$USERNAME' on master."
     USER_ID="$(stat -c '%u' "/home/${USERNAME}")"
 }
 
