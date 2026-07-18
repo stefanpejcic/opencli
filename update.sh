@@ -698,6 +698,7 @@ update_openadmin() {
 
 		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
 	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary" -o "/usr/local/admin/$admin_binary"
+		chmod +x "/usr/local/admin/$admin_binary"
 
         # restore report for 'OpenAdmin > Emails > Reports'
         [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
