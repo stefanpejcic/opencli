@@ -269,9 +269,9 @@ update_check() {
     comparison=$(compare_versions "$local_version" "$remote_version")
     
     case $comparison in
-        0)
-            echo '{"status": "Up to date", "installed_version": "'"$local_version"'"}'
-            ;;
+		0)
+		    echo '{"status": "Up to date", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
+		    ;;
         1)
             echo '{"status": "Local version is greater", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
             ;;
