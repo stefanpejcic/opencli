@@ -732,10 +732,10 @@ update_opencli() {
     if [[ -d /usr/local/opencli ]]; then
         rm -f /usr/local/opencli/aliases.txt
         cd /usr/local/opencli || return 
-        git reset --hard origin/main
-        [[ "$1" == "--no-log" ]] && git reset --hard origin/main 2>&1 || git reset --hard origin/main 2>&1 | tee -a "$log_file"
+        git reset --hard origin/podman
+        [[ "$1" == "--no-log" ]] && git reset --hard origin/podman 2>&1 || git reset --hard origin/podman 2>&1 | tee -a "$log_file"
         [[ "$1" == "--no-log" ]] && git pull 2>&1 || git pull 2>&1 | tee -a "$log_file"
-        latest_commit=$(git rev-parse origin/main)
+        latest_commit=$(git rev-parse origin/podman)
         current_commit=$(git rev-parse HEAD)
         if [[ "$current_commit" == "$latest_commit" ]]; then
             message="[✔] OpenCLI is up-to-date"
