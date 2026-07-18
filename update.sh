@@ -101,7 +101,7 @@ command_exists() {
 
 # ---------------------- DOCKER IMAGE ---------------------- #
 # added in 1.7.42 to detect if custom image is used
-IMAGE_NAME=$(podman-compose -f "$COMPOSE_FILE" config | awk '
+IMAGE_NAME=$(podman-compose -f "$COMPOSE_FILE" config 2>/dev/null | awk '
   $1=="openpanel:" {f=1; next}
   f && $1=="image:" {
     split($2, arr, ":")
