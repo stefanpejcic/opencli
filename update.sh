@@ -612,19 +612,20 @@ run_update_immediately() {
     # ---------------------- 4. DOWNLOAD BASH SCRIPTS FROM GITHUB
     update_opencli
 
-    # ---------------------- 5. DOWNLOAD OPENADMIN FILES FROM GITHUB
-    update_openadmin
-
-    # ---------------------- 6. UPDATE INSTALLED LOCALES
+    # ---------------------- 5. UPDATE INSTALLED LOCALES
     update_locales  
 
     # ---------------------- 6. UPDATE MODULES/FEATURES
     update_modules 
 
-    # ---------------------- 7. RUN VERSION-SPECIFIC FILES IF EXIST
+    # ---------------------- 7. DOWNLOAD OPENADMIN FILES FROM GITHUB
+    update_openadmin
+
+
+    # ---------------------- 8. RUN VERSION-SPECIFIC FILES IF EXIST
     run_version_specific_scripts_in_range "$local_version" "$version"
 
-    # ---------------------- 8. IF MAJOR VERSION, ALSO UPDATE SYSTEM, DOCKER AND KERNEL     
+    # ---------------------- 9. IF MAJOR VERSION, ALSO UPDATE SYSTEM, DOCKER AND KERNEL     
     current_major=$(echo "$local_version" | cut -d. -f1)
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
@@ -638,18 +639,16 @@ run_update_immediately() {
         log "[✔] Minor update - skipping system updates"
     fi
 
-    # ---------------------- 9. RUN POST-UPDATE HOOK IF EXISTS        
+    # ---------------------- 10. RUN POST-UPDATE HOOK IF EXISTS        
     log "Checking for custom post-update scripts"
     run_custom_postupdate_script
     
-    # ---------------------- 10. CLEANUP     
+    # ---------------------- 11. CLEANUP     
     remove_notifications_by_pattern "OpenPanel update started MESSAGE"
     remove_notifications_by_pattern "New OpenPanel update is available"
     write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
     log "Update completed successfully!"
 
-    # ---------------------- 11. RESTART ADMIN PANEL
-    restart_admin "$1"
 }
 
 
@@ -688,7 +687,7 @@ update_openadmin() {
         [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
 
 		# update binary	
-    	local remote_version admin_binary
+    	local remote_version admin_binary url
 
 	    case "$(uname -m)" in
 	        x86_64|amd64)  admin_binary="openadmin-amd64" ;;
@@ -697,7 +696,24 @@ update_openadmin() {
 	    esac
 
 		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
-	    curl -sSL "https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary" -o "/usr/local/admin/$admin_binary"
+		url="https://github.com/stefanpejcek/openadmin/releases/download/$remote_version/$admin_binary"
+
+		if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
+			if systemctl is-active --quiet admin; then
+				was_active=true
+				systemctl stop admin
+			else
+				was_active=false
+			fi
+			curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
+			if [ "$was_active" = true ]; then
+			    systemctl start admin
+			fi
+		else
+		    echo "Release asset not found: $url" >&2
+		    exit 1
+		fi
+		
 		chmod +x "/usr/local/admin/$admin_binary"
 
         # restore report for 'OpenAdmin > Emails > Reports'
@@ -714,7 +730,7 @@ update_openadmin() {
     fi
 }
 
-
+# NOT USED ANYMORE
 restart_admin() {
     if systemctl is-active --quiet admin; then
         message="'OpenAdmin' service is running, restarting..."
@@ -826,9 +842,9 @@ main() {
     case "$MODE" in
         check) update_check ;;
         force) check_update --force ;;
-        admin) update_openadmin --no-log; restart_admin --no-log ;;
         panel) update_openpanel --no-log ;;
         cli)   update_opencli --no-log ;;
+        admin) update_openadmin --no-log ;;		
         "")    check_update ;;
     esac
 }
