@@ -503,6 +503,12 @@ configure_environment() {
     local home_dir="/home/${USERNAME}"
     cp /etc/openpanel/docker/compose/1.0/docker-compose.yml "${home_dir}/docker-compose.yml" || die "docker-compose.yml template missing from /etc/openpanel/"
 
+    # podman-compose can't resolve a ${VAR} nested inside another ${VAR:-default}
+    # (docker-compose can), so flatten the webservers' port mapping to a single var
+    # here instead: HTTP_PORT by default, swapped to PROXY_HTTP_PORT below when the
+    # requested webserver sits behind Varnish.
+    sed -i 's|\${PROXY_HTTP_PORT:-\${HTTP_PORT}}|\${HTTP_PORT}|g' "${home_dir}/docker-compose.yml"
+
     sed -i 's/\r$//' /etc/openpanel/docker/compose/1.0/.env
     cp /etc/openpanel/docker/compose/1.0/.env "${home_dir}/.env" || die ".env template missing from /etc/openpanel/"
 
@@ -539,6 +545,7 @@ configure_environment() {
                 -e "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"${ws}\"|g" \
                 -e "s|^#\(PROXY_HTTP_PORT=.*\)|\1|" \
                 "${home_dir}/.env"
+            sed -i "/container_name: ${ws}\$/,/HTTPS_PORT/ s|\${HTTP_PORT}|\${PROXY_HTTP_PORT}|" "${home_dir}/docker-compose.yml"
         elif [[ "$WEBSERVER" =~ ^(nginx|apache|openresty|openlitespeed|litespeed)$ ]]; then
             log "Setting webserver: $WEBSERVER"
             sed -i "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"${WEBSERVER}\"|g" "${home_dir}/.env"

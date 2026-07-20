@@ -42,6 +42,7 @@ ACTION=$2
 CONTEXT="$USER"
 
 ENV_FILE="/home/$CONTEXT/.env"
+COMPOSE_FILE="/home/$CONTEXT/docker-compose.yml"
 [ -f "$ENV_FILE" ] || { echo "Error: $ENV_FILE not found!"; exit 1; }
 
 check_status() {
@@ -81,12 +82,16 @@ if [ -n "$ACTION" ]; then
         enable)
             toggle_service down "$WEB_SERVER"
             sed -i 's/^#PROXY_HTTP_PORT=/PROXY_HTTP_PORT=/' "$ENV_FILE"
+            # podman-compose can't resolve nested ${VAR:-${VAR}} defaults, so the
+            # compose file's webserver port is kept flat and swapped here instead.
+            sed -i "/container_name: ${WEB_SERVER}\$/,/HTTPS_PORT/ s|\${HTTP_PORT}|\${PROXY_HTTP_PORT}|" "$COMPOSE_FILE"
             toggle_service up -d "$WEB_SERVER" varnish
             check_varnish_status start
             ;;
         disable)
             toggle_service down "$WEB_SERVER"
             sed -i 's/^PROXY_HTTP_PORT=/#PROXY_HTTP_PORT=/' "$ENV_FILE"
+            sed -i "/container_name: ${WEB_SERVER}\$/,/HTTPS_PORT/ s|\${PROXY_HTTP_PORT}|\${HTTP_PORT}|" "$COMPOSE_FILE"
             toggle_service down varnish
             toggle_service up -d "$WEB_SERVER"
 			check_varnish_status stop
