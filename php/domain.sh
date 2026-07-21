@@ -112,11 +112,11 @@ sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
 
 # 2. start new php version container if not running
 # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
-owner_sock="unix:///run/user/$(stat -c '%u' "/home/$owner")/podman/podman.sock"
+owner_sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$owner")/podman/podman.sock"
 nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
 
 # 3. restart webserver
-context_sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+context_sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
 nohup sh -c "CONTAINER_HOST=$context_sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
 
 # 4. save in database

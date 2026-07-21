@@ -482,7 +482,7 @@ create_vhost_file() {
 	    local container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
 	    log "Starting $service_count $container_word ($services)"
         # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
-        local sock; sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
         nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
@@ -498,7 +498,7 @@ create_vhost_file() {
 	sed -i -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" "$vhost_file"
 
     if ! $SKIP_STARTING_CONTAINERS; then
-        local sock; sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
         nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
@@ -794,12 +794,12 @@ setup_tor_for_user() {
 start_tor_for_user() {
     if podman_user "$context" ps -q -f name=tor | grep -q .; then
         log "Tor running — restarting to apply new config"
-        local sock; sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
         nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart tor" </dev/null >nohup.out 2>nohup.err &
 		disown
     else
         log "Starting Tor"
-        local sock; sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
         nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
@@ -813,7 +813,7 @@ start_php_fpm() {
     [[ "$WEB_SERVER" == *litespeed* ]] && return
     is_module_enabled "php" || { log "PHP module disabled — skipping"; return; }
     log "Starting PHP-FPM $php_version"
-    local sock; sock="unix:///run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+    local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
     nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
 	disown
 }

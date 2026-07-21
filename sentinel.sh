@@ -603,7 +603,7 @@ check_disk_usage() {
        # timeout execs a binary directly and can't invoke podman_user (a bash function),
        # so the socket is inlined via CONTAINER_HOST instead
        context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
-       timeout 15 env CONTAINER_HOST="unix:///run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
+       timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
     done
     touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
 

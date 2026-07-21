@@ -401,7 +401,7 @@ while IFS=: read -r ctx containers <&3; do
     fi
 
     log "Starting containers inside podman context on remote server ..."
-    $SSH_CMD "remote_uid=\$(stat -c '%u' /home/$ctx); CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
+    $SSH_CMD "remote_uid=\$(stat -c '%u' /home/$ctx); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
 # Close FD 3

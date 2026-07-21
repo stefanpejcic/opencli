@@ -146,7 +146,7 @@ collect_user_services() {
       user=$(basename "$dir")
       if [[ -f "$file" ]]; then
         local uid; uid=$(stat -c '%u' "$dir" 2>/dev/null)
-        run_command "echo '- User: $user' && echo '' && CONTAINER_HOST=unix:///run/user/${uid}/podman/podman.sock podman-compose -f $dir/docker-compose.yml config --services" \
+        run_command "echo '- User: $user' && echo '' && CONTAINER_HOST=unix:///hostfs/run/user/${uid}/podman/podman.sock podman-compose -f $dir/docker-compose.yml config --services" \
           "Listing services for user: $user" "$tmp"
       fi
   done

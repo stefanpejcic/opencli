@@ -310,7 +310,7 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "remote_uid=\$(stat -c '%u' /home/$username); CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml up -d $containers"
+        "remote_uid=\$(stat -c '%u' /home/$username); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
 # Close FD 3

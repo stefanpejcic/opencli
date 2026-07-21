@@ -23,7 +23,7 @@
 podman_user_socket() {
     local user="$1" uid
     uid="$(stat -c '%u' "/home/$user" 2>/dev/null)" || { echo "podman_user_socket: no such user '$user'" >&2; return 1; }
-    echo "unix:///run/user/${uid}/podman/podman.sock"
+    echo "unix:///hostfs/run/user/${uid}/podman/podman.sock"
 }
 
 # run a podman command against <username>'s rootless podman instance

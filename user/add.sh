@@ -295,7 +295,7 @@ autostart_services() {
     [[ ${#images[@]} -eq 0 ]] && { echo "[!] Warning: No autostart services match user config."; return 1; }
 	log "Starting services in background: ${images[*]}"
 	# a fresh subshell doesn't inherit lib/podman.sh's functions, so the socket is inlined directly
-	local sock="unix:///run/user/${USER_ID}/podman/podman.sock"
+	local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
 	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if CONTAINER_HOST=${sock} podman --remote info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do CONTAINER_HOST=${sock} podman-compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
 }
 
@@ -421,7 +421,7 @@ test_podman_service() {
 	local elapsed=0 max_time=30
     while [[ $elapsed -lt $max_time ]]; do
         if [[ -S "/hostfs/run/user/${USER_ID}/podman/podman.sock" ]]; then
-            log "Podman service started (socket: /run/user/${USER_ID}/podman/podman.sock)"
+            log "Podman service started (socket: /hostfs/run/user/${USER_ID}/podman/podman.sock)"
             break
         fi
         sleep 1
@@ -437,7 +437,7 @@ test_podman_service() {
 
     # `timeout` execs a binary directly and can't invoke a bash function, so the
     # socket is inlined here via CONTAINER_HOST instead of calling podman_user/podman_compose_user
-	local sock="unix:///run/user/${USER_ID}/podman/podman.sock"
+	local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
 
     # podman-compose can reach this user's rootless podman instance?
 	compose_output=$(cd "/home/${USERNAME}" && CONTAINER_HOST="$sock" timeout 5 podman-compose ps 2>&1)

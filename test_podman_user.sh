@@ -38,7 +38,7 @@ else
 fi
 
 # 4. socket file exists at expected path
-SOCK_PATH="/run/user/${UID_N}/podman/podman.sock"
+SOCK_PATH="/hostfs/run/user/${UID_N}/podman/podman.sock"
 if [[ -S "$SOCK_PATH" ]]; then
     echo -e "[$PASS] socket file exists: $SOCK_PATH"
 else
