@@ -244,13 +244,27 @@ delete_all_user_files() {
 
 
 delete_system_user() {
-	local context="$1"
-	pkill -u "$context" -9 2>/dev/null || true
+    local context="$1"
+
+    # kill by both real and effective/saved uid, then loop until gone
+    pkill -9 -u "$context" 2>/dev/null || true
+    for i in $(seq 1 10); do
+        pgrep -u "$context" >/dev/null 2>&1 || break
+        pkill -9 -u "$context" 2>/dev/null || true
+        sleep 0.25
+    done
+
+    # last resort: still processes? force with loginctl / kill by name lookup
+    if pgrep -u "$context" >/dev/null 2>&1; then
+        loginctl terminate-user "$context" 2>/dev/null || true
+        sleep 1
+        pkill -9 -u "$context" 2>/dev/null || true
+    fi
 
     if command -v userdel >/dev/null 2>&1; then
-        userdel -r "$context"            # RHEL
+        userdel -f -r "$context"          # -f forces even if logged in / process running
     elif command -v deluser >/dev/null 2>&1; then
-        deluser --remove-home "$context" # Debian
+        deluser --remove-home "$context"
     fi
 }
 
