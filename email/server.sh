@@ -35,6 +35,7 @@ readonly APP="opencli email-server"                             # this script
 readonly GITHUB_REPO="https://github.com/stefanpejcic/openmail" # download files
 readonly DIR="/usr/local/mail/openmail"                         # compose.yaml directory
 readonly MAILSERVER_ENV="/usr/local/mail/openmail/mailserver.env"
+readonly FTP_COMPOSE_FILE="/etc/openpanel/ftp/compose.yml"
 readonly DEFAULT_DOMAIN="example.net"
 readonly CONTAINER=openadmin_mailserver                         # DMS container name
 DEBUG=false
@@ -200,6 +201,15 @@ set_ssl_for_mailserver() {
         sed -i '/^SSL_TYPE=/c\SSL_TYPE=' "$MAILSERVER_ENV"
         sed -i '/^SSL_CERT_PATH=/d' "$MAILSERVER_ENV"
         sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
+
+        # podman-compose does not interpolate ${VAR:+alt} conditionals like docker compose does,
+        # so hardcode the resolved roundcube values directly in the compose file too
+        if [[ -f "$FTP_COMPOSE_FILE" ]]; then
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=mailserver|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=mailserver|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|" "$FTP_COMPOSE_FILE"
+        fi
     else
         echo "Configuring mailserver for TLS/SSL authentication with domain"
 
@@ -230,11 +240,20 @@ set_ssl_for_mailserver() {
         else
             echo "SSL_CERT_PATH=$cert_path_on_hosts" >> "$MAILSERVER_ENV"
         fi
-        
+
         if grep -q '^SSL_KEY_PATH=' "$MAILSERVER_ENV"; then
             sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path_on_hosts|" "$MAILSERVER_ENV"
         else
             echo "SSL_KEY_PATH=$key_path_on_hosts" >> "$MAILSERVER_ENV"
+        fi
+
+        # podman-compose does not interpolate ${VAR:+alt} conditionals like docker compose does,
+        # so hardcode the resolved roundcube values directly in the compose file too
+        if [[ -f "$FTP_COMPOSE_FILE" ]]; then
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$current_hostname|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$current_hostname|" "$FTP_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$FTP_COMPOSE_FILE"
         fi
 
     fi
