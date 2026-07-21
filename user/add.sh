@@ -694,7 +694,11 @@ PID_PORTS=$!
 
 copy_skeleton_files &
 
-podman ps --format '{{.Names}}' --filter status=running | grep -qx openpanel || nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 &
+if podman container exists openpanel; then
+  podman start openpanel >/dev/null 2>&1 || nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 & 
+else
+  nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 &
+fi
 
 generate_password_hash
 create_user_volume &
