@@ -698,7 +698,7 @@ update_openadmin() {
 		#remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
 		# HARDCODED FOR PODMAN!
 		remote_version="2.0.0"
-		url="https://github.com/stefanpejcek/openadmin/releases/download/$remote_version/$admin_binary"
+		url="https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary"
 
 		if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
 			if systemctl is-active --quiet admin; then
