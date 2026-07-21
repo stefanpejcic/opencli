@@ -206,7 +206,9 @@ get_remote_version() {
     fi
 
     if [[ "$beta" == "true" ]]; then
-        echo "$tags" | grep -- '-beta$' | sed 's/-beta$//' | sort -V | tail -n 1
+		# HARDCODED FOR PODMAN!
+		echo "2.0.0-beta"
+        #echo "$tags" | grep -- '-beta$' | sed 's/-beta$//' | sort -V | tail -n 1
     else
         echo "$tags" | grep -v '^latest$' | grep -v -- '-beta$' | sort -V | tail -n 1
     fi
