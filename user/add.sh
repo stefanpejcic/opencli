@@ -304,12 +304,10 @@ create_linux_user_local() {
 
     # never hand out uid 1000
     local uid
-    uid="$(getent passwd | awk -F: '{print $3}' | sort -n | awk '
-        BEGIN{c=1000}
-        {while ($1==c) {c++; if (c==1000) c++}}
-        END{print c}
-    ')"
-    [[ "$uid" == "1000" ]] && uid=1001
+	uid=$(getent passwd | awk -F: '$3>=1001{print $3}' | sort -n | awk '
+	    BEGIN{c=1001}
+	    {while(c<$1){print c; exit} c=$1+1}
+	    END{print c}' | head -1)
 
     useradd -m -d "/home/${USERNAME}" -u "$uid" "$USERNAME" || die "Failed to create Linux user '$USERNAME' on master."
     USER_ID="$(stat -c '%u' "/home/${USERNAME}")"
