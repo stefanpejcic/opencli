@@ -697,7 +697,9 @@ update_openadmin() {
 	        *)             admin_binary="$(uname -m)" ;;
 	    esac
 
-		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
+		#remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
+		# HARDCODED FOR PODMAN!
+		remote_version="2.0.0-beta"
 		url="https://github.com/stefanpejcek/openadmin/releases/download/$remote_version/$admin_binary"
 
 		if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
