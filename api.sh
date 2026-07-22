@@ -66,9 +66,7 @@ license_key=$(grep "^key=" "/etc/openpanel/openpanel/conf/openpanel.config" | cu
 # ======================================================================
 # Main
 case "$1" in
-  status)
-    opencli config get api
-    ;;
+  status) opencli config get api ;;
   on|off)
     opencli config update api "$1"
     nohup opencli sentinel --action=admin_api --title="OpenAdmin API is $1" --message="API access for the administrator-level panel is now: '$1'." >/dev/null 2>&1 &
@@ -77,18 +75,6 @@ case "$1" in
         systemctl restart admin 2>&1
     fi
     ;;
-  list)
-    # TODO: handle Python to Go port
-    if [ "$2" = "--save" ]; then
-      # can only be run BEFORE pyarmor encoding
-      python3 /usr/local/admin/modules/api/generate.py --save
-    else
-      python3 /usr/local/admin/modules/api/generate.py
-    fi
-    ;;
-  *)
-    echo "Invalid option: $1"
-    show_usage
-    exit 1
-    ;;
+  list) cat /usr/local/admin/modules/api/available_endpoints.txt ;;
+  *)    echo "Invalid option: $1"; show_usage; exit 1 ;;
 esac
