@@ -71,3 +71,28 @@ podman_compose_ctx() {
         *)                podman_compose_user "$context" "$@" ;;
     esac
 }
+
+# derives a user-<uid>.slice TasksMax (cgroup pids.max) ceiling from the plan's
+# RAM allotment (GB). Unlike CPU/RAM/disk, a process/thread cap isn't a plan
+# tier customers shop for - it's a fork-bomb/runaway-process safety net - so
+# it's derived from ram rather than stored as its own plan column, and stays
+# proportional automatically whenever a plan's ram value changes. A user's own
+# /home/<user>/TasksMax file (single integer) overrides the derived value.
+# usage: derive_tasks_max <ram_gb> [username]
+readonly TASKS_PER_RAM_GB=150
+readonly TASKS_MAX_FLOOR=150
+
+derive_tasks_max() {
+    local ram_gb="$1" username="${2:-}"
+    local tasks_max=$(( ram_gb * TASKS_PER_RAM_GB ))
+    (( tasks_max < TASKS_MAX_FLOOR )) && tasks_max=$TASKS_MAX_FLOOR
+
+    local override_file="/home/${username}/TasksMax"
+    if [[ -n "$username" && -f "$override_file" ]]; then
+        local override_value
+        override_value="$(tr -dc '0-9' < "$override_file")"
+        [[ -n "$override_value" ]] && tasks_max="$override_value"
+    fi
+
+    echo "$tasks_max"
+}

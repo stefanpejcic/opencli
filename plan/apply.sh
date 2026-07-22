@@ -144,9 +144,13 @@ EOF
 
         if [[ "$ram" -eq 0 ]]; then
             systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
+            systemctl set-property "user-${user_id}.slice" TasksMax=infinity
         else
+            tasks_max=$(derive_tasks_max "$ram" "$context")
             ram="${ram}G"
             systemctl set-property "user-${user_id}.slice" MemoryMax="$ram"
+            systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
+            echo "- Tasks:      [OK]   Ceiling set to ${tasks_max} tasks (derived from RAM; /home/${context}/TasksMax overrides)."
         fi
         echo "- Memory:     [OK]   $ram_text"
     fi

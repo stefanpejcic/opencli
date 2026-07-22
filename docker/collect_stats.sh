@@ -109,6 +109,10 @@ process_user() {
         fi
         MEM_STAT=$(< "$CGROUP/memory.stat")
 
+        local PIDS_CURRENT PIDS_MAX
+        PIDS_CURRENT=$(< "$CGROUP/pids.current")
+        PIDS_MAX=$(< "$CGROUP/pids.max")   # contains "max" (TasksMax=infinity) or a number
+
         # bandwidth measurement removed with the docker->podman migration (see NOTE
         # above); fields stay in the JSON output as 0 so consumers don't break
         local BW_LIMIT_BITS=0 BW_USED_BYTES=0 BW_USAGE_PCT=0
@@ -153,6 +157,8 @@ process_user() {
             -v bw_limit_bits="$BW_LIMIT_BITS" \
             -v bw_used_bytes="$BW_USED_BYTES" \
             -v bw_usage_pct="$BW_USAGE_PCT" \
+            -v pids_current="$PIDS_CURRENT" \
+            -v pids_max="$PIDS_MAX" \
             -v user="$USER_NAME" \
             -v uid="$UID_NUM" \
             -v ts="$TIMESTAMP" \
@@ -194,6 +200,15 @@ process_user() {
             cpu_usage   = (interval_us > 0) ? int((cpu_delta / interval_us) * 100) : 0
             cpu_limit   = (cpu_max_pct > 0) ? int((cpu_usage / cpu_max_pct) * 100) : 0
 
+            # Tasks (processes+threads vs the slice TasksMax)
+            if (pids_max == "max" || pids_max == "") {
+                tasks_limit_json = "null"
+                tasks_pct = 0
+            } else {
+                tasks_limit_json = pids_max + 0
+                tasks_pct = (tasks_limit_json > 0) ? int((pids_current / tasks_limit_json) * 100) : 0
+            }
+
             # Warnings
             warn = "null"
             wmsg = ""
@@ -203,6 +218,10 @@ process_user() {
             if (cpu_limit >= 85) {
                 if (wmsg != "") wmsg = wmsg ", "
                 wmsg = wmsg "CPU at " cpu_limit "%"
+            }
+            if (tasks_pct >= 85) {
+                if (wmsg != "") wmsg = wmsg ", "
+                wmsg = wmsg "Tasks at " tasks_pct "%"
             }
             if (bw_usage_pct >= 90) {
                 if (wmsg != "") wmsg = wmsg ", "
@@ -225,6 +244,10 @@ process_user() {
 \"usage\":{\"pct\":%d,\"human\":\"%s\"},\
 \"total\":{\"pct\":%d,\"human\":\"%s\"},\
 \"server\":{\"pct\":%d,\"human\":\"%s\"}},\
+\"tasks\":{\
+\"current\":%d,\
+\"limit\":%s,\
+\"usage_pct\":%d},\
 \"bandwidth\":{\
 \"limit\":{\"bits\":%d,\"human\":\"%s\"},\
 \"total_sent\":{\"bytes\":%d,\"human\":\"%s\"},\
@@ -240,6 +263,7 @@ process_user() {
                 cpu_limit, cpu_h(cpu_limit),
                 cpu_max_pct, cpu_h(cpu_max_pct),
                 cpu_total_srv, cpu_h(cpu_total_srv),
+                pids_current+0, tasks_limit_json, tasks_pct,
                 bw_limit_bits, to_h_bits(bw_limit_bits),
                 bw_used_bytes, to_h_bits(bw_used_bytes*8),
                 bw_usage_pct,

@@ -46,6 +46,7 @@ done
 
 source /usr/local/opencli/db.sh
 source /usr/local/opencli/lib/redis.sh
+source /usr/local/opencli/lib/podman.sh
 
 # For old plan: id, name, context
 IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT < <(
@@ -112,9 +113,16 @@ update_resource() {
     if [[ "$type" == "ram" ]]; then
         if [[ "$value" -eq 0 ]]; then
             systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
+            systemctl set-property "user-${user_id}.slice" TasksMax=infinity
         else
+            local ram_gb="$value"
             [[ "$value" != *G ]] && value="${value}G"
             systemctl set-property "user-${user_id}.slice" MemoryMax="$value"
+
+            local tasks_max
+            tasks_max=$(derive_tasks_max "$ram_gb" "$USERNAME")
+            systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
+            echo "[✔] Tasks ceiling set to ${tasks_max} (derived from RAM; /home/${USERNAME}/TasksMax overrides)."
         fi
     fi
 
