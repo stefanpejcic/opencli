@@ -131,9 +131,7 @@ get_all_available_files() {
         exit 1
     fi
     
-    available_files=$(podman exec "$CONTAINER_NAME" \
-        find / -maxdepth 3 \( -name "app.py" -o -path "/modules/*.py" -o -path "/templates/*.html" \) \
-        2>/dev/null | sort | uniq)
+    available_files=$(podman exec "$CONTAINER_NAME" find / -maxdepth 6 \( -name "app.py" -o -path "/modules/*.py" -o -path "/templates/*.html" \) 2>/dev/null | sort | uniq)
     
     if [ -z "$available_files" ]; then
         log_error "No files found in the container!"
