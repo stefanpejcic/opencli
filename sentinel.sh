@@ -212,6 +212,8 @@ is_ip_whitelisted() {
 perform_startup_actions() {
   mkdir -p /tmp/redis ; chmod 777 /tmp/redis    # for redis
   mkdir -p /tmp/ssh_cm ; chmod 700 /tmp/ssh_cm  # for ssh connections to slave servers
+  IP=$(hostname -I | awk '{print $1}') && sed -E 's|^(\s*-\s*")([0-9.]+:)?53:53/(tcp\|udp)"|\1'"$IP"':53:53/\3"|' /root/docker-compose.yml | grep 53:53 # for BIND9
+
   if [[ "$REBOOT" == "no" ]]; then
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
   fi
