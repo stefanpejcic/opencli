@@ -579,6 +579,15 @@ restore_docker() {
     if [[ -d "/home/$CONTEXT/.config/containers" ]]; then
         local uid_now; uid_now=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
         if [[ -n "$uid_now" ]]; then
+            # docker-data/db.sql bakes in the source server's UID (paths, cgroup slices) - stale on UID remap, so wipe it and let podman reinit fresh (images/volume data untouched).
+            if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" && -f "/home/$CONTEXT/docker-data/db.sql" ]]; then
+                warn "UID remapped ($SOURCE_UID → $REMAPPED_UID) — resetting stale podman container/pod state (images and volume data are preserved)."
+                rm -f "/home/$CONTEXT/docker-data/db.sql"
+                rm -rf "/home/$CONTEXT/docker-data/libpod"
+                mkdir -p "/home/$CONTEXT/docker-data/libpod"
+                chown -R "${uid_now}:${uid_now}" "/home/$CONTEXT/docker-data/libpod"
+            fi
+
             # context resolution is dynamic (based on /home/$CONTEXT's owner uid) -
             # there's no context to register anymore, just make sure the user's
             # rootless podman.socket is enabled and running (mirrors user/add.sh)
