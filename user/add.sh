@@ -557,6 +557,7 @@ configure_environment() {
         fi
     fi
 
+	log "Creating user files.."
     [[ -f "${home_dir}/.env" ]] || { hard_cleanup; die "Failed to create .env file."; }
 
     # Socket dirs and config files
@@ -677,8 +678,7 @@ ensure_subuid_subgid
 
 ########################################################################
 # 3. setup podman rootless for user
-setup_podman_rootless &
-PID_ROOTLESS_INSTALL=$!
+setup_podman_rootless
 
 ########################################################################
 # 4. do background stuff while podman setup is running
@@ -705,7 +705,6 @@ configure_environment
 
 ########################################################################
 # 6. validate podman service is started for user (socket exists), compose command and context are working
-wait $PID_ROOTLESS_INSTALL
 test_podman_service
 autostart_services
 
