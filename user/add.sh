@@ -33,7 +33,7 @@ readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_use
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
-readonly SHARED_STORE="/var/lib/openpanel/shared-containers/storage"
+readonly SHARED_STORE="/var/lib/containers/shared-storage"
 
 if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>]"
