@@ -435,8 +435,10 @@ if command -v pigz &>/dev/null; then
         -cf -
         --numeric-owner --acls --xattrs
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
-        "--exclude=${CONTEXT}/sockets/*/*/*.sock"
+        "--exclude=${CONTEXT}/sockets/*/*/*"
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
+        "--exclude=${CONTEXT}/docker-data/overlay-containers"
+        "--exclude=${CONTEXT}/docker-data/tmp"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 
@@ -450,14 +452,19 @@ if command -v pigz &>/dev/null; then
     [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
 
     mkdir -p "$DEST_DIR"
-    tar "${TAR_ARGS[@]}" 2>>"$log_file" | pigz > "$ARCHIVE" || die "tar failed creating: $ARCHIVE"
+    tar "${TAR_ARGS[@]}" 2>>"$log_file" | pigz > "$ARCHIVE"
+    tar_rc=${PIPESTATUS[0]}
+    [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
+    [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1) — archive created, verify integrity."
 else
     TAR_ARGS=(
         -czf "$ARCHIVE"
         --numeric-owner --acls --xattrs
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
-        "--exclude=${CONTEXT}/sockets/*/*/*.sock"
+        "--exclude=${CONTEXT}/sockets/*/*/*"
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
+        "--exclude=${CONTEXT}/docker-data/overlay-containers"
+        "--exclude=${CONTEXT}/docker-data/tmp"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 
@@ -471,7 +478,10 @@ else
     [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
 
     mkdir -p "$DEST_DIR"
-    tar "${TAR_ARGS[@]}" 2>>"$log_file" || die "tar failed creating: $ARCHIVE"
+    tar "${TAR_ARGS[@]}" 2>>"$log_file"
+    tar_rc=$?
+    [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
+    [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1)."
 fi
 
 # verify archive integrity ---
