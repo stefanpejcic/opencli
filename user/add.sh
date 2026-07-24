@@ -404,66 +404,55 @@ EOF
     chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
 
     fix_pasta_selinux
-    loginctl enable-linger "$USERNAME" >/dev/null 2>&1
+
+	loginctl enable-linger "$USERNAME" >/dev/null 2>&1
 	local w=0
 	while (( w < 30 )); do
 	    systemctl is-active "user@${USER_ID}.service" >/dev/null 2>&1 && break
 	    sleep 1; ((w++))
 	done
-
-    # podman.socket is a user unit shipped by the podman package itself (unlike
-    # rootless Docker, there's no per-user daemon to install) - just enable it
+	
 	systemctl --user -M "${USERNAME}@" daemon-reload >/dev/null 2>&1
 	systemctl --user -M "${USERNAME}@" reset-failed podman.socket >/dev/null 2>&1
 	systemctl --user -M "${USERNAME}@" enable --now podman.socket >/dev/null 2>&1
+	
+	# confirm it actually took, retry once if not
+	if ! systemctl --user -M "${USERNAME}@" is-active podman.socket >/dev/null 2>&1; then
+	    sleep 2
+	    systemctl --user -M "${USERNAME}@" start podman.socket >/dev/null 2>&1
+	fi
 }
 
 get_podman_service_errors() {
-    podman_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status podman.socket --no-pager 2>&1' 2>&1)
+    podman_service_errors=$(timeout 5 systemctl --user -M "${USERNAME}@" status podman.socket --no-pager 2>&1)
 }
 
 test_podman_service() {
-    # wait for the rootless podman socket to be available (podman.socket started and initialized)
-	local elapsed=0 max_time=30
-    while [[ $elapsed -lt $max_time ]]; do
-        if [[ -S "/hostfs/run/user/${USER_ID}/podman/podman.sock" ]]; then
-            log "Podman service started (socket: /hostfs/run/user/${USER_ID}/podman/podman.sock)"
+    local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
+    local sock_path="/hostfs/run/user/${USER_ID}/podman/podman.sock"
+    local elapsed=0 max_time=60 ready=false
+
+    while (( elapsed < max_time )); do
+        if [[ -S "$sock_path" ]] && CONTAINER_HOST="$sock" timeout 3 podman --remote info >/dev/null 2>&1; then
+            ready=true
+            log "Podman socket live ($sock_path)"
             break
         fi
-        sleep 1
-        (( elapsed++ )) || true
+        sleep 1; (( elapsed++ )) || true
     done
 
-	# is podman socket available?
-	if [ ! -S "/hostfs/run/user/${USER_ID}/podman/podman.sock" ]; then
-	    get_podman_service_errors
-	    hard_cleanup
-	    die "Podman service did not start after $max_time seconds! ${podman_service_errors:-}"
-	fi
-
-    # `timeout` execs a binary directly and can't invoke a bash function, so the
-    # socket is inlined here via CONTAINER_HOST instead of calling podman_user/podman_compose_user
-	local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
+    if [[ "$ready" != true ]]; then
+        get_podman_service_errors
+        hard_cleanup
+        die "Podman not responding after ${max_time}s! ${podman_service_errors:-}"
+    fi
 
     # podman-compose can reach this user's rootless podman instance?
-	compose_output=$(cd "/home/${USERNAME}" && CONTAINER_HOST="$sock" timeout 5 podman-compose ps 2>&1)
-	if [[ $? -eq 0 ]]; then
-	    log "podman-compose is working against '$USERNAME's rootless podman."
-	else
-		hard_cleanup
-		die "podman-compose is not working for '$USERNAME': $compose_output"
-	fi
-
-	# is podman service ready?
-	info_output=$(CONTAINER_HOST="$sock" timeout 5 podman --remote info 2>&1)
-	if [[ $? -eq 0 ]]; then
-	    log "Podman service is responding and working correctly."
-	else
-	    log "podman info output: $info_output"
-		get_podman_service_errors
-	    hard_cleanup
-	    die "Podman service started (socket created) but is not running: ${podman_service_errors:-}"
-	fi
+    compose_output=$(cd "/home/${USERNAME}" && CONTAINER_HOST="$sock" timeout 5 podman-compose ps 2>&1) || {
+        hard_cleanup
+        die "podman-compose is not working for '$USERNAME': $compose_output"
+    }
+    log "podman-compose is working against '$USERNAME's rootless podman."
 }
 
 find_available_ports_bg() { find_available_ports > /tmp/ports_$$; }
