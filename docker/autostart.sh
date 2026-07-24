@@ -31,7 +31,7 @@
 COMPOSE_DIR="/etc/openpanel/docker/compose/1.0"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 AUTOSTART_FILE="${COMPOSE_DIR}/autostart.services"
-SHARED_STORE="/var/lib/openpanel/shared-containers/storage"
+SHARED_STORE="/var/lib/containers/shared-storage"
 FORCE=false
 [[ "$1" == "-f" || "$1" == "--force" ]] && FORCE=true
 # disk check (free space on /), skippable with -f/--force
