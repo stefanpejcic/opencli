@@ -87,7 +87,7 @@ echo "-- ${USERNAME}'s podman-compose ps --"
 echo
 echo "-- disk usage: user's own docker-data vs shared store --"
 du -sh "/home/${USERNAME}/docker-data" 2>/dev/null
-du -sh /var/lib/openpanel/shared-containers/storage 2>/dev/null
+du -sh /var/lib/containers/shared-storage 2>/dev/null
 
 echo
 echo "== done =="
