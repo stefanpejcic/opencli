@@ -595,7 +595,9 @@ restore_docker() {
         IFS=':' read -r ctx containers < "$WORK/docker/containers.txt"
         ctx=$(echo "$ctx" | xargs); containers=$(echo "$containers" | xargs)
         if [[ -n "$ctx" && "$containers" != "no containers" && -n "$containers" ]]; then
-            log "Starting containers for $ctx ..."
+            local count
+            count=$(wc -w <<< "$containers")
+            log "Starting $count container(s) for $ctx ..."
             podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" down >/dev/null 2>&1 || true
             podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" up -d $containers >/dev/null 2>&1 || true
         fi
