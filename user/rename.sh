@@ -54,32 +54,7 @@ for arg in "$@"; do
     esac
 done
 
-ensure_jq_installed() {
-    # Check if jq is installed
-    if ! command -v jq &> /dev/null; then
-        # Detect the package manager and install jq
-        if command -v apt-get &> /dev/null; then
-            apt-get update > /dev/null 2>&1
-            apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-
-        # Check if installation was successful
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
-
-
-
+source /usr/local/opencli/lib/requirement.sh
 
 
 
@@ -240,7 +215,7 @@ check_username_is_valid                                                    # val
 check_if_exists_in_db                                                      # check in mysql db
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
-ensure_jq_installed                                                        # just helper for parsing json
+require_command jq                                                         # just helper for parsing json
 rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
 # rename_env USERNAME is no longer used!
 #reload_user_quotas

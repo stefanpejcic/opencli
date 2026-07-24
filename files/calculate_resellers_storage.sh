@@ -38,6 +38,8 @@ fi
 
 # shellcheck source=/usr/local/opencli/db.sh
 source "$DB_CONFIG"
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
 
 # Global variables
 declare -g mysql_database config_file

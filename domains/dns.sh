@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
+
 # COLORS
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'

@@ -61,31 +61,11 @@ done
 
 # --- Source database configuration ---
 source /usr/local/opencli/db.sh
-
-# --- Ensure jq is installed ---
-ensure_jq_installed() {
-    if ! command -v jq &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            apt-get update -qq > /dev/null
-            apt-get install -y -qq jq > /dev/null
-        elif command -v yum &> /dev/null; then
-            yum install -y -q jq > /dev/null
-        elif command -v dnf &> /dev/null; then
-            dnf install -y -q jq > /dev/null
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
+source /usr/local/opencli/lib/requirement.sh
 
 # --- Fetch user data based on the provided plan name ---
 fetch_users_json() {
-    ensure_jq_installed
+    require_command jq
     local data
     data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';" | tail -n +2)
     if [ -n "$data" ]; then

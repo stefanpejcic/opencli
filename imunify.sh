@@ -33,6 +33,9 @@
 
 # ======================================================================
 # Helpers
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
+
 update_version() {
   local PANEL_INFO_SH="/etc/sysconfig/imunify360/get-panel-info.sh"
 

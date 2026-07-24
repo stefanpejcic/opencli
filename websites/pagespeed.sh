@@ -28,11 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check if jq is installed
-if ! command -v jq &> /dev/null; then
-  echo "jq could not be found, please install jq to proceed."
-  exit 1
-fi
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
 
 usage() {
   echo "Usage: opencli websites-pagespeed <website> OR opencli websites-pagespeed -all"

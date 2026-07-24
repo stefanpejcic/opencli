@@ -35,6 +35,8 @@ fi
 
 # shellcheck source=/usr/local/opencli/db.sh
 source /usr/local/opencli/db.sh
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
 
 (
 flock -n 200 || { echo "Error: Script already running."; exit 1; }

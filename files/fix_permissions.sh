@@ -28,28 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+. /usr/local/opencli/lib/requirement.sh
+
 verbose=""
-
-ensure_jq_installed() {
-    if ! command -v jq &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            apt-get update > /dev/null 2>&1
-            apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
 
 check_and_fix_FTP_permissions() {
     local user="$1"
@@ -170,7 +151,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "${args[0]}" == "--all" ]; then
-  ensure_jq_installed
+  require_command jq
   for username in $(opencli user-list --json | jq -r '.[].username'); do
     apply_permissions_in_container "$username"
   done

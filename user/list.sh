@@ -60,6 +60,7 @@ done
 
 # DB
 source /usr/local/opencli/db.sh
+source /usr/local/opencli/lib/requirement.sh
 
 
 # Count total users
@@ -75,30 +76,9 @@ exit 0
 fi
 
 
-ensure_jq_installed() {
-    if ! command -v jq &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            apt-get update > /dev/null 2>&1
-            apt-get install -y -qq jq > /dev/null 2>&1
-        elif command -v yum &> /dev/null; then
-            yum install -y -q jq > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            dnf install -y -q jq > /dev/null 2>&1
-        else
-            echo "Error: No compatible package manager found. Please install jq manually and try again."
-            exit 1
-        fi
-
-        if ! command -v jq &> /dev/null; then
-            echo "Error: jq installation failed. Please install jq manually and try again."
-            exit 1
-        fi
-    fi
-}
-
 
 if [ "$json_output" = true ]; then
-    ensure_jq_installed
+    require_command jq
 
 
 users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "

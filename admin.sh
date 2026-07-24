@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
+
 service_name="admin"
 GREEN='\033[0;32m'
 RED='\033[0;31m'

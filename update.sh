@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/redis.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
 
 # ---------------------- CONSTANTS ---------------------- #
 readonly COMPOSE_FILE="/root/docker-compose.yml"
@@ -136,21 +138,6 @@ install_package() {
     else
         log_error "No supported package manager found (apt/dnf/yum)"
         return 1
-    fi
-}
-
-# ---------------------- HELPER ---------------------- #
-ensure_jq_installed() {
-    if ! command_exists jq; then
-        log_info "Installing jq"
-        if ! install_package jq true; then
-            log_error "Failed to install jq. Please install it manually."
-            exit 1
-        fi
-        if ! command_exists jq; then
-            log_error "jq installation failed. Please install jq manually."
-            exit 1
-        fi
     fi
 }
 
@@ -656,7 +643,7 @@ run_update_immediately() {
 update_openpanel() {
     cd /root || return
     if [[ "$BETA" == "true" ]]; then
-        ensure_jq_installed
+        require_command jq
         local base_version
         base_version=$(get_remote_version true)
 
@@ -775,7 +762,7 @@ check_update() {
         log_info "[!] Forcing update, ignoring autopatch and autoupdate settings"
     fi
     
-    ensure_jq_installed
+    require_command jq
     local autopatch autoupdate
     if [[ "$force_update" == "true" ]]; then
         autopatch="on"

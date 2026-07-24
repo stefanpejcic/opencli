@@ -30,17 +30,11 @@
 
 # ======================================================================
 # Helpers
+source /usr/local/opencli/lib/requirement.sh
 
 print_usage() {
     echo "Usage: opencli user-loginlog <username> [--json | --table]"
     exit 1
-}
-
-ensure_jq_installed() {
-    if ! command -v jq &>/dev/null; then
-        echo "Error: jq is required for --json output. Please install it."
-        exit 1
-    fi
 }
 
 
@@ -105,7 +99,7 @@ if [ "$table_output" = true ]; then    # TABLE (default since 1.7.41)
         }' "$login_log_file"
     } | column -t -s $'\t'    
 elif [ "$json_output" = true ]; then   # JSON
-    ensure_jq_installed
+    require_command jq
     json_data=$(awk 'BEGIN {print "["} {if(NR>1)print ","; split($0, arr, " - "); split(arr[1], ipArr, ": "); split(arr[2], countryArr, ": "); split(arr[3], timeArr, ": "); print "{\n\t\"ip\": \""ipArr[2]"\",\n\t\"country\": \""countryArr[2]"\",\n\t\"time\": \""timeArr[2] "\"\n}"} END {print "\n]"}' "$login_log_file")
     echo -e "$json_data" | jq .
 elif [ "$text_output" = true ]; then   # TEXT

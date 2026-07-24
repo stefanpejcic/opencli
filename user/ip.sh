@@ -29,6 +29,7 @@
 ################################################################################
 
 source /usr/local/opencli/lib/redis.sh
+source /usr/local/opencli/lib/requirement.sh
 
 USERNAME=$1
 ACTION=$2
@@ -55,22 +56,6 @@ if [ -z "$USERNAME" ]; then
     echo "Remove Dedicated IP from user: opencli user-ip <USERNAME> delete [ -y ] [--debug]"
     exit 1
 fi
-
-ensure_jq_installed() {
-    if ! command -v jq &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            apt-get update -qq && apt-get install -y -qq jq
-        elif command -v yum &> /dev/null; then
-            yum install -y -q jq
-        elif command -v dnf &> /dev/null; then
-            dnf install -y -q jq
-        else
-            echo "Error: No compatible package manager found. Please install jq manually."
-            exit 1
-        fi
-        command -v jq &> /dev/null || { echo "jq installation failed."; exit 1; }
-    fi
-}
 
 check_ip_validity() {
     local ip=$1
@@ -194,7 +179,7 @@ create_ip_file() {
     return 0
 }
 
-ensure_jq_installed
+require_command jq
 
 if [ "$ACTION" = "delete" ]; then
     delete_ip_config

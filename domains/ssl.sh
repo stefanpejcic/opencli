@@ -30,6 +30,9 @@
 
 # ======================================================================
 # Constants
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
+
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RED='\033[0;31m'

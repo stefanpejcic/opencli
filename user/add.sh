@@ -133,6 +133,9 @@ log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 . /usr/local/opencli/lib/password_strength.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+require_command jq
 
 escape() {
     printf "%s" "$1" | sed "s/'/''/g"

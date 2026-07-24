@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+source /usr/local/opencli/lib/requirement.sh
+require_command jq
+
 print_logs() {
     local context=$1
     local log_dir
