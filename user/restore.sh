@@ -583,11 +583,28 @@ restore_docker() {
             # there's no context to register anymore, just make sure the user's
             # rootless podman.socket is enabled and running (mirrors user/add.sh)
             loginctl enable-linger "$CONTEXT" >/dev/null 2>&1 || true
-            machinectl shell "${CONTEXT}@" /bin/bash -c '
-                systemctl --user daemon-reload
-                systemctl --user reset-failed podman.socket
-                systemctl --user enable --now podman.socket
-            ' >/dev/null 2>&1 || true
+
+            # enable-linger only asks systemd-logind to start the user's systemd
+            # instance - it doesn't block until it's actually up. Hitting
+            # `systemctl --user` before user@<uid>.service is active fails, so
+            # wait for it first (same 30s poll used in user/add.sh).
+            local w=0
+            while (( w < 30 )); do
+                systemctl is-active "user@${uid_now}.service" >/dev/null 2>&1 && break
+                sleep 1; ((w++))
+            done
+
+            systemctl --user -M "${CONTEXT}@" daemon-reload >/dev/null 2>&1
+            systemctl --user -M "${CONTEXT}@" reset-failed podman.socket >/dev/null 2>&1
+            systemctl --user -M "${CONTEXT}@" enable --now podman.socket >/dev/null 2>&1
+
+            if ! systemctl --user -M "${CONTEXT}@" is-active podman.socket >/dev/null 2>&1; then
+                sleep 2
+                systemctl --user -M "${CONTEXT}@" start podman.socket >/dev/null 2>&1
+            fi
+
+            systemctl --user -M "${CONTEXT}@" is-active podman.socket >/dev/null 2>&1 || \
+                warn "podman.socket did not come up for '$CONTEXT' (user@${uid_now}.service may not have started in time) — containers below may fail to start."
         fi
     fi
     if [[ -f "$WORK/docker/containers.txt" && -f "/home/$CONTEXT/docker-compose.yml" ]]; then
