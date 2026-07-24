@@ -405,14 +405,17 @@ EOF
 
     fix_pasta_selinux
     loginctl enable-linger "$USERNAME" >/dev/null 2>&1
+	local w=0
+	while (( w < 30 )); do
+	    systemctl is-active "user@${USER_ID}.service" >/dev/null 2>&1 && break
+	    sleep 1; ((w++))
+	done
 
     # podman.socket is a user unit shipped by the podman package itself (unlike
     # rootless Docker, there's no per-user daemon to install) - just enable it
-    machinectl shell "${USERNAME}@" /bin/bash -c "
-        systemctl --user daemon-reload >/dev/null 2>&1
-        systemctl --user reset-failed podman.socket >/dev/null 2>&1
-        systemctl --user enable --now podman.socket >/dev/null 2>&1
-    " 2>/dev/null || true
+	systemctl --user -M "${USERNAME}@" daemon-reload >/dev/null 2>&1
+	systemctl --user -M "${USERNAME}@" reset-failed podman.socket >/dev/null 2>&1
+	systemctl --user -M "${USERNAME}@" enable --now podman.socket >/dev/null 2>&1
 }
 
 get_podman_service_errors() {
