@@ -28,35 +28,16 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+
 CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 
 get_config() {
     grep -E "^$1=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d ' ' || echo "$2"
 }
 
-install_logrotate() {
-    command -v logrotate &>/dev/null && return
-
-    echo "logrotate is not installed. Installing..."
-
-    if command -v apt-get &>/dev/null; then
-        apt-get update -qq && apt-get install -y -qq logrotate
-    elif command -v yum &>/dev/null; then
-        yum install -y -q logrotate
-    elif command -v dnf &>/dev/null; then
-        dnf install -y -q logrotate
-    else
-        echo "No supported package manager found."
-        exit 1
-    fi
-
-    command -v logrotate &>/dev/null || {
-        echo "logrotate installation failed."
-        exit 1
-    }
-}
-
-install_logrotate
+require_command logrotate
 
 logrotate_enable=$(get_config logrotate_enable yes)
 logrotate_size_limit=$(get_config logrotate_size_limit 100m)

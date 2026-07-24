@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
 
 pid=$$
 script_dir=$(dirname "$0")
@@ -123,23 +125,6 @@ success_message() {
     log "SUCCESS: Transfer process for user $USERNAME completed."
 }
 
-install_sshpass() {
-	if [[ -x "$(command -v apt-get)" ]]; then
-	    DEBIAN_FRONTEND=noninteractive apt-get update -qq
-	    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sshpass
-	elif [[ -x "$(command -v dnf)" ]]; then
-	    dnf install -y sshpass
-	elif [[ -x "$(command -v yum)" ]]; then
-	    yum install -y epel-release && yum install -y sshpass
-	elif [[ -x "$(command -v pacman)" ]]; then
-	    pacman -Sy sshpass
-	else
-	    log "Package manager not supported. Please install sshpass manually."
-	    exit 2
-	fi
-}
-
-
 whitelist_remote_srv() {
 	csf -ta $REMOTE_HOST &>/dev/null
 }
@@ -147,10 +132,7 @@ whitelist_remote_srv() {
 format_commands() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
-	    if ! command -v sshpass &>/dev/null; then
-	        log "sshpass not found. Installing..."
-	        install_sshpass
-	    fi
+	    require_command sshpass
 	    RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no'"
 	    SSH_CMD="sshpass -p $REMOTE_PASS ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${REMOTE_USER}@${REMOTE_HOST}"
 	else

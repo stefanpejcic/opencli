@@ -571,31 +571,7 @@ manage_user() {
 
 # ---------------------- opencli admin logs ---------------------- #
 multitail_admin_logs(){
-    check_multitail() {
-        if command -v multitail &> /dev/null; then
-            return 0
-        else
-            return 1
-        fi
-    }
-    
-    install_multitail() {
-        if command -v apt &> /dev/null; then
-            echo "Installing multitail using apt..."
-            apt update  > /dev/null 2>&1
-            apt install -y multitail > /dev/null 2>&1
-        elif command -v dnf &> /dev/null; then
-            echo "Installing multitail using dnf..."
-            dnf install -y multitail > /dev/null 2>&1
-        else
-            echo "ERROR: Neither apt nor dnf package manager found. Cannot install multitail."
-            exit 1
-        fi
-    }
-
-        if ! check_multitail; then
-            install_multitail
-        fi
+        require_command multitail
 
         all_files_exist=true
         

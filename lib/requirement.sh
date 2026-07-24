@@ -23,9 +23,19 @@ require_command() {
         apt-get update -qq > /dev/null 2>&1
         apt-get install -y -qq "$package" > /dev/null 2>&1
     elif command -v dnf &> /dev/null; then
-        dnf install -y -q "$package" > /dev/null 2>&1
+        # some packages (e.g. fzf on older RHEL) only exist in EPEL - retry
+        # through it if the plain install fails, no-op if not needed
+        dnf install -y -q "$package" > /dev/null 2>&1 || {
+            dnf install -y -q epel-release > /dev/null 2>&1
+            dnf install -y -q "$package" > /dev/null 2>&1
+        }
     elif command -v yum &> /dev/null; then
-        yum install -y -q "$package" > /dev/null 2>&1
+        yum install -y -q "$package" > /dev/null 2>&1 || {
+            yum install -y -q epel-release > /dev/null 2>&1
+            yum install -y -q "$package" > /dev/null 2>&1
+        }
+    elif command -v pacman &> /dev/null; then
+        pacman -Sy --noconfirm "$package" > /dev/null 2>&1
     else
         echo "Error: No compatible package manager found. Please install $package manually and try again."
         exit 1

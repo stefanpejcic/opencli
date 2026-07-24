@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+
 # config
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
@@ -171,15 +174,6 @@ write_notification() {
   [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
 }
 
-ensure_installed() {
-  command -v "$1" &>/dev/null && return
-  local pkg="${2:-$1}"
-  if   command -v apt-get &>/dev/null; then apt-get install -y -qq "$pkg" &>/dev/null
-  elif command -v yum     &>/dev/null; then yum install -y -q  "$pkg" &>/dev/null
-  elif command -v dnf     &>/dev/null; then dnf install -y -q  "$pkg" &>/dev/null
-  else echo "Error: cannot install $pkg"; exit 1; fi
-  command -v "$1" &>/dev/null || { echo "Error: $1 install failed"; exit 1; }
-}
 
 ip_in_cidr() {
   local ip=$1 cidr=$2 network mask
@@ -901,7 +895,7 @@ check_if_panel_domain_and_ns_resolve_to_server() {
   local SERVER_IP; SERVER_IP=$(get_public_ip)
 
   if [[ "$CHECK_DOMAIN" == "yes" ]]; then
-    ensure_installed dig bind-utils
+    require_command dig bind-utils
     local domain_ip; domain_ip=$(dig +short @"$GNS" "$FORCED_DOMAIN" 2>/dev/null)
     if [[ "$domain_ip" == "$SERVER_IP" ]]; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m $FORCED_DOMAIN → $SERVER_IP"

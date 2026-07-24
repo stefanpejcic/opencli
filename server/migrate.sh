@@ -34,6 +34,8 @@ Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <pas
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
 
 REMOTE_HOST=""
 REMOTE_USER=""
@@ -131,19 +133,7 @@ RSYNC_OPTS="-az" #--progress
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
-		if ! command -v sshpass &>/dev/null; then
-		    if [[ -x "$(command -v apt-get)" ]]; then
-		        apt-get update &>/dev/null && apt-get install -y sshpass &>/dev/null
-		    elif [[ -x "$(command -v dnf)" ]]; then
-		        dnf install -y sshpass &>/dev/null
-		    elif [[ -x "$(command -v yum)" ]]; then
-		        yum install -y epel-release &>/dev/null && yum install -y sshpass &>/dev/null
-		    elif [[ -x "$(command -v pacman)" ]]; then
-		        pacman -Sy sshpass &>/dev/null
-		    else
-		        exit 2
-		    fi
-		fi
+		require_command sshpass
   		RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
 	else
 	    	RSYNC_CMD="rsync $RSYNC_OPTS"

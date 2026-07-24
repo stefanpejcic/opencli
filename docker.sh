@@ -33,23 +33,10 @@ set -euo pipefail
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
 
 die() { echo "ERROR: $*" >&2; exit 1; }
-
-ensure_fzf() {
-  command -v fzf &>/dev/null && return
-  if command -v apt-get &>/dev/null; then
-    apt-get install -y -qq fzf &>/dev/null
-  elif command -v dnf &>/dev/null; then
-    dnf install -y epel-release &>/dev/null
-    dnf install -y -q fzf &>/dev/null
-  elif command -v yum &>/dev/null; then
-    yum install -y -q fzf &>/dev/null
-  else
-    die "Cannot install fzf: no supported package manager found (apt/dnf/yum)"
-  fi
-  command -v fzf &>/dev/null || die "fzf installation failed"
-}
 
 get_context() {
   local input="$1"
@@ -101,7 +88,7 @@ exec_shell() {
 case $# in
   # no args = pick user > pick container > shell
   0)
-    ensure_fzf
+    require_command fzf
     USERNAME=$(pick_user) || die "No user selected"
     CONTEXT=$(get_context "$USERNAME")
     CONTAINER=$(pick_container "$CONTEXT" "$USERNAME") || die "No container selected"
@@ -109,7 +96,7 @@ case $# in
     ;;
   # <user> = pick container > shell
   1)
-    ensure_fzf
+    require_command fzf
     USERNAME="$1"
     CONTEXT=$(get_context "$USERNAME")
     CONTAINER=$(pick_container "$CONTEXT" "$USERNAME") || die "No container selected"
