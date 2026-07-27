@@ -215,7 +215,6 @@ perform_startup_actions() {
   fi
   local title="SYSTEM REBOOT!"
   local message="System was rebooted. $(uptime)"
-  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
   write_notification "$title" "$message"
 }
 
