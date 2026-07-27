@@ -97,6 +97,12 @@ configure_av_limits_and_email() {
   imunify360-agent malware ignore add '/home/*/docker-data/containers'
   imunify360-agent malware ignore add '/home/*/docker-data/image'
 
+cat <<\EOT >> /etc/sysconfig/imunify360/malware-filters-admin-conf/ignored.txt
+^/home/(.*)/docker-data/containers/(.*)
+^/home/(.*)/docker-data/image/(.*)
+^/home/(.*)/docker-data/overlay/(.*)
+EOT
+
   imunify360-agent malware rebuild patterns
 }
 
