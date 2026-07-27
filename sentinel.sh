@@ -289,6 +289,7 @@ docker_containers_status() {
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m caddy running but unresponsive — restarting."
         podman restart caddy &>/dev/null
+        podman rm -f caddy &>/dev/null; podman rm -f --storage caddy &>/dev/null
         cd /root && podman-compose up -d caddy &>/dev/null
         sleep 2
         _docker_ps_refresh
@@ -314,6 +315,7 @@ docker_containers_status() {
       if [[ -z "$users" || "$users" == "No users." ]]; then
         ((WARN--)); echo "  - No users found; $svc not needed."
       else
+        podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
         cd /root && podman-compose up -d openpanel &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       fi ;;
@@ -321,8 +323,8 @@ docker_containers_status() {
       enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
       if [[ "$enabled_modules_line" == *"dns"* ]]; then
           if ls /etc/bind/zones/*.zone &>/dev/null; then
-              cd /root
-              podman-compose up -d bind9 &>/dev/null
+              podman rm -f bind9 &>/dev/null; podman rm -f --storage bind9 &>/dev/null
+              cd /root && podman-compose up -d bind9 &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -336,8 +338,8 @@ docker_containers_status() {
       enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
       if [[ "$enabled_modules_line" == *"phpmyadmin"* ]]; then
           if ls /home/*/sockets/mysqld/mysqld.sock &>/dev/null; then
-              cd /root
-              podman-compose up -d phpmyadmin &>/dev/null
+              podman rm -f phpmyadmin &>/dev/null; podman rm -f --storage phpmyadmin &>/dev/null
+              cd /root && podman-compose up -d phpmyadmin &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -349,6 +351,7 @@ docker_containers_status() {
       fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
+        podman rm -f caddy &>/dev/null; podman rm -f --storage caddy &>/dev/null
         cd /root && podman-compose up -d caddy &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       else
@@ -368,6 +371,7 @@ mysql_docker_containers_status() {
     else
       echo -e "\e[31m[✘]\e[0m MySQL running but not responding — restarting."
       write_notification "MySQL service restarted!" "MySQL service running but not responding, attempting restart."
+      podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
       cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     fi
   else
