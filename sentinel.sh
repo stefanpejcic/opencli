@@ -770,7 +770,7 @@ check_https_traffic() {
 check_swap_usage() {
   local title="High SWAP usage!"
   local _ stotal sused _rest
-  read -r _ stotal sused _rest < <(free | awk '/^Swap:/')
+  read -r _ stotal sused _rest < <(free -m | awk '/^Swap:/')
 
   if (( stotal == 0 )); then
     local swap_devices
@@ -781,11 +781,11 @@ check_swap_usage() {
       if [[ -n "$fstab_swap" ]]; then
         echo -e "\e[38;5;214m[!]\e[0m SWAP is off but fstab entries exist. Attempting to re-enable..."
         if swapon -a 2>/dev/null; then
-          read -r _ stotal sused _rest < <(free | awk '/^Swap:/')
+          read -r _ stotal sused _rest < <(free -m | awk '/^Swap:/')
           if (( stotal > 0 )); then
             ((WARN++))
-            write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off and re-enabled it. Now: ${stotal}kB total."
-            echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}kB total)."
+            write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off and re-enabled it. Now: ${stotal}MB total."
+            echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}MB total)."
           else
             ((WARN++))
             echo -e "\e[38;5;214m[!]\e[0m swapon -a ran but swap still reports 0. Check swap device health."
@@ -835,7 +835,7 @@ check_swap_usage() {
   swapoff -a ; swapon -a
 
   local stotal2 sused2
-  read -r _ stotal2 sused2 _rest < <(free | awk '/^Swap:/')
+  read -r _ stotal2 sused2 _rest < <(free -m | awk '/^Swap:/')
   local pct2=$(( stotal2 > 0 ? sused2*100/stotal2 : 0 ))
   if (( pct2 < SWAP_THRESHOLD )); then
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
