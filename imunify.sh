@@ -85,22 +85,17 @@ configure_av_limits_and_email() {
   imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"ram_limit": 500}}'
   
   # cron
-  #imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"day_of_month": 1}}'
-  #imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"hour": 3}}'
-  #imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"interval": "none"}}'
-  #imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
+  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"day_of_month": 1}}'
+  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"hour": 3}}'
+  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"interval": "none"}}'
+  imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
 
-  
   # exclude paths!
   echo "Adding Containers, Images and writable filesystems to ignored files list.."
 
-cat <<\EOT >> /etc/sysconfig/imunify360/malware-filters-admin-conf/ignored.txt
-^/home/(.*)/docker-data/containers/(.*)
-^/home/(.*)/docker-data/image/(.*)
-^/home/(.*)/docker-data/overlay2/(.*)
-^/home/(.*)/bin/(.*)
-EOT
-
+  imunify360-agent malware ignore add '/home/*/docker-data/overlay'
+  imunify360-agent malware ignore add '/home/*/docker-data/containers'
+  imunify360-agent malware ignore add '/home/*/docker-data/image'
 
   imunify360-agent malware rebuild patterns
 }
