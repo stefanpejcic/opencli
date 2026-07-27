@@ -45,6 +45,7 @@ readonly SNAPSHOT_MAX_LINES=8640  # 30d
 readonly LOCK_FILE_FOR_DNS_CHECK="/tmp/sentinel.dns"
 readonly LOCK_FILE_FOR_OOM_CHECK="/tmp/sentinel.oom"
 readonly LOCK_FILE_FOR_DOCKER_PRUNE="/tmp/sentinel.docker"
+readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 
 [ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
@@ -83,6 +84,7 @@ DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
 
 is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
+resolve_notification() { [[ -f "$LOG_FILE" ]] && sed -i "s/UNREAD $1 MESSAGE:/READ $1 MESSAGE:/" "$LOG_FILE"; }
 
 readonly IP_CACHE_FILE="/tmp/public.ipv4"
 
@@ -839,6 +841,7 @@ check_swap_usage() {
   local pct2=$(( stotal2 > 0 ? sused2*100/stotal2 : 0 ))
   if (( pct2 < SWAP_THRESHOLD )); then
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
+    resolve_notification "$title"
     write_notification "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME."
     echo -e "\e[32m[✔]\e[0m SWAP cleared successfully. Now: ${pct2}%"
   else
