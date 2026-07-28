@@ -35,7 +35,7 @@ fi
 
 # used inside openpanel ui
 if [ -z "$version" ]; then
-    version=$(podman images --format "{{.Tag}}" "openpanel/openpanel-ui" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+    version=$(podman images --format "{{.Tag}}" "openpanel/openpanel-podman" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
 fi
 
 if [ -n "$version" ]; then
