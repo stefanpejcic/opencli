@@ -113,7 +113,7 @@ IMAGE_NAME=$(podman-compose -f "$COMPOSE_FILE" config 2>/dev/null | awk '
 ')
 
 if [ -z "$IMAGE_NAME" ]; then
-    IMAGE_NAME="openpanel/openpanel-podman"  # fallback
+    IMAGE_NAME="openpanel/openpanel"  # fallback
 fi
 
 
