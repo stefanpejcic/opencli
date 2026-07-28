@@ -525,7 +525,7 @@ run_version_specific_scripts_in_range() {
 
 run_version_specific_script() {
     local version="$1"
-    local url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/version/$version/UPDATE.sh"
+    local url="https://raw.githubusercontent.com/stefanpejcic/OpenPanel/refs/heads/main/UPDATES/$version/UPDATE.sh"
     log_info "Checking for version-specific update script"
     if wget --spider -q "$url" 2>/dev/null; then
         log_info "Downloading and executing version-specific script: $url"
