@@ -412,9 +412,11 @@ EOF
 	    sleep 1; ((w++))
 	done
 	
-	systemctl --user -M "${USERNAME}@" daemon-reload >/dev/null 2>&1
-	systemctl --user -M "${USERNAME}@" reset-failed podman.socket >/dev/null 2>&1
-	systemctl --user -M "${USERNAME}@" enable --now podman.socket >/dev/null 2>&1
+    machinectl shell "${USERNAME}@" /bin/bash -c "
+        systemctl --user daemon-reload >/dev/null 2>&1
+        systemctl --user reset-failed podman.socket >/dev/null 2>&1
+        systemctl --user enable --now podman.socket >/dev/null 2>&1
+    " 2>/dev/null || true
 	
 	# confirm it actually took, retry once if not
 	if ! systemctl --user -M "${USERNAME}@" is-active podman.socket >/dev/null 2>&1; then
@@ -424,7 +426,7 @@ EOF
 }
 
 get_podman_service_errors() {
-    podman_service_errors=$(timeout 5 systemctl --user -M "${USERNAME}@" status podman.socket --no-pager 2>&1)
+    podman_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status podman.socket --no-pager 2>&1' 2>&1)
 }
 
 test_podman_service() {
