@@ -128,6 +128,60 @@ check_ent() {
 	fi
 }
 
+# add/remove services to OpenAdmin > Services > Services Status
+manage_service_entry() {
+    local ACTION="$1"        # "add" or "remove"
+    local SERVICE_NAME="$2"
+    local TYPE="$3"
+    local REAL_NAME="$4"
+    local FILE="/etc/openpanel/openadmin/config/services.json"
+
+    if [ -z "$ACTION" ] || [ -z "$SERVICE_NAME" ]; then
+        echo "Invalid usage, please use: manage_service_entry {add|remove} <name> [type] [real_name]"
+        return 1
+    fi
+
+    if [ ! -f "$FILE" ]; then
+        echo "File not found: $FILE"
+        return 1
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "jq is required but not installed."
+        return 1
+    fi
+
+    case "$ACTION" in
+        add)
+            if [ -z "$TYPE" ] || [ -z "$REAL_NAME" ]; then
+                echo "Usage: manage_service_entry add <name> <type> <real_name>"
+                return 1
+            fi
+
+            if jq -e --arg name "$SERVICE_NAME" '.[] | select(.name == $name)' "$FILE" >/dev/null 2>&1; then
+                echo "$SERVICE_NAME already exists in $FILE."
+                return 0
+            fi
+
+            jq --arg name "$SERVICE_NAME" --arg type "$TYPE" --arg real_name "$REAL_NAME" '. += [{"name": $name, "type": $type, "real_name": $real_name}]' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+
+            echo "$SERVICE_NAME added successfully."
+            ;;
+        remove)
+            if ! jq -e --arg name "$SERVICE_NAME" '.[] | select(.name == $name)' "$FILE" >/dev/null 2>&1; then
+                echo "$SERVICE_NAME not found in $FILE."
+                return 0
+            fi
+
+            jq --arg name "$SERVICE_NAME" 'map(select(.name != $name))' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+            echo "$SERVICE_NAME removed successfully."
+            ;;
+        *)
+            echo "Usage: manage_service_entry {add|remove} <name> [type] [real_name]"
+            return 1
+            ;;
+    esac
+}
 
 # ENABLE EMAILS MODULE AND EMAILS PAGES
 enable_emails_if_not_yet() {
@@ -285,6 +339,10 @@ install_mailserver(){
 	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube >/dev/null 2>&1
   fi
+
+  # https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
+  manage_service_entry add "Dovecot & Postfix" docker openadmin_mailserver
+  manage_service_entry add "Roundcube (Webmail)" docker openadmin_roundcube
 
   enable_emails_if_not_yet
   configure_csfcheck_exposed_ports_for_container
@@ -511,6 +569,10 @@ remove_mailserver_and_all_config(){
     echo "Uninstallation aborted."
     return
   fi
+
+  # https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
+  manage_service_entry remove "Dovecot & Postfix"
+  manage_service_entry remove "Roundcube (Webmail)"
 
   if [ "$DEBUG" = true ]; then
       cd $DIR && podman-compose down
