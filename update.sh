@@ -668,11 +668,6 @@ update_openadmin() {
         # keep report for 'OpenAdmin > Emails > Reports'
         [[ -f "/usr/local/admin/templates/emails/reports.html" ]] && cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup      
 
-		# update static and modules
-        current_branch=$(git rev-parse --abbrev-ref HEAD)
-        [[ "$1" == "--no-log" ]] && git fetch origin 2>&1 || git fetch origin 2>&1 | tee -a "$log_file"
-        [[ "$1" == "--no-log" ]] && git reset --hard origin/"$current_branch" 2>&1  || git reset --hard origin/"$current_branch" 2>&1 | tee -a "$log_file"
-
 		# update binary	
     	local remote_version admin_binary url
 
