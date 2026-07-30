@@ -209,13 +209,135 @@ perform_startup_actions() {
   mkdir -p /tmp/redis ; chmod 777 /tmp/redis    # for redis
   mkdir -p /tmp/ssh_cm ; chmod 700 /tmp/ssh_cm  # for ssh connections to slave servers
   IP=$(hostname -I | awk '{print $1}')
-  sed -i -E 's#^( *- *")([0-9.]+:)?(53:53/(tcp|udp)")#\1'"$IP"':\3#' /root/docker-compose.yml | grep 53:53
+  sed -i -E 's#^( *- *")([0-9.]+:)?(53:53/(tcp|udp)")#\1'"$IP"':\3#' /root/docker-compose.yml
+
+  local START_TIME; START_TIME=$(date +%s)
+  local RESULTS_FILE; RESULTS_FILE=$(mktemp /tmp/sentinel.startup_results.XXXXXX)
+
+  # STARTS CONTAINERS FOR ROOT, THEN FOR USERS
+  start_containers_for_socket() {
+      local socket="$1"
+      local label="$2"
+      local results_file="$3"
+
+      if [ ! -S "$socket" ]; then
+          echo "no socket at $socket for $label, skipping"
+          { flock -x 201; echo "${label}:0" >> "$results_file"; } 201>>"$results_file.lock"
+          return
+      fi
+
+      local ids
+      ids=$(CONTAINER_HOST="unix://$socket" podman ps -a --filter status=exited --format '{{.ID}}' 2>/dev/null || true)
+
+      if [ -z "$ids" ]; then
+          echo "$label: no exited containers"
+          { flock -x 201; echo "${label}:0" >> "$results_file"; } 201>>"$results_file.lock"
+          return
+      fi
+
+      local count=0
+      for id in $ids; do
+          name=$(CONTAINER_HOST="unix://$socket" podman inspect "$id" --format '{{.Name}}' 2>/dev/null || echo "$id")
+          echo "$label: starting $name"
+          if CONTAINER_HOST="unix://$socket" podman start "$id"; then
+              ((count++))
+          else
+              echo "$label: FAILED to start $name"
+          fi
+      done
+      { flock -x 201; echo "${label}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
+  }
+
+  start_containers_for_user() {
+      local user="$1"
+      local results_file="$2"
+      id "$user" &>/dev/null || return
+      local uid
+      uid=$(id -u "$user")
+      local user_sock="/run/user/$uid/podman/podman.sock"
+      [ -S "$user_sock" ] || { echo "$user: no active podman socket at $user_sock, skipping"; return; }
+      start_containers_for_socket "$user_sock" "$user" "$results_file"
+  }
+
+  # root first
+  ROOT_SOCK="/run/podman/podman.sock"
+  start_containers_for_socket "$ROOT_SOCK" "root" "$RESULTS_FILE"
+
+  # try opencli user-list --json to get suspended users that we will exclude
+  USERLIST_JSON=$(timeout 15 opencli user-list --json 2>/dev/null)
+  SUSPENDED_CONTEXTS=""
+  VALID_JSON=false
+
+  if [ -n "$USERLIST_JSON" ]; then
+      if command -v jq &>/dev/null; then
+          if echo "$USERLIST_JSON" | jq -e '.data' &>/dev/null; then
+              VALID_JSON=true
+              SUSPENDED_CONTEXTS=$(echo "$USERLIST_JSON" | jq -r '.data[] | select(.username | startswith("SUSPENDED_")) | .context')
+          fi
+      fi
+  fi
+
+  USERS_TO_PROCESS=()
+
+  if [ "$VALID_JSON" = true ]; then
+      for userhome in /home/*/; do
+          user=$(basename "$userhome")
+          if echo "$SUSPENDED_CONTEXTS" | grep -qx "$user"; then
+              echo "$user: suspended, skipping"
+              continue
+          fi
+          USERS_TO_PROCESS+=("$user")
+      done
+  else
+      for userhome in /home/*/; do
+          USERS_TO_PROCESS+=("$(basename "$userhome")")
+      done
+  fi
+
+  # if <=3 users run sequentially, else in parallel batches of cores x 2
+  NUM_USERS=${#USERS_TO_PROCESS[@]}
+
+  if [ "$NUM_USERS" -le 3 ]; then
+      for user in "${USERS_TO_PROCESS[@]}"; do
+          start_containers_for_user "$user" "$RESULTS_FILE"
+      done
+  else
+      CORES=$(nproc)
+      PARALLEL_JOBS=$((CORES * 2))
+      echo "$NUM_USERS users to process, running in parallel (max $PARALLEL_JOBS jobs, $CORES cores x2)"
+      export -f start_containers_for_user
+      export -f start_containers_for_socket
+      printf '%s\n' "${USERS_TO_PROCESS[@]}" | xargs -I{} -P "$PARALLEL_JOBS" bash -c 'start_containers_for_user "$@"' _ {} "$RESULTS_FILE"
+  fi
+
+  # results sent in notification
+  local root_count=0 user_total=0
+  local -a user_lines=()
+  while IFS=: read -r label count; do
+      [[ -z "$label" ]] && continue
+      if [[ "$label" == "root" ]]; then
+          root_count=$count
+      else
+          (( user_total += count ))
+          (( count > 0 )) && user_lines+=("${label}: ${count}")
+      fi
+  done < "$RESULTS_FILE"
+  rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock"
+
+  local END_TIME; END_TIME=$(date +%s)
+  local ELAPSED=$((END_TIME - START_TIME))
+
+  local summary_msg="Started ${root_count} container(s) for root and ${user_total} container(s) across ${#user_lines[@]} user(s) in ${ELAPSED}s."
+  if (( ${#user_lines[@]} > 0 )); then
+      local IFS=', '
+      summary_msg+=" Per user: ${user_lines[*]}."
+  fi
 
   if [[ "$REBOOT" == "no" ]]; then
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
   fi
   local title="SYSTEM REBOOT!"
-  local message="System was rebooted. $(uptime)"
+  local message="System was rebooted. $(uptime) | $summary_msg"
   write_notification "$title" "$message"
 }
 
