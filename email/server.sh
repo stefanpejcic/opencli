@@ -216,7 +216,7 @@ pflogsumm_get_data() {
 	# 1. clone from git
 	rm -rf PFLogSumm-HTML-GUI
 	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
-	ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env > /dev/null 2>&1
+	ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env > /dev/null 2>&1
  	podman cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
 	podman exec openadmin_mailserver sh -c "mkdir -p /usr/local/admin/static/reports" > /dev/null 2>&1
@@ -329,14 +329,14 @@ install_mailserver(){
       cd /usr/local/mail/ && git clone $GITHUB_REPO
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail
-	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
+	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
-	  ln -s /usr/local/mail/openmail/mailserver.env /usr/local/mail/openmail/.env
+	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube >/dev/null 2>&1
   fi
 
