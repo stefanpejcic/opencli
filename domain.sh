@@ -110,6 +110,15 @@ is_valid_domain() {
     [[ "$input" =~ $domain_regex || "$input" =~ $ipv4_regex ]]
 }
 
+# https://docs.podman.io/en/latest/markdown/podman-run.1.html#add-host-hostname-hostname-ip
+update_container_hosts_entry() {
+    local domain="$1"
+    [[ -z "$domain" ]] && return 0
+    sed -i "/[[:space:]]${domain}\$/d" /etc/hosts
+    sed -i "/[[:space:]]${domain}[[:space:]]/d" /etc/hosts
+    echo "169.254.1.2   ${domain}" >> /etc/hosts
+    # TODO: loop for existing containers to apply it
+}
 
 # Get current domain from Caddyfile
 get_current_domain() {
@@ -359,6 +368,7 @@ update_domain() {
     # Execute all update steps
     update_caddyfile || return 1
     create_mv_file || return 1
+	update_container_hosts_entry "$new_hostname" || return 1
     update_redirects || return 1
     restart_services "$@" || return 1
     configure_mailserver || return 1
