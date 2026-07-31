@@ -201,14 +201,39 @@ copy_to_container() {
     return 0
 }
 
+#   Error: unable to restart a container in a paused or unknown state: container state improper
 restart_container_and_follow_logs() {
     log_info "Restarting OpenPanel container to pick up the new file..."
-    
-    if ! podman restart "$CONTAINER_NAME"; then
-        log_error "Failed to restart container"
-        return 1
+
+    local restart_err
+    if ! restart_err=$(podman restart "$CONTAINER_NAME" 2>&1); then
+        log_warn "podman restart failed: $restart_err"
+
+        if echo "$restart_err" | grep -qi "paused or unknown state\|state improper"; then
+            log_warn "Container is in a bad state (known podman issue) - recovering via stop/start"
+
+            # try a clean stop first
+            if ! podman stop -t 5 "$CONTAINER_NAME" > /dev/null 2>&1; then
+                log_warn "Graceful stop failed, forcing kill"
+                podman kill "$CONTAINER_NAME" > /dev/null 2>&1 || true
+            fi
+
+            local start_err
+            if ! start_err=$(podman start "$CONTAINER_NAME" 2>&1); then
+                log_error "Failed to start container even after cleanup: $start_err"
+                log_error "Manual recovery needed, e.g.:"
+                log_error "    podman inspect $CONTAINER_NAME | grep -i state -A5"
+                log_error "    cd /roote && podman-compose down && podman-compose up -d openpanel"
+                return 1
+            fi
+
+            log_info "Container recovered and started successfully"
+        else
+            log_error "Failed to restart container: $restart_err"
+            return 1
+        fi
     fi
-    
+
     log_info "Following new logs:"
     podman logs --follow --since=0s "$CONTAINER_NAME"
 }
