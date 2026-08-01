@@ -317,6 +317,30 @@ set_ssl_for_mailserver() {
  }
 
 
+confirm_and_clean_existing_dir() {
+	local target="/usr/local/mail/openmail"
+
+	if [ -d "$target" ]; then
+		echo "Warning: $target already exists (leftover from a previous install attempt)."
+		echo "It must be removed before continuing. Remove it now? (y/n)"
+
+		if ! read -t 10 -n 1 -r user_input; then
+			echo ""
+			echo "No response received. Aborting installation."
+			exit 1
+		fi
+		echo ""
+
+		if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
+			echo "Installation aborted."
+			exit 1
+		fi
+
+		rm -rf "$target"
+	fi
+}
+
+
 # INSTALL
 install_mailserver(){
   if [ "$DEBUG" = true ]; then
@@ -326,14 +350,28 @@ install_mailserver(){
       echo "Downloading from $GITHUB_REPO"
       echo ""
       mkdir -p /usr/local/mail/
+	  confirm_and_clean_existing_dir
       cd /usr/local/mail/ && git clone $GITHUB_REPO
+      for f in "$MAILSERVER_COMPOSE_FILE" "$MAILSERVER_ENV"; do
+		if [ ! -f "$f" ]; then
+			echo "Error: download from github failed, required file missing after clone: $f" >&2
+			exit 1
+		fi
+      done
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail
 	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
       cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube
   else
       mkdir -p /usr/local/mail/  >/dev/null 2>&1
+	  confirm_and_clean_existing_dir
       cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
+      for f in "$MAILSERVER_COMPOSE_FILE" "$MAILSERVER_ENV"; do
+		if [ ! -f "$f" ]; then
+			echo "Error: download from github failed, required file missing after clone: $f" >&2
+			exit 1
+		fi
+      done
       set_ssl_for_mailserver
       mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
 	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
