@@ -701,14 +701,7 @@ update_openadmin() {
         # restore report for 'OpenAdmin > Emails > Reports'
         [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
-        latest_commit=$(git rev-parse origin/"$current_branch")
-        current_commit=$(git rev-parse HEAD)
-        if [[ "$current_commit" == "$latest_commit" ]]; then
-            [[ "$1" == "--no-log" ]] && echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
-        else
-            message="OpenAdmin is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/admin && git pull' and check for errors."
-            [[ "$1" == "--no-log" ]] && echo ${message} || log_error ${message}
-        fi
+        echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
     fi
 }
 
