@@ -223,7 +223,7 @@ restart_container_and_follow_logs() {
                 log_error "Failed to start container even after cleanup: $start_err"
                 log_error "Manual recovery needed, e.g.:"
                 log_error "    podman inspect $CONTAINER_NAME | grep -i state -A5"
-                log_error "    cd /roote && podman-compose down && podman-compose up -d openpanel"
+                log_error "    cd /root && podman-compose down && podman-compose up -d openpanel"
                 return 1
             fi
 
