@@ -129,7 +129,7 @@ collect_mysql_information() {
 collect_services_status() {
   local tmp="$1"
   echo "=== Services Status ===" >> "$tmp"
-  run_command "podman-compose ls"                        "Listing OpenPanel Stack"                      "$tmp"
+  run_command "podman-compose ps"                        "Listing OpenPanel Stack"                      "$tmp"
   run_command "podman ps -a"                              "Checking system containers status"            "$tmp"
   run_command "systemctl status admin"                   "Checking status of OpenAdmin service"         "$tmp"
   run_command "systemctl status podman.socket"           "Checking status of Podman service"            "$tmp"
