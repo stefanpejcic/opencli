@@ -45,15 +45,18 @@ DEBUG=false
 # ======================================================================
 # START Functions
 
+run() { if [ "$DEBUG" = true ]; then "$@"; else "$@" >/dev/null 2>&1; fi; }
+
+section() { if [ "$DEBUG" = true ]; then echo ""; echo "----------------- $1 ------------------"; echo ""; fi; }
+
+dbg() { [ "$DEBUG" = true ] && echo "$@"; :; }
+
 check_debug_flag() {
 	for arg in "$@"; do
 	    if [ "$arg" == "--debug" ]; then
-	        DEBUG=true
-	        echo "--debug flag provided: displaying verbose information."
+	        DEBUG=true; echo "--debug flag provided: displaying verbose information."
 	    elif [ "$arg" == "-x" ]; then
-	        DEBUG=true
-		set -x
-		echo "-x flag provided: display each command as it execute."
+	        DEBUG=true; set -x; echo "-x flag provided: display each command as it execute."
 	    fi
 	done
 }
@@ -61,19 +64,10 @@ check_debug_flag() {
 required_cmd() {
 	local cmd
 	for cmd in "$@"; do
-		hash "$cmd" 2>/dev/null || {
-			echo "Error: '$cmd' not found."
-			echo
-			exit 1
-		} >&2
+		hash "$cmd" 2>/dev/null || { echo "Error: '$cmd' not found."; echo; exit 1; } >&2
 	done
 
-	# podman-compose
-	podman-compose version &>/dev/null || {
-		echo "Error: 'podman-compose' not available."
-		echo
-		exit 1
-	} >&2
+	podman-compose version &>/dev/null || { echo "Error: 'podman-compose' not available."; echo; exit 1; } >&2
 }
 
 check_mailserver() {
@@ -185,26 +179,21 @@ manage_service_entry() {
 
 # ENABLE EMAILS MODULE AND EMAILS PAGES
 enable_emails_if_not_yet() {
-  if [ "$DEBUG" = true ]; then
-	  echo ""
-	  echo "----------------- CHECKING ENABLED MODULES ------------------"
-	  echo ""
-  fi
+	section "CHECKING ENABLED MODULES"
 	config_file="/etc/openpanel/openpanel/conf/openpanel.config"
 	enabled_modules=$(grep '^enabled_modules=' "$config_file" | cut -d'=' -f2)
-		if echo "$enabled_modules" | grep -q 'emails'; then
+	if echo "$enabled_modules" | grep -q 'emails'; then
 		echo "'emails' module is already in enabled modules."
-		:
 	else
 		new_modules="${enabled_modules},emails"
-	echo "'emails' module is not enabled. Enabling.."
+		echo "'emails' module is not enabled. Enabling.."
 		sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
 		echo "Restarting OpenPanel container to enable email pages.."
-	if [ "$(podman ps -q -f name=openpanel)" ]; then
-		podman restart openpanel  >/dev/null 2>&1
-	else
-		cd /root && podman-compose up -d openpanel  >/dev/null 2>&1
-	fi
+		if [ "$(podman ps -q -f name=openpanel)" ]; then
+			run podman restart openpanel
+		else
+			run bash -c "cd /root && podman-compose up -d openpanel"
+		fi
 	fi
 }
 
@@ -340,114 +329,60 @@ confirm_and_clean_existing_dir() {
 	fi
 }
 
+open_port_csf() {
+    local port=$1
+    local csf_conf="/etc/csf/csf.conf"
+
+    # Check if port is already open
+    if grep -q "TCP_IN = .*${port}" "$csf_conf"; then
+        dbg "Port ${port} is already open in CSF."
+    else
+        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
+        dbg "Port ${port} opened in CSF."
+    fi
+}
+
+configure_csfcheck_exposed_ports_for_container() {
+	section "CONFIGURING FIREWALL"
+	if command -v csf >/dev/null 2>&1; then
+		for p in 25 143 465 587 993; do open_port_csf "$p"; done
+	else
+		echo "Error: CSF is not installed. make sure ports 25 143 465 587 and 993 are opened on external firewall, or email will not work."
+	fi
+}
 
 # INSTALL
 install_mailserver(){
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- INSTALLING MAILSERVER ------------------"
-      echo ""
-      echo "Downloading from $GITHUB_REPO"
-      echo ""
-      mkdir -p /usr/local/mail/
-	  confirm_and_clean_existing_dir
-      cd /usr/local/mail/ && git clone $GITHUB_REPO
-      for f in "$MAILSERVER_COMPOSE_FILE" "$MAILSERVER_ENV"; do
+	section "INSTALLING MAILSERVER"
+	dbg "Downloading from $GITHUB_REPO"
+
+	run mkdir -p /usr/local/mail/
+	confirm_and_clean_existing_dir
+	run bash -c "cd /usr/local/mail/ && git clone $GITHUB_REPO"
+
+	for f in "$MAILSERVER_COMPOSE_FILE" "$MAILSERVER_ENV"; do
 		if [ ! -f "$f" ]; then
 			echo "Error: download from github failed, required file missing after clone: $f" >&2
 			exit 1
 		fi
-      done
-      set_ssl_for_mailserver
-      mkdir -p /etc/openpanel/email/snappymail
-	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
-      cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube
-  else
-      mkdir -p /usr/local/mail/  >/dev/null 2>&1
-	  confirm_and_clean_existing_dir
-      cd /usr/local/mail/ && git clone $GITHUB_REPO >/dev/null 2>&1
-      for f in "$MAILSERVER_COMPOSE_FILE" "$MAILSERVER_ENV"; do
-		if [ ! -f "$f" ]; then
-			echo "Error: download from github failed, required file missing after clone: $f" >&2
-			exit 1
-		fi
-      done
-      set_ssl_for_mailserver
-      mkdir -p /etc/openpanel/email/snappymail >/dev/null 2>&1
-	  ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env
-      cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube >/dev/null 2>&1
-  fi
+	done
 
-  # https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
-  manage_service_entry add "Dovecot & Postfix" docker openadmin_mailserver
-  manage_service_entry add "Roundcube (Webmail)" docker openadmin_roundcube
+	set_ssl_for_mailserver
+	run mkdir -p /etc/openpanel/email/snappymail
+	ln -sf "$MAILSERVER_ENV" /usr/local/mail/openmail/.env
+	run bash -c "cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube"
 
-  enable_emails_if_not_yet
-  configure_csfcheck_exposed_ports_for_container
+	# https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
+	manage_service_entry add "Dovecot & Postfix" docker openadmin_mailserver
+	manage_service_entry add "Roundcube (Webmail)" docker openadmin_roundcube
 
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- CONFIGURING FIREWALL ------------------"
-      echo ""
-  fi
-  
-  function open_port_csf() {
-      local port=$1
-      local csf_conf="/etc/csf/csf.conf"
-      
-      # Check if port is already open
-      port_opened=$(grep "TCP_IN = .*${port}" "$csf_conf")
-      if [ -z "$port_opened" ]; then
-          # Open port
-          sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${port}\"/" "$csf_conf"
-          echo "Port ${port} opened in CSF."
-      else
-          echo "Port ${port} is already open in CSF."
-      fi
-  }
-  
-  
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- CONFIGURING FIREWALL ------------------"
-      echo ""
-   # CSF
-    if command -v csf >/dev/null 2>&1; then
-        open_port_csf 25
-        open_port_csf 143
-        open_port_csf 465
-        open_port_csf 587
-        open_port_csf 993
-    else
-        echo "Error: CSF is not installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
-    fi
-  else
+	enable_emails_if_not_yet
+	configure_csfcheck_exposed_ports_for_container
 
-    # CSF
-    if command -v csf >/dev/null 2>&1; then
-        open_port_csf 25 >/dev/null 2>&1
-        open_port_csf 143 >/dev/null 2>&1
-        open_port_csf 465 >/dev/null 2>&1
-        open_port_csf 587 >/dev/null 2>&1
-        open_port_csf 993 >/dev/null 2>&1
-    else
-        echo "Error: CSF is not installed. make sure ports 25 243 465 587 and 993 are opened on external firewall, or email will not work."
-    fi
-
-fi
-
-#########
-
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- ENABLE MAIL FOR EXISTING USERS ------------------"
-      echo ""
-  fi
- 
+	section "ENABLE MAIL FOR EXISTING USERS"
 
 	# add all domains
 	process_all_domains_and_start
-  
 }
 
 
@@ -465,28 +400,22 @@ process_all_domains_and_start(){
 	if [[ "$STORE_EMAILS_IN" != '/var/mail/' ]]; then
 		if [[ "$STORE_EMAILS_IN" == /* ]]; then
 			new_volumes+="      - $STORE_EMAILS_IN:/var/mail/\n"
-			if [ "$DEBUG" = true ]; then
-			  echo ""
-			  echo "----------------- STORAGE SETTINGS ------------------"
-			  echo ""
-			  echo "Using a custom storage location for all domains:"
-			  echo ""
-			  echo "- MAIL STORAGE LOCATION: $STORE_EMAILS_IN"
-			  echo "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
-			fi
+			section "STORAGE SETTINGS"
+			dbg "Using a custom storage location for all domains:"
+			dbg ""
+			dbg "- MAIL STORAGE LOCATION: $STORE_EMAILS_IN"
+			dbg "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
 		#elif [[ "$STORE_EMAILS_IN" == "user_dir" ]]; then
 		else # TODO: this is a fallback for <1.7.3
+			section "MOUNT USERS HOME DIRECTORIES"
+			dbg "Re-mounting mail directories for all domains:"
+			dbg ""
+			dbg "- DOMAINS DIRECTORY:     $CONFIG_DIR"
+			dbg "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
 			if [ "$DEBUG" = true ]; then
-			  echo ""
-			  echo "----------------- MOUNT USERS HOME DIRECTORIES ------------------"
-			  echo ""
-			  echo "Re-mounting mail directories for all domains:"
-			  echo ""
-			  echo "- DOMAINS DIRECTORY:     $CONFIG_DIR" 
-			  echo "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
-			  printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
+				printf "%b" "- DEFAULT VOLUMES:\n$new_volumes"
 			fi
-		
+
 			for file in "$CONFIG_DIR"/*.conf; do
 				echo "Processing file: $file"
 				if [ ! -L "$file" ]; then
@@ -510,15 +439,11 @@ process_all_domains_and_start(){
 			fi
 		fi
 
-	if [ "$DEBUG" = true ]; then
-	  echo ""
-	  echo "----------------- EMAIL DIRECTORIES ------------------"
-	  echo ""
-	  printf "%b" "- DEFAULT VOLUMES + CONFIGURATION:\n$new_volumes"
-	  echo ""
-	  echo "----------------- UPDATE COMPOSE ------------------"
-	  echo ""
-	fi
+		section "EMAIL DIRECTORIES"
+		if [ "$DEBUG" = true ]; then
+			printf "%b" "- DEFAULT VOLUMES + CONFIGURATION:\n$new_volumes"
+		fi
+		section "UPDATE COMPOSE"
 
   awk -v new_volumes="$new_volumes" '
   BEGIN { in_mailserver=0; }
@@ -557,44 +482,17 @@ echo "MailServer started successfully."
 
 # STOP
 stop_mailserver_if_running(){
-
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- STOP MAILSERVER ------------------"
-      echo ""
-  	  cd $DIR && podman-compose down mailserver
-      echo ""
-  else
-  	cd $DIR && podman-compose down mailserver >/dev/null 2>&1
-  	echo "MailServer stopped succesfully."
-  fi
-  
+	section "STOP MAILSERVER"
+	run bash -c "cd $DIR && podman-compose down mailserver"
+	[ "$DEBUG" = true ] || echo "MailServer stopped succesfully."
 }
 
-
-open_port_csf() {
-    local port=$1
-    local conf="/etc/csf/csf.conf"
-    grep -q "TCP_IN = .*${port}" "$conf" || sed -i "s/TCP_IN = \"/TCP_IN = \",${port}/" "$conf"
-}
-
-configure_csfcheck_exposed_ports_for_container() {
-    if command -v csf &>/dev/null; then
-        for p in 25 143 465 587 993; do open_port_csf "$p"; done
-    else
-        echo "Warning: CSF not installed. Ensure email ports are open externally."
-    fi
-}
 
 # UNINSTALL
 remove_mailserver_and_all_config(){
-  if [ "$DEBUG" = true ]; then
-      echo ""
-      echo "----------------- UNINSTALL MAILSERVER ------------------"
-      echo ""
-  fi
+	section "UNINSTALL MAILSERVER"
 
-  echo "Are you sure you want to uninstall the MailServer and remove all its configuration? (y/n)"
+	echo "Are you sure you want to uninstall the MailServer and remove all its configuration? (y/n)"
 
 	if ! read -t 10 -n 1 -r user_input; then
 	    echo ""
@@ -602,25 +500,19 @@ remove_mailserver_and_all_config(){
 	    return
 	fi
 
-  if [[ "$user_input" != "yes" && "$user_input" != "Y" && "$user_input" != "y" ]]; then
-    echo ""
-    echo "Uninstallation aborted."
-    return
-  fi
+	if [[ "$user_input" != "yes" && "$user_input" != "Y" && "$user_input" != "y" ]]; then
+		echo ""
+		echo "Uninstallation aborted."
+		return
+	fi
 
-  # https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
-  manage_service_entry remove "Dovecot & Postfix"
-  manage_service_entry remove "Roundcube (Webmail)"
+	# https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
+	manage_service_entry remove "Dovecot & Postfix"
+	manage_service_entry remove "Roundcube (Webmail)"
 
-  if [ "$DEBUG" = true ]; then
-      cd $DIR && podman-compose down
-      rm -rf $DIR
-      echo ""
-  else
-      cd $DIR && podman-compose down >/dev/null 2>&1
-      rm -rf $DIR >/dev/null 2>&1
-      echo "MailServer uninstalled successfully."
-  fi
+	run bash -c "cd $DIR && podman-compose down"
+	run rm -rf "$DIR"
+	[ "$DEBUG" = true ] || echo "MailServer uninstalled successfully."
 }
 
 
