@@ -209,7 +209,7 @@ restart_container_and_follow_logs() {
     if ! restart_err=$(podman restart "$CONTAINER_NAME" 2>&1); then
         log_warn "podman restart failed: $restart_err"
 
-        if echo "$restart_err" | grep -qi "paused or unknown state\|state improper"; then
+        if echo "$restart_err" | grep -qi "paused or unknown state\|state improper\|conmon exited prematurely\|conmon process killed"; then
             log_warn "Container is in a bad state (known podman issue) - recovering via stop/start"
 
             # try a clean stop first
