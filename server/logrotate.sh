@@ -51,8 +51,8 @@ logrotate_keep_days=$(get_config logrotate_keep_days 30)
 
 # ---------- CADDY ----------
 cat > /etc/logrotate.d/caddy-logs <<EOF
-/var/log/caddy/domlogs/coraza_waf/*.log
-/var/log/caddy/domlogs/domlogs/*/access.log {
+/var/log/caddy/coraza_waf/*.log
+/var/log/caddy/domlogs/*/access.log {
     size $logrotate_size_limit
     rotate $logrotate_retention
     daily
