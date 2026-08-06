@@ -12,7 +12,7 @@
 # package manager if it isn't. Pass a second argument if the package name
 # differs from the command name, e.g.:
 #   require_command jq
-#   require_command mysql mysql-client
+#   require_command mariadb
 require_command() {
     local cmd="$1"
     local package="${2:-$1}"

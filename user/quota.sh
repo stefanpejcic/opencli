@@ -96,7 +96,7 @@ get_plan_limits() {
            WHERE u.username = '$(mysql_escape "$username")'"
     
     local result
-    result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query" 2>/dev/null)
+    result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$query" 2>/dev/null)
     
     if [[ -z "$result" ]]; then
         log_error "No plan found for user: $username"

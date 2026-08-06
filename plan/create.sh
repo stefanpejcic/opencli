@@ -71,7 +71,7 @@ fi
 check_plan_exists() {
     local escaped_name
     escaped_name=$(mysql_escape "$1")
-    local existing_plan=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;")
+    local existing_plan=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;")
     if [ -n "$existing_plan" ]; then
         echo "Error: Plan name '$1' already exists. Please choose another name."
         exit 1
@@ -189,11 +189,11 @@ insert_plan() {
   # Insert the plan into the 'plans' table
   local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set, max_email_quota, max_hourly_email) VALUES ('$escaped_name', '$escaped_description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', $bandwidth, '$escaped_feature_set', '$max_email_quota', '$max_hourly_email');"
 
-  mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
+  mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
         # if reseller, grant them access to the new plan id
         if [[ "$CHECK_PLAN_ID" == true ]]; then
-            plan_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)
+            plan_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)
             if [ -n "$plan_id" ]; then
                 tmpfile=$(mktemp)
                 jq --arg plan "$plan_id" '.allowed_plans |= (if index($plan) then . else . + [$plan] end)' "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"

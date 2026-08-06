@@ -67,7 +67,7 @@ source /usr/local/opencli/lib/requirement.sh
 fetch_users_json() {
     require_command jq
     local data
-    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';" | tail -n +2)
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';" | tail -n +2)
     if [ -n "$data" ]; then
         local json
         json=$(echo "$data" | jq -R 'split("\n") | map(select(length > 0) | split("\t") | {
@@ -82,7 +82,7 @@ fetch_users_json() {
 
 fetch_users_table() {
     local data
-    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';")
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';")
     if [ -n "$data" ]; then
         echo "$data"
     else

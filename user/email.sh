@@ -51,7 +51,7 @@ user_exists() {
     local username="$1"
     local count
     
-    count=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" \
+    count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" \
         -sN -e "SELECT COUNT(*) FROM users WHERE username = '$(mysql_escape "$username")';")
     
     [[ "$count" -eq 1 ]]
@@ -73,7 +73,7 @@ update_user_email() {
     fi
 
     #3. Save
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" \
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" \
         -e "UPDATE users SET email = '$(mysql_escape "$new_email")' WHERE username = '$(mysql_escape "$username")';"
 }
 

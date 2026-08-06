@@ -67,7 +67,7 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] DB config not found: $DB_CONFIG_FILE"; exit 1; }
 # shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
-mysql_q() { mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
+mysql_q() { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
 
 # Resolve account identity
 USER_ID=$(mysql_q "SELECT id FROM users WHERE username = '$USERNAME';")

@@ -82,12 +82,12 @@ save_to_database() {
     local escaped_hash
     escaped_hash=$(mysql_escape "$hashed_password")
     mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$(mysql_escape "$username")';"
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"
 
     if [ $? -eq 0 ]; then
         # 2. get user ID and terminate all active sessions
         user_id_query="SELECT id FROM users WHERE username='$(mysql_escape "$username")' LIMIT 1;"
-        user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
+        user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
     
         if [[ "$user_id" =~ ^[0-9]+$ ]]; then
             session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)

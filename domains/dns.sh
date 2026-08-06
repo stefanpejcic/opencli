@@ -183,7 +183,7 @@ add_subdomains_to_zone() {
     return
   fi
 
-  subdomains=$(mysql -Nse "SELECT domain_url FROM domains WHERE domain_url LIKE '%.${apex_domain}';")
+  subdomains=$(mariadb -Nse "SELECT domain_url FROM domains WHERE domain_url LIKE '%.${apex_domain}';")
 
   if [[ -z "$subdomains" ]]; then
     echo "No subdomains found for $apex_domain"

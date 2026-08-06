@@ -57,13 +57,13 @@ pre_flight_checks() {
     log "Checking owner for domain $domain_name"
     user=$(opencli domains-whoowns "$domain_name" | awk -F "Owner of '$domain_name': " '{print $2}')
     if [[ -z "$user" ]]; then
-        echo "❌ No owner found for '$domain_name'. Ensure the domain is assigned and MySQL is running."
+        echo "❌ No owner found for '$domain_name'. Ensure the domain is assigned and MariaDB is running."
         exit 1
     fi
 
-    domain_id=$(mysql -Nse "SELECT domain_id FROM domains WHERE domain_url = '$domain_name';")
+    domain_id=$(mariadb -Nse "SELECT domain_id FROM domains WHERE domain_url = '$domain_name';")
     if [[ -z "$domain_id" ]]; then
-        echo "❌ Domain ID not found for '$domain_name'. Ensure it exists and MySQL is running."
+        echo "❌ Domain ID not found for '$domain_name'. Ensure it exists and MariaDB is running."
         exit 1
     fi
 
@@ -169,7 +169,7 @@ EOF
 get_user_info() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '$user';"
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
 
@@ -359,7 +359,7 @@ delete_mail_mountpoint(){
 delete_websites() {
     log "Removing any websites associated with domain (ID: $domain_id)"
     delete_sites_query="DELETE FROM sites WHERE domain_id = '$domain_id';"
-    mysql -e "$delete_sites_query"
+    mariadb -e "$delete_sites_query"
 }
 
 
@@ -455,7 +455,7 @@ delete_domain_from_mysql(){
     local domain_name="$1"
     log "Removing $domain_name from the database"
     local delete_query="DELETE from domains where domain_url = '$domain_name';"
-    mysql -e "$delete_query"
+    mariadb -e "$delete_query"
 }
 
 
@@ -479,7 +479,7 @@ delete_domain() {
     delete_domain_from_mysql $domain_name            # delete
 
 	local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
-    local result=$(mysql -N -e "$verify_query")
+    local result=$(mariadb -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
         get_webserver_for_user                          #
@@ -505,7 +505,7 @@ delete_domain() {
         rm_domain_to_clamav_list                        # added in 0.3.4    
         echo "Domain $domain_name deleted successfully"
     else
-        log "Deleting domain $domain_name failed! Contact administrator to check if the mysql database is running."
+        log "Deleting domain $domain_name failed! Contact administrator to check if the mariadb database is running."
         echo "Failed to delete domain $domain_name"
     fi
 }

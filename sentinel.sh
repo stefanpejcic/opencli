@@ -486,28 +486,28 @@ docker_containers_status() {
 }
 
 mysql_docker_containers_status() {
-  local title="MySQL service not active!"
+  local title="MariaDB service not active!"
   if _docker_ps | grep -q "openpanel_mysql"; then
-    if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
-      ((PASS++)); echo -e "\e[32m[✔]\e[0m MySQL container active and responding."
+    if maraidb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m MariaDB container active and responding."
     else
-      echo -e "\e[31m[✘]\e[0m MySQL running but not responding — restarting."
-      write_notification "MySQL service restarted!" "MySQL service running but not responding, attempting restart."
+      echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
+      write_notification "MariaDB service restarted!" "MariaDB service running but not responding, attempting restart."
       podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
       cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     fi
   else
     ((FAIL++)); STATUS=2
-    echo -e "\e[31m[✘]\e[0m MySQL container not running — restarting."
+    echo -e "\e[31m[✘]\e[0m MariaDB container not running — restarting."
     cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     sleep 5
-    if mysql -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+    if mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
-      echo "    MySQL is back online."
-      write_notification "MySQL restarted successfully!" "Sentinel restarted MySQL and it is responding now."
+      echo "    MaraiDB is back online."
+      write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB and it is responding now."
     else
-      echo "    Error: MySQL still not responding!"
-      write_notification "$title" "MySQL did not respond after restart. Please check ASAP."
+      echo "    Error: MariaDB still not responding!"
+      write_notification "$title" "MariaDB did not respond after restart. Please check ASAP."
     fi
   fi
 }

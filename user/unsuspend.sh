@@ -64,7 +64,7 @@ source "/usr/local/opencli/db.sh"
 get_docker_context() {
     local query="SELECT server FROM users WHERE username LIKE 'SUSPENDED\_%$(mysql_escape "$USERNAME")';"
     local server_name
-    server_name=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
+    server_name=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
     context="$server_name"
 
     [[ -z "$server_name" ]] && { echo "Error: No username '$USERNAME'" >&2; exit 1; }
@@ -134,7 +134,7 @@ rename_user_in_db() {
     escaped_username=$(mysql_escape "$USERNAME")
     local query="UPDATE users SET username='${escaped_username}' WHERE username LIKE 'SUSPENDED\\_%_${escaped_username}';"
 
-    if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
+    if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' unsuspended successfully."
     else
         echo "ERROR: Failed to unsuspend user '$USERNAME'."

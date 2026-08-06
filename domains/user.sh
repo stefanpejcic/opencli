@@ -61,7 +61,7 @@ get_domains() {
     fi
 
     username_query="SELECT id FROM users WHERE username = '$(mysql_escape "$username")'"
-    user_id=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_query" -sN)
+    user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_query" -sN)
 
     if [ -z "$user_id" ]; then
         echo "User '$username' not found in the database."
@@ -71,7 +71,7 @@ get_domains() {
         $include_php_version && query_fields+=", php_version"
 
         domains_query="SELECT $query_fields FROM domains WHERE user_id = '$user_id'"
-        domains=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$domains_query" -sN)
+        domains=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$domains_query" -sN)
 
         if [ -z "$domains" ]; then
             echo "No domains found for user '$username'."

@@ -50,8 +50,8 @@ done
 
 
 get_docker_context_for_user(){
-    context=$(mysql -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
-	context=$(mysql -N -e "
+    context=$(mariadb -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
+	context=$(mariadb -N -e "
 	SELECT u.server
 	FROM users u
 	WHERE u.username='$openpanel_username'

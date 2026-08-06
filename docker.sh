@@ -46,7 +46,7 @@ get_context() {
 
   local context
   context=$(
-    mysql -Nse "
+    mariadb -Nse "
       SELECT server FROM users WHERE username = '${username}'
       UNION ALL
       SELECT server FROM users WHERE username LIKE 'SUSPENDED#_%#_${username}' ESCAPE '#'
@@ -72,7 +72,7 @@ pick_container() {
 
 pick_user() {
   local selection
-  selection=$(mysql -e "SELECT username FROM users ORDER BY username;" -sN 2>/dev/null | sed 's/.*_//' | fzf --prompt="user > " --header="Select a user (ESC to quit)" --layout=reverse --border) || return 1
+  selection=$(mariadb -e "SELECT username FROM users ORDER BY username;" -sN 2>/dev/null | sed 's/.*_//' | fzf --prompt="user > " --header="Select a user (ESC to quit)" --layout=reverse --border) || return 1
   echo "$selection"
 }
 

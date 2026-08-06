@@ -111,7 +111,7 @@ file_readable() {
 get_docker_context() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${user}';"
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
     
@@ -225,7 +225,7 @@ check_files() {
     check_file "/home/$context/docker-compose.yml" "compose file does not exist - no containers can be started."
     check_file "/home/$context/backup.env" "backup.env missing - Backups can not be configured via UI"
     check_file "/home/$context/crons.ini" "crons.ini missing - Cron Jobs can not be created via UI"
-    check_file "/home/$context/custom.cnf" "custom.cnf missing - MySQL limits can not be configured via UI."
+    check_file "/home/$context/custom.cnf" "custom.cnf missing - Database limits can not be configured via UI."
     
     check_file "/home/$context/default.vcl" "default.vcl missing - Varnish Caching can not be configured via UI."
     check_file "/home/$context/httpd.conf" "httpd.conf missing - Apache web server can not be configured via UI."

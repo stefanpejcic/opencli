@@ -34,14 +34,14 @@
 # Function to get domain ID from the database
 get_domain_id() {
     local domain_name="$1"
-    result=$(mysql -sse "SELECT domain_id FROM domains WHERE domain_url = '$(mysql_escape "$domain_name")';")
+    result=$(mariadb -sse "SELECT domain_id FROM domains WHERE domain_url = '$(mysql_escape "$domain_name")';")
     echo  $result
 }
 
 get_context_for_user() {
      source /usr/local/opencli/db.sh
         username_query="SELECT server FROM users WHERE username = '$(mysql_escape "$current_username")'"
-        context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+        context=$(mariadb -D "$mysql_database" -e "$username_query" -sN)
         if [ -z "$context" ]; then
             context=$current_username
         fi
@@ -62,7 +62,7 @@ run_wp_cli() {
 check_site_already_exists_in_db() {
     local site_name="$1"
 
-    local result=$(mysql -sse "SELECT EXISTS(SELECT 1 FROM sites WHERE site_name = '$(mysql_escape "$site_name")');")
+    local result=$(mariadb -sse "SELECT EXISTS(SELECT 1 FROM sites WHERE site_name = '$(mysql_escape "$site_name")');")
     
     if [[ "$result" -eq 1 ]]; then
         return 0  # exists

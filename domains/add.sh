@@ -306,7 +306,7 @@ check_apex_ownership() {
 get_docker_context() {
     log "Fetching user context from database"
     local row
-    row=$(mysql -sN -e "SELECT id, server FROM users WHERE username='$(sql_escape "$user")' LIMIT 1;" 2>/dev/null) || die "Database query failed"
+    row=$(mariadb -sN -e "SELECT id, server FROM users WHERE username='$(sql_escape "$user")' LIMIT 1;" 2>/dev/null) || die "Database query failed"
     read -r user_id context <<< "$row"
     [[ -n "$user_id" && -n "$context" ]] || die "Missing user ID or context for user $user"
 }
@@ -318,7 +318,7 @@ check_domains_limit() {
     fi
 
     local limit
-    limit=$(mysql -sN -e "
+    limit=$(mariadb -sN -e "
         SELECT p.domains_limit
         FROM users u
         JOIN plans p ON u.plan_id = p.id
@@ -329,7 +329,7 @@ check_domains_limit() {
     [[ -z "$limit" || "$limit" -eq 0 ]] && return 0
 
     local current_count
-    current_count=$(mysql -sN -e "
+    current_count=$(mariadb -sN -e "
         SELECT COUNT(*)
         FROM domains d
         WHERE d.user_id = '$user_id'
@@ -902,10 +902,10 @@ insert_domain_to_db() {
     safe_domain=$(sql_escape "$domain_name")
     [[ "$user_id" =~ ^[0-9]+$ ]] || die "Invalid user_id: $user_id"
 
-    mysql -e "INSERT INTO domains (user_id, docroot, php_version, domain_url) VALUES ('$user_id', '$safe_docroot', '$safe_php', '$safe_domain');" 2>/dev/null || die "Database insert failed for $domain_name"
+    mariadb -e "INSERT INTO domains (user_id, docroot, php_version, domain_url) VALUES ('$user_id', '$safe_docroot', '$safe_php', '$safe_domain');" 2>/dev/null || die "Database insert failed for $domain_name"
 
     local count
-    count=$(mysql -sN -e "SELECT COUNT(*) FROM domains WHERE user_id='$user_id' AND docroot='$safe_docroot' AND domain_url='$safe_domain';" 2>/dev/null)
+    count=$(mariadb -sN -e "SELECT COUNT(*) FROM domains WHERE user_id='$user_id' AND docroot='$safe_docroot' AND domain_url='$safe_domain';" 2>/dev/null)
     [[ "$count" -eq 1 ]] || die "Insert verification failed for $domain_name"
 }
 

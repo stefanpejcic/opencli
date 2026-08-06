@@ -52,7 +52,7 @@ done
 
 
 get_docker_context_for_user(){
-	context=$(mysql -N -e "
+	context=$(mariadb -N -e "
 	SELECT u.server
 	FROM users u
 	WHERE u.username='$openpanel_username'

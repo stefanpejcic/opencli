@@ -80,8 +80,8 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] $DB_CONFIG_FILE not found — is OpenPanel installed?"; exit 1; }
 # shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
-mysql_q()   { mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
-mysql_run() { mysql --defaults-extra-file="$config_file" "$@"; }
+mysql_q()   { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
+mysql_run() { mariadb --defaults-extra-file="$config_file" "$@"; }
 
 edition_key=$(grep "^key=" /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null | cut -d'=' -f2-)
 

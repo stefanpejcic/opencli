@@ -29,7 +29,7 @@
 ##################################################################################
 
 OUTPUT="/usr/local/mail/openmail/postfwd/postfwd.cf"
-MYSQL_CMD="mysql -N -s"
+MYSQL_CMD="mariadb -N -s"
 SKIP_RELOAD=false
 
 usage() {

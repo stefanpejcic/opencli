@@ -65,7 +65,7 @@ source /usr/local/opencli/lib/requirement.sh
 
 # Count total users
 if [ "$total_users" = true ]; then
-    user_count=$(mysql --defaults-extra-file=$config_file -D $mysql_database -se "SELECT COUNT(*) FROM users")
+    user_count=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -se "SELECT COUNT(*) FROM users")
     if [ "$json_output" = true ]; then
         echo "$user_count"
     else
@@ -81,7 +81,7 @@ if [ "$json_output" = true ]; then
     require_command jq
 
 
-users_data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "
+users_data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "
     SELECT
         users.username,
         users.server,
@@ -125,7 +125,7 @@ echo "$json_output"
 
     exit 0
 else
-    users_data=$(mysql --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.server, users.owner, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;")
+    users_data=$(mariadb --defaults-extra-file=$config_file -D $mysql_database --table -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.server, users.owner, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id;")
     if [ -n "$users_data" ]; then
         echo "$users_data"
     else

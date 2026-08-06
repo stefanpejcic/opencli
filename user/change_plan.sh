@@ -50,7 +50,7 @@ source /usr/local/opencli/lib/podman.sh
 
 # For old plan: id, name, context
 IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT < <(
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
         SELECT u.plan_id, p.name, u.server
         FROM users u
         JOIN plans p ON p.id = u.plan_id
@@ -69,7 +69,7 @@ fi
 # For new plan: id, cpu, ram, disk, inodes, port
 safe_plan_name=$(mysql_escape "$new_plan_name")
 IFS=$'\t' read -r new_plan_id Ncpu Nram Ndisk_limit Ninodes_limit Nbandwidth < <(
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
         SELECT id, cpu, ram, disk_limit, inodes_limit, bandwidth
         FROM plans
         WHERE name = '$safe_plan_name'
@@ -151,7 +151,7 @@ update_total_tc() {
 
 change_plan_name_in_db() {
     $debug && echo "Changing plan for user from '$current_plan_name' to '$new_plan_name'"
-    if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e \
+    if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e \
         "UPDATE users SET plan_id = $new_plan_id WHERE username = '$(mysql_escape "$USERNAME")';"; then
         if (( failure_count > 0 )); then
             echo "Plan changed successfully for user $USERNAME from $current_plan_name to $new_plan_name — ($failure_count warnings)"
@@ -159,7 +159,7 @@ change_plan_name_in_db() {
             echo "Plan changed successfully for user $USERNAME from $current_plan_name to $new_plan_name"
         fi
     else
-        echo "Error: Could not update plan_id in database — is MySQL running?"
+        echo "Error: Could not update plan_id in database — is MariaDB running?"
     fi
 }
 

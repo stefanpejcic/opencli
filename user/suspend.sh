@@ -86,7 +86,7 @@ source "/usr/local/opencli/db.sh"
 
 get_docker_context() {
     local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$USERNAME")';"
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
@@ -168,7 +168,7 @@ rename_user_in_db() {
     local query="UPDATE users SET username='$(mysql_escape "$new_username")' WHERE username='$(mysql_escape "$USERNAME")';"
     local session_count=0
 
-    if mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
+    if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' suspended successfully."
         # delete active sessions
         if [ -n "$user_id" ]; then

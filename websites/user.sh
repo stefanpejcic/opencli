@@ -34,7 +34,7 @@ source /usr/local/opencli/db.sh
 # Display usage information with available site types (lowercased, space-separated)
 usage() {
     local types
-    types=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" \
+    types=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" \
             -sN -e "SELECT DISTINCT LOWER(type) FROM sites;" 2>/dev/null | xargs)
 
     echo "Usage: opencli websites-user <username> [--type=<type>] [--domains=<domain1,domain2,...>] [--json]"
@@ -47,10 +47,10 @@ usage() {
 }
 
 
-# Execute MySQL query with error handling
+# Execute query with error handling
 execute_query() {
     local query="$1"
-    if ! mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN 2>/dev/null; then
+    if ! maraiadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN 2>/dev/null; then
         echo "Error: Database query failed" >&2
         exit 1
     fi

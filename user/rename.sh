@@ -112,7 +112,7 @@ check_if_exists_in_db() {
     
     # Check if the username already exists in the users table
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$(mysql_escape "$new_username")'"
-    username_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
+    username_exists_count=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
     
     # Check if successful
     if [ $? -ne 0 ]; then
@@ -128,7 +128,7 @@ check_if_exists_in_db() {
 
     
     context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$(mysql_escape "$new_username")'"
-    context_exists_count=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
+    context_exists_count=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
     
     # count > 0) show error and exit
     if [ "$context_exists_count" -gt 0 ]; then
@@ -150,7 +150,7 @@ get_user_info() {
     local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
     
     # Retrieve both id and context
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     
     # Extract user_id and context from the result
     user_id=$(echo "$user_info" | awk '{print $1}')
@@ -189,7 +189,7 @@ rename_user_in_db() {
     NEW_USERNAME=$2
 
     mysql_query="UPDATE users SET username='$(mysql_escape "$NEW_USERNAME")' WHERE username='$(mysql_escape "$OLD_USERNAME")';"
-    mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
+    mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
     if [ $? -eq 0 ]; then
 		# postfwd ratelimit rules use usernames
@@ -212,11 +212,11 @@ rename_env(){
 
 # MAIN
 check_username_is_valid                                                    # validate username first
-check_if_exists_in_db                                                      # check in mysql db
+check_if_exists_in_db                                                      # check in db
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
 require_command jq                                                         # just helper for parsing json
-rename_user_in_db "$old_username" "$new_username"                          # rename username in mysql db
+rename_user_in_db "$old_username" "$new_username"                          # rename username in db
 # rename_env USERNAME is no longer used!
 #reload_user_quotas
 #TODO: rename ftp accounts suffix!

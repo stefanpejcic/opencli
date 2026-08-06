@@ -476,7 +476,7 @@ update_username() {
                 local mysql_escaped_old_username mysql_escaped_new_username
                 mysql_escaped_old_username=$(mysql_escape "$old_username")
                 mysql_escaped_new_username=$(mysql_escape "$new_username")
-                mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET owner='$mysql_escaped_new_username' WHERE owner='$mysql_escaped_old_username';" > /dev/null 2>&1
+                mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET owner='$mysql_escaped_new_username' WHERE owner='$mysql_escaped_old_username';" > /dev/null 2>&1
 
 	            nohup opencli sentinel --action=reseller_rename --title="Reseller renamed" --message="Reseller account '$old_username' has been renamed to '$new_username'." >/dev/null 2>&1 &
 	            disown
@@ -562,7 +562,7 @@ manage_user() {
     local mysql_escaped_username
     mysql_escaped_username=$(mysql_escape "$username")
     local query="SELECT username FROM users WHERE owner='$mysql_escaped_username';"
-    if usernames=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query"); then
+    if usernames=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query"); then
         while IFS= read -r user; do
             [[ -n "$user" ]] && opencli "$cli_action" "$user"
         done <<< "$usernames"

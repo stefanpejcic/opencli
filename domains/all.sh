@@ -70,7 +70,7 @@ get_all_domains() {
     $include_php_version && query_fields+=", php_version"
 
     all_domains="SELECT $query_fields FROM domains"
-    domains=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$all_domains" -sN)
+    domains=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$all_domains" -sN)
 
     if [ -z "$domains" ]; then
         echo "No domains found in the database."
@@ -93,7 +93,7 @@ get_all_domains() {
         query="SELECT $query_fields FROM domains"
     fi
 
-    domains=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
+    domains=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
 
     if [ -z "$domains" ]; then
         echo "No domains found in the database."

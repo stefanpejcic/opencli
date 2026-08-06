@@ -64,7 +64,7 @@ get_context_for_user() {
 	# shellcheck source=/usr/local/opencli/db.sh
     source /usr/local/opencli/db.sh
 	username_query="SELECT server FROM users WHERE username = '$(mysql_escape "$owner")'"
-	context=$(mysql -D "$mysql_database" -e "$username_query" -sN)
+	context=$(mariadb -D "$mysql_database" -e "$username_query" -sN)
 	if [ -z "$context" ]; then
 		context=$owner
 	fi
@@ -121,7 +121,7 @@ nohup sh -c "CONTAINER_HOST=$context_sock podman --remote restart $WEB_SERVER" <
 
 # 4. save in database
 update_query="UPDATE domains SET php_version='$(mysql_escape "$new_php_version")' WHERE domain_url='$(mysql_escape "$domain")';"
-mysql -e "$update_query"
+mariadb -e "$update_query"
 
 # 5. notify
 # todo: trigger user and admin notifications

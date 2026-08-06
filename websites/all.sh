@@ -47,7 +47,7 @@ get_all_sites() {
     fi
 
     local sites
-    sites=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
+    sites=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
 
     if [ -z "$sites" ]; then
         echo "No sites found${site_type:+ for type '$site_type'}."

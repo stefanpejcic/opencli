@@ -197,7 +197,7 @@ get_users_count_on_destination() {
 	user_count_query="SELECT COUNT(*) FROM users"
 
     user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-    "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
+    "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
         if [ $? -ne 0 ]; then
             echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"

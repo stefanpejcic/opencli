@@ -76,7 +76,7 @@ process_resellers() {
     quota_json=$(opencli user-quota 2>/dev/null)
     
     for reseller in $resellers; do
-        users=$(mysql --defaults-extra-file="$config_file" -N -D "$mysql_database" \
+        users=$(mariadb --defaults-extra-file="$config_file" -N -D "$mysql_database" \
             -e "SELECT username FROM users WHERE owner='$(mysql_escape "$reseller")';")
         
         if [ -z "$users" ]; then

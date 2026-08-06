@@ -80,7 +80,7 @@ get_user_info() {
     local query="SELECT id, server FROM users WHERE username = '${user}';"
     
     # Retrieve both id and context
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     
     # Extract user_id and context from the result
     user_id=$(echo "$user_info" | awk '{print $1}')
@@ -145,11 +145,11 @@ main_func() {
   get_user
   get_user_context
 
-  mysql -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
-  mysql -e "$insert_query"
-  result=$(mysql -se "$query")
+  mariadb -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
+  mariadb -e "$insert_query"
+  result=$(mariadb -se "$query")
   local verify_query="SELECT COUNT(*) FROM domains WHERE docroot = '$new_docroot' AND domain_url = '$domain';"
-  local result=$(mysql -N -e "$verify_query")
+  local result=$(mariadb -N -e "$verify_query")
   
   if [ "$result" -eq 1 ]; then
   
@@ -159,14 +159,14 @@ main_func() {
     
     echo "Docroot updated to: $new_docroot for domain: $domain"  
   else
-      log "Updating docroot for domain $domain failed! Contact administrator to check if the mysql database is running."
+      log "Updating docroot for domain $domain failed! Contact administrator to check if the mariadb database is running."
       echo "Failed to change docroot for domain $domain"
   fi
 }
 
 get_current_docroot(){
 	local get_docroot="SELECT docroot FROM domains WHERE domain_url = '$domain';"
-	result=$(mysql -N -B -e "$get_docroot")
+	result=$(mariadb -N -B -e "$get_docroot")
 	if [[ -z "$result" ]]; then
 	  echo "Docroot not found for domain: $domain - does the domain exist? run: opencli domains-whoowns $domain"
 	else

@@ -96,7 +96,7 @@ collect_opencli_info() {
 
 collect_mysql_info() {
   local tmp="$1"
-  run_command "mysql --protocol=tcp --version" "Checking MySQL Version" "$tmp"
+  run_command "mariadb --protocol=tcp --version" "Checking MariaDB Version" "$tmp"
 }
 
 collect_docker_info() {
@@ -121,9 +121,9 @@ collect_openadmin_settings() {
 
 collect_mysql_information() {
   local tmp="$1"
-  echo "=== MySQL Information ===" >> "$tmp"
-  run_command "podman logs --tail 30 openpanel_mysql"  "Checking MySQL service for errors"   "$tmp"
-  run_command "cat /etc/openpanel/mysql/*_my.cnf"      "Viewing MySQL login information"      "$tmp"
+  echo "=== MariaDB Information ===" >> "$tmp"
+  run_command "podman logs --tail 30 openpanel_mysql"  "Checking MariaDB service for errors"   "$tmp"
+  run_command "cat /etc/openpanel/mysql/*_my.cnf"      "Viewing MariaDB login information"      "$tmp"
 }
 
 collect_services_status() {

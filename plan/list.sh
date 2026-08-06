@@ -57,7 +57,7 @@ source /usr/local/opencli/lib/requirement.sh
 fetch_plans_json() {
     require_command jq
     local data
-    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
+    data=$(maraiadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
     if [ -z "$data" ]; then
         echo "No plans."
         return
@@ -76,7 +76,7 @@ fetch_plans_json() {
 
 fetch_plans_table() {
     local data
-    data=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM plans;")
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM plans;")
     if [ -n "$data" ]; then
         echo "$data"
     else

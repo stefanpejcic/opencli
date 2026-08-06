@@ -91,7 +91,7 @@ get_user_info() {
     local query="SELECT id, server FROM users WHERE username = '${user}';"
     
     # Retrieve both id and context
-    user_info=$(mysql -se "$query")
+    user_info=$(mariadb -se "$query")
     
     # Extract user_id and context from the result
     user_id=$(echo "$user_info" | awk '{print $1}')

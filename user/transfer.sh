@@ -187,7 +187,7 @@ key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 get_users_count_on_destination() {
 	user_count_query="SELECT COUNT(*) FROM users"
-    user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
+    user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
     if [ $? -ne 0 ]; then
         log "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
@@ -209,7 +209,7 @@ get_users_count_on_destination() {
 # Resolve the "context" (system user / home dir / docker context / ftp context).
 # This is the users.server column and is NOT necessarily the same as $USERNAME.
 resolve_context() {
-    CONTEXT=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
+    CONTEXT=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
         -e "SELECT server FROM users WHERE username = '$USERNAME';")
     if [[ -z "$CONTEXT" ]]; then
         log "[✘] ERROR: Could not resolve context (server) for user '$USERNAME'. Aborting."
@@ -221,11 +221,11 @@ resolve_context() {
 # Function to check if username already exists in the database
 check_username_exists() {
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$USERNAME'"
-    user_count=$($SSH_CMD "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
+    user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
  
     # Check if successful
     if [ $? -ne 0 ]; then
-        log "[✘] Error: Unable to check username existence in the database. Is mysql running?"
+        log "[✘] Error: Unable to check username existence in the database. Is mariadb running?"
         exit 1
     fi
 
@@ -350,7 +350,7 @@ eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 
 copy_feature_set() {
     local PLAN_FEATURE_SET
-    PLAN_FEATURE_SET=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
+    PLAN_FEATURE_SET=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT feature_set FROM plans WHERE id = $PLAN_ID;")
     
     local FEATURE_FILE="${PLAN_FEATURE_SET}.txt"
     local FEATURES_DIR="/etc/openpanel/openpanel/features"
@@ -416,15 +416,15 @@ done
 
 PLAN_NAME=\$(awk -F"'" '/INSERT INTO plans/ {getline; print \$2; exit}' "plan_\${USERNAME}_autoinc.sql")
 
-EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
+EXISTING_PLAN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
   -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
   echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
 else
   echo "Importing new plan..."
-  (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mysql --defaults-extra-file="\$CONFIG_FILE"
-  EXISTING_PLAN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
+  (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mariadb --defaults-extra-file="\$CONFIG_FILE"
+  EXISTING_PLAN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
     -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
 fi
 
@@ -432,10 +432,10 @@ sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_aut
 sed -i "s/'NULL'/NULL/g" tmp_user.sql
 
 echo "Importing user into database..."
-(echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mysql --defaults-extra-file="\$CONFIG_FILE"
+(echo "USE \\\`\$mysql_database\\\`;" && cat tmp_user.sql) | mariadb --defaults-extra-file="\$CONFIG_FILE"
 rm -f tmp_user.sql
 
-USER_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
+USER_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
   -e "SELECT id FROM users WHERE username = '\$USERNAME';")
 
 if [[ -z "\$USER_ID" ]]; then
@@ -456,11 +456,11 @@ if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
     PORTS=\$(echo "\$clean_line" | cut -d',' -f7)
     PATH=\$(echo "\$clean_line" | cut -d',' -f8)
 
-    DOMAIN_ID=\$(mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
+    DOMAIN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
       -e "SELECT domain_id FROM domains WHERE domain_url = '\$DOMAIN_URL' AND user_id = \$USER_ID LIMIT 1;")
 
     if [[ -n "\$DOMAIN_ID" ]]; then
-      mysql --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
+      mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
         INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
         VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
       echo "Site imported: \$SITE_NAME"
@@ -482,7 +482,7 @@ TMP_DIR="/tmp/export_${USERNAME}_$RANDOM"
 mkdir -p "$TMP_DIR"
 
 # Get user ID
-USER_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
+USER_ID=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT id FROM users WHERE username = '$USERNAME';")
 
 if [[ -z "$USER_ID" ]]; then
@@ -491,15 +491,15 @@ if [[ -z "$USER_ID" ]]; then
 fi
 
 # Get plan ID
-PLAN_ID=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
+PLAN_ID=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT plan_id FROM users WHERE id = $USER_ID;")
 
 # Get plan name
-PLAN_NAME=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
+PLAN_NAME=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT name FROM plans WHERE id = $PLAN_ID;")
 
 ### EXPORT PLAN (no ID)
-mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT name, description, domains_limit, websites_limit, email_limit, ftp_limit,
          disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set,
          max_email_quota, max_hourly_email
@@ -521,7 +521,7 @@ END { print ";" }
 
 
 ### EXPORT USER (no ID)
-mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
   SELECT username, password, email, owner, user_domains, twofa_enabled, otp_secret,
          plan, registered_date, server, plan_id
   FROM users WHERE id = $USER_ID;" > "$TMP_DIR/user.tsv"
@@ -539,14 +539,14 @@ END { print ";" }
 ' "$TMP_DIR/user.tsv" > "$TMP_DIR/user_${USERNAME}_autoinc.sql"
 
 ### EXPORT SITES (if any domains exist)
-DOMAIN_IDS=$(mysql --defaults-extra-file=$config_file -D $mysql_database -N -s \
+DOMAIN_IDS=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
   -e "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
 
 if [[ -z "$DOMAIN_IDS" ]]; then
   :
 else
   DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-	mysql --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+	mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
 	  SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
 	  FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST);" > "$TMP_DIR/sites.tsv"
 	

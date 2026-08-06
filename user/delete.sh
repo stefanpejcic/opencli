@@ -74,7 +74,7 @@ get_user_info() {
 	# 1. get context and ID
     local escaped_username
     escaped_username=$(mysql_escape "$USERNAME")
-    read -r user_id context <<< $(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+    read -r user_id context <<< $(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
         SELECT id, server FROM users
         WHERE username='$escaped_username'
         UNION ALL
@@ -93,7 +93,7 @@ delete_user_from_database() {
     escaped_openpanel_username=$(mysql_escape "$openpanel_username")
 
     # 1. Get all domain IDs and URLs
-	read -r domain_ids domain_urls < <(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+	read -r domain_ids domain_urls < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
 	SELECT 
 	    GROUP_CONCAT(domain_id) AS ids,
 	    GROUP_CONCAT(domain_url) AS urls
@@ -107,7 +107,7 @@ delete_user_from_database() {
 	# legacy, handle: active_sessions
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "
 	sql+="DELETE FROM users WHERE username='$escaped_openpanel_username' OR username LIKE 'SUSPENDED_%_$escaped_openpanel_username';"
-	[ -n "$sql" ] && mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
+	[ -n "$sql" ] && mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 
 	# 3. terminate redis sessions
 	# TODO: drop all cache by username!
@@ -279,7 +279,7 @@ refresh_resellers_data() {
 			if [ -f "$json_file" ]; then
 				reseller=$(basename "$json_file" .json)
 				query_for_owner="SELECT COUNT(*) FROM users WHERE owner='$(mysql_escape "$reseller")';"
-				current_accounts=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$query_for_owner")
+				current_accounts=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$query_for_owner")
 				mysql_exit=$?
 				if [ $mysql_exit -eq 0 ]; then				
 					jq ".current_accounts = $current_accounts" $json_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $json_file

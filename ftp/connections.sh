@@ -37,7 +37,7 @@ fi
 # ======================================================================
 # Main
 if [ -n "$1" ]; then
-	context=$(mysql -N -e "SELECT u.server FROM users u WHERE u.username='${1}';")
+	context=$(mariadb -N -e "SELECT u.server FROM users u WHERE u.username='${1}';")
     if [ -z "$context" ]; then
         echo "ERROR: No context found for user '$1'. Aborting!"
         exit 1

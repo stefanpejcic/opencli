@@ -164,7 +164,7 @@ validate_data() {
 	    exit 1
 	fi
 
-	context=$(mysql -N -e "SELECT u.server FROM users u WHERE u.username='${openpanel_username}' AND EXISTS (SELECT 1 FROM domains d WHERE d.domain_url = '${domain_part}' AND d.user_id = u.id);")
+	context=$(mariadb -N -e "SELECT u.server FROM users u WHERE u.username='${openpanel_username}' AND EXISTS (SELECT 1 FROM domains d WHERE d.domain_url = '${domain_part}' AND d.user_id = u.id);")
     if [ -z "$context" ]; then
         echo "ERROR: No context found for user '$openpanel_username' - or does not own the domain name. Aborting!"
         exit 1

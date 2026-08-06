@@ -143,7 +143,7 @@ escape() {
 
 db_query() {
     # shellcheck disable=SC2154
-    mysql --defaults-extra-file="$config_file" -D "$mysql_database" -sN -e "$1"
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -sN -e "$1"
 }
 
 update_reseller_account_count() {

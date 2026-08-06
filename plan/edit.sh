@@ -159,7 +159,7 @@ update_plan() {
 
   # Get old plan data, and if different, we will initiate the `opencli plan-apply` script
   sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth, max_hourly_email, feature_set FROM plans WHERE id='$plan_id'"
-  result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
+  result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
 
   old_plan_name=$(echo "$result" | awk '{print $1}')
   int_old_disk_limit=$(echo "$result" | awk '{print $2}')
@@ -242,10 +242,10 @@ escaped_description=$(mysql_escape "$description")
 escaped_feature_set=$(mysql_escape "$feature_set")
 
 local sql="UPDATE plans SET name='$escaped_new_plan_name', description='$escaped_description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, feature_set='$escaped_feature_set', max_email_quota='$max_email_quota', max_hourly_email='$max_hourly_email' WHERE id='$plan_id';"
-mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
+maraiadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
   if [ $? -eq 0 ]; then
     local sql="SELECT name FROM plans WHERE id='$plan_id'"
-    local result=$(mysql --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+    local result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
     local new_plan_name=$(echo "$result" | awk 'NR>1')
 
     count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
@@ -278,7 +278,7 @@ mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 check_plan_exists() {
   local id="$1"
   local sql="SELECT id FROM plans WHERE id='$id';"
-  local result=$(mysql --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
+  local result=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
   echo "$result"
 }
 
