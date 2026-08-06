@@ -60,7 +60,8 @@ validate_first() {
 }
 
 get_openpanel_username_and_uid_for_domain() {
-    local domain="${1#*@}"
+    user="${1%@*}"
+    domain="${1#*@}"
     local whoowns_output owner
     whoowns_output=$(opencli domains-whoowns "$domain" --context)
     read -r _ owner <<< "$whoowns_output"
@@ -94,7 +95,7 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
             sed -i "/^$3|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "/usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf"
             # TODO: after 2.0 edit to only run on 'add' and not on 'update'!
-            nohup timeout 300 docker --context=default exec openadmin_mailserver bash -c "chown -R \"${UID_OVERRIDE}:${UID_OVERRIDE}\" \"/var/mail/${DOMAIN}/${USER}\"" &
+            nohup timeout 300 docker --context=default exec openadmin_mailserver bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" &
         fi
 
         # if email add/del OR quita set/del then we need to reload the cached user file for OpenPanel UI to display to user
