@@ -50,7 +50,7 @@ usage() {
 # Execute query with error handling
 execute_query() {
     local query="$1"
-    if ! maraiadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN 2>/dev/null; then
+    if ! mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN 2>/dev/null; then
         echo "Error: Database query failed" >&2
         exit 1
     fi
