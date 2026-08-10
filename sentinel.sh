@@ -523,9 +523,9 @@ check_services() {
       phpmyadmin)  docker_containers_status  'phpmyadmin'         'phpmyadmin not active — users can not access databases!'             ;;
       csf)    check_service_status      'csf'           'CSF Firewall not active — server unprotected!' ;;
       admin)  check_service_status      'admin'         'OpenAdmin service not accessible!'             ;;
+      mysql)  mysql_docker_containers_status                                                            ;;
       docker|podman) check_service_status 'podman.socket' 'Podman not active — user websites down!'     ;;
       panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'              ;;
-      mysql)  mysql_docker_containers_status                                                            ;;
       named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'                ;;
     esac
   done
