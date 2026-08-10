@@ -471,21 +471,6 @@ docker_containers_status() {
           ((WARN--))
           echo "  - phpmyadmin module not enabled; phpmyadmin not starting."
       fi ;;
-    pgadmin)
-      enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
-      if [[ "$enabled_modules_line" == *"pgadmin"* ]]; then
-          if ls /home/*/sockets/postgres/postgres.sock &>/dev/null; then
-              podman rm -f pgadmin &>/dev/null; podman rm -f --storage pgadmin &>/dev/null
-              cd /root && podman-compose up -d pgadmin &>/dev/null
-              _docker_check_after_restart "$svc" "$title"
-          else
-              ((WARN--))
-              echo "  - No postgres services yet; pgadmin not needed."
-          fi
-      else
-          ((WARN--))
-          echo "  - pgadmin module not enabled; pgadmin not starting."
-      fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
         podman rm -f caddy &>/dev/null; podman rm -f --storage caddy &>/dev/null
@@ -531,12 +516,11 @@ check_services() {
   local svc
   # "docker" kept as an accepted alias for "podman" so existing services= ini
   # entries from before the podman migration keep working unchanged
-  for svc in caddy csf admin docker podman panel mysql phpmyadmin pgadmin named; do
+  for svc in caddy csf admin docker podman panel mysql phpmyadmin named; do
     [[ ",$SERVICES," != *",$svc,"* ]] && continue
     case "$svc" in
       caddy)  docker_containers_status  'caddy'         'Caddy not active — websites down!'             ;;
       phpmyadmin)  docker_containers_status  'phpmyadmin'         'phpmyadmin not active — users can not access databases!'             ;;
-      pgadmin)  docker_containers_status  'pgadmin'         'pgadmin not active — users can not access databases!'             ;;
       csf)    check_service_status      'csf'           'CSF Firewall not active — server unprotected!' ;;
       admin)  check_service_status      'admin'         'OpenAdmin service not accessible!'             ;;
       docker|podman) check_service_status 'podman.socket' 'Podman not active — user websites down!'     ;;
