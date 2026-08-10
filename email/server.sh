@@ -204,7 +204,7 @@ pflogsumm_get_data() {
 
 	# 1. clone from git
 	rm -rf PFLogSumm-HTML-GUI
-	git clone https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git  > /dev/null 2>&1
+	git clone --branch podman --single-branch https://github.com/stefanpejcic/PFLogSumm-HTML-GUI.git > /dev/null 2>&1
 	ln -s $MAILSERVER_ENV /usr/local/mail/openmail/.env > /dev/null 2>&1
  	podman cp PFLogSumm-HTML-GUI/pflogsummUIReport.sh openadmin_mailserver:/opt/pflogsummUIReport.sh > /dev/null 2>&1
 	echo "Generating email statistics reports.. This can take a while."
