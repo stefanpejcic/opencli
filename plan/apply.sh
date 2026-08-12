@@ -137,8 +137,6 @@ EOF
 
     # RAM
     if ! $partial || $doram; then
-        sed -i "s/^TOTAL_RAM=\"[^\"]*\"/TOTAL_RAM=\"${ram}\"/" "/home/$context/.env" # legacy
-
         ram="${ram%G}"
         ram="${ram%g}"
 
@@ -157,7 +155,6 @@ EOF
     
     # CPU
     if ! $partial || $docpu; then
-        sed -i "s/^TOTAL_CPU=\"[^\"]*\"/TOTAL_CPU=\"${cpu}\"/" "/home/$context/.env" # legacy
         if [[ "$cpu" -eq 0 ]]; then
             systemctl set-property "user-${user_id}.slice" CPUQuota=
         else
