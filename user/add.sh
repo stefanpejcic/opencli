@@ -425,6 +425,7 @@ EOF
 	fi
 }
 
+# todo: this hangs!
 get_podman_service_errors() {
     podman_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status podman.socket --no-pager 2>&1' 2>&1)
 }
