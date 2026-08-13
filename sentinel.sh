@@ -488,7 +488,7 @@ docker_containers_status() {
 mysql_docker_containers_status() {
   local title="MariaDB service not active!"
   if _docker_ps | grep -q "openpanel_mysql"; then
-    if maraidb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+    if mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m MariaDB container active and responding."
     else
       echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
@@ -503,7 +503,7 @@ mysql_docker_containers_status() {
     sleep 5
     if mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
-      echo "    MaraiDB is back online."
+      echo "    MariaDB is back online."
       write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB and it is responding now."
     else
       echo "    Error: MariaDB still not responding!"
