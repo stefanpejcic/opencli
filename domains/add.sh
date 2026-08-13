@@ -486,7 +486,7 @@ create_vhost_file() {
 	    log "Starting $service_count $container_word ($services)"
         # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d $services" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 
