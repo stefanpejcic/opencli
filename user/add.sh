@@ -762,7 +762,7 @@ configure_environment() {
 
     local port_1 port_2 port_3 port_4 port_5 port_6 port_7
     if [[ -n "$NODE_IP" ]]; then
-        port_1="${NODE_IP}:${P1}:80"
+        port_1="${NODE_IP}:${P1}:8080"
         port_2="${NODE_IP}:${P2}:3306"
         port_3="${NODE_IP}:${P3}:5432"
         port_4="${NODE_IP}:${P4}:80"
@@ -770,7 +770,7 @@ configure_environment() {
         port_6="${NODE_IP}:${P6}:443"
         port_7="${NODE_IP}:${P7}:80"
     else
-        port_1="${P1}:80"
+        port_1="${P1}:8080"
         port_2="${P2}:3306"
         port_3="${P3}:5432"
         port_4="${P4}:80"
