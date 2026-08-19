@@ -129,7 +129,7 @@ process_single_or_all_users() {
     if [ "$SINGLE_USER" = true ]; then
         process_logs "$username"
     else
-        usernames=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+        usernames=$(timeout 20 opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
         for username in $usernames; do
             process_logs "$username"
         done

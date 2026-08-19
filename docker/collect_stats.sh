@@ -302,7 +302,7 @@ if [ "$1" == "--all" ]; then
         opencli user-quota &>/dev/null
     fi
 
-    mapfile -t users < <(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
+    mapfile -t users < <(timeout 20 opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
 
     total=${#users[@]}
     if [[ $total -eq 0 ]]; then

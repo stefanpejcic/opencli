@@ -225,7 +225,7 @@ start_containers_for_socket() {
     fi
 
     local dead
-    dead=$(CONTAINER_HOST="unix://$socket" podman ps -a --format '{{.ID}} {{.State}}' 2>/dev/null | awk '$2!="running"{print $1"|"$2}' || true)
+    dead=$(CONTAINER_HOST="unix://$socket" timeout 20 podman ps -a --format '{{.ID}} {{.State}}' 2>/dev/null | awk '$2!="running"{print $1"|"$2}' || true)
 
     if [ -z "$dead" ]; then
         echo "$label: no dead containers"
@@ -238,10 +238,10 @@ start_containers_for_socket() {
     for entry in $dead; do
         id="${entry%%|*}"
         state="${entry##*|}"
-        name=$(CONTAINER_HOST="unix://$socket" podman inspect "$id" --format '{{.Name}}' 2>/dev/null || echo "$id")
+        name=$(CONTAINER_HOST="unix://$socket" timeout 10 podman inspect "$id" --format '{{.Name}}' 2>/dev/null || echo "$id")
         echo "$label: starting $name (was: $state)"
-        if CONTAINER_HOST="unix://$socket" podman start "$id" &>/dev/null \
-            || CONTAINER_HOST="unix://$socket" podman restart "$id" &>/dev/null; then
+        if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null \
+            || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
             ((count++))
         else
             echo "$label: FAILED to start $name"
@@ -537,7 +537,7 @@ docker_containers_status() {
 mysql_docker_containers_status() {
   local title="MariaDB service not active!"
   if _docker_ps | grep -q "openpanel_mysql"; then
-    if mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+    if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m MariaDB container active and responding."
     else
       echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
@@ -550,7 +550,7 @@ mysql_docker_containers_status() {
     echo -e "\e[31m[✘]\e[0m MariaDB container not running — restarting."
     cd /root && podman-compose up -d openpanel_mysql &>/dev/null
     sleep 5
-    if mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+    if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
       echo "    MariaDB is back online."
       write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB and it is responding now."
