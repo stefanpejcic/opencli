@@ -148,7 +148,7 @@ if [[ -f "$TOKEN_FILE" ]]; then
   ADMIN_TOKEN=$(<"$TOKEN_FILE")
   # delete token if '--delete' flag
   if [ "$DELETE_FLAG" = true ]; then
-    rm -rf $TOKEN_FILE
+    rm -rf "$TOKEN_FILE"
     echo "Auto-login token '$ADMIN_TOKEN' for user ${USERNAME} is now invalidated."
     exit 0
   fi

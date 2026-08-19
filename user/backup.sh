@@ -341,7 +341,7 @@ fi
 [[ -f "/etc/openpanel/caddy/deny/$CONTEXT.ips" ]] && cp -a "/etc/openpanel/caddy/deny/$CONTEXT.ips" "$STAGE/caddy/blocked.ips" && log "Collected IP Blocker settings for domains"
 
 # --- docker metadata ---
-if [[ -f "/home/$CONTEXT/docker-compose.yml" ]]; then
+if [[ -f "$(podman_compose_file "$CONTEXT")" ]]; then
     containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
     echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt" && log "Collected list of currently active containers for user"
 fi

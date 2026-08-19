@@ -40,6 +40,9 @@ readonly DEFAULT_DOMAIN="example.net"
 readonly CONTAINER=openadmin_mailserver                         # DMS container name
 DEBUG=false
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 
 
 # ======================================================================
@@ -72,7 +75,7 @@ required_cmd() {
 
 check_mailserver() {
 	if [ -n "${1:-}" ] && [ "${1:-}" != "install" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "stop" ] && [ "${1:-}" != "restart" ]; then
-		if [ -z "$(podman ps -q --filter "name=^$CONTAINER$")" ]; then
+		if ! podman_is_running "$CONTAINER"; then
 			echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
 			exit 1
 		fi
@@ -189,10 +192,10 @@ enable_emails_if_not_yet() {
 		echo "'emails' module is not enabled. Enabling.."
 		sed -i "s/^enabled_modules=.*/enabled_modules=${new_modules}/" "$config_file"
 		echo "Restarting OpenPanel container to enable email pages.."
-		if [ "$(podman ps -q -f name=openpanel)" ]; then
+		if podman_is_running openpanel; then
 			run podman restart openpanel
 		else
-			run bash -c "cd /root && podman-compose up -d openpanel"
+			run bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running openpanel /root openpanel'
 		fi
 	fi
 }
@@ -370,7 +373,7 @@ install_mailserver(){
 	set_ssl_for_mailserver
 	run mkdir -p /etc/openpanel/email/snappymail
 	ln -sf "$MAILSERVER_ENV" /usr/local/mail/openmail/.env
-	run bash -c "cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube"
+	run bash -c "cd /usr/local/mail/openmail/ && timeout 60 podman-compose up -d mailserver roundcube"
 
 	# https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
 	manage_service_entry add "Dovecot & Postfix" docker openadmin_mailserver
@@ -476,14 +479,14 @@ process_all_domains_and_start(){
 	#	echo "WARNING: $STORE_EMAILS_IN is invalid."
 	fi
   
-cd $DIR && podman-compose up -d mailserver >/dev/null 2>&1
+cd $DIR && timeout 60 podman-compose up -d mailserver >/dev/null 2>&1
 echo "MailServer started successfully."
 }
 
 # STOP
 stop_mailserver_if_running(){
 	section "STOP MAILSERVER"
-	run bash -c "cd $DIR && podman-compose down mailserver"
+	run bash -c "cd $DIR && timeout 30 podman-compose down mailserver"
 	[ "$DEBUG" = true ] || echo "MailServer stopped succesfully."
 }
 
@@ -510,7 +513,7 @@ remove_mailserver_and_all_config(){
 	manage_service_entry remove "Dovecot & Postfix"
 	manage_service_entry remove "Roundcube (Webmail)"
 
-	run bash -c "cd $DIR && podman-compose down"
+	run bash -c "cd $DIR && timeout 30 podman-compose down"
 	run rm -rf "$DIR"
 	[ "$DEBUG" = true ] || echo "MailServer uninstalled successfully."
 }
@@ -549,7 +552,7 @@ case "${1:-}" in
         pflogsumm_get_data
 		;;
 	status) 	# Show status
-		if [ -n "$(podman ps -q --filter "name=^$CONTAINER$")" ]; then
+		if podman_is_running "$CONTAINER"; then
 			# uptime
 			execute_cmd_and_print "Container" "$(podman ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
 			echo

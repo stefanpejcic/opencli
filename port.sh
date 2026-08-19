@@ -107,10 +107,13 @@ update_port() {
     update_env
     update_redirects
     update_proxy_file
+    # flock guards the in-place edit — sentinel.sh and other opencli scripts
+    # also rewrite /root/docker-compose.yml in place, and an unlocked
+    # concurrent sed -i could interleave writes and corrupt the file
     if [ "$new_port" == '443' ]; then
-        sed -i "s#\${PORT}:2083/tcp#2083:2083/tcp#g" /root/docker-compose.yml
+        flock /tmp/opencli.root_compose.lock sed -i "s#\${PORT}:2083/tcp#2083:2083/tcp#g" /root/docker-compose.yml
     else
-        sed -i "s#2083:2083/tcp#\${PORT}:2083/tcp#g" /root/docker-compose.yml
+        flock /tmp/opencli.root_compose.lock sed -i "s#2083:2083/tcp#\${PORT}:2083/tcp#g" /root/docker-compose.yml
     fi
     do_reload
     success_msg

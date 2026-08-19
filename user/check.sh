@@ -222,7 +222,7 @@ check_files() {
     # rootlesskit binary; podman rootless doesn't run rootlesskit at all, so
     # there's no equivalent file to check here anymore.
     check_file "/home/$context/.env"
-    check_file "/home/$context/docker-compose.yml" "compose file does not exist - no containers can be started."
+    check_file "$(podman_compose_file "$context")" "compose file does not exist - no containers can be started."
     check_file "/home/$context/backup.env" "backup.env missing - Backups can not be configured via UI"
     check_file "/home/$context/crons.ini" "crons.ini missing - Cron Jobs can not be created via UI"
     check_file "/home/$context/custom.cnf" "custom.cnf missing - Database limits can not be configured via UI."
@@ -339,21 +339,21 @@ attempt_container_recovery() {
     local container="$1"
     local name="$2"
 
-    print_result "INFO" "$name: Attempting recovery — trying docker restart first"
+    print_result "INFO" "$name: Attempting recovery — trying podman restart first"
 
     if podman_user "$context" restart "$container" 2>/dev/null; then
         sleep 3
         local new_status
         new_status=$(get_container_property "$container" '{{.State.Status}}')
         if [[ "$new_status" == "running" ]]; then
-            print_result "PASS" "$name: Recovery successful via docker restart"
+            print_result "PASS" "$name: Recovery successful via podman restart"
             return 0
         fi
     fi
 
-    print_result "WARN" "$name: docker restart failed or container still not running — trying compose down/up"
+    print_result "WARN" "$name: podman restart failed or container still not running — trying compose down/up"
 
-    local compose_file="/home/$context/docker-compose.yml"
+    local compose_file; compose_file="$(podman_compose_file "$context")"
     if [[ ! -f "$compose_file" ]]; then
         print_result "FAIL" "$name: Cannot recover — compose file missing: $compose_file"
         return 1
@@ -704,7 +704,7 @@ check_container_compose_location() {
     
     # Get current user for expected path
     local expected_path
-    expected_path="/home/$context/docker-compose.yml"
+    expected_path="$(podman_compose_file "$context")"
     
     if [[ -n "$compose_project_dir" && -n "$compose_file" ]]; then
         # Container was started with docker-compose

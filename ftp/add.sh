@@ -41,6 +41,7 @@ openpanel_username="$4"
 DEBUG=false  # Default value for DEBUG
 
 source /usr/local/opencli/lib/password_strength.sh
+source /usr/local/opencli/lib/podman.sh
 
 
 # Parse optional flags to enable debug mode when needed!
@@ -55,9 +56,7 @@ done
 
 
 check_and_start_ftp_server(){
-	if [ -z "$(podman ps -q -f name=openadmin_ftp)" ]; then
-	    cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1
-	fi
+	podman_is_running openadmin_ftp || podman_ensure_running openadmin_ftp /root openadmin_ftp
 }
 
 

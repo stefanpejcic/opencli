@@ -571,12 +571,12 @@ create_caddy_domain_file() {
     fi
 
     # Reload / start Caddy
-    if podman ps -q -f name=caddy | grep -q .; then
+    if podman_is_running caddy; then
         log "Reloading Caddy"
         podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 && log "Caddy reloaded successfully" || log "Caddy reload failed — check config"
     else
-        log "Caddy not running, starting in background"
-        nohup sh -c "cd /root && podman-compose up -d caddy" </dev/null >nohup.out 2>nohup.err &
+        log "Caddy not running (or stuck), recovering in background"
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running caddy /root caddy' </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -658,12 +658,12 @@ update_named_conf() {
 }
 
 reload_bind() {
-    if podman ps -q -f name=openpanel_dns | grep -q .; then
+    if podman_is_running openpanel_dns; then
         log "Reloading BIND"
         podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
-        log "BIND not running, starting in background"
-        nohup sh -c "cd /root && podman-compose up -d bind9" </dev/null >nohup.out 2>nohup.err &
+        log "BIND not running (or stuck), recovering in background"
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running openpanel_dns /root bind9' </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -702,10 +702,10 @@ ZONE
     mkdir -p /etc/bind/zones/
     touch /etc/bind/zones/${domain_name}.zone
 fi
-if podman ps -q -f name=openpanel_dns >/dev/null; then
+if [ "\$(podman inspect openpanel_dns --format '{{.State.Status}}' 2>/dev/null)" = "running" ]; then
     podman exec openpanel_dns rndc reconfig
 else
-    cd /root && podman-compose up -d bind9
+    cd /root && timeout 30 podman-compose up -d bind9
 fi
 SSHEOF
 }

@@ -96,7 +96,9 @@ remove_onion_files() {
                 }" "$hostfs_path/torrc"
             fi
         done
-	rm -rf $onion_dir
+	while IFS= read -r dir; do
+	    [[ -n "$dir" ]] && rm -rf "$dir"
+	done <<< "$onion_dir"
     fi
 }
 
@@ -200,7 +202,7 @@ delete_domain_file() {
 	rm -f "/etc/openpanel/caddy/domains/$domain_name.conf"              # domain
 	rm -f "/etc/openpanel/caddy/suspended_domains/$domain_name.conf"    # suspended domain
 
-	if [ $(podman ps -q -f name=caddy) ]; then
+	if podman_is_running caddy; then
  	    log "Caddy is running, reloading configuration"
 	    nohup podman exec caddy sh -c "caddy validate && caddy reload " >/dev/null 2>&1 &
 	    disown
@@ -266,7 +268,7 @@ remove_dns_entries_from_apex_zone() {
 				sed -i "/^${escaped_domain_name}[[:space:]]/d" "$zone_file"
 				sed -i "/^${escaped_domain_name}\.[[:space:]]/d" "$zone_file"
 
-                if podman ps -q -f name=openpanel_dns >/dev/null 2>&1; then
+                if podman_is_running openpanel_dns; then
                     log "Reloading BIND DNS to apply changes"
                     podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
                 fi
@@ -277,9 +279,9 @@ remove_dns_entries_from_apex_zone() {
             zone_file="/etc/bind/zones/${domain_name}.zone"
             if [[ -f "$zone_file" ]]; then
                 log "Deleting DNS zone $zone_file"
-				rm -rf $zone_file
+				rm -rf "$zone_file"
 
-                if podman ps -q -f name=openpanel_dns >/dev/null 2>&1; then
+                if podman_is_running openpanel_dns; then
                     log "Reloading BIND DNS to apply changes"
                     podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
                 fi
@@ -300,7 +302,7 @@ delete_zone_file() {
 	if [ -f "$zone_file" ]; then
 	    log "Removing DNS zone file: $zone_file"
 	    rm "$zone_file"
-	    if [ $(podman ps -q -f name=openpanel_dns) ]; then
+	    if podman_is_running openpanel_dns; then
 	        log "DNS service is running, reloading the zones"
 	      	podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 	    fi

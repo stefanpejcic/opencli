@@ -72,6 +72,55 @@ podman_compose_ctx() {
     esac
 }
 
+# Tells whether <container> is actually running, by state rather than by
+# presence in `podman ps` — a container wedged in a transitional state
+# (created/paused/restarting/removing, or a stuck "starting"/"exiting") is
+# absent from `podman ps` too, so a plain `podman ps -q -f name=X` check
+# can't tell "not running" apart from "stuck", and callers that assume it
+# means "not running" end up recompose-up'ing on top of a wedged container
+# instead of recovering it.
+# usage: podman_is_running <container>
+podman_is_running() {
+    [[ "$(podman inspect "$1" --format '{{.State.Status}}' 2>/dev/null)" == "running" ]]
+}
+
+# Ensures <container> is actually running, recovering it via podman-compose
+# if it's exited/absent, or by force-removing it first if it's wedged in a
+# transitional state that a plain restart/compose-up won't clear. Returns 0
+# once the container is confirmed running, 1 otherwise.
+# usage: podman_ensure_running <container> <compose_dir> <compose_service> [timeout_secs]
+podman_ensure_running() {
+    local container="$1" compose_dir="$2" service="$3" timeout_secs="${4:-30}"
+    local state
+    state=$(podman inspect "$container" --format '{{.State.Status}}' 2>/dev/null)
+
+    if [[ "$state" == "running" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$state" && "$state" != "exited" && "$state" != "stopped" ]]; then
+        # wedged (created/paused/restarting/removing/stuck starting-exiting) — a
+        # plain restart or compose-up won't clear this, force it out first
+        podman kill "$container" &>/dev/null
+        podman rm -f "$container" &>/dev/null
+        podman rm -f --storage "$container" &>/dev/null
+    fi
+
+    (cd "$compose_dir" && timeout "$timeout_secs" podman-compose up -d "$service") &>/dev/null
+    podman_is_running "$container"
+}
+
+# echoes the path to <context>'s docker-compose.yml (root's own stack for
+# ""/default/root, otherwise the user's per-account compose file)
+# usage: podman_compose_file <context>
+podman_compose_file() {
+    local context="$1"
+    case "$context" in
+        ""|default|root) echo "/root/docker-compose.yml" ;;
+        *)                echo "/home/$context/docker-compose.yml" ;;
+    esac
+}
+
 # derives a user-<uid>.slice TasksMax (cgroup pids.max) ceiling from the plan's
 # RAM allotment (GB). Unlike CPU/RAM/disk, a process/thread cap isn't a plan
 # tier customers shop for - it's a fork-bomb/runaway-process safety net - so

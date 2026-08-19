@@ -333,7 +333,7 @@ store_running_containers_for_user() {
 output_file="/tmp/docker_containers_names.txt"
 > "$output_file"  # clear the file
 
-compose_file="/home/$CONTEXT/docker-compose.yml"
+compose_file="$(podman_compose_file "$CONTEXT")"
 if [ -f "$compose_file" ]; then
     log "Checking podman context ...."
     containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null)
@@ -839,9 +839,18 @@ restore_ftp_for_user() {
 set -e
 context="$CONTEXT"
 
-# Start the FTP server if it isn't running
-if [ -z "\$(podman ps -q -f name=openadmin_ftp)" ]; then
-    cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1
+# Start the FTP server if it isn't actually running — checked by real state
+# (not just \`podman ps\`, which misses a container wedged in a transitional
+# state like stuck starting/exiting) so a stuck container gets force-removed
+# and recreated instead of being no-op'd over by compose-up.
+FTP_STATE=\$(podman inspect openadmin_ftp --format '{{.State.Status}}' 2>/dev/null)
+if [ "\$FTP_STATE" != "running" ]; then
+    if [ -n "\$FTP_STATE" ] && [ "\$FTP_STATE" != "exited" ] && [ "\$FTP_STATE" != "stopped" ]; then
+        podman kill openadmin_ftp >/dev/null 2>&1
+        podman rm -f openadmin_ftp >/dev/null 2>&1
+        podman rm -f --storage openadmin_ftp >/dev/null 2>&1
+    fi
+    cd /root && timeout 30 podman-compose up -d openadmin_ftp >/dev/null 2>&1
     sleep 2
 fi
 

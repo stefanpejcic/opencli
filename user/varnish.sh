@@ -42,7 +42,7 @@ ACTION=$2
 CONTEXT="$USER"
 
 ENV_FILE="/home/$CONTEXT/.env"
-COMPOSE_FILE="/home/$CONTEXT/docker-compose.yml"
+COMPOSE_FILE="$(podman_compose_file "$CONTEXT")"
 [ -f "$ENV_FILE" ] || { echo "Error: $ENV_FILE not found!"; exit 1; }
 
 check_status() {

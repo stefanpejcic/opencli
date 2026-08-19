@@ -87,7 +87,6 @@ for FOLDER_NAME in "$FOLDER"/*; do
     #sed -i \"/@\$DOMAIN/ s/:[0-9]\+:[0-9]\+:/:\$USER_ID:\$USER_ID:/\" /etc/dovecot/userdb
     timeout 300 chown -R "$CONTEXT:$CONTEXT" "$FOLDER_NAME"
   fi
-  #docker exec openadmin_mailserver bash -c "dovecot reload"
 done
 
 log "Finished processing a total of $COUNT domains."

@@ -413,7 +413,7 @@ restore_domains() {
     done < "$WORK/db/domains.list"
 
     podman exec openpanel_dns rndc reconfig >/dev/null 2>&1 || true
-    (cd /root && podman-compose up -d bind9 >/dev/null 2>&1) || true
+    (cd /root && timeout 30 podman-compose up -d bind9 >/dev/null 2>&1) || true
 
     # Sites table
     if [[ -f "$WORK/db/sites.sql" ]]; then
@@ -451,7 +451,7 @@ restore_ftp() {
     mkdir -p "$LDIR"; cp -a "$WORK/ftp/." "$LDIR/"
     [[ -f "$LDIR/users.list" ]] || { log "No users.list — skipping container step."; return; }
 
-    [[ -z "$(podman ps -q -f name=openadmin_ftp 2>/dev/null)" ]] && { (cd /root && podman-compose up -d openadmin_ftp >/dev/null 2>&1) || true; sleep 2; }
+    podman_is_running openadmin_ftp || { podman_ensure_running openadmin_ftp /root openadmin_ftp || true; sleep 2; }
 
     local GID; GID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
     [[ "$GID" =~ ^[0-9]+$ ]] || { warn "Cannot get GID for $CONTEXT — FTP container step skipped."; return; }
@@ -498,10 +498,14 @@ restore_email() {
     local asrc="$EMAILS_DIR/postfix-accounts.cf"
     [[ -s "$asrc" ]] || { log "No postfix-accounts.cf in archive — skipping email merge."; return; }
 
-    [[ -z "$(podman ps -q -f name=${MAIL_CONTAINER} 2>/dev/null)" ]] && {
-        [[ -d /usr/local/mail/openmail ]] && (cd /usr/local/mail/openmail && podman-compose up -d mailserver roundcube >/dev/null 2>&1) || true
+    if ! podman_is_running "$MAIL_CONTAINER"; then
+        # a container wedged in a transitional state won't clear with a plain compose-up, force it out first
+        if [[ -n "$(podman inspect "$MAIL_CONTAINER" --format '{{.State.Status}}' 2>/dev/null)" ]]; then
+            podman kill "$MAIL_CONTAINER" &>/dev/null; podman rm -f "$MAIL_CONTAINER" &>/dev/null; podman rm -f --storage "$MAIL_CONTAINER" &>/dev/null
+        fi
+        [[ -d /usr/local/mail/openmail ]] && (cd /usr/local/mail/openmail && timeout 30 podman-compose up -d mailserver roundcube >/dev/null 2>&1) || true
         sleep 2
-    }
+    fi
 
     local MNT
     MNT=$(podman inspect "$MAIL_CONTAINER" --format '{{ range .Mounts }}{{ if eq .Destination "/tmp/docker-mailserver" }}{{ .Source }}{{ end }}{{ end }}' 2>/dev/null)
@@ -616,16 +620,17 @@ restore_docker() {
                 warn "podman.socket did not come up for '$CONTEXT' (user@${uid_now}.service may not have started in time) — containers below may fail to start."
         fi
     fi
-    if [[ -f "$WORK/docker/containers.txt" && -f "/home/$CONTEXT/docker-compose.yml" ]]; then
+    if [[ -f "$WORK/docker/containers.txt" && -f "$(podman_compose_file "$CONTEXT")" ]]; then
         local ctx containers
         IFS=':' read -r ctx containers < "$WORK/docker/containers.txt"
         ctx=$(echo "$ctx" | xargs); containers=$(echo "$containers" | xargs)
         if [[ -n "$ctx" && "$containers" != "no containers" && -n "$containers" ]]; then
-            local count
+            local count ctx_compose_file
             count=$(wc -w <<< "$containers")
+            ctx_compose_file="$(podman_compose_file "$ctx")"
             log "Starting $count container(s) for $ctx ..."
-            podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" down >/dev/null 2>&1 || true
-            podman_compose_user "$ctx" -f "/home/$ctx/docker-compose.yml" up -d $containers >/dev/null 2>&1 || true
+            podman_compose_user "$ctx" -f "$ctx_compose_file" down >/dev/null 2>&1 || true
+            podman_compose_user "$ctx" -f "$ctx_compose_file" up -d $containers >/dev/null 2>&1 || true
         fi
     fi
 }
@@ -635,7 +640,7 @@ restore_docker
 [[ -d "$WORK/caddy/stats/$ORIG_USERNAME" ]] && { mkdir -p /var/log/caddy/stats/; cp -a "$WORK/caddy/stats/$ORIG_USERNAME" /var/log/caddy/stats/; }
 
 log "Reloading services ..."
-(cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1) || true
+(cd /root && timeout 30 podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1) || true
 podman exec caddy caddy reload >/dev/null 2>&1 || true
 log "Recalculating quotas ..."
 opencli user-quota --update "$USERNAME" >/dev/null 2>&1 || true

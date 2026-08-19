@@ -247,7 +247,7 @@ cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
     fi
 done
 
-rm -rf $USER_PASSWD $USER_GROUP $USER_SHADOW
+rm -rf "$USER_PASSWD" "$USER_GROUP" "$USER_SHADOW"
 
 EOF
     
