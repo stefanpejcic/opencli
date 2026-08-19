@@ -48,7 +48,7 @@ get_api_key() {
 if [ -n "$owner" ]; then
   source /usr/local/opencli/db.sh
   query="SELECT server FROM users WHERE username = '$(mysql_escape "$owner")'"
-  context=$(mariadb -D "$mysql_database" -e "$query" -sN)
+  context=$(timeout 10 mariadb -D "$mysql_database" -e "$query" -sN)
   if [ -z "$context" ]; then
     api_key=""
   else
@@ -82,7 +82,7 @@ get_page_speed() {
   [[ -n "$api_key" ]] && api_url+="&key=$api_key"
 
   local api_response
-  api_response=$(curl -s "$api_url")
+  api_response=$(curl -s --connect-timeout 10 --max-time 60 "$api_url")
   
   # Check for error in API response
   local error_message

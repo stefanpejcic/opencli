@@ -45,14 +45,14 @@ get_domain_owner() {
     fi
     
     user_id_query="SELECT user_id, docroot FROM domains WHERE domain_url = '$(mysql_escape "$domain")'"
-    read -r user_id docroot <<< "$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$user_id_query" -sN)"
+    read -r user_id docroot <<< "$(timeout 10 mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$user_id_query" -sN)"
 
     if [ -z "$user_id" ]; then
         echo "Domain '$domain' not found in the database."
     else
         if $context_flag; then
             query="SELECT username, server FROM users WHERE id = '$user_id'"
-            user_info=$(mariadb -se "$query")
+            user_info=$(timeout 10 mariadb -se "$query")
             read -r username context <<< "$user_info"
 
             if [ -z "$context" ]; then
@@ -66,7 +66,7 @@ get_domain_owner() {
             fi
         else
             query="SELECT username FROM users WHERE id = '$user_id'"
-            username=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
+            username=$(timeout 10 mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
             
             if [ -z "$username" ]; then
                 echo "User does not exist with that ID '$user_id'."
