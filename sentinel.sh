@@ -46,6 +46,7 @@ readonly LOCK_FILE_FOR_DNS_CHECK="/tmp/sentinel.dns"
 readonly LOCK_FILE_FOR_OOM_CHECK="/tmp/sentinel.oom"
 readonly LOCK_FILE_FOR_DOCKER_PRUNE="/tmp/sentinel.docker"
 readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
+readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 
 [ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
@@ -512,6 +513,79 @@ mysql_docker_containers_status() {
   fi
 }
 
+redis_docker_container_status() {
+  local title="Redis service not active!"
+  local container="openpanel_redis"
+
+  if ! podman inspect "$container" &>/dev/null; then
+    ((FAIL++)); STATUS=2
+    echo -e "\e[31m[✘]\e[0m Redis container not found — starting."
+    cd /root && podman-compose up -d openpanel_redis &>/dev/null
+    _docker_check_after_restart "$container" "$title"
+    return
+  fi
+
+  local state; state=$(podman inspect "$container" --format '{{.State.Status}}' 2>/dev/null)
+
+  case "$state" in
+    running)
+      if podman exec "$container" redis-cli PING 2>/dev/null | grep -q PONG; then
+        rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
+        ((PASS++)); echo -e "\e[32m[✔]\e[0m Redis container active and responding."
+      else
+        echo -e "\e[31m[✘]\e[0m Redis running but not responding — restarting."
+        write_notification "Redis service restarted!" "Redis container running but not responding, attempting restart."
+        podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
+        cd /root && podman-compose up -d openpanel_redis &>/dev/null
+        _docker_check_after_restart "$container" "$title"
+      fi
+      ;;
+    exited|stopped)
+      rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
+      ((WARN++))
+      echo -e "\e[38;5;214m[!]\e[0m Redis container is $state — restarting."
+      cd /root && podman-compose up -d openpanel_redis &>/dev/null
+      _docker_check_after_restart "$container" "$title"
+      ;;
+    *)
+      # anything else (created, paused, restarting, removing, stuck "starting"/"exiting") is
+      # treated as wedged — podman occasionally hangs mid-transition and never recovers on its own.
+      # only force-recreate once the same stuck state has been observed on two consecutive runs,
+      # so we don't nuke a container that's simply mid-startup.
+      local now; now=$(date +%s)
+      local stuck_since=""
+      if [[ -f "$LOCK_FILE_FOR_REDIS_STUCK" ]]; then
+        local prev_state prev_time
+        IFS=: read -r prev_state prev_time < "$LOCK_FILE_FOR_REDIS_STUCK"
+        [[ "$prev_state" == "$state" ]] && stuck_since=$prev_time
+      fi
+
+      if [[ -z "$stuck_since" ]]; then
+        echo "$state:$now" > "$LOCK_FILE_FOR_REDIS_STUCK"
+        ((WARN++))
+        echo -e "\e[38;5;214m[!]\e[0m Redis container in transitional state '$state' — will re-check next run."
+        return
+      fi
+
+      local stuck_age=$(( now - stuck_since ))
+      if (( stuck_age < 180 )); then
+        ((WARN++))
+        echo -e "\e[38;5;214m[!]\e[0m Redis container still in '$state' (${stuck_age}s) — waiting."
+        return
+      fi
+
+      ((FAIL++)); STATUS=2
+      echo -e "\e[31m[✘]\e[0m Redis container stuck in '$state' for ${stuck_age}s — forcing removal and recreation."
+      write_notification "Redis container stuck" "openpanel_redis was stuck in state '$state' for ${stuck_age}s. Forcing recreation."
+      rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
+      podman kill "$container" &>/dev/null
+      podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
+      cd /root && podman-compose up -d openpanel_redis &>/dev/null
+      _docker_check_after_restart "$container" "$title"
+      ;;
+  esac
+}
+
 check_services() {
   local svc
   # "docker" kept as an accepted alias for "podman" so existing services= ini
@@ -525,7 +599,8 @@ check_services() {
       admin)  check_service_status      'admin'         'OpenAdmin service not accessible!'             ;;
       mysql)  mysql_docker_containers_status                                                            ;;
       docker|podman) check_service_status 'podman.socket' 'Podman not active — user websites down!'     ;;
-      panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'              ;;
+      panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'
+              redis_docker_container_status                                                             ;;
       named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'                ;;
     esac
   done
