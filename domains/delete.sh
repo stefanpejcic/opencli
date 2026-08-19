@@ -112,7 +112,8 @@ restart_tor_for_user() {
 
 get_webserver_for_user(){
 	log "Checking webserver configuration"
-	local web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
+	local web_server
+	web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
 	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
 }
 
@@ -145,7 +146,7 @@ get_slave_dns_option() {
     # 3. For each slave server we execute notify_slave()
 	 notify_slave(){
 		echo "Notifying Slave DNS server ($SLAVE_IP) to remove zone for domain $domain_name"
-		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
+		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@"$SLAVE_IP" <<EOF >/dev/null 2>&1
 	    if grep -q "$domain_name.zone" /etc/bind/named.conf.local; then
 	        sed -i "/zone \"$domain_name\" {/,/};/d" /etc/bind/named.conf.local
 			rm -f "/etc/bind/zones/$domain_name.zone"
@@ -153,7 +154,7 @@ get_slave_dns_option() {
 	    fi
 EOF
 	
-		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@$SLAVE_IP <<EOF >/dev/null 2>&1
+		timeout 5 ssh -q -o LogLevel=ERROR -o ConnectTimeout=5 -T root@"$SLAVE_IP" <<EOF >/dev/null 2>&1
 	    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 EOF
 	}
@@ -189,10 +190,10 @@ vhost_files_delete() {
 
 	log "Deleting $vhost_in_docker_file"	
 	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
-	rm $vhost_in_docker_file >/dev/null 2>&1
+	rm "$vhost_in_docker_file" >/dev/null 2>&1
 
  	log "Restarting $WEB_SERVER to apply changes"
-	podman_user "$context" restart $WEB_SERVER >/dev/null 2>&1
+	podman_user "$context" restart "$WEB_SERVER" >/dev/null 2>&1
 }
 
 
@@ -209,16 +210,14 @@ delete_domain_file() {
 	fi
 
 	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"                # access logs
-	rm -f "/var/log/caddy/stats/$openpanel_username/$domain_name.html"  # goaccess
+	rm -f "/var/log/caddy/stats/$user/$domain_name.html"  # goaccess
    	rm -rf "/var/log/caddy/coraza_waf/$domain_name.log*"                # waf
 	rm -rf "/etc/openpanel/caddy/ssl/custom/$domain_name"               # custom ssl
 }
 
 
 update_named_conf() {
-    ZONE_FILE_DIR='/etc/bind/zones/'
     NAMED_CONF_LOCAL='/etc/bind/named.conf.local'
-    local config_line="zone \"$domain_name\" IN { type master; file \"$ZONE_FILE_DIR$domain_name.zone\"; };"
 
     if grep -q "zone \"$domain_name\"" "$NAMED_CONF_LOCAL"; then
         log "Removing zone information from the server."
@@ -243,8 +242,7 @@ remove_dns_entries_from_apex_zone() {
 
     if [[ "$update_tlds" == true ]]; then
         mkdir -p "$(dirname "$tld_file")"
-        wget --timeout=5 --tries=3 -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"
-        if [[ $? -ne 0 ]]; then
+        if ! wget --timeout=5 --tries=3 -q --inet4-only -O "$tld_file" "https://publicsuffix.org/list/public_suffix_list.dat"; then
             log "Failed to download TLD list from IANA"
         fi
     fi
@@ -252,12 +250,11 @@ remove_dns_entries_from_apex_zone() {
     if grep -qx "$tld_lower" "$tld_file"; then
         domain_base="${domain_name%.*}"
         if [[ "$domain_base" == *.* ]]; then
-            is_subdomain=true
             apex_tld="${domain_name##*.}"
             second_level="${domain_name%.*}"
             second_level="${second_level##*.}"
             apex_domain="${second_level}.${apex_tld}"
-            subdomain="${domain_name%%.$apex_domain}"
+            subdomain="${domain_name%%."$apex_domain"}"
 
             log "Detected subdomain: $subdomain of apex domain: $apex_domain"
 
@@ -307,7 +304,7 @@ delete_zone_file() {
 	      	podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 	    fi
 	else
-	    log "DNS zone file does not exist: $ZONE_FILE"
+	    log "DNS zone file does not exist: $zone_file"
 	fi
 }
 
@@ -319,7 +316,7 @@ check_if_enterprise(){
 postfwd_setup(){
     # Delete hourly email limits 
     if [ -n "$key_value" ]; then
-		nohup opencli email-ratelimit --delete-domain=$domain_name >/dev/null 2>&1 &
+		nohup opencli email-ratelimit --delete-domain="$domain_name" >/dev/null 2>&1 &
 		disown		
 	fi
 }	
@@ -438,8 +435,12 @@ delete_ftp_accounts() {
 	if [ -f "$ftp_accounts_file" ]; then
 	    log "Removing FTP accounts for domain: $domain"
 	
+	    # sed -i replaces the file via a new inode+rename each call, so the read loop's
+	    # already-open fd keeps iterating the original snapshot — safe despite the same path
+	    # shellcheck disable=SC2094
 	    while IFS='|' read -r ftp_account _; do
 	        if [[ "$ftp_account" == *@"$domain" ]]; then
+	            # shellcheck disable=SC2094
 	            sed -i "\|^${ftp_account}|d" "$ftp_accounts_file"
 			    nohup podman exec openadmin_ftp sh -c "deluser $ftp_account" >/dev/null 2>&1 &
 			    disown
@@ -476,12 +477,13 @@ delete_domain() {
     local user="$1"
     local domain_name="$2"
     
-    delete_websites $domain_name                     # delete sites associated with domain id
+    delete_websites "$domain_name"                     # delete sites associated with domain id
     # TODO: delete pm2 apps associated with domain
-    delete_domain_from_mysql $domain_name            # delete
+    delete_domain_from_mysql "$domain_name"            # delete
 
 	local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
-    local result=$(mariadb -N -e "$verify_query")
+    local result
+    result=$(mariadb -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
         get_webserver_for_user                          #

@@ -28,6 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
@@ -38,7 +39,6 @@ RESET='\033[0m'
 
 # CONFIGURATION FILES AND LOGS
 CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 admin_logs_file="/var/log/openpanel/admin/error.log"
 admin_access_log="/var/log/openpanel/admin/access.log"
 admin_api_log="/var/log/openpanel/admin/api.log"
@@ -137,8 +137,10 @@ get_admin_url() {
     # 1. check for domain
     domain_block=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag {print}' "$caddyfile")
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
+    # shellcheck disable=SC2001 # sed handles the leading-whitespace-then-brace pattern more clearly than parameter expansion here
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
-    domain=$(echo "$domain" | sed 's|^http[s]*://||')
+    domain="${domain#http://}"
+    domain="${domain#https://}"
 
     if [[ -f "/root/disable_2087_port" ]]; then
         admin_port="443"
@@ -195,8 +197,9 @@ get_public_ip() {
 
 delete_existing_users() {
     local username="$1"
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
-    local is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
+    local user_exists is_admin
+    user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username';")
+    is_admin=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$username' AND role='admin';")
 
     if [ "$user_exists" -gt 0 ]; then
         if [ "$is_admin" -gt 0 ]; then
@@ -270,21 +273,19 @@ validate_password_and_username() {
         exit 1
     fi
     
-    : '
     # TODO: we will at some point include dictionary checks from lists:
     # https://weakpass.com/wordlist
     # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
     #
-    DICTIONARY="dictionary.txt"
+    # DICTIONARY="dictionary.txt"
     # Convert input to lowercase for dictionary check
-    local input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
-
+    # local input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+    #
     # Check if input contains any common dictionary word
-    if grep -qi "^$input_lower$" "$DICTIONARY"; then
-        echo "ERROR: $field_name is invalid. It contains a common dictionary word, which is not allowed."
-        exit 1
-    fi
-    '
+    # if grep -qi "^$input_lower$" "$DICTIONARY"; then
+    #     echo "ERROR: $field_name is invalid. It contains a common dictionary word, which is not allowed."
+    #     exit 1
+    # fi
 }
 
 
@@ -292,8 +293,9 @@ ensure_totp_columns() {
     if [ ! -f "$db_file_path" ]; then
         return
     fi
-    local has_secret=$(sqlite3 "$db_file_path" "PRAGMA table_info(user);" 2>/dev/null | awk -F'|' '{print $2}' | grep -x "totp_secret")
-    local has_enabled=$(sqlite3 "$db_file_path" "PRAGMA table_info(user);" 2>/dev/null | awk -F'|' '{print $2}' | grep -x "totp_enabled")
+    local has_secret has_enabled
+    has_secret=$(sqlite3 "$db_file_path" "PRAGMA table_info(user);" 2>/dev/null | awk -F'|' '{print $2}' | grep -x "totp_secret")
+    has_enabled=$(sqlite3 "$db_file_path" "PRAGMA table_info(user);" 2>/dev/null | awk -F'|' '{print $2}' | grep -x "totp_enabled")
 
     if [ -z "$has_secret" ]; then
         sqlite3 "$db_file_path" "ALTER TABLE user ADD COLUMN totp_secret TEXT;" 2>/dev/null
@@ -309,7 +311,8 @@ check_edition() {
 
 	if [ -z "$key_value" ]; then
 	    echo -e "${RED}Error${RESET}: The OpenPanel Community Edition does not support Reseller users. To create multiple Administrator and Reseller accounts, please upgrade to the Enterprise Edition."
-	    source $ENTERPRISE
+	    # shellcheck disable=SC1090 # $ENTERPRISE is a fixed path assigned once at top of file, but not statically resolvable by shellcheck
+	    source "$ENTERPRISE"
 	    echo "$ENTERPRISE_LINK"
 	    exit 1
 	fi
@@ -338,20 +341,23 @@ add_new_user() {
     local username="$1"
     local password="$2"
     local flag="$3"
-	local password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$password")
+	local password_hash
+	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$password")
 
 	# ---------------------- check total user count and license
     total_users=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user;")
     key_value=$(grep "^key=" $CONFIG_FILE_PATH | cut -d'=' -f2-)
     if [ -z "$key_value" ] && [ "$total_users" -ge 1 ]; then
         echo -e "${RED}Error${RESET}: The OpenPanel Community Edition supports only a single Admin user. To enable multiple Administrator and Reseller accounts, please upgrade to the Enterprise Edition."
-	    source $ENTERPRISE
+	    # shellcheck disable=SC1090 # $ENTERPRISE is a fixed path assigned once at top of file, but not statically resolvable by shellcheck
+	    source "$ENTERPRISE"
 	    echo "$ENTERPRISE_LINK"
         exit 1
     fi
 
 	# ---------------------- check if username already exists
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$(sqlite_escape "$username")';")
+    local user_exists
+    user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$(sqlite_escape "$username")';")
     if [ "$user_exists" -gt 0 ]; then
         echo -e "${RED}Error${RESET}: Username '$username' already exists."
 		exit 1
@@ -377,8 +383,7 @@ add_new_user() {
 	# ---------------------- create user	
 	insert_user_sql="INSERT INTO user (username, password_hash, role) VALUES ('$(sqlite_escape "$username")', '$(sqlite_escape "$password_hash")', '$role');"
 	create_table_sql="CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', is_active BOOLEAN DEFAULT 1 NOT NULL, totp_secret TEXT, totp_enabled BOOLEAN DEFAULT 0 NOT NULL);"
-	output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1)
-	if [ $? -ne 0 ]; then
+	if ! output=$(sqlite3 "$db_file_path" "$create_table_sql" "$insert_user_sql" 2>&1); then
 		echo "User not created: $output"
 		# TODO: on debug only! echo "Failed SQL Command: $insert_user_sql"
 	else
@@ -387,7 +392,7 @@ add_new_user() {
 			local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
 			local resellers_dir="/etc/openpanel/openadmin/resellers"
 			mkdir -p $resellers_dir
-			cp $resellers_template $resellers_dir/$username.json
+			cp $resellers_template $resellers_dir/"$username".json
 			echo "Reseller user '$username' created."
 			nohup opencli sentinel --action=reseller_create --title="Reseller created" --message="Reseller administrator account '$username' has been created." >/dev/null 2>&1 &
 			disown
@@ -457,9 +462,10 @@ update_username() {
     local escaped_old_username escaped_new_username
     escaped_old_username=$(sqlite_escape "$old_username")
     escaped_new_username=$(sqlite_escape "$new_username")
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_old_username';")
-    local user_role=$(sqlite3 "$db_file_path" "SELECT role FROM user WHERE username='$escaped_old_username';")
-    local new_user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_new_username';")
+    local user_exists user_role new_user_exists
+    user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_old_username';")
+    user_role=$(sqlite3 "$db_file_path" "SELECT role FROM user WHERE username='$escaped_old_username';")
+    new_user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_new_username';")
 
     if [ "$user_exists" -gt 0 ]; then
         if [ "$new_user_exists" -gt 0 ]; then
@@ -470,8 +476,8 @@ update_username() {
             sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log > /dev/null 2>&1
 
             if [ "$user_role" = "reseller" ]; then
-                mv /etc/openpanel/features/$old_username /etc/openpanel/features/$new_username > /dev/null 2>&1
-                mv /etc/openpanel/openadmin/resellers/$old_username.json /etc/openpanel/openadmin/resellers/$new_username.json > /dev/null 2>&1
+                mv /etc/openpanel/features/"$old_username" /etc/openpanel/features/"$new_username" > /dev/null 2>&1
+                mv /etc/openpanel/openadmin/resellers/"$old_username".json /etc/openpanel/openadmin/resellers/"$new_username".json > /dev/null 2>&1
                 source /usr/local/opencli/db.sh
                 local mysql_escaped_old_username mysql_escaped_new_username
                 mysql_escaped_old_username=$(mysql_escape "$old_username")
@@ -497,8 +503,10 @@ update_password() {
     local username="$1"
     local escaped_username
     escaped_username=$(sqlite_escape "$username")
-    local user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_username';")
-	local password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
+    local user_exists
+    user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_username';")
+	local password_hash
+	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 $db_file_path "UPDATE user SET password_hash='$(sqlite_escape "$password_hash")' WHERE username='$escaped_username';"
@@ -573,8 +581,6 @@ manage_user() {
 multitail_admin_logs(){
         require_command multitail
 
-        all_files_exist=true
-        
         required_files=(
             "$admin_logs_file"
             "$admin_access_log"
@@ -725,7 +731,7 @@ case "$1" in
 			else
 		    	admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
 		    fi
-			echo $admin_port
+			echo "$admin_port"
         fi
         ;;  	
     "new")
@@ -736,7 +742,6 @@ case "$1" in
         if [ -z "$new_username" ] || [ -z "$new_password" ]; then
             echo "ERROR: Invalid 'opencli admin new' command - please provide username and password."
             usage
-            exit 1
         fi
 
 		if [ "$reseller" = "--reseller" ]; then
@@ -753,7 +758,6 @@ case "$1" in
         if [ "$command" != "check" ]; then
             if [ -z "$command" ] || [ -z "$param_name" ]; then
                 usage_for_notifications
-                exit 1
             fi
         fi
 
@@ -776,17 +780,10 @@ case "$1" in
             *)
                 echo "ERROR: Invalid command."
                 usage
-                exit 1
                 ;;
-        esac        
+        esac
         ;;
 
-
-	"help")
-        usage
-        exit 0
-	    ;;
-        
     "delete")
         username="$2"
         delete_existing_users "$username"
@@ -797,7 +794,6 @@ case "$1" in
     else
         echo "ERROR: Unknown command: '$1'"
         usage
-        exit 1
     fi
         ;;
 esac

@@ -43,13 +43,13 @@ if [ "$2" == "--ws" ]; then
 fi
 
 OUTPUT=$(opencli domains-whoowns "$DOMAIN" --context --docroot)
-USERNAME=$(echo "$OUTPUT" | awk '{print $1}')
 CONTEXT=$(echo "$OUTPUT" | awk '{print $2}')
 DOCROOT=$(echo "$OUTPUT" | awk '{print $3}')
 
 
 get_webserver_for_user(){
-	local web_server=$(grep "^WEB_SERVER=" "/home/$CONTEXT/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
+	local web_server
+	web_server=$(grep "^WEB_SERVER=" "/home/$CONTEXT/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
 	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)		
 }
 
@@ -62,7 +62,7 @@ if [ "$USE_WS" -eq 1 ]; then
         nano "$FINAL_PATH"
         echo "Restarting $WEB_SERVER webserver to save changes.."
         get_webserver_for_user
-        podman_user "$CONTEXT" restart $WEB_SERVER
+        podman_user "$CONTEXT" restart "$WEB_SERVER"
     else
         echo "ERROR: VirtualHosts for domain $DOMAIN does not exist: $FINAL_PATH"
         exit 1

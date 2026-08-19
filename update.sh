@@ -96,6 +96,7 @@ EOF
 }
 
 # ---------------------- HELPER ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 command_exists() {
     command -v "$1" &> /dev/null
 }
@@ -118,6 +119,7 @@ fi
 
 
 # ---------------------- INSTALL PACKAGE ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 install_package() {
     local package="$1"
     local quiet="${2:-false}"
@@ -274,6 +276,7 @@ update_check() {
 }
 
 # ---------------------- HELPERS USED IN MAJOR UPDATES ONLY ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 detect_system() {
     if command_exists apt; then
         echo "debian"
@@ -288,6 +291,7 @@ detect_system() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 install_required_tools() {
     local distro
     distro=$(detect_system)
@@ -307,6 +311,7 @@ install_required_tools() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 remove_old_kernels() {
     local distro
     distro=$(detect_system)
@@ -328,13 +333,14 @@ remove_old_kernels() {
         dnf|yum)
             log_info "Removing old kernels (RHEL/CentOS)"
             if command_exists package-cleanup; then
-                package-cleanup --oldkernels --count=$KEEP_KERNELS -y >> "$log_file" 2>&1
+                package-cleanup --oldkernels --count="$KEEP_KERNELS" -y >> "$log_file" 2>&1
             fi
             ;;
     esac
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 update_system_packages() {
     local distro
     distro=$(detect_system)
@@ -372,6 +378,7 @@ update_system_packages() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
+# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
 check_reboot_required() {
     log_info "Checking if reboot is required"
     local distro
@@ -423,6 +430,7 @@ run_custom_postupdate_script() {
 update_modules() {
     local no_log="${1:-}"
     local msg="Updating OpenAdmin modules"
+    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
     [[ "$no_log" == "--no-log" ]] && echo "$msg" || log "$msg"
     local url="https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/openadmin/config/features.json"
 
@@ -443,12 +451,14 @@ update_modules() {
 update_locales() {
     local no_log="${1:-}"
     local msg="Updating installed locales"
+    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
     [[ "$no_log" == "--no-log" ]] && echo "$msg" || log "$msg"
 
     local babel_translations="/etc/openpanel/openpanel/translations"
     local github_repo="stefanpejcic/openpanel-translations"
 
     if [[ ! -d "$babel_translations" ]]; then
+        # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
         [[ "$no_log" == "--no-log" ]] && echo "[!] No translations directory found, skipping" || log "[!] No translations directory found, skipping"
         return 0
     fi
@@ -479,12 +489,14 @@ update_locales() {
 
     if [[ $updated -gt 0 ]]; then
         local compile_msg="Compiling updated .mo files"
+        # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
         [[ "$no_log" == "--no-log" ]] && echo "$compile_msg" || log "$compile_msg"
         podman exec openpanel sh -c "pybabel compile -f -d $babel_translations &>/dev/null"
         redis_drop_key openpanel_cache_app.get_available_locales_memver &>/dev/null
     fi
 
     local summary="Locales updated: $updated, failed: $failed"
+    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
     [[ "$no_log" == "--no-log" ]] && echo "[✔] $summary" || log "[✔] $summary"
 }
 
@@ -661,6 +673,7 @@ update_openpanel() {
 }
 
 update_openadmin() {
+    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
     [[ "$1" == "--no-log" ]] && echo "Updating OpenAdmin" || log "Updating OpenAdmin"
     if [[ -d /usr/local/admin ]]; then
         cd /usr/local/admin || return 
@@ -705,36 +718,35 @@ update_openadmin() {
     fi
 }
 
-# NOT USED ANYMORE
-restart_admin() {
-    if systemctl is-active --quiet admin; then
-        message="'OpenAdmin' service is running, restarting..."
-        [[ "$1" == "--no-log" ]] && echo $message || log $message
-        [[ "$1" == "--no-log" ]] && systemctl restart admin || systemctl restart admin 2>&1 | tee -a "$log_file"
-    else
-        message="[!] Service 'admin' is not running, skipping restart."
-        [[ "$1" == "--no-log" ]] && echo $message || echo $message | tee -a "$log_file"
-    fi
-}
-
 
 update_opencli() {    
     message="Updating OpenCLI"
-    [[ "$1" == "--no-log" ]] && echo $message || log $message
+    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
+    [[ "$1" == "--no-log" ]] && echo "$message" || log "$message"
     if [[ -d /usr/local/opencli ]]; then
         rm -f /usr/local/opencli/aliases.txt
         cd /usr/local/opencli || return 
         git reset --hard origin/podman
-        [[ "$1" == "--no-log" ]] && git reset --hard origin/podman 2>&1 || git reset --hard origin/podman 2>&1 | tee -a "$log_file"
-        [[ "$1" == "--no-log" ]] && git pull 2>&1 || git pull 2>&1 | tee -a "$log_file"
+        if [[ "$1" == "--no-log" ]]; then
+            git reset --hard origin/podman 2>&1
+        else
+            git reset --hard origin/podman 2>&1 | tee -a "$log_file"
+        fi
+        if [[ "$1" == "--no-log" ]]; then
+            git pull 2>&1
+        else
+            git pull 2>&1 | tee -a "$log_file"
+        fi
         latest_commit=$(git rev-parse origin/podman)
         current_commit=$(git rev-parse HEAD)
         if [[ "$current_commit" == "$latest_commit" ]]; then
             message="[✔] OpenCLI is up-to-date"
-            [[ "$1" == "--no-log" ]] && echo $message || log  $message
+            # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
+            [[ "$1" == "--no-log" ]] && echo "$message" || log  "$message"
         else
             message="OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
-            [[ "$1" == "--no-log" ]] && echo $message || log_error  $message
+            # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
+            [[ "$1" == "--no-log" ]] && echo "$message" || log_error  "$message"
         fi
     fi
 }

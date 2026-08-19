@@ -60,7 +60,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- Source database configuration ---
+# shellcheck disable=SC1091
 source /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
 # --- Fetch user data based on the provided plan name ---

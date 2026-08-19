@@ -79,7 +79,7 @@ get_docker_context() {
 is_valid_ip_or_cidr() {
     local ip="$1"
     if [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$ ]]; then
-        IFS='/'; read -r ip_only cidr <<< "$ip"
+        IFS='/'; read -r ip_only _ <<< "$ip"
         IFS='.' read -r o1 o2 o3 o4 <<< "$ip_only"
         for octet in $o1 $o2 $o3 $o4; do
             if ((octet < 0 || octet > 255)); then
@@ -102,7 +102,7 @@ get_docker_context
 
 # DELETE
 if [ "$delete_all" = true ]; then
-  > "$DENY_IPS_FILE"
+  : > "$DENY_IPS_FILE"
   reload_caddy
   exit 0
 fi

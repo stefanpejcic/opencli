@@ -35,6 +35,7 @@ fi
 
 # shellcheck source=/usr/local/opencli/db.sh
 source /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
@@ -68,6 +69,7 @@ semaphore_release() {
     printf 'x' >&3
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via `trap semaphore_cleanup EXIT` below
 semaphore_cleanup() {
     exec 3>&-
     rm -rf "$SEMAPHORE_DIR"

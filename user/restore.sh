@@ -80,7 +80,9 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] $DB_CONFIG_FILE not found — is OpenPanel installed?"; exit 1; }
 # shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
+# shellcheck disable=SC2154 # config_file and mysql_database are set by the sourced $DB_CONFIG_FILE
 mysql_q()   { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
+# shellcheck disable=SC2154,SC2120 # config_file set by sourced $DB_CONFIG_FILE; mysql_run is also called with no args, piping SQL via stdin instead
 mysql_run() { mariadb --defaults-extra-file="$config_file" "$@"; }
 
 edition_key=$(grep "^key=" /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null | cut -d'=' -f2-)
@@ -96,7 +98,6 @@ trap 'rm -rf "$WORK"' EXIT
 
 # ── REAL RESTORE ─────────────────────────────────────────────────────────────
 timestamp="$(date +'%Y-%m-%d_%H-%M-%S')"
-base_name="$(basename "$ARCHIVE" .tar.gz)"
 log_dir="/var/log/openpanel/admin/imports"
 mkdir -p "$log_dir"
 log_file="$log_dir/openpanel-import_${timestamp}.log"
@@ -154,7 +155,7 @@ log "Extracting archive ..."
 tar -C "$WORK" --acls --xattrs -xzf "$ARCHIVE" 2>>"$log_file" || die "Failed to extract archive."
 
 [[ -f "$WORK/manifest.env" ]] || die "manifest.env missing from archive."
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 . "$WORK/manifest.env"
 [[ -n "$USERNAME" && -n "$CONTEXT" ]] || die "Invalid manifest: USERNAME/CONTEXT empty."
 
@@ -213,6 +214,7 @@ restore_system_user() {
     used_uids=$(getent passwd | cut -d: -f3)
     find_free_uid() { local u=$1; while echo "$used_uids" | grep -qw "$u"; do u=$((u+1)); done; echo "$u"; }
 
+    # shellcheck disable=SC2034 # home is a required positional placeholder to parse out gid/shell from the passwd-style line
     while IFS=: read -r user uid gid comment home shell; do
         [[ "$user" != "$ORIG_CONTEXT" ]] && continue
         # Map to new context if --new-username was given
@@ -269,6 +271,7 @@ restore_home() {
     rm -f /home/"$CONTEXT"/sockets/*/*.sock /home/"$CONTEXT"/sockets/*/*.pid
     
     # MARIADB ERROR: Bad magic header in tc log
+    # shellcheck disable=SC2140 # correct path-building with two separate quoted var substitutions, not a stray-quote typo
     rm -f /home/"$CONTEXT"/volumes/"${CONTEXT}_mysql_data"/_data/tc.log
 
 
@@ -312,12 +315,14 @@ restore_database() {
     # Plan
     local plan_id
     local plan_name; plan_name=$(awk -F"'" '/INSERT INTO plans/{getline; print $2; exit}' "$WORK/db/plan.sql" 2>/dev/null)
+    PLAN_NAME="$plan_name"
     plan_id=$(mysql_q "SELECT id FROM plans WHERE name='$plan_name' LIMIT 1;")
     if [[ -n "$plan_id" ]]; then
         log "Plan '$plan_name' exists (ID: $plan_id) — reusing."
         PLAN_STATUS="reused (ID $plan_id)"
     elif [[ -f "$WORK/db/plan.sql" ]]; then
         sed -i -E ':a;N;$!ba;s/,\s*;\s*/;/g' "$WORK/db/plan.sql"
+        # shellcheck disable=SC2119 # mysql_run intentionally called with no args; SQL is piped via stdin
         ( echo "USE \`$mysql_database\`;"; cat "$WORK/db/plan.sql" ) | mysql_run
         plan_id=$(mysql_q "SELECT id FROM plans WHERE name='$plan_name' LIMIT 1;")
         log "Plan '$plan_name' imported (ID: $plan_id)."
@@ -339,6 +344,7 @@ restore_database() {
                 mysql_q "DELETE FROM users WHERE id=$old_id;"
             fi
         fi
+        # shellcheck disable=SC2119 # mysql_run intentionally called with no args; SQL is piped via stdin
         ( echo "USE \`$mysql_database\`;"; cat "$tmp" ) | mysql_run
     fi
 
@@ -356,7 +362,11 @@ restore_static_config() {
         mkdir -p "$FDIR"
         for f in "$WORK/features/"*.txt; do
             local bn; bn=$(basename "$f")
-            [[ -f "$FDIR/$bn" ]] && log "Feature set $bn present — keeping." || { cp -a "$f" "$FDIR/"; log "Feature set $bn installed."; }
+            if [[ -f "$FDIR/$bn" ]]; then
+                log "Feature set $bn present — keeping."
+            else
+                cp -a "$f" "$FDIR/"; log "Feature set $bn installed."
+            fi
         done
     fi
     if [[ -d "$WORK/core" && -n "$(ls -A "$WORK/core" 2>/dev/null)" ]]; then
@@ -630,7 +640,7 @@ restore_docker() {
             ctx_compose_file="$(podman_compose_file "$ctx")"
             log "Starting $count container(s) for $ctx ..."
             podman_compose_user "$ctx" -f "$ctx_compose_file" down >/dev/null 2>&1 || true
-            podman_compose_user "$ctx" -f "$ctx_compose_file" up -d $containers >/dev/null 2>&1 || true
+            podman_compose_user "$ctx" -f "$ctx_compose_file" up -d "$containers" >/dev/null 2>&1 || true
         fi
     fi
 }

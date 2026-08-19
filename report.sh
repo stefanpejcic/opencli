@@ -65,6 +65,7 @@ parse_args() {
 # ======================================================================
 # Helpers
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 run_command() {
   local cmd="$1"
   local label="$2"
@@ -79,6 +80,7 @@ run_command() {
 
 # Each collect_* function writes to its own temp file, then we merge them in order.
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_os_info() {
   local tmp="$1"
   local os_info
@@ -89,21 +91,25 @@ collect_os_info() {
   run_command "df -h"          "Collecting disk information"       "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_opencli_info() {
   local tmp="$1"
   run_command "opencli --version" "Listing OpenPanel version" "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_mysql_info() {
   local tmp="$1"
   run_command "mariadb --protocol=tcp --version" "Checking MariaDB Version" "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_docker_info() {
   local tmp="$1"
   run_command "podman info" "Collecting host podman information" "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_openpanel_settings() {
   local tmp="$1"
   echo "=== OpenPanel Settings ===" >> "$tmp"
@@ -112,6 +118,7 @@ collect_openpanel_settings() {
 
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_openadmin_settings() {
   local tmp="$1"
   echo "=== OpenAdmin Service ===" >> "$tmp"
@@ -119,6 +126,7 @@ collect_openadmin_settings() {
   run_command "tail -30 /var/log/openpanel/admin/error.log"          "Checking OpenAdmin log for errors"               "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_mysql_information() {
   local tmp="$1"
   echo "=== MariaDB Information ===" >> "$tmp"
@@ -126,6 +134,7 @@ collect_mysql_information() {
   run_command "cat /etc/openpanel/mysql/*_my.cnf"      "Viewing MariaDB login information"      "$tmp"
 }
 
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_services_status() {
   local tmp="$1"
   echo "=== Services Status ===" >> "$tmp"
@@ -194,6 +203,7 @@ export -f run_command \
            collect_services_status
 
 # Wrapper called by xargs: receives "<index> <func_name>"
+# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 run_indexed() {
   local idx="$1"
   local func="$2"
@@ -221,11 +231,15 @@ main() {
     xargs -P "$(nproc)" -I '{}' bash -c 'run_indexed $@' _ {}
 
   # Merge temp files in order into the final report
-  for tmpfile in $(ls "$TMPDIR_REPORT"/*.txt 2>/dev/null | sort); do
+  for tmpfile in $(find "$TMPDIR_REPORT" -maxdepth 1 -name "*.txt" 2>/dev/null | sort); do
     cat "$tmpfile" >> "$output_file"
   done
 
   rm -rf "$TMPDIR_REPORT"
+
+  # Serial phase: iterates dynamic /home/* data, so it can't be pre-indexed
+  # into ORDERED_FUNCS like the parallel collectors above
+  collect_user_services "$output_file"
 
   upload_report
 }

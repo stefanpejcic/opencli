@@ -7,6 +7,7 @@
 # ======================================================================
 
 config_file="/etc/my.cnf"
+# shellcheck disable=SC2034 # consumed by every script that sources this file, not by db.sh itself
 mysql_database="panel"
 
 [[ -f "$config_file" ]] || {

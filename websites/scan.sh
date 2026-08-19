@@ -35,7 +35,7 @@
 get_domain_id() {
     local domain_name="$1"
     result=$(mariadb -sse "SELECT domain_id FROM domains WHERE domain_url = '$(mysql_escape "$domain_name")';")
-    echo  $result
+    echo  "$result"
 }
 
 get_context_for_user() {
@@ -48,12 +48,11 @@ get_context_for_user() {
 }
 
 get_php_default_for_user() {
-	default_php_version=$(opencli php-default $current_username | grep -oP '\d+\.\d+')
+	default_php_version=$(opencli php-default "$current_username" | grep -oP '\d+\.\d+')
 }
 
 #Function to run WordPress CLI commands
 run_wp_cli() {
-    local username="$1"
     local path="$2"
     local command="$3"
 	podman_ctx "$context" exec "php-fpm-$default_php_version" sh -c "php -d memory_limit=-1 -d open_basedir=none -d disable_functions= -d display_errors=0 -d error_log=/dev/null /usr/local/bin/wp --allow-root --path=${path} ${command}"
@@ -62,7 +61,8 @@ run_wp_cli() {
 check_site_already_exists_in_db() {
     local site_name="$1"
 
-    local result=$(mariadb -sse "SELECT EXISTS(SELECT 1 FROM sites WHERE site_name = '$(mysql_escape "$site_name")');")
+    local result
+    result=$(mariadb -sse "SELECT EXISTS(SELECT 1 FROM sites WHERE site_name = '$(mysql_escape "$site_name")');")
     
     if [[ "$result" -eq 1 ]]; then
         return 0  # exists
@@ -73,7 +73,7 @@ check_site_already_exists_in_db() {
 
 
 get_mariadb_or_mysql_for_user() {
-    mysql_type=$(grep '^MYSQL_TYPE=' /home/$current_username/.env | cut -d '=' -f2 | tr -d '"')
+    mysql_type=$(grep '^MYSQL_TYPE=' /home/"$current_username"/.env | cut -d '=' -f2 | tr -d '"')
 
     if [[ "$mysql_type" != "mariadb" && "$mysql_type" != "mysql" ]]; then
         mysql_type="localhost"
@@ -152,7 +152,7 @@ while IFS= read -r -d '' config_file_path; do
     echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', 'wordpress');" | mysql
 
     echo "Fixing permissions and ownership for the directory $inside_container_path"
-    nohup timeout 600 opencli files-fix_permissions $current_username $inside_container_path >/dev/null 2>&1 &
+    nohup timeout 600 opencli files-fix_permissions "$current_username" "$inside_container_path" >/dev/null 2>&1 &
     disown
 
     found_installations+=("- $site_name, domain: $domain_name, email: $admin_email, version: $version")

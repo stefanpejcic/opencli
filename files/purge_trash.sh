@@ -107,6 +107,7 @@ if $FORCE_PURGE; then
 fi
 
   # NORMAL & DRY-RUN MODE
+  # shellcheck disable=SC2094 # restore_file is rewritten mid-loop below, but the read below already holds it open on its original inode, so this is safe
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     local file_name file_path deletion_date deletion_epoch age file_size
@@ -135,9 +136,13 @@ fi
         echo "[DRY-RUN] Would delete: $trash_file (user: $user_name)"
       else
         rm -rf -- "$trash_file"
-        # Remove line from .trash_restore (exact match)
+        # Remove line from .trash_restore (exact match). Safe to rewrite mid-loop:
+        # the while loop below already holds $restore_file open on its original
+        # inode, so replacing the directory entry via mv doesn't disturb the read.
         tmpfile="${restore_file}.tmp"
+        # shellcheck disable=SC2094
         grep -Fxv -- "$line" "$restore_file" > "$tmpfile" || true
+        # shellcheck disable=SC2094
         mv "$restore_file.tmp" "$restore_file"
       fi
     fi

@@ -186,12 +186,12 @@ update_caddyfile() {
             sed -i "/# START HOSTNAME IP #/,/# END HOSTNAME IP #/ s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/$new_hostname/" "$CADDY_FILE"
         else
 		# was not using IPv4
-			local admin_port=$(opencli admin port)
+			local admin_port; admin_port=$(opencli admin port)
             local ip_block="# START HOSTNAME IP #\n${new_hostname} {\n  tls {\n    issuer acme {\n      profile shortlived\n    }\n  }\n  reverse_proxy localhost:${admin_port}\n}\n# END HOSTNAME IP #\n"
             sed -i "s|# START HOSTNAME DOMAIN #|${ip_block}# START HOSTNAME DOMAIN #|" "$CADDY_FILE"
         fi
 		# example.net
-		sed -i "s/$current_domain/"$DEFAULT_DOMAIN"/g" "$CADDY_FILE"
+		sed -i "s/$current_domain/$DEFAULT_DOMAIN/g" "$CADDY_FILE"
     else
         # was using a domain
         sed -i "s/$current_domain/$new_hostname/g" "$CADDY_FILE"
@@ -407,20 +407,23 @@ check_domain_not_added_by_user(){
         local CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/domain_restriction.txt'
         local domain_name="$1"
         local forbidden_domains=()
-    
+
         # Check forbidden domains list
-        if [ -f "forbidden_domains.txt" ]; then
+        if [ -f "$CONFIG_FILE_PATH" ]; then
             log "Checking domain against forbidden_domains list"
-            mapfile -t forbidden_domains < forbidden_domains.txt
-            if [[ " ${forbidden_domains[@]} " =~ " ${domain_name} " ]]; then
-                echo "ERROR: $domain_name is a forbidden domain."
-                exit 1
-            fi    
+            mapfile -t forbidden_domains < "$CONFIG_FILE_PATH"
+            local forbidden
+            for forbidden in "${forbidden_domains[@]}"; do
+                if [[ "$forbidden" == "$domain_name" ]]; then
+                    echo "ERROR: $domain_name is a forbidden domain."
+                    exit 1
+                fi
+            done
         fi
     }
 
 if opencli domains-whoowns "$new_hostname" | grep -q "not found in the database."; then
-    compare_with_forbidden_domains_list $new_hostname
+    compare_with_forbidden_domains_list "$new_hostname"
     # todo: also check https://github.com/stefanpejcic/opencli/blob/9bf6ef2567160ac8086652e70aac73e8f7bc03e2/domains/add.sh#L255
 else
     echo "ERROR: Domain $new_hostname is already in used by an OpenPanel account."

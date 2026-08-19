@@ -57,7 +57,7 @@ check_status() {
   echo "Current status: $STATUS"
 }
 
-toggle_service() { cd /home/$CONTEXT && podman_compose_user "$CONTEXT" "$@" 2>/dev/null; }
+toggle_service() { cd /home/"$CONTEXT" && podman_compose_user "$CONTEXT" "$@" 2>/dev/null; }
 
 check_varnish_status() {
   local action="$1"

@@ -28,6 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
@@ -71,7 +72,8 @@ fi
 get_page_speed() {
   local website_url=$1
   local strategy=$2
-  local encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
+  local encoded_domain
+  encoded_domain=$(printf '%s' "$website_url" | jq -s -R -r @uri)
 
   local api_url="https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=http://$encoded_domain&strategy=$strategy"
 
@@ -79,19 +81,25 @@ get_page_speed() {
   
   [[ -n "$api_key" ]] && api_url+="&key=$api_key"
 
-  local api_response=$(curl -s "$api_url")
+  local api_response
+  api_response=$(curl -s "$api_url")
   
   # Check for error in API response
-  local error_message=$(echo "$api_response" | jq -r '.error.message // empty')
+  local error_message
+  error_message=$(echo "$api_response" | jq -r '.error.message // empty')
   if [[ -n "$error_message" ]]; then
     echo "API Error: $error_message"
     return 0  # Return 0 so `$(...)` doesn't break; use output to detect error
   fi
   
-  local performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score // null')
-  local first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue // ""')
-  local speed_index=$(echo "$api_response" | jq -r '.lighthouseResult.audits."speed-index".displayValue // ""')
-  local interactive=$(echo "$api_response" | jq -r '.lighthouseResult.audits.interactive.displayValue // ""')
+  local performance_score
+  performance_score=$(echo "$api_response" | jq '.lighthouseResult.categories.performance.score // null')
+  local first_contentful_paint
+  first_contentful_paint=$(echo "$api_response" | jq -r '.lighthouseResult.audits."first-contentful-paint".displayValue // ""')
+  local speed_index
+  speed_index=$(echo "$api_response" | jq -r '.lighthouseResult.audits."speed-index".displayValue // ""')
+  local interactive
+  interactive=$(echo "$api_response" | jq -r '.lighthouseResult.audits.interactive.displayValue // ""')
   
   echo "{\"performance_score\": $performance_score, \"first_contentful_paint\": \"$first_contentful_paint\", \"speed_index\": \"$speed_index\", \"interactive\": \"$interactive\"}"
 }
@@ -100,15 +108,19 @@ get_page_speed() {
 # Function to generate report for a domain
 generate_report() {
   local website=$1
-  local desktop_speed=$(get_page_speed "$website" "desktop")
+  local desktop_speed
+  desktop_speed=$(get_page_speed "$website" "desktop")
   if echo "$desktop_speed" | grep -q "API Error"; then
     echo "$desktop_speed"
     echo "Aborting due to API error."
     return 1
   fi
-  local mobile_speed=$(get_page_speed "$website" "mobile")
-  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local filename="/etc/openpanel/openpanel/websites/$(echo "$website" | sed 's|https\?://||' | sed 's|/|_|g').json"
+  local mobile_speed
+  mobile_speed=$(get_page_speed "$website" "mobile")
+  local timestamp
+  timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  local filename
+  filename="/etc/openpanel/openpanel/websites/$(echo "$website" | sed 's|https\?://||' | sed 's|/|_|g').json"
   
   cat <<EOF > "$filename"
 {

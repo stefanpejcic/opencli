@@ -74,6 +74,7 @@ fi
 declare -A SVC_IMAGE
 for p in "${pairs[@]}"; do
     svc="${p%% *}"; img="${p#* }"
+    # shellcheck disable=SC2016 # '${' is meant literally here, to detect an unresolved compose variable placeholder
     [[ -z "$svc" || -z "$img" || "$img" == *'${'* ]] && continue
     SVC_IMAGE["$svc"]="$img"
 done

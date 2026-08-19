@@ -107,8 +107,6 @@ get_all_domains() {
 
         first=true
         while IFS=$'\t' read -r domain docroot php_version owner server; do
-            dot_count=$(grep -o "\." <<<"$domain" | wc -l)
-
             [ -z "$docroot" ] && docroot=""
             [ -z "$php_version" ] && php_version=""
             [ -z "$owner" ] && owner="null" || owner=$(printf '%s' "$owner" | sed 's/"/\\"/g')
@@ -123,8 +121,8 @@ get_all_domains() {
 
             $first && first=false || echo -n ','
 
-            esc_domain=$(echo "$domain" | sed 's/"/\\"/g')
-            esc_docroot=$(echo "$docroot" | sed 's/"/\\"/g')
+            esc_domain="${domain//\"/\\\"}"
+            esc_docroot="${docroot//\"/\\\"}"
             php_version_id="$php_version"
             php_ver_num=$(echo "$php_version" | grep -oE '[0-9]+' | tr -d '\n\r ' || echo "")
             

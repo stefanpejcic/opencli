@@ -28,7 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/redis.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
 USERNAME=$1
@@ -78,7 +80,7 @@ check_ip_usage() {
             if [ "$user_ip" = "$ip" ]; then
                 if [ "$CONFIRM_FLAG" != "-y" ]; then
                     echo "Error: IP $ip already assigned to user $user."
-                    read -p "Are you sure you want to continue? (y/n): " answer
+                    read -r -p "Are you sure you want to continue? (y/n): " answer
                     [[ "$answer" != "y" ]] && echo "Script aborted." && exit 1
                 fi
             fi
@@ -188,7 +190,7 @@ else
     IP=$2
     if [ -z "$IP" ]; then
         current_ip=$(get_current_ip)
-        echo $current_ip
+        echo "$current_ip"
         exit 0
     fi
 
@@ -209,8 +211,7 @@ if [ "$ACTION" == "delete" ]; then
     disown
     drop_redis_cache 
 else
-    create_ip_file "$IP"
-    if [ $? -eq 0 ]; then
+    if create_ip_file "$IP"; then
         echo "IP successfully changed for user $USERNAME to dedicated IP address: $ip_to_use"
         nohup opencli sentinel --action=user_ip --title="User account IP changed" --message="IP address for user account '$USERNAME' has been set to: '$ip_to_use'." >/dev/null 2>&1 &
         disown

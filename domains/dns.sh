@@ -28,13 +28,12 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
 # COLORS
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
 RESET='\033[0m'
 
 usage() {
@@ -96,7 +95,7 @@ reload_one_or_all_dns_zone(){
   DOMAIN=$1
   if [[ -n "$DOMAIN" ]]; then
     echo "Reloading DNS zone for domain: $DOMAIN"
-    podman exec openpanel_dns rndc reload $DOMAIN
+    podman exec openpanel_dns rndc reload "$DOMAIN"
   else
     echo "Reloading all DNS zones.."
     podman exec openpanel_dns rndc reload
@@ -115,7 +114,7 @@ list_dns_records(){
   DOMAIN=$1
   if [[ -n "$DOMAIN" ]]; then
     echo "DNS zone for domain: $DOMAIN - file: /etc/bind/zones/$DOMAIN.zone"
-    cat /etc/bind/zones/$DOMAIN.zone
+    cat /etc/bind/zones/"$DOMAIN".zone
     exit 0
   else
     echo "ERROR: domain name is needed to list its zone."
@@ -140,7 +139,7 @@ delete_dns_zone(){
   delete_zone_file(){
     # backup zone
     mkdir -p /etc/bind/zones/backups/
-    mv /etc/bind/zones/$DOMAIN.zone /etc/bind/zones/backups/$DOMAIN.zone.$(date +%Y%m%d%H%M%S)
+    mv /etc/bind/zones/"$DOMAIN".zone /etc/bind/zones/backups/"$DOMAIN".zone."$(date +%Y%m%d%H%M%S)"
     #TODO: reload zones!
   }
 
@@ -152,8 +151,7 @@ delete_dns_zone(){
       exit 0
     else
       # wait for confirmation
-      read -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN ? (y/n): " CONFIRM
-      if [[ $? -ne 0 ]]; then
+      if ! read -r -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN ? (y/n): " CONFIRM; then
         echo "Timed out."
         exit 1
       fi
@@ -217,7 +215,7 @@ restore_zone_to_default(){
 
 	  # backup zone
 	  mkdir -p /etc/bind/zones/backups/
-	  mv /etc/bind/zones/$domain_name.zone /etc/bind/zones/backups/$domain_name.zone.$(date +%Y%m%d%H%M%S)
+	  mv /etc/bind/zones/"$domain_name".zone /etc/bind/zones/backups/"$domain_name".zone."$(date +%Y%m%d%H%M%S)"
 
 	  # todo: cron to cleanup zones daily, older than 24hrs.
 	  create_dns_zone_for_domain "$domain_name"
@@ -231,8 +229,7 @@ restore_zone_to_default(){
       exit 0
     else
       # wait for confirmation
-      read -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN and restore default records? (y/n): " CONFIRM
-      if [[ $? -ne 0 ]]; then
+      if ! read -r -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN and restore default records? (y/n): " CONFIRM; then
         echo "Timed out."
         exit 1
       fi
@@ -338,7 +335,7 @@ create_dns_zone_for_domain(){
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
     # Reload BIND service
-	podman exec openpanel_dns rndc reload $domain_name >/dev/null 2>&1
+	podman exec openpanel_dns rndc reload "$domain_name" >/dev/null 2>&1
     cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 }
 
@@ -349,7 +346,7 @@ check_single_dns_zone(){
   if [[ -n "$DOMAIN" ]]; then
     echo "Checking DNS zone for domain: $DOMAIN"
   fi
-  podman exec openpanel_dns named-checkzone  $DOMAIN /etc/bind/zones/$DOMAIN.zone
+  podman exec openpanel_dns named-checkzone  "$DOMAIN" /etc/bind/zones/"$DOMAIN".zone
   exit 0
 }
 
@@ -375,8 +372,12 @@ soft_reset(){
 
 
 hard_reset(){
-  stop_dns_server
-  start_dns_server
+  # stop_dns_server/start_dns_server each exit unconditionally, so they can't
+  # be chained here (start_dns_server would never run) — inline both steps instead
+  echo "Stopping DNS service.."
+  podman stop openpanel_dns && podman rm openpanel_dns
+  echo "Starting DNS service.."
+  cd /root && podman-compose up -d bind9
   exit 0
 }
 
@@ -400,7 +401,6 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     reconfig)
       reconfig_command
-      shift
       ;;
     check)
       if [[ -z "$2" ]]; then
@@ -408,7 +408,6 @@ while [[ $# -gt 0 ]]; do
         usage
       else
         check_single_dns_zone "$2"
-        shift 2
       fi
       ;;
     list)
@@ -420,26 +419,21 @@ while [[ $# -gt 0 ]]; do
         usage
       else
         list_dns_records "$2"
-        shift 2
       fi
       ;; 
     create)
 	  SERVER_IP=$(curl --silent --max-time 2 -4 https://ip.openpanel.com || curl --silent --max-time 2 -4 https://ifconfig.me/ip)
       create_dns_zone_for_domain "$2"
       add_subdomains_to_zone "$2"
-      shift 2
       ;; 
     reload)
       reload_one_or_all_dns_zone "$2"
-      shift 2
       ;; 
     delete)
       if [[ -n "$2" && -n "$3" ]]; then
         delete_dns_zone "$2" "$3"
-        shift 3
       elif [[ -n "$2" ]]; then
         delete_dns_zone "$2"
-        shift 2
       else
         echo "Error: 'delete' command requires a domain name."
         usage
@@ -449,10 +443,8 @@ while [[ $# -gt 0 ]]; do
 	  SERVER_IP=$(curl --silent --max-time 2 -4 https://ip.openpanel.com || curl --silent --max-time 2 -4 https://ifconfig.me/ip)
       if [[ -n "$2" && -n "$3" ]]; then
         restore_zone_to_default "$2" "$3"
-        shift 3
       elif [[ -n "$2" ]]; then
         restore_zone_to_default "$2"
-        shift 2
       else
         echo "Error: 'default' command requires a domain name."
         usage
@@ -460,27 +452,21 @@ while [[ $# -gt 0 ]]; do
       ;; 
     count)
       show_count
-      shift
       ;;
     restart)
       soft_reset
-      shift
       ;;
     config)
       check_named_main_conf
-      shift
       ;;
     start)
       start_dns_server
-      shift
       ;;
     stop)
       stop_dns_server
-      shift
       ;;
     hard-restart)
       hard_reset
-      shift
       ;;
     *)
       if [[ -z "$DOMAIN" ]]; then

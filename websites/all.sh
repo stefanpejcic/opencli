@@ -50,6 +50,7 @@ get_all_sites() {
     sites=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN)
 
     if [ -z "$sites" ]; then
+        # shellcheck disable=SC2016  # false positive: the whole string is double-quoted, $site_type does expand; the '..' is just literal output punctuation
         echo "No sites found${site_type:+ for type '$site_type'}."
     else
         echo "$sites"

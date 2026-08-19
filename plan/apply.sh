@@ -61,7 +61,7 @@ for arg in "$@"; do
         --dsk)     partial=true; dodsk=true ;;
         --net)     partial=true; donet=true ;;
         --email)   partial=true; doemail=true ;;
-        --*)       usage; exit 1 ;;
+        --*)       usage ;;
         *)         usernames+=("$arg") ;;
     esac
 done
@@ -71,7 +71,7 @@ source /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 
-IFS=$'\t' read -r cpu ram disk_limit inodes_limit max_hourly_email bandwidth < <(
+IFS=$'\t' read -r cpu ram disk_limit inodes_limit max_hourly_email _ < <(
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT cpu, ram, disk_limit, inodes_limit, max_hourly_email, bandwidth FROM plans WHERE id = '$(mysql_escape "$new_plan_id")' LIMIT 1;"
 )
 
@@ -96,7 +96,6 @@ cpu_text=$(limit_text "$cpu" " core(s)" "total")
 disk_text=$(limit_text "$storage_in_blocks" " blocks" "total")
 inodes_text=$(limit_text "$inodes_limit" " inodes" "total")
 hourly_email_text=$(limit_text "$max_hourly_email" "" "max hourly emails for all domains")
-bandwidth_text=$(limit_text "$bandwidth" " mbits bandwidth" "total")
 
 # 2. fetch all users if --all
 if $bulk; then
@@ -115,7 +114,7 @@ for username in "${usernames[@]}"; do
     echo ""
 
     # 4. get docker context and UID
-    read -r current_plan_id context < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT plan_id, server FROM users WHERE username = '$(mysql_escape "$username")'")
+    read -r _ context < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT plan_id, server FROM users WHERE username = '$(mysql_escape "$username")'")
     user_id=$(stat -c '%u' "/home/$context")
     # user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
 
@@ -123,13 +122,13 @@ for username in "${usernames[@]}"; do
     user_id=$(stat -c '%u' "/home/$username")
 	if ( (! $partial) || ( $docpu && $doram ) ); then
         if [ ! -f "/etc/systemd/system/user-$user_id.slice.d/override.conf" ]; then
-            mkdir -p /etc/systemd/system/user-$user_id.slice.d/
-            cat <<EOF > /etc/systemd/system/user-$user_id.slice.d/override.conf
+            mkdir -p /etc/systemd/system/user-"$user_id".slice.d/
+            cat <<EOF > /etc/systemd/system/user-"$user_id".slice.d/override.conf
 [Slice]
 Delegate=yes
 EOF
         systemctl daemon-reload
-        systemctl restart user@$user_id.service
+        systemctl restart user@"$user_id".service
         fi
     fi
 
@@ -190,7 +189,7 @@ EOF
 
     # Bandwidth (Port Speed)
     if ! $partial || $donet; then
-        cd "$compose_dir" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
+        cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
 
         # NOTE: bandwidth shaping used to nsenter into rootless dockerd's shared
         # network namespace (one dockerd PID per user, holding docker-created

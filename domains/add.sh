@@ -264,7 +264,7 @@ detect_apex_or_onion() {
 
     log "Detected public suffix: .$matched_suffix"
 
-    local registrable="${domain_match%.$matched_suffix}"
+    local registrable="${domain_match%."$matched_suffix"}"
     local sld="${registrable##*.}"
     apex_domain="${sld}.${matched_suffix}"
 
@@ -481,8 +481,8 @@ create_vhost_file() {
     if ! $SKIP_STARTING_CONTAINERS; then
         local services="$WEB_SERVER"
         [[ "$VARNISH" == true ]] && services="$services varnish"
-	    local service_count=$(echo "$services" | wc -w)
-	    local container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
+	    local service_count; service_count=$(echo "$services" | wc -w)
+	    local container_word; container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
 	    log "Starting $service_count $container_word ($services)"
         # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
@@ -573,7 +573,11 @@ create_caddy_domain_file() {
     # Reload / start Caddy
     if podman_is_running caddy; then
         log "Reloading Caddy"
-        podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 && log "Caddy reloaded successfully" || log "Caddy reload failed — check config"
+        if podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+            log "Caddy reloaded successfully"
+        else
+            log "Caddy reload failed — check config"
+        fi
     else
         log "Caddy not running (or stuck), recovering in background"
         nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running caddy /root caddy' </dev/null >nohup.out 2>nohup.err &
@@ -687,6 +691,7 @@ notify_slave() {
     fi
 
     # SSH fallback for <1.7.61
+    # shellcheck disable=SC2087 # SSHEOF left unquoted on purpose: $domain_name/$MASTER_IP must expand locally before being sent over SSH
     ssh -q \
 		-o BatchMode=yes \
         -o LogLevel=ERROR \
@@ -842,9 +847,11 @@ generate_dkim() {
 
 	dkim_file="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt"
 	if [[ -f "$dkim_file" ]] && ! grep -q "mail\._domainkey" "$zone_file"; then
-	    printf '\n' >> "$zone_file"
-	    sed -E "s/^mail\._domainkey[[:space:]]+IN/mail._domainkey\t14400\tIN/" "$dkim_file" >> "$zone_file"
-	    printf '\n' >> "$zone_file"
+	    {
+	        printf '\n'
+	        sed -E "s/^mail\._domainkey[[:space:]]+IN/mail._domainkey\t14400\tIN/" "$dkim_file"
+	        printf '\n'
+	    } >> "$zone_file"
 	    log "DKIM was successfully generated and added in the local DNS zone for domain"
 	else
 	    log "DKIM was not configured: generation failed or the DNS zone already includes a mail._domainkey record"

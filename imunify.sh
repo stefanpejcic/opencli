@@ -33,6 +33,7 @@
 
 # ======================================================================
 # Helpers
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
@@ -114,7 +115,7 @@ EOT
 status_av() {
   if pgrep -u _imunify -f "php -S 127.0.0.1:9000" >/dev/null; then
     echo "Imunify GUI is running."
-    ps -u _imunify -f | grep "php -S 127.0.0.1:9000"
+    pgrep -u _imunify -fa "php -S 127.0.0.1:9000"
   else
     echo "Imunify GUI is not running."
   fi
@@ -166,7 +167,6 @@ EOF
     echo "$INTEGRATION_CONF already exists, skipping..."
   fi
   
-  PANEL_INFO_JSON="/etc/sysconfig/imunify360/get-panel-info.json"
   update_version
   
   DEPLOY_SCRIPT="imav-deploy.sh"
@@ -364,4 +364,3 @@ case "$1" in
         exit 1
         ;;
 esac
-exit 0

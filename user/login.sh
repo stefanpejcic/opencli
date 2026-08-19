@@ -53,7 +53,7 @@ urlencode() {
     for (( i = 0; i < length; i++ )); do
         local c="${1:i:1}"
         case $c in
-            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            [a-zA-Z0-9.~_-]) printf '%s' "$c" ;;
             *) printf '%%%02X' "'$c"
         esac
     done
@@ -81,7 +81,8 @@ get_openpanel_url() {
 
     domain=$(echo "$domain_block" | sed '/^\s*$/d' | grep -v '^\s*#' | head -n1)
     domain=$(echo "$domain" | sed 's/[[:space:]]*{//' | xargs)
-    domain=$(echo "$domain" | sed 's|^http[s]*://||')
+    domain="${domain#http://}"
+    domain="${domain#https://}"
     # 2. ip and later will check for ssl
     if [ -z "$domain" ] || [ "$domain" = "example.net" ]; then
 		domain_block="$(awk '

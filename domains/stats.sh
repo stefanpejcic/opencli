@@ -83,7 +83,8 @@ process_logs() {
         excluded_ips=$(<"$excluded_ips_file")
     fi
 
-    local domains=$(opencli domains-user "$username")
+    local domains
+    domains=$(opencli domains-user "$username")
 
     if [[ "$domains" == *"No domains found for user '$username'"* ]]; then
         echo "No domains found for user $username. Skipping."
@@ -99,8 +100,8 @@ process_logs() {
             if [ -s "$log_file" ]; then
                 podman run --memory="256m" --cpus="0.5" \
                    -v /usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb \
-                   -v ${log_file}:/var/log/caddy/access.log \
-                   -v ${output_dir}:${output_dir}\
+                   -v "${log_file}":/var/log/caddy/access.log \
+                   -v "${output_dir}":"${output_dir}"\
                    --rm -i -e LANG=EN allinurl/goaccess \
                    -e "$excluded_ips" --ignore-panel=KEYPHRASES -a -o html \
                    --log-format=CADDY /var/log/caddy/access.log \

@@ -152,7 +152,6 @@ set_user_quota() {
 
 process_user() {
     local username="$1"
-    local success=true
 
     # 1. process single user
     log "Processing user: $username"
@@ -232,7 +231,7 @@ generate_report() {
     OUTPUT_FILE="/etc/openpanel/openpanel/quota_report.json"
     local TMP_FILE="${OUTPUT_FILE}.tmp"
     local FILTER_USER="${1-}"
-    local TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local TIMESTAMP; TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
     # AWK: reads /etc/passwd + repquota output, builds full JSON
     repquota -u / 2>/dev/null | awk -v ts="$TIMESTAMP" -v filter="$FILTER_USER" '

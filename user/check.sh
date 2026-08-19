@@ -207,7 +207,7 @@ check_files() {
     # system files
     check_file() {
         local filepath=$1
-        local filename=$(basename "$filepath")
+        local filename; filename=$(basename "$filepath")
         local fail_msg=${2:-"$filename missing."}
         local success_msg="$filename file exists."
 
@@ -253,8 +253,8 @@ check_files() {
                 print_result "WARN" "Could not parse disk quota info properly for user."
             else
                 local usage=$(( used * 100 / quota ))
-                local used_gb=$(echo "scale=2; $used / 1024 / 1024" | bc)
-                local quota_gb=$(echo "scale=2; $quota / 1024 / 1024" | bc)
+                local used_gb; used_gb=$(echo "scale=2; $used / 1024 / 1024" | bc)
+                local quota_gb; quota_gb=$(echo "scale=2; $quota / 1024 / 1024" | bc)
                 if [ "$usage" -ge 99 ]; then
                     print_result "FAIL" "Disk usage is over quota ($used_gb GB used of $quota_gb GB)."
                 elif [ "$usage" -ge 90 ]; then
@@ -309,7 +309,7 @@ check_files() {
         print_result "PASS" "All docker files are owned by UID:$current_uid"
     else
         print_result "FAIL" "Some docker files in $home_dir are not owned by UID:$current_uid - fix permissions started in background."
-        nohup timeout 600 opencli files-fix_permissions $context >/dev/null 2>&1 &
+        nohup timeout 600 opencli files-fix_permissions "$context" >/dev/null 2>&1 &
         disown
     fi
 }

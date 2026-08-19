@@ -133,7 +133,6 @@ default_php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "/home/$cont
 
 if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_version" ]; then
 	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
-	user_vhost_files=$(find "$user_vhost_dir" -type f -name "*.conf" -user "$owner")
     if ! grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf"; then
 		nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose down php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
         disown

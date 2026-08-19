@@ -47,7 +47,7 @@ run_for_user() {
         context=$username
     fi
     
-    cd /home/$context/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
+    cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
     start_user_time=$(date +%s)
     # TODO: edit to podman run style so we can set cpu and ram here and run it outside of user context (if admin want backup job to use server resources instead of user's)
     podman_compose_ctx "$context" run --remove-orphans --rm --entrypoint backup backup

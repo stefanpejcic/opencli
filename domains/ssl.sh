@@ -30,6 +30,7 @@
 
 # ======================================================================
 # Constants
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 

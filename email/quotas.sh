@@ -40,7 +40,6 @@ if [ -z "$key_value" ]; then
     exit 1
 fi
 
-readonly CONFIG_FILE="/etc/openpanel/openadmin/config/admin.ini"
 readonly LOG_FILE="/var/log/openpanel/admin/email-quotas.log"
 
 log() {
@@ -54,13 +53,14 @@ STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/co
 if [[ "$STORE_EMAILS_IN" == /* ]]; then
   FOLDER="$STORE_EMAILS_IN"
 else
-  FOLDER=/home/*/mail/
+  FOLDER="/home/*/mail/"
 fi
 
+# shellcheck disable=SC2206 # FOLDER intentionally carries an unexpanded glob (e.g. /home/*/mail/) to fan out across every user's mail dir
 FOLDERS=($FOLDER/*)
 TOTAL=${#FOLDERS[@]}
 
-log "Total mail domains in "$FOLDER": [$TOTAL]"
+log "Total mail domains in ""$FOLDER"": [$TOTAL]"
 
 COUNT=0
 

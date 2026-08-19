@@ -37,7 +37,6 @@ require_command jq
 # ======================================================================
 # ARGS
 DOMAIN="$1"
-ACTION="$2"
 JSON_OUTPUT=false
 
 # ======================================================================
@@ -101,7 +100,7 @@ start_varnish() {
 		if ! $JSON_OUTPUT; then
 	    	echo "Varnish is not running, starting.."
 	    fi
-	    cd /home/$context/ && podman_compose_user "$context" up -d varnish > /dev/null
+	    cd /home/"$context"/ && podman_compose_user "$context" up -d varnish > /dev/null
 	fi
 }
 

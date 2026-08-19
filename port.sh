@@ -72,10 +72,11 @@ update_env() {
 }
 
 # for redirects!
+# shellcheck disable=SC2120 # --no-restart isn't wired up by any current caller; kept for a future opt-out
 do_reload() {
   if [[ "$3" != '--no-restart' ]]; then
     # restart caddy and openpanel
-    cd $COMPOSE_DIR
+    cd $COMPOSE_DIR || exit
     nohup podman-compose restart caddy > /dev/null 2>&1 < /dev/null &
     nohup bash -c "podman-compose down openpanel && podman-compose up -d openpanel" > /dev/null 2>&1 &
 
@@ -115,6 +116,7 @@ update_port() {
     else
         flock /tmp/opencli.root_compose.lock sed -i "s#2083:2083/tcp#\${PORT}:2083/tcp#g" /root/docker-compose.yml
     fi
+    # shellcheck disable=SC2119
     do_reload
     success_msg
   else
@@ -132,7 +134,7 @@ if [ -z "$1" ]; then
 elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 443 ]; then
         new_port=$2
-        update_port $new_port
+        update_port "$new_port"
     else
         echo "Invalid port format. Please provide a valid port like '2083'."
         usage

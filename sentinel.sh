@@ -36,7 +36,8 @@ readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 
-readonly DISPLAY_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+DISPLAY_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+readonly DISPLAY_TIME
 HOSTNAME=$(hostname)
 
 # lock files
@@ -53,7 +54,7 @@ readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
 
 mkdir -p "$(dirname "$LOG_FILE")"
-[[ ! -f "$LOG_FILE" ]] && > "$LOG_FILE"
+[[ ! -f "$LOG_FILE" ]] && : > "$LOG_FILE"
 
 STATUS=0 PASS=0 WARN=0 FAIL=0
 
@@ -111,7 +112,7 @@ get_public_ip() {
 webhook_notification() {
   local title=$1 message=$2
   [[ -z "$WEBHOOK_URL" ]] && return
-  local clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
+  local clean_msg; clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
   local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"OpenAdmin-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
   curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 1 "$WEBHOOK_URL" >/dev/null 2>&1
 }
@@ -143,7 +144,7 @@ email_notification() {
 
   local admin_port resp
   admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
-  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" $auth_opt -F "transient=$token" -F "recipient=$EMAIL" -F "subject=$title"   -F "body=$message" 2>/dev/null)
+  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" "$auth_opt" -F "transient=$token" -F "recipient=$EMAIL" -F "subject=$title"   -F "body=$message" 2>/dev/null)
 
   case "$resp" in
     *'"error"'*)             echo "Error sending email: $resp" ;;
@@ -159,7 +160,7 @@ write_notification() {
     [[ -n "$RUN_ACTION_LOCKED" ]] && return
     export RUN_ACTION_LOCKED=1
     
-    ACTION=$(validate_yes_no "$(ini_get $action)")
+    ACTION=$(validate_yes_no "$(ini_get "$action")")
     if [[ "$ACTION" == "no" ]]; then
       echo "[!] Notifications are disabled for action: $action"; return
     fi
@@ -357,7 +358,7 @@ perform_startup_actions() {
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
   fi
   local title="SYSTEM REBOOT!"
-  local message="System was rebooted. $(uptime) | $summary_msg"
+  local message; message="System was rebooted. $(uptime) | $summary_msg"
   write_notification "$title" "$message"
 }
 
@@ -409,6 +410,7 @@ check_service_status() {
       echo -e "\e[31m[✘]\e[0m $svc hit start rate limit — resetting and restarting."
       systemctl reset-failed "$svc"
       systemctl restart "$svc"
+      # shellcheck disable=SC2015 # safe: the A-block's last command is always echo, which can't fail, so C never wrongly runs
       systemctl is-active --quiet "$svc" && { ((FAIL--)); echo -e "\e[32m[✔]\e[0m $svc restarted successfully."; } || { write_notification "$title" "$log"; echo -e "\e[31m[✘]\e[0m Failed to restart $svc."; }
       return
     fi
@@ -734,7 +736,7 @@ check_new_logins() {
 
   local login_log="/var/log/openpanel/admin/login.log"
   local watermark_file="/tmp/sentinel.login_watermark"
-  [[ ! -f "$login_log" ]] && > "$login_log"
+  [[ ! -f "$login_log" ]] && : > "$login_log"
 
   local last_count=0
   [[ -f "$watermark_file" ]] && last_count=$(cat "$watermark_file" 2>/dev/null)
@@ -844,7 +846,6 @@ check_disk_usage() {
     timeout 30 podman system prune -f --filter "until=24h" > /dev/null 2>&1
     for context in /home/*; do
        [ -d "$context" ] || continue
-       context_name=$(basename "$context")
        # timeout execs a binary directly and can't invoke podman_user (a bash function),
        # so the socket is inlined via CONTAINER_HOST instead
        context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
@@ -952,6 +953,7 @@ check_https_traffic() {
       DOMAINS=$(
         find /var/log/caddy/domlogs -type f -name "access.log" 2>/dev/null |
         while read -r f; do
+          # shellcheck disable=SC2016 # intentional: $1/$2 are this subshell's own positional args (bound below), not outer vars
           if timeout 1s bash -c '
             tail -n 200 "$1" | grep -q "$2"
           ' _ "$f" "$IP"; then
@@ -1133,7 +1135,11 @@ check_if_panel_domain_and_ns_resolve_to_server() {
   if [[ "$NS1" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
     CHECK_NS="yes"
     local NS2 NS3 NS4
-    NS2=$(conf_get ns2); NS3=$(conf_get ns3); NS4=$(conf_get ns4)
+    NS2=$(conf_get ns2)
+    # shellcheck disable=SC2034 # read indirectly below via ${!ns_var}
+    NS3=$(conf_get ns3)
+    # shellcheck disable=SC2034 # read indirectly below via ${!ns_var}
+    NS4=$(conf_get ns4)
   fi
 
   if [[ "$CHECK_DOMAIN" == "no" && "$CHECK_NS" == "no" ]]; then
@@ -1196,8 +1202,8 @@ write_snapshot() {
   local load_1m load_5m load_15m
   read -r load_1m load_5m load_15m _ < /proc/loadavg
 
-  local mem_total mem_used mem_free mem_pct=0
-  read -r _ mem_total mem_used mem_free _ < <(free -m | awk '/^Mem:/')
+  local mem_total mem_used mem_pct=0
+  read -r _ mem_total mem_used _ _ < <(free -m | awk '/^Mem:/')
   (( mem_total > 0 )) && mem_pct=$(( mem_used * 100 / mem_total ))
 
   local swap_total=0 swap_used=0 swap_pct=0
@@ -1232,6 +1238,7 @@ write_snapshot() {
     "$STATUS" "$PASS" "$WARN" "$FAIL"
 
   local utc_json
+  # shellcheck disable=SC2001 # regex removal of the "ts" field isn't a plain substring, sed is clearer than a bash pattern here
   utc_json=$(echo "$json" | sed 's/"ts":"[^"]*"/"ts":"'"$(date -u +"%Y-%m-%d %H:%M:%S")"'"/')
   echo "$utc_json" >> "$SNAPSHOT_FILE"
 
@@ -1310,6 +1317,7 @@ for _task in "${_parallel_tasks[@]}"; do
   _out=$(mktemp /tmp/sentinel.par.XXXXXX)
   _outfiles[$_task]="$_out"
   (
+    # shellcheck disable=SC2030 # intentional: each task's counters are isolated in this subshell, then reconciled below by reading the printed __COUNTERS__ line
     STATUS=0 PASS=0 WARN=0 FAIL=0
     $_task
     echo "__COUNTERS__ $STATUS $PASS $WARN $FAIL"
@@ -1323,9 +1331,13 @@ for _task in "${_parallel_tasks[@]}"; do
   [[ -f "$_out" ]] || continue
   grep -v '^__COUNTERS__' "$_out"
   read -r _ _s _p _w _f < <(grep '^__COUNTERS__' "$_out")
+  # shellcheck disable=SC2031 # reconciling the parent's counters from the subshell's printed values is the intended pattern here, not a lost update
   (( STATUS  = STATUS  > _s ? STATUS  : _s ))
+  # shellcheck disable=SC2031
   (( PASS   += _p ))
+  # shellcheck disable=SC2031
   (( WARN   += _w ))
+  # shellcheck disable=SC2031
   (( FAIL   += _f ))
   rm -f "$_out"
 done

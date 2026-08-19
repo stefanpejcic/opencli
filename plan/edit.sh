@@ -242,11 +242,10 @@ escaped_description=$(mysql_escape "$description")
 escaped_feature_set=$(mysql_escape "$feature_set")
 
 local sql="UPDATE plans SET name='$escaped_new_plan_name', description='$escaped_description', ftp_limit=$ftp_limit, email_limit=$emails_limit, domains_limit=$domains_limit, websites_limit=$websites_limit, disk_limit='$disk_limit', inodes_limit=$inodes_limit, db_limit=$db_limit, cpu=$cpu, ram='$ram', bandwidth=$bandwidth, feature_set='$escaped_feature_set', max_email_quota='$max_email_quota', max_hourly_email='$max_hourly_email' WHERE id='$plan_id';"
-mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
-  if [ $? -eq 0 ]; then
+  if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"; then
     local sql="SELECT name FROM plans WHERE id='$plan_id'"
-    local result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
-    local new_plan_name=$(echo "$result" | awk 'NR>1')
+    local result; result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql")
+    local new_plan_name; new_plan_name=$(echo "$result" | awk 'NR>1')
 
     count=$(opencli plan-usage "$new_plan_name" --json | grep -o '"username": "[^"]*' | sed 's/"username": "//' | wc -l)
     if [ "$count" -eq 0 ]; then
@@ -260,10 +259,10 @@ mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
             timestamp=$(date +"%Y%m%d_%H%M%S")
             echo "tail -f /tmp/opencli_plan_apply_$timestamp.log"
             if [ "$DEBUG" = true ]; then
-                echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[@]} --all --debug"
-                nohup opencli plan-apply $plan_id ${flags[@]} --all --debug > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
+                echo "DEBUG: Running command: opencli plan-apply $plan_id ${flags[*]} --all --debug"
+                nohup opencli plan-apply "$plan_id" "${flags[@]}" --all --debug > /tmp/opencli_plan_apply_"$timestamp".log 2>&1 &
             else
-                nohup opencli plan-apply $plan_id ${flags[@]} --all > /tmp/opencli_plan_apply_$timestamp.log 2>&1 &
+                nohup opencli plan-apply "$plan_id" "${flags[@]}" --all > /tmp/opencli_plan_apply_"$timestamp".log 2>&1 &
             fi
         else
             echo "Successfully updated plan id $plan_id. You currently have $count users on this plan. New limits have been applied."
@@ -278,13 +277,12 @@ mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$sql"
 check_plan_exists() {
   local id="$1"
   local sql="SELECT id FROM plans WHERE id='$id';"
-  local result=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -N -B -e "$sql")
+  local result; result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "$sql")
   echo "$result"
 }
 
 if [ "$#" -lt 13 ]; then
     usage
-    exit 1
 fi
 
 validate_fields_first() {
@@ -320,23 +318,20 @@ validate_fields_first() {
         fi
     done
 
-    for var_name in max_email_quota; do
-        value="${!var_name}"
+    value="$max_email_quota"
+    if [[ "$value" =~ ^([0-9]+([.][0-9]+)?)([BkMGT]?)$ ]]; then
+        number="${BASH_REMATCH[1]}"
+        unit="${BASH_REMATCH[3]}"
 
-        if [[ "$value" =~ ^([0-9]+([.][0-9]+)?)([BkMGT]?)$ ]]; then
-            number="${BASH_REMATCH[1]}"
-            unit="${BASH_REMATCH[3]}"
-    
-            if [[ -z "$unit" && "$number" != "0" ]]; then
-                value="${number}G"
-            fi
-
-            max_email_quota="$value"
-        else
-            echo "Error: $max_email_quota must be a number with optional unit (B|k|M|G|T)"
-            exit 1
+        if [[ -z "$unit" && "$number" != "0" ]]; then
+            value="${number}G"
         fi
-    done
+
+        max_email_quota="$value"
+    else
+        echo "Error: $max_email_quota must be a number with optional unit (B|k|M|G|T)"
+        exit 1
+    fi
 
     for var_name in cpu ram; do
         value="${!var_name}"

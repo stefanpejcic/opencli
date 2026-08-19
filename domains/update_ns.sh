@@ -55,7 +55,7 @@ backup_zone_file() {
 # Function to update nameservers in a zone file
 update_zone_file() {
   local zone_file="$1"
-  local tmp_file=$(mktemp)
+  local tmp_file; tmp_file=$(mktemp)
 
   # Backup the file before editing
   backup_zone_file "$zone_file"

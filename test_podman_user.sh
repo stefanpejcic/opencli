@@ -7,7 +7,6 @@ set -u
 USERNAME="${1:?Usage: $0 <username>}"
 PASS="\033[0;32mPASS\033[0m"
 FAIL="\033[0;31mFAIL\033[0m"
-WARN="\033[0;33mWARN\033[0m"
 
 echo "== Testing user: $USERNAME =="
 echo
@@ -60,8 +59,7 @@ else
 fi
 
 # 6. can we actually talk to this user's podman via remote socket?
-INFO=$(CONTAINER_HOST="unix://${SOCK_PATH}" timeout 5 podman --remote info --format '{{.Store.GraphRoot}}' 2>&1)
-if [[ $? -eq 0 ]]; then
+if INFO=$(CONTAINER_HOST="unix://${SOCK_PATH}" timeout 5 podman --remote info --format '{{.Store.GraphRoot}}' 2>&1); then
     echo -e "[$PASS] podman --remote info works, GraphRoot=$INFO"
 else
     echo -e "[$FAIL] podman --remote info failed: $INFO"

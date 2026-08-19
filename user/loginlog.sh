@@ -30,6 +30,7 @@
 
 # ======================================================================
 # Helpers
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
 print_usage() {

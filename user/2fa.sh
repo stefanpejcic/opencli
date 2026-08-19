@@ -40,7 +40,6 @@ fi
 # Constants
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
 RESET='\033[0m'
 username="$1"
 action="$2"

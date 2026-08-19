@@ -39,13 +39,13 @@ CONTAINER="openpanel_dns"
 # Functions
 error_exit() {
   echo "Error: $1"
-  cd $PDIR
+  cd "$PDIR" || exit
   exit 1
 }
 
 sign_and_reload() {
   podman exec $CONTAINER bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
-  opencli domains-dns reload $ZONE >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
+  opencli domains-dns reload "$ZONE" >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
 }
 
 setup_zone() {
@@ -66,9 +66,9 @@ setup_zone() {
   podman exec $CONTAINER bash -c "chmod g=r,o= K${ZONE}.* >/dev/null 2>&1" || error_exit 'Failed to set permissions on key files'
 
   # Include keys to the zone file
-  for key in K${ZONE}.*.key; do
+  for key in "K${ZONE}".*.key; do
     
-    echo "\$INCLUDE $key" >> ${ZONEFILE}
+    echo "\$INCLUDE $key" >> "${ZONEFILE}"
   done
 
   podman exec openpanel_dns bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
@@ -77,10 +77,10 @@ setup_zone() {
   sed -i "/zone \"${ZONE}\"/,/file/s|\(file \"/etc/bind/zones/${ZONE}\.zone\)|\1.signed|" "$CONFIG_FILE" >/dev/null 2>&1 || error_exit "Failed to update the config file"
 
   # relaod service
-  opencli domains-dns reload $ZONE >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
+  opencli domains-dns reload "$ZONE" >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
 
   # Display DS records
-  cat dsset-${ZONE}. || error_exit "Failed to display DS records"
+  cat dsset-"${ZONE}". || error_exit "Failed to display DS records"
 }
 
 
@@ -97,7 +97,7 @@ if [ "$2" = "--update" ]; then
   sign_and_reload
   echo "Zone ${ZONE} has been re-signed and DNS service reloaded."
 elif [ "$2" = "--check" ]; then
-  cat dsset-${ZONE}. || error_exit "Domain $ZONE has no DNSSEC enabled."
+  cat dsset-"${ZONE}". || error_exit "Domain $ZONE has no DNSSEC enabled."
 else
   setup_zone
 fi

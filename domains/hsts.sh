@@ -119,7 +119,7 @@ set_hsts_for_domain() {
 domain="$1"
 action="$2"
 
-[ -n "$domain" ] || { usage; exit 1; }
+[ -n "$domain" ] || usage
 
 file="/etc/openpanel/caddy/domains/${domain}.conf"
 
@@ -134,6 +134,5 @@ case "$action" in
     *)
         echo "Invalid action: $action"
         usage
-        exit 1
         ;;
 esac

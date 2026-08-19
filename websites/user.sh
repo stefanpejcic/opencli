@@ -117,7 +117,8 @@ format_domain_url() {
 get_sites() {
     local domain_id="$1"
     local type_filter="$2"
-    local query="SELECT site_name, type, version, ports, path, d.docroot
+    local query
+    query="SELECT site_name, type, version, ports, path, d.docroot
                  FROM sites s
                  INNER JOIN domains d ON s.domain_id = d.domain_id
                  WHERE s.domain_id = '$(mysql_escape "$domain_id")'"

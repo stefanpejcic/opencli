@@ -437,6 +437,7 @@ process_all_domains_and_start(){
 					fi
 				fi
 			done
+			# shellcheck disable=SC2181 # checks the last loop-body command's exit code (pre-existing behavior, not a single command to invert)
 			if [ $? -ne 0 ]; then
 			    echo "Error encountered while processing $file"
 			fi
@@ -539,7 +540,7 @@ remove_mailserver_and_all_config(){
 # MAIN
 check_ent
 required_cmd "cat" "cut" "podman" "podman-compose" "fold" "printf" "sed" "tail" "tput" "tr"
-check_debug_flag
+check_debug_flag "$@"
 check_mailserver
 
 case "${1:-}" in

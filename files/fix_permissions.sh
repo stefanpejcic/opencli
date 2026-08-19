@@ -28,6 +28,7 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 
 verbose=""
@@ -37,7 +38,7 @@ check_and_fix_FTP_permissions() {
     local uid="$2"
     local base_path="/home/${user}/docker-data/volumes/${user}_html_data/_data"
     local found=0
-    opencli ftp-list "$user" | tail -n +2 | cut -d'|' -f2 | sed 's/^ *//;s/ *$//' | grep -v "^/var/www/html$" | while read -r directory; do
+    while read -r directory; do
 
             [ -z "$directory" ] && continue
             found=1
@@ -53,7 +54,7 @@ check_and_fix_FTP_permissions() {
                 echo "[*] Fixing ownership for FTP path: $new_directory"
                 chown -R "$uid:$uid" "$new_directory"
             fi
-        done
+        done < <(opencli ftp-list "$user" | tail -n +2 | cut -d'|' -f2 | sed 's/^ *//;s/ *$//' | grep -v "^/var/www/html$")
 
     if [ "$found" -eq 1 ]; then
         chmod +rx "/home/$user" "/home/$user/docker-data" "/home/$user/docker-data/volumes" "/home/$user/docker-data/volumes/${user}_html_data" "/home/$user/docker-data/volumes/${user}_html_data/_data"
@@ -112,15 +113,15 @@ apply_permissions_in_container() {
 
         # USERNAME OWNER
         #chown -R $verbose $uid:$uid $directory
-        find $directory -print0 | xargs -0 chown $verbose $uid:$gid > /dev/null 2>&1
+        find "$directory" -print0 | xargs -0 chown $verbose "$uid":"$gid" > /dev/null 2>&1
         owner_result=$?
 
         # FILES
-        find $directory -type f -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
+        find "$directory" -type f -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
         files_result=$?
 
         # FOLDERS
-        find $directory -type d -print0 | xargs -0 chmod $verbose 775
+        find "$directory" -type d -print0 | xargs -0 chmod $verbose 775
         folders_result=$?
 
         check_and_fix_FTP_permissions "$username" "$uid"

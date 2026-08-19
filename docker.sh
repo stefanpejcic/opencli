@@ -47,9 +47,9 @@ get_context() {
   local context
   context=$(
     mariadb -Nse "
-      SELECT server FROM users WHERE username = '${username}'
+      SELECT server FROM users WHERE username = '${esc_username}'
       UNION ALL
-      SELECT server FROM users WHERE username LIKE 'SUSPENDED#_%#_${username}' ESCAPE '#'
+      SELECT server FROM users WHERE username LIKE 'SUSPENDED#_%#_${esc_username}' ESCAPE '#'
       LIMIT 1;
     " 2>/dev/null
   )

@@ -74,14 +74,14 @@ get_user_info() {
 	# 1. get context and ID
     local escaped_username
     escaped_username=$(mysql_escape "$USERNAME")
-    read -r user_id context <<< $(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
+    read -r user_id context <<< "$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
         SELECT id, server FROM users
         WHERE username='$escaped_username'
         UNION ALL
         SELECT id, server FROM users
         WHERE username LIKE 'SUSPENDED_%_$escaped_username'
         LIMIT 1;
-    ")
+    ")"
 
 	[ -n "$user_id" ] || { echo "ERROR: User '$USERNAME' not found in the database."; exit 1; }
 	[ -n "$context" ]  || { echo "ERROR: Could not determine podman context for '$USERNAME'."; exit 1; }
@@ -116,7 +116,7 @@ delete_user_from_database() {
 	# 4. delete domain files, emails and reload Caddy
 	ionice -c3 rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
     if [ -n "$domain_urls" ]; then
-		local email_storage_path=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs)
+		local email_storage_path; email_storage_path=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini | cut -d'=' -f2- | xargs)
 	    IFS=',' read -ra domains_array <<< "$domain_urls"
         paths_to_delete=()
         for domain in "${domains_array[@]}"; do
@@ -217,7 +217,11 @@ delete_emails() {
             fi
         done < "$regex_aliases_file"
 
-        [ "$changed" -eq 1 ] && mv "$tmp_file" "$regex_aliases_file" || rm -f "$tmp_file"
+        if [ "$changed" -eq 1 ]; then
+            mv "$tmp_file" "$regex_aliases_file"
+        else
+            rm -f "$tmp_file"
+        fi
     fi
 }
 
@@ -251,7 +255,7 @@ delete_system_user() {
 
     # kill by both real and effective/saved uid, then loop until gone
     pkill -9 -u "$context" 2>/dev/null || true
-    for i in $(seq 1 10); do
+    for _ in $(seq 1 10); do
         pgrep -u "$context" >/dev/null 2>&1 || break
         pkill -9 -u "$context" 2>/dev/null || true
         sleep 0.25
@@ -282,7 +286,7 @@ refresh_resellers_data() {
 				current_accounts=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$query_for_owner")
 				mysql_exit=$?
 				if [ $mysql_exit -eq 0 ]; then				
-					jq ".current_accounts = $current_accounts" $json_file > /tmp/${reseller}_config.json && mv /tmp/${reseller}_config.json $json_file
+					jq ".current_accounts = $current_accounts" "$json_file" > /tmp/"${reseller}"_config.json && mv /tmp/"${reseller}"_config.json "$json_file"
 				fi
 			fi
 		done

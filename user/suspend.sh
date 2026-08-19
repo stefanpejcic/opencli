@@ -46,7 +46,7 @@ USERNAME="$1"
 # ======================================================================
 # Helpers
 confirm() {
-    read -p "Are you sure you want to suspend OpenPanel user '$USERNAME'? (y/N) " answer
+    read -r -p "Are you sure you want to suspend OpenPanel user '$USERNAME'? (y/N) " answer
     case "$answer" in
         [yY]|[yY][eE][sS]) return 0 ;;
         *) echo "Operation cancelled."; exit 1 ;;
@@ -85,7 +85,8 @@ source "/usr/local/opencli/db.sh"
 # Functions
 
 get_docker_context() {
-    local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$USERNAME")';"
+    local query
+    query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$USERNAME")';"
     user_info=$(mariadb -se "$query")
     
     user_id=$(echo "$user_info" | awk '{print $1}')
@@ -147,7 +148,7 @@ stop_user_containers() {
 
     if [ -z "$running" ]; then
         $DEBUG && echo "No running containers for $USERNAME"
-        > "$names_file"
+        : > "$names_file"
         return 0
     fi
 
@@ -164,8 +165,10 @@ stop_user_containers() {
 }
 
 rename_user_in_db() {
-    local new_username="SUSPENDED_$(date +'%Y%m%d%H%M%S')_${USERNAME}"
-    local query="UPDATE users SET username='$(mysql_escape "$new_username")' WHERE username='$(mysql_escape "$USERNAME")';"
+    local new_username
+    new_username="SUSPENDED_$(date +'%Y%m%d%H%M%S')_${USERNAME}"
+    local query
+    query="UPDATE users SET username='$(mysql_escape "$new_username")' WHERE username='$(mysql_escape "$USERNAME")';"
     local session_count=0
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then

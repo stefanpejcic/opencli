@@ -67,6 +67,7 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] DB config not found: $DB_CONFIG_FILE"; exit 1; }
 # shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
+# shellcheck disable=SC2154 # config_file/mysql_database are set by the sourced $DB_CONFIG_FILE above
 mysql_q() { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
 
 # Resolve account identity
@@ -95,8 +96,6 @@ if [ -z "$SYS_UID" ] || [ -z "$SYS_GID" ]; then
 fi
 
 DOMAIN_IDS=$(mysql_q "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
-DOMAIN_COUNT=0
-[[ -n "$DOMAIN_IDS" ]] && DOMAIN_COUNT=$(wc -l <<< "$DOMAIN_IDS")
 
 SITE_COUNT=0
 if [[ -n "$DOMAIN_IDS" ]]; then
@@ -315,7 +314,7 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
     log "Collecting per-domain assets..."
     mapfile -t domains < "$STAGE/db/domains.list"
     for ((i=0; i<${#domains[@]}; i++)); do
-        IFS=$'\t ' read -r domain docroot php_version <<< "${domains[i]}"
+        IFS=$'\t ' read -r domain _ _ <<< "${domains[i]}"
         [[ -z "$domain" ]] && continue
 
         prefix="├──"
@@ -368,8 +367,8 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
 
     mkdir -p "$STAGE/emails"
 
-    DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')
-    REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')
+    DOMAIN_PATTERN=$(printf '@%s\|' "$DOMAIN_LIST_STR" | sed 's/\\|$//')
+    REGEX_PATTERN=$(printf '/\\*@%s/|' "$DOMAIN_LIST_STR" | sed 's/|$//')
 
     : > "$STAGE/emails/postfix-accounts.cf"
     [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true &
@@ -426,6 +425,7 @@ for item in manifest.env db system features core ftp caddy bind docker emails; d
 done
 [[ -d "$STAGE/mail_external" ]] && STAGE_ITEMS+=("mail_external")
 
+# shellcheck disable=SC2016 # literal sed character-class escaping, not variable expansion
 ESCAPED_CTX=$(printf '%s\n' "$CONTEXT" | sed 's|[|\\.*^$()+?{}]|\\&|g')
 
 # Use pigz for multi-core compression if available, otherwise fall back to gzip
@@ -492,6 +492,7 @@ chmod 640 "$ARCHIVE"
 BACKUP_UID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
 BACKUP_GID=$(id -g "$CONTEXT" 2>/dev/null)
 if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" ]]; then
+    # shellcheck disable=SC2015 # log() only fails on a write error; chown's own failure is what warn() should report
     chown "${BACKUP_UID}:${BACKUP_GID}" "$ARCHIVE" 2>/dev/null && log "Ownership: $CONTEXT (${BACKUP_UID}:${BACKUP_GID})" || warn "Could not chown archive to $CONTEXT (non-fatal)."
 fi
 

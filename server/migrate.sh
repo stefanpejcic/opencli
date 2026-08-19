@@ -29,7 +29,7 @@
 ################################################################################
 
 : '
-Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <password>] [--exclude-home] [--exclude-logs] [--exclude-mail] [--exclude-bind] [--exclude-openpanel] [--exclude-mysql] [--exclude-stack] [--exclude-postupdate] [--exclude-users]
+Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <password>] [--exclude-home] [--exclude-logs] [--exclude-csf] [--exclude-mail] [--exclude-bind] [--exclude-openpanel] [--exclude-mysql] [--exclude-stack] [--exclude-postupdate] [--exclude-users]
 '
 
 # shellcheck disable=SC1091
@@ -77,10 +77,11 @@ while [[ $# -gt 0 ]]; do
             EXCLUDE_LOGS=1
             shift
             ;;
-	--exclude-logs)
+	--exclude-csf)
             EXCLUDE_CSF=1
             shift
-            ;;        --exclude-mail)
+            ;;
+        --exclude-mail)
             EXCLUDE_MAIL=1
             shift
             ;;
@@ -145,7 +146,7 @@ check_install_sshpass() {
 check_disk_used_on_source() {
     HOME_DIR="/home"
     USED_HOME_ON_SOURCE=$(df --output=used "$HOME_DIR" | tail -n 1)
-    USED_HOME_ON_SOURCE_BYTES=$(($USED_HOME_ON_SOURCE * 1024)) #1K blocks
+    USED_HOME_ON_SOURCE_BYTES=$((USED_HOME_ON_SOURCE * 1024)) #1K blocks
 }
 
 check_if_dest_has_space(){
@@ -154,7 +155,7 @@ check_if_dest_has_space(){
     AVAILABLE_HOME_ON_DEST=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
         "df --output=avail $HOME_DIR | tail -n 1")
 
-    AVAILABLE_HOME_ON_DEST_BYTES=$(($AVAILABLE_HOME_ON_DEST * 1024)) #1K blocks
+    AVAILABLE_HOME_ON_DEST_BYTES=$((AVAILABLE_HOME_ON_DEST * 1024)) #1K blocks
 
     if [[ $AVAILABLE_HOME_ON_DEST_BYTES -ge $USED_HOME_ON_SOURCE_BYTES ]]; then
         echo "There is enough disk space on destination server."
@@ -196,10 +197,9 @@ get_users_count_on_destination() {
 
 	user_count_query="SELECT COUNT(*) FROM users"
 
-    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-    "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
- 
-        if [ $? -ne 0 ]; then
+    # shellcheck disable=SC2154 # config_file and mysql_database are set by the sourced $DB_CONFIG_FILE
+    if ! user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN"); then
             echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
             exit 1
         fi
@@ -218,7 +218,7 @@ copy_user_accounts() {
     awk -F: '$3 >= 1000 {print}' /etc/passwd > "$TMPDIR/passwd.users"
     awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
     grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
-    eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    eval "$RSYNC_CMD" "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
     rm -rf "$TMPDIR" >/dev/null
 
 sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
@@ -255,7 +255,7 @@ EOF
 
 store_running_containers_for_users() {
 output_file="/tmp/docker_containers_names.txt"
-> "$output_file"  # clear the file
+: > "$output_file"  # clear the file
 
 for userdir in /home/*; do
     if [ -d "$userdir" ]; then
@@ -276,7 +276,7 @@ for userdir in /home/*; do
     fi
 done
 
-eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
+eval "$RSYNC_CMD" $output_file "${REMOTE_USER}"@"${REMOTE_HOST}":$output_file
 }
 
 restore_running_containers_for_all_users() {
@@ -322,6 +322,7 @@ setup_remote_podman_for_all_users() {
 	# Open the file on FD 3
 	exec 3</tmp/userlist.txt
 
+	# shellcheck disable=SC2034 # USER_ID is a required positional placeholder to parse USERNAME out of the "user:uid" line
 	while IFS=: read -r USERNAME USER_ID <&3; do
 	    CURRENT=$((CURRENT+1))
 	    SRC="/home/$USERNAME/.config/containers"
@@ -390,9 +391,10 @@ replace_ip_in_zones() {
 
 # MAIN
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+# shellcheck disable=SC1090,SC1091
 . "$DB_CONFIG_FILE"
 
-ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST >/dev/null 2>&1
+ssh-keygen -f '/root/.ssh/known_hosts' -R "$REMOTE_HOST" >/dev/null 2>&1
 check_install_sshpass
 get_server_ipv4
 check_disk_used_on_source
@@ -410,7 +412,7 @@ fi
 
 if [[ $EXCLUDE_HOME -eq 0 ]]; then
     echo "Syncing files (/home directory) ..."
-    RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    RSYNC_OUTPUT=$(eval "$RSYNC_CMD" /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
@@ -442,10 +444,10 @@ sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMO
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
     echo "Syncing /var/log/openpanel ..."
-    eval $RSYNC_CMD /var/log/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/openpanel/
+    eval "$RSYNC_CMD" /var/log/openpanel/ "${REMOTE_USER}"@"${REMOTE_HOST}":/var/log/openpanel/
 
     echo "Syncing /var/log/caddy/ ..."
-    eval $RSYNC_CMD /var/log/caddy/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/
+    eval "$RSYNC_CMD" /var/log/caddy/ "${REMOTE_USER}"@"${REMOTE_HOST}":/var/log/caddy/
 fi
 
 if [[ $EXCLUDE_MAIL -eq 0 ]]; then
@@ -455,7 +457,7 @@ if [[ $EXCLUDE_MAIL -eq 0 ]]; then
 	if [ -n "$key_value" ]; then
 	    if [ -d /usr/local/mail/openmail ]; then
 	        echo "Syncing /var/mail ..."
-	        eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
+	        eval "$RSYNC_CMD" /usr/local/mail/openmail "${REMOTE_USER}"@"${REMOTE_HOST}":/usr/local/mail/openmail
 	        COMPOSE_START_MAIL=1
 	    fi
 	fi
@@ -465,7 +467,7 @@ fi
 
 if [[ $EXCLUDE_CSF -eq 0 ]]; then
     echo "Syncing /etc/csf/ ..."
-    eval $RSYNC_CMD /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
+    eval "$RSYNC_CMD" /etc/csf/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/csf/     
     sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"csf -a $current_ip > /dev/null && csf -r >/dev/null && systemctl restart lfd"    
 fi
@@ -473,23 +475,23 @@ fi
 
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
-    eval $RSYNC_CMD /etc/bind/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/
+    eval "$RSYNC_CMD" /etc/bind/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/bind/
     replace_ip_in_zones   
 fi
 
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
     echo "Syncing /etc/openpanel ..."
-    eval $RSYNC_CMD /etc/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/
+    eval "$RSYNC_CMD" /etc/openpanel/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/
 
     echo "Syncing system cronjobs..."
-    eval $RSYNC_CMD /etc/cron.d/openpanel ${REMOTE_USER}@${REMOTE_HOST}:/etc/cron.d/
+    eval "$RSYNC_CMD" /etc/cron.d/openpanel "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/cron.d/
     
 fi
 
 if [[ $EXCLUDE_MYSQL -eq 0 ]]; then
     echo "Syncing root_mysql Docker volume ..."
     if [[ -d "/var/lib/containers/storage/volumes/root_mysql/_data" ]]; then
-        eval $RSYNC_CMD /var/lib/containers/storage/volumes/root_mysql/_data/ ${REMOTE_USER}@${REMOTE_HOST}:/var/lib/containers/storage/volumes/root_mysql/_data/
+        eval "$RSYNC_CMD" /var/lib/containers/storage/volumes/root_mysql/_data/ "${REMOTE_USER}"@"${REMOTE_HOST}":/var/lib/containers/storage/volumes/root_mysql/_data/
     else
         echo "/var/lib/containers/storage/volumes/root_mysql/_data does not exist! Skipping."
     fi
@@ -497,14 +499,14 @@ fi
 
 if [[ $EXCLUDE_STACK -eq 0 ]]; then
     echo "Syncing /root/docker-compose.yml and /root/.env ..."
-    eval $RSYNC_CMD /root/docker-compose.yml ${REMOTE_USER}@${REMOTE_HOST}:/root/
-    eval $RSYNC_CMD /root/.env ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    eval "$RSYNC_CMD" /root/docker-compose.yml "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
+    eval "$RSYNC_CMD" /root/.env "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
 fi
 
 if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
     if [[ -e /root/openpanel_run_after_update ]]; then
         echo "Syncing /root/openpanel_run_after_update ..."
-        eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
+        eval "$RSYNC_CMD" /root/openpanel_run_after_update "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
     fi
 fi
 

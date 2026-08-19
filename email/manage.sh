@@ -40,10 +40,10 @@ key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 # Check if 'enterprise edition'
 if [ -z "$key_value" ]; then
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    source $ENTERPRISE
+    # shellcheck disable=SC1090,SC1091 # ENTERPRISE is a fixed path assigned once at top of file, but not statically resolvable by shellcheck
+    source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1
 fi
 
-command="$@"
-podman exec openadmin_mailserver $command
+podman exec openadmin_mailserver "$@"

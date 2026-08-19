@@ -59,9 +59,10 @@ update_redirects() {
 }
 
 # for redirects!
+# shellcheck disable=SC2120 # intentionally reads the script's own $3 (inherited, not a function arg) so callers can pass --no-restart as the script's 3rd CLI arg
 do_reload() {
   if [[ "$3" != '--no-restart' ]]; then
-    cd $COMPOSE_DIR
+    cd $COMPOSE_DIR || exit
     nohup podman-compose restart openpanel > /dev/null 2>&1 &
    fi
 }
@@ -72,6 +73,7 @@ update_path() {
   current_path=$(get_current_path)
       if [ "$current_path" != "$new_path" ]; then
         update_redirects
+        # shellcheck disable=SC2119 # do_reload intentionally inherits the script's own $3, not called with explicit args
         do_reload
         success_msg
       else
@@ -89,7 +91,7 @@ if [ -z "$1" ]; then
 elif [[ "$1" == 'set' && -n "$2" ]]; then
     if [[ "$2" =~ ^(/?[a-zA-Z0-9_-]+)$ ]]; then
         new_path="${2#/}"
-        update_path $new_path
+        update_path "$new_path"
     else
         echo "Invalid path format. Please provide a path like '/openpanel' or '/hosting'."
         usage

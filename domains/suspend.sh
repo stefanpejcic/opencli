@@ -52,7 +52,7 @@ conf_template="/etc/openpanel/caddy/templates/suspended.conf"
 
 # 1. cp vhost to suspended-dir
 mkdir -p $suspended_dir
-cp $domain_vhost $suspended_dir  > /dev/null 2>&1
+cp "$domain_vhost" $suspended_dir  > /dev/null 2>&1
 
 # 2. create file based on suspended domain template
 {

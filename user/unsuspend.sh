@@ -62,7 +62,8 @@ source "/usr/local/opencli/db.sh"
 # ======================================================================
 # Functions
 get_docker_context() {
-    local query="SELECT server FROM users WHERE username LIKE 'SUSPENDED\_%$(mysql_escape "$USERNAME")';"
+    local query
+    query="SELECT server FROM users WHERE username LIKE 'SUSPENDED\_%$(mysql_escape "$USERNAME")';"
     local server_name
     server_name=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
     context="$server_name"
@@ -102,6 +103,7 @@ start_user_containers() {
     if [ ! -f "$names_file" ] || [ ! -s "$names_file" ]; then
         $DEBUG && echo "No saved containers to start for $USERNAME"
         # fallback for <1.7.51
+        # shellcheck disable=SC2016 # intentional: $DEBUG/$sock are spliced in as literal values below via '"...''"' string concatenation, not meant to expand inside the single-quoted bash -c script
         podman_user "$context" ps -a --format "{{.Names}}" |
             xargs -r -n1 -P "$jobs" bash -c '
                 '"$DEBUG"' && echo "- Starting container: $0"

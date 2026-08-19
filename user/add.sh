@@ -127,7 +127,7 @@ done
 log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 
 
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC1090
 . "$DB_CONFIG_FILE"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/password_strength.sh
@@ -338,6 +338,7 @@ fix_pasta_selinux() {
         return 0
     fi
 
+    # shellcheck disable=SC2015 # both are plain checks, not side-effecting commands — safe "check A and B, else fallback" idiom
     command -v checkmodule >/dev/null 2>&1 && command -v semodule_package >/dev/null 2>&1 || {
         echo "[!] Warning: policycoreutils-devel/selinux-policy-devel missing; cannot build pasta SELinux module."
         return 0
@@ -503,6 +504,7 @@ configure_environment() {
     # (docker-compose can), so flatten the webservers' port mapping to a single var
     # here instead: HTTP_PORT by default, swapped to PROXY_HTTP_PORT below when the
     # requested webserver sits behind Varnish.
+    # shellcheck disable=SC2016 # single-quoted on purpose: matching the literal ${...} text in the compose file, not expanding a shell var
     sed -i 's|\${PROXY_HTTP_PORT:-\${HTTP_PORT}}|\${HTTP_PORT}|g' "${home_dir}/docker-compose.yml"
 
     sed -i 's/\r$//' /etc/openpanel/docker/compose/1.0/.env

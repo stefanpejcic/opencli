@@ -51,13 +51,14 @@ done
 
 # --- Source DB config ---
 source /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
 # --- Fetch and output plans ---
 fetch_plans_json() {
     require_command jq
     local data
-    data=$(maraiadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
     if [ -z "$data" ]; then
         echo "No plans."
         return

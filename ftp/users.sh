@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 USERS=""
 
@@ -7,7 +7,7 @@ for dir in /etc/openpanel/ftp/users/*; do
     user=$(basename "$dir")
     if [[ -f "$file" ]]; then
         while IFS= read -r line; do
-            modified_line=$(echo "$line" | sed "s|/var/www/html/|/home/${user}/docker-data/volumes/${user}_html_data/_data/|g")
+            modified_line="${line//\/var\/www\/html\//\/home\/${user}\/docker-data\/volumes\/${user}_html_data\/_data\/}"
             USERS+="$modified_line"
         done < "$file"
     fi

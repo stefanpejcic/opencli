@@ -52,7 +52,6 @@ show_help() {
 # Ensure at least one non-debug argument is provided
 if [[ ${#args[@]} -lt 1 ]]; then
     show_help
-    exit 1
 fi
 
 domain="${args[0]}"
@@ -119,14 +118,15 @@ make_folder() {
 
 get_webserver_for_user(){
 	log "Checking webserver configuration"
-	local web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
+	local web_server
+	web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
 	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
 }
 
 vhost_file_edit() {
 	vhost_file=/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf
-	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' $vhost_file > /dev/null 2>&1
-	podman_user "$context" restart $WEB_SERVER > /dev/null 2>&1
+	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' "$vhost_file" > /dev/null 2>&1
+	podman_user "$context" restart "$WEB_SERVER" > /dev/null 2>&1
 }
 
 get_user() {
@@ -146,10 +146,9 @@ main_func() {
   get_user_context
 
   mariadb -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
-  mariadb -e "$insert_query"
-  result=$(mariadb -se "$query")
   local verify_query="SELECT COUNT(*) FROM domains WHERE docroot = '$new_docroot' AND domain_url = '$domain';"
-  local result=$(mariadb -N -e "$verify_query")
+  local result
+  result=$(mariadb -N -e "$verify_query")
   
   if [ "$result" -eq 1 ]; then
   
@@ -181,10 +180,8 @@ elif [[ -n "$domain" && "$action" == "update" ]]; then
     if [[ -z "$new_docroot" ]]; then
         echo "Error: Missing new_docroot for update action."
         show_help
-        exit 1
     fi
    main_func
 else
     show_help
-    exit 1
 fi

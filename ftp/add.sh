@@ -41,6 +41,7 @@ openpanel_username="$4"
 DEBUG=false  # Default value for DEBUG
 
 source /usr/local/opencli/lib/password_strength.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/podman.sh
 
 

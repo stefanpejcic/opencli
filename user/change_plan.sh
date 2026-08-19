@@ -46,6 +46,7 @@ done
 
 source /usr/local/opencli/db.sh
 source /usr/local/opencli/lib/redis.sh
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/podman.sh
 
 # For old plan: id, name, context
@@ -98,7 +99,7 @@ update_resource() {
     if [[ "$type" == "ram" && "$value" != *G ]]; then
         env_value="${value}G"
     fi
-    sed -i "s/^TOTAL_${type^^}=.*/TOTAL_${type^^}=$env_value/" /home/$CONTEXT/.env
+    sed -i "s/^TOTAL_${type^^}=.*/TOTAL_${type^^}=$env_value/" /home/"$CONTEXT"/.env
 
     if [[ "$type" == "cpu" ]]; then
         if [[ "$value" -eq 0 ]]; then
@@ -144,6 +145,7 @@ update_disk_inodes() {
     disown
 }
 
+# shellcheck disable=SC2329 # not yet wired up, see the commented-out call below (TODO)
 update_total_tc() {
     # caddy-ratelimit
     echo "Changing port speed to $Nbandwidth is not possible at the moment."

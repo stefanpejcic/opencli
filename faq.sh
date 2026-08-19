@@ -36,7 +36,6 @@ RED='\033[0;31m'
 PURPLE='\033[0;35m'
 NC='\033[0m' #reset
 readonly CONFIG_FILE_PATH='/etc/openpanel/openpanel/conf/openpanel.config'
-readonly service_name="admin"
 
 # ======================================================================
 # Helper functions

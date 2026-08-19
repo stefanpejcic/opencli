@@ -101,10 +101,8 @@ change_path() {
     relative_path="${path##/var/www/html/}"
     container_path="${real_path}${relative_path}"
 
-    podman exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"
-    
-    if [ $? -eq 0 ]; then
-        sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/$context/users.list
+    if podman exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"; then
+        sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/"$context"/users.list
         echo "Success: FTP path for user '$username' changed successfully."
     else
         if [ "$DEBUG" = true ]; then
@@ -119,6 +117,6 @@ change_path() {
 
 
 get_docker_context_for_user                             # validate our op user owns the domain and get context
-mkdir -p /etc/openpanel/ftp/users/${context}            # Ensure the paths.list file exists
+mkdir -p /etc/openpanel/ftp/users/"${context}"            # Ensure the paths.list file exists
 validate_path
 change_path

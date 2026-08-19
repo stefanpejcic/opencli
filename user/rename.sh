@@ -44,9 +44,11 @@ FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.tx
 for arg in "$@"; do
     case $arg in
         --debug)
+            # shellcheck disable=SC2034 # reserved flag, not yet consumed elsewhere in this script
             DEBUG=true
             ;;
         --context)
+            # shellcheck disable=SC2034 # reserved flag, not yet consumed elsewhere in this script
             RENAME_CONTEXT=true
             ;;     
         *)
@@ -54,6 +56,7 @@ for arg in "$@"; do
     esac
 done
 
+# shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
 
@@ -112,10 +115,7 @@ check_if_exists_in_db() {
     
     # Check if the username already exists in the users table
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$(mysql_escape "$new_username")'"
-    username_exists_count=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$username_exists_query" -sN)
-    
-    # Check if successful
-    if [ $? -ne 0 ]; then
+    if ! username_exists_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_exists_query" -sN); then
         echo "Error: Unable to check username existence in the database."
         exit 1
     fi
@@ -128,7 +128,7 @@ check_if_exists_in_db() {
 
     
     context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$(mysql_escape "$new_username")'"
-    context_exists_count=$(mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$context_exists_query" -sN)
+    context_exists_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$context_exists_query" -sN)
     
     # count > 0) show error and exit
     if [ "$context_exists_count" -gt 0 ]; then
@@ -147,7 +147,7 @@ get_context() {
 # get user ID from the database
 get_user_info() {
     local user="$1"
-    local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
+    local query; query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
     
     # Retrieve both id and context
     user_info=$(mariadb -se "$query")
@@ -179,7 +179,7 @@ fi
 
 mv_user_data() {
         mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
-	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/ > /dev/null 2>&1
+	mv /var/log/caddy/stats/"$old_username"/ /var/log/caddy/stats/"$new_username"/ > /dev/null 2>&1
 }
 
 
@@ -189,9 +189,8 @@ rename_user_in_db() {
     NEW_USERNAME=$2
 
     mysql_query="UPDATE users SET username='$(mysql_escape "$NEW_USERNAME")' WHERE username='$(mysql_escape "$OLD_USERNAME")';"
-    mariadb --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
-    if [ $? -eq 0 ]; then
+    if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"; then
 		# postfwd ratelimit rules use usernames
 		nohup bash -c "opencli email-ratelimit --delete-user=$OLD_USERNAME && opencli email-ratelimit --username=$NEW_USERNAME" >/dev/null 2>&1 &
 		disown
@@ -205,11 +204,6 @@ rename_user_in_db() {
     fi
 }
 
-rename_env(){
-	sed -i -E "s/^USERNAME=.*/USERNAME=\"${NEW_USERNAME}\"/" "$file"
-}
-
-
 # MAIN
 check_username_is_valid                                                    # validate username first
 check_if_exists_in_db                                                      # check in db
@@ -217,7 +211,6 @@ get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
 require_command jq                                                         # just helper for parsing json
 rename_user_in_db "$old_username" "$new_username"                          # rename username in db
-# rename_env USERNAME is no longer used!
 #reload_user_quotas
 #TODO: rename ftp accounts suffix!
 # rename paths

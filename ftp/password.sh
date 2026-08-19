@@ -76,6 +76,7 @@ update_password() {
 
     PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
     HASHED_PASS=$(
+        # shellcheck disable=SC2016  # single-quoted Python source; "$6$" is a literal crypt() method id, not a bash var
         PASSWORD="$new_password" $PYTHON_PATH -W ignore -c '
 import crypt, random, string, os
 salt = "".join(random.choices(string.ascii_letters + string.digits, k=16))
@@ -83,15 +84,13 @@ print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
     '
     )
 
-    podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"
-    
-    if [ $? -eq 0 ]; then
+    if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
 # Update users.list with new hashed password
 awk -F'|' -v user="$username" -v newpass="$HASHED_PASS" '
     $1 == user { $2 = newpass }
     { print $1 "|" $2 "|" $3 "|" $4 "|" $5 }
-' /etc/openpanel/ftp/users/$context/users.list > /tmp/$context.ftp_users.list.tmp && \
-mv /tmp/$context.ftp_users.list.tmp /etc/openpanel/ftp/users/$context/users.list
+' /etc/openpanel/ftp/users/"$context"/users.list > /tmp/"$context".ftp_users.list.tmp && \
+mv /tmp/"$context".ftp_users.list.tmp /etc/openpanel/ftp/users/"$context"/users.list
 
         nohup opencli sentinel --action=ftp_password --title="FTP account password changed" --message="FTP account '$username' has password changed." >/dev/null 2>&1 &
         disown
@@ -114,13 +113,13 @@ mv /tmp/$context.ftp_users.list.tmp /etc/openpanel/ftp/users/$context/users.list
 # validate our op user owns the domain and get context
 get_docker_context_for_user
 
-mkdir -p /etc/openpanel/ftp/users/${context}
-touch /etc/openpanel/ftp/users/${context}/users.list
+mkdir -p /etc/openpanel/ftp/users/"${context}"
+touch /etc/openpanel/ftp/users/"${context}"/users.list
 
 # Check if the FTP user exists
 user_exists() {
     local user="$1"
-    grep -Fq "$user|" /etc/openpanel/ftp/users/${context}/users.list
+    grep -Fq "$user|" /etc/openpanel/ftp/users/"${context}"/users.list
 }
 
 # Check if user exists

@@ -34,7 +34,6 @@
 . /usr/local/opencli/lib/requirement.sh
 
 pid=$$
-script_dir=$(dirname "$0")
 start_time=$(date +%s) #used to calculate elapsed time at the end
 
 : '
@@ -104,7 +103,7 @@ echo "Import started, log file: $log_file"
 
 log() {
     local message="$1"
-    local timestamp=$(date +'%Y-%m-%d %H:%M:%S')
+    local timestamp; timestamp=$(date +'%Y-%m-%d %H:%M:%S')
     echo "[$timestamp] $message" | tee -a "$log_file"
 }
 
@@ -126,7 +125,7 @@ success_message() {
 }
 
 whitelist_remote_srv() {
-	csf -ta $REMOTE_HOST &>/dev/null
+	csf -ta "$REMOTE_HOST" &>/dev/null
 }
 
 format_commands() {
@@ -187,9 +186,8 @@ key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 get_users_count_on_destination() {
 	user_count_query="SELECT COUNT(*) FROM users"
-    user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
- 
-    if [ $? -ne 0 ]; then
+    # shellcheck disable=SC2154 # config_file/mysql_database are set by sourced db.sh (see DB_CONFIG_FILE below)
+    if ! user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN"); then
         log "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
         exit 1
     fi
@@ -221,10 +219,8 @@ resolve_context() {
 # Function to check if username already exists in the database
 check_username_exists() {
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$USERNAME'"
-    user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN")
- 
     # Check if successful
-    if [ $? -ne 0 ]; then
+    if ! user_count=$($SSH_CMD "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN"); then
         log "[✘] Error: Unable to check username existence in the database. Is mariadb running?"
         exit 1
     fi
@@ -248,7 +244,7 @@ copy_user_account() {
     grep -F -w "^$CONTEXT:" /etc/shadow > "$TMPDIR/shadow.user"
 
     # Send files to remote
-    eval $RSYNC_CMD "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" "${REMOTE_USER}@${REMOTE_HOST}:/root/"
+    eval "$RSYNC_CMD" "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" "${REMOTE_USER}@${REMOTE_HOST}:/root/"
     rm -rf "$TMPDIR" >/dev/null
 
     # Remote command (heredoc WITHOUT quotes so we interpolate CONTEXT)
@@ -331,7 +327,7 @@ EOF
 
 store_running_containers_for_user() {
 output_file="/tmp/docker_containers_names.txt"
-> "$output_file"  # clear the file
+: > "$output_file"  # clear the file
 
 compose_file="$(podman_compose_file "$CONTEXT")"
 if [ -f "$compose_file" ]; then
@@ -345,7 +341,7 @@ if [ -f "$compose_file" ]; then
     fi
 fi
 
-eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
+eval "$RSYNC_CMD" $output_file "${REMOTE_USER}"@"${REMOTE_HOST}":$output_file
 }
 
 copy_feature_set() {
@@ -482,7 +478,7 @@ TMP_DIR="/tmp/export_${USERNAME}_$RANDOM"
 mkdir -p "$TMP_DIR"
 
 # Get user ID
-USER_ID=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
+USER_ID=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
   -e "SELECT id FROM users WHERE username = '$USERNAME';")
 
 if [[ -z "$USER_ID" ]]; then
@@ -491,15 +487,11 @@ if [[ -z "$USER_ID" ]]; then
 fi
 
 # Get plan ID
-PLAN_ID=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
+PLAN_ID=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
   -e "SELECT plan_id FROM users WHERE id = $USER_ID;")
 
-# Get plan name
-PLAN_NAME=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
-  -e "SELECT name FROM plans WHERE id = $PLAN_ID;")
-
 ### EXPORT PLAN (no ID)
-mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "
   SELECT name, description, domains_limit, websites_limit, email_limit, ftp_limit,
          disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set,
          max_email_quota, max_hourly_email
@@ -521,7 +513,7 @@ END { print ";" }
 
 
 ### EXPORT USER (no ID)
-mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "
   SELECT username, password, email, owner, user_domains, twofa_enabled, otp_secret,
          plan, registered_date, server, plan_id
   FROM users WHERE id = $USER_ID;" > "$TMP_DIR/user.tsv"
@@ -539,14 +531,14 @@ END { print ";" }
 ' "$TMP_DIR/user.tsv" > "$TMP_DIR/user_${USERNAME}_autoinc.sql"
 
 ### EXPORT SITES (if any domains exist)
-DOMAIN_IDS=$(mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s \
+DOMAIN_IDS=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
   -e "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
 
 if [[ -z "$DOMAIN_IDS" ]]; then
   :
 else
   DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-	mariadb --defaults-extra-file=$config_file -D $mysql_database -N -s -e "
+	mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "
 	  SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
 	  FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST);" > "$TMP_DIR/sites.tsv"
 	
@@ -564,9 +556,9 @@ else
   ' "$TMP_DIR/sites.tsv" > "$TMP_DIR/sites_${USERNAME}_autoinc.sql"
 fi
 
-eval $RSYNC_CMD $TMP_DIR/plan_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
-eval $RSYNC_CMD $TMP_DIR/user_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
-[[ -f "sites_${USERNAME}_autoinc.sql" ]] && eval $RSYNC_CMD $TMP_DIR/sites_${USERNAME}_autoinc.sql ${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import/
+eval "$RSYNC_CMD" "$TMP_DIR"/plan_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
+eval "$RSYNC_CMD" "$TMP_DIR"/user_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
+[[ -f "sites_${USERNAME}_autoinc.sql" ]] && eval "$RSYNC_CMD" "$TMP_DIR"/sites_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
 
 }
 
@@ -640,7 +632,7 @@ update_zone_file() {
 
 rsync_files_for_user() {
     log "Syncing files for user $USERNAME (context: $CONTEXT) ..."
-    RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/$CONTEXT "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    RSYNC_OUTPUT=$(eval "$RSYNC_CMD" /home/"$CONTEXT" "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     log "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
@@ -649,7 +641,7 @@ rsync_files_for_user() {
         if [[ -f "$MAPPING_FILE" ]]; then
             MAPPING_LINE=$(grep "^$CONTEXT:" "$MAPPING_FILE")
             if [[ -n "$MAPPING_LINE" ]]; then
-                IFS=':' read -r name old_uid new_uid gid home <<< "$MAPPING_LINE"
+                IFS=':' read -r _ old_uid new_uid gid _ <<< "$MAPPING_LINE"
                 if [[ "$old_uid" != "$new_uid" ]]; then
                     log "UID changed for $CONTEXT (from $old_uid to $new_uid), performing chown on remote host ..."
                     $SSH_CMD "chown -R $new_uid:$gid /home/$CONTEXT"
@@ -667,13 +659,13 @@ rsync_files_for_user() {
 
     CADDY_STATS="/var/log/caddy/stats/$USERNAME"
     if [ -d "$CADDY_STATS" ]; then
-		eval $RSYNC_CMD $CADDY_STATS ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/stats/
+		eval "$RSYNC_CMD" "$CADDY_STATS" "${REMOTE_USER}"@"${REMOTE_HOST}":/var/log/caddy/stats/
     fi
 
 	BLOCKED_IPS="/etc/openpanel/caddy/deny/${CONTEXT}.ips"
 	if [[ -f "$BLOCKED_IPS" ]]; then
 	    $SSH_CMD "mkdir -p /etc/openpanel/caddy/deny/"
-	    eval $RSYNC_CMD "$BLOCKED_IPS" "${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/deny/"
+	    eval "$RSYNC_CMD" "$BLOCKED_IPS" "${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/deny/"
 	fi
 
     ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version)
@@ -687,15 +679,14 @@ else
     
     if [ -z "$owner" ]; then
 	    # add domain on remote
-	    $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"
-	    if [ $? -ne 0 ]; then
+	    if ! $SSH_CMD "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"; then
 	       log "[✘] ERROR: Failed to import domain $domain"
 		   exit 1
 	    fi
     
 	    DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
 	    if [ -f "$DOMAIN_CADDY_CONF" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_CONF ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/domains/
+			eval "$RSYNC_CMD" "$DOMAIN_CADDY_CONF" "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/caddy/domains/
 			if [[ "$LIVE_TRANSFER" == true ]]; then
 			   # https://github.com/stefanpejcic/OpenPanel/issues/897
 		       sed -E -i 's|reverse_proxy (https?://)[^ ]+|reverse_proxy \1'"$REMOTE_HOST"'|g' "$DOMAIN_CADDY_CONF"
@@ -704,23 +695,23 @@ else
 	
 	    DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
 	    if [ -f "$DOMAIN_CADDY_LOG" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_LOG ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/domlogs/
+			eval "$RSYNC_CMD" "$DOMAIN_CADDY_LOG" "${REMOTE_USER}"@"${REMOTE_HOST}":/var/log/caddy/domlogs/
 		fi
 	
 	    DOMAIN_CADDY_WAF="/var/log/caddy/coraza_waf/$domain.log"
 	    if [ -f "$DOMAIN_CADDY_WAF" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_WAF ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/coraza_waf/
+			eval "$RSYNC_CMD" "$DOMAIN_CADDY_WAF" "${REMOTE_USER}"@"${REMOTE_HOST}":/var/log/caddy/coraza_waf/
 		fi
 
 		DOMAIN_CADDY_SUSPENDED="/etc/openpanel/caddy/suspended_domains/$domain.conf"
 		if [[ -f "$DOMAIN_CADDY_SUSPENDED" ]]; then
 		    $SSH_CMD "mkdir -p /etc/openpanel/caddy/suspended_domains/"
-		    eval $RSYNC_CMD "$DOMAIN_CADDY_SUSPENDED" "${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/suspended_domains/"
+		    eval "$RSYNC_CMD" "$DOMAIN_CADDY_SUSPENDED" "${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/suspended_domains/"
 		fi
 
 		DOMAIN_ZONE_FILE="/etc/bind/zones/$domain.zone"
 		if [ -f "$DOMAIN_ZONE_FILE" ]; then
-		    eval $RSYNC_CMD "$DOMAIN_ZONE_FILE" ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/zones/
+		    eval "$RSYNC_CMD" "$DOMAIN_ZONE_FILE" "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/bind/zones/
       
 		    $SSH_CMD "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
       
@@ -737,19 +728,19 @@ EOF
 
 		DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
 		if [ -d "$DOMAIN_CADDY_SSL" ]; then
-		eval $RSYNC_CMD $DOMAIN_CADDY_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
+		eval "$RSYNC_CMD" "$DOMAIN_CADDY_SSL" "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
 		fi
 
 		DOMAIN_CADDY_CUSTOM_SSL="/etc/openpanel/caddy/ssl/custom/$domain"
 		if [ -d "$DOMAIN_CADDY_CUSTOM_SSL" ]; then
-			eval $RSYNC_CMD $DOMAIN_CADDY_CUSTOM_SSL ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/caddy/ssl/custom/
+			eval "$RSYNC_CMD" "$DOMAIN_CADDY_CUSTOM_SSL" "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/caddy/ssl/custom/
 		fi
  	fi
 
 	DKIM_DIR="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain"
 	if [[ -d "$DKIM_DIR" ]]; then
 	    $SSH_CMD "mkdir -p /usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/"
-	    eval $RSYNC_CMD "$DKIM_DIR" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/"
+	    eval "$RSYNC_CMD" "$DKIM_DIR" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/"
 	fi
 
  done <<< "$ALL_DOMAINS"
@@ -829,13 +820,13 @@ restore_ftp_for_user() {
 
     # 1. Sync the users.list (and any per-context config) to the remote
     $SSH_CMD "mkdir -p '$LOCAL_FTP_DIR'"
-    eval $RSYNC_CMD "$LOCAL_FTP_DIR/" "${REMOTE_USER}@${REMOTE_HOST}:${LOCAL_FTP_DIR}/"
+    eval "$RSYNC_CMD" "$LOCAL_FTP_DIR/" "${REMOTE_USER}@${REMOTE_HOST}:${LOCAL_FTP_DIR}/"
 
     # 2. Replay each entry into the remote openadmin_ftp container.
     #    Passwords are already SHA-512 hashed in users.list, so no re-hashing.
     #    GID is re-derived from /home/$CONTEXT on the remote in case the UID was
     #    remapped during copy_user_account / rsync_files_for_user.
-    $SSH_CMD bash -s <<EOF
+    if ! $SSH_CMD bash -s <<EOF
 set -e
 context="$CONTEXT"
 
@@ -901,20 +892,20 @@ while IFS='|' read -r username hashed_pass directory uid gid; do
     echo "[FTP] restored \$username -> \$directory"
 done < "\$USERS_LIST"
 EOF
-
-    if [[ $? -ne 0 ]]; then
-        log "[!] Warning: FTP restore reported an error for context $CONTEXT"
-    else
+    then
         log "FTP accounts restored for context $CONTEXT."
+    else
+        log "[!] Warning: FTP restore reported an error for context $CONTEXT"
     fi
 }
 
 
 # MAIN
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
+# shellcheck disable=SC1090
 . "$DB_CONFIG_FILE"
 
-ssh-keygen -f '/root/.ssh/known_hosts' -R $REMOTE_HOST > /dev/null
+ssh-keygen -f '/root/.ssh/known_hosts' -R "$REMOTE_HOST" > /dev/null
 format_commands # creates rsync and sshpass commands, installs sshpass if missing
 
 log_paths_are                                                              # where will we store the progress
@@ -965,8 +956,8 @@ if [ -n "$key_value" ]; then
     fi
 
     if [[ -n "$DOMAIN_LIST_STR" ]]; then
-        DOMAIN_PATTERN=$(printf '@%s\|' $DOMAIN_LIST_STR | sed 's/\\|$//')
-        REGEX_PATTERN=$(printf '/\\*@%s/|' $DOMAIN_LIST_STR | sed 's/|$//')
+        DOMAIN_PATTERN=$(printf '@%s\|' "$DOMAIN_LIST_STR" | sed 's/\\|$//')
+        REGEX_PATTERN=$(printf '/\\*@%s/|' "$DOMAIN_LIST_STR" | sed 's/|$//')
 
         TMP_MAIL_DIR=$(mktemp -d)
 
@@ -999,11 +990,11 @@ if [ -n "$key_value" ]; then
         $SSH_CMD "mkdir -p $DMS_CONFIG /usr/local/mail/openmail/postfwd/"
         for cf in postfix-accounts.cf postfix-virtual.cf dovecot-quotas.cf postfix-receive-access.cf postfix-send-access.cf postfix-regex.cf; do
             [[ -s "$TMP_MAIL_DIR/$cf" ]] && \
-                eval $RSYNC_CMD "$TMP_MAIL_DIR/$cf" "${REMOTE_USER}@${REMOTE_HOST}:${DMS_CONFIG}/$cf" && \
+                eval "$RSYNC_CMD" "$TMP_MAIL_DIR/$cf" "${REMOTE_USER}@${REMOTE_HOST}:${DMS_CONFIG}/$cf" && \
                 log "Synced $cf"
         done
         [[ -s "$TMP_MAIL_DIR/postfwd.cf" ]] && \
-            eval $RSYNC_CMD "$TMP_MAIL_DIR/postfwd.cf" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/postfwd/postfwd.cf" && \
+            eval "$RSYNC_CMD" "$TMP_MAIL_DIR/postfwd.cf" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/postfwd/postfwd.cf" && \
             log "Synced postfwd.cf"
 
         rm -rf "$TMP_MAIL_DIR"
@@ -1027,7 +1018,7 @@ if [ -n "$key_value" ]; then
     if [[ -d "$LOCAL_MAIL_PATH" ]]; then
         log "Syncing maildir from $LOCAL_MAIL_PATH → $REMOTE_MAIL_PATH ..."
         $SSH_CMD "mkdir -p $REMOTE_MAIL_PATH"
-        eval $RSYNC_CMD "$LOCAL_MAIL_PATH" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_MAIL_PATH}"
+        eval "$RSYNC_CMD" "$LOCAL_MAIL_PATH" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_MAIL_PATH}"
         COMPOSE_START_MAIL=1
     else
         log "[!] No maildir found at $LOCAL_MAIL_PATH, skipping."
@@ -1035,12 +1026,12 @@ if [ -n "$key_value" ]; then
 fi
 
 # logs and stuff
-eval $RSYNC_CMD /etc/openpanel/openpanel/core/users/$USERNAME/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/openpanel/core/users/$USERNAME
+eval "$RSYNC_CMD" /etc/openpanel/openpanel/core/users/"$USERNAME"/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/openpanel/core/users/"$USERNAME"
 
 store_running_containers_for_user         # export running contianers on source and copy to dest
 
 if [[ "$LIVE_TRANSFER" == true ]]; then
-	opencli user-suspend $USERNAME > /dev/null 2>&1 &
+	opencli user-suspend "$USERNAME" > /dev/null 2>&1 &
 fi
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
