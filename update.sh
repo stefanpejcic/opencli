@@ -725,8 +725,7 @@ update_opencli() {
     [[ "$1" == "--no-log" ]] && echo "$message" || log "$message"
     if [[ -d /usr/local/opencli ]]; then
         rm -f /usr/local/opencli/aliases.txt
-        cd /usr/local/opencli || return 
-        git reset --hard origin/podman
+        cd /usr/local/opencli || return
         if [[ "$1" == "--no-log" ]]; then
             git reset --hard origin/podman 2>&1
         else
