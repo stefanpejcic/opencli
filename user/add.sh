@@ -562,6 +562,22 @@ configure_environment() {
         fi
     fi
 
+    # Reseller branding: if this account is owned by a reseller who has set
+    # their own logo URL, write it into the new account's .env so its
+    # OpenPanel container can pick it up directly -- the container only
+    # ever sees its own home directory, not /etc/openpanel/openadmin/resellers/.
+    if [[ -n "$RESELLER" ]]; then
+        local reseller_logo_url
+        reseller_logo_url="$(jq -r '.logo_url // empty' "/etc/openpanel/openadmin/resellers/${RESELLER}.json" 2>/dev/null)"
+        if [[ -n "$reseller_logo_url" ]]; then
+            if grep -q "^RESELLER_LOGO_URL=" "${home_dir}/.env"; then
+                sed -i "s|^RESELLER_LOGO_URL=.*|RESELLER_LOGO_URL=\"${reseller_logo_url}\"|" "${home_dir}/.env"
+            else
+                printf 'RESELLER_LOGO_URL="%s"\n' "${reseller_logo_url}" >> "${home_dir}/.env"
+            fi
+        fi
+    fi
+
 	log "Creating user files.."
     [[ -f "${home_dir}/.env" ]] || { hard_cleanup; die "Failed to create .env file."; }
 

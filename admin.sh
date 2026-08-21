@@ -70,7 +70,7 @@ usage() {
     echo "  list                                          List all current admin users."
     echo "  new <user> <pass>                             Add a new user with the specified username and password."
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
-    echo "  update <user> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 Assign plans and set limits for reseller."
+    echo "  update <user> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 --logo_url=<url> Assign plans, limits, and branding for reseller."
 	echo "  rename <old> <new>                            Change the admin username."
     echo "  suspend <user>                                Suspend admin user."
     echo "  unsuspend <user>                              Unsuspend admin user."
@@ -413,13 +413,16 @@ update_reseller_account() {
     local allowed_plans=""
     local max_accounts=""
     local max_disk_blocks=""
+    local logo_url=""
+    local logo_url_set=0
 
     while [[ $# -gt 0 ]]; do
         case $1 in
             --allowed_plans=*) allowed_plans="${1#*=}" ;;
             --max_accounts=*) max_accounts="${1#*=}" ;;
             --max_disk_blocks=*) max_disk_blocks="${1#*=}" ;;
-            *) 
+            --logo_url=*) logo_url="${1#*=}"; logo_url_set=1 ;;
+            *)
                 if [[ -z "$username" ]]; then
                     username="$1"
                 fi
@@ -428,11 +431,7 @@ update_reseller_account() {
         shift
     done
 
-    [[ -z "$max_accounts" ]] && max_accounts=0
-    [[ -z "$max_disk_blocks" ]] && max_disk_blocks=0
-    [[ -z "$allowed_plans" ]] && allowed_plans="[]"
-
-    if [[ "$allowed_plans" != \[*\] ]]; then
+    if [[ -n "$allowed_plans" && "$allowed_plans" != \[*\] ]]; then
         IFS=',' read -r -a plans_array <<< "$allowed_plans"
         allowed_plans=$(printf '%s\n' "${plans_array[@]}" | jq -R . | jq -s .)
     fi
@@ -443,15 +442,64 @@ update_reseller_account() {
         return 1
     fi
 
-    jq --argjson max_accounts "$max_accounts" \
-       --argjson max_disk_blocks "$max_disk_blocks" \
-       --arg plans_json "$allowed_plans" \
-       '.max_accounts = $max_accounts
-        | .max_disk_blocks = $max_disk_blocks
-        | .allowed_plans = ($plans_json | fromjson)' \
+    # Only fields whose flag was actually passed are touched -- e.g.
+    # `update <reseller> --logo_url=...` alone must not reset
+    # max_accounts/max_disk_blocks/allowed_plans back to empty/0.
+    local jq_filter="."
+    local jq_args=()
+    if [[ -n "$max_accounts" ]]; then
+        jq_filter+=' | .max_accounts = $max_accounts'
+        jq_args+=(--argjson max_accounts "$max_accounts")
+    fi
+    if [[ -n "$max_disk_blocks" ]]; then
+        jq_filter+=' | .max_disk_blocks = $max_disk_blocks'
+        jq_args+=(--argjson max_disk_blocks "$max_disk_blocks")
+    fi
+    if [[ -n "$allowed_plans" ]]; then
+        jq_filter+=' | .allowed_plans = ($plans_json | fromjson)'
+        jq_args+=(--arg plans_json "$allowed_plans")
+    fi
+    if [[ "$logo_url_set" -eq 1 ]]; then
+        jq_filter+=' | .logo_url = $logo_url'
+        jq_args+=(--arg logo_url "$logo_url")
+    fi
+
+    jq "${jq_args[@]}" "$jq_filter" \
        "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
 
     echo "Reseller $username updated successfully."
+
+    if [[ "$logo_url_set" -eq 1 ]]; then
+        sync_reseller_logo_to_owned_users "$username" "$logo_url"
+    fi
+}
+
+# ------------- opencli admin update --logo_url= fan-out ------------- #
+# Writes RESELLER_LOGO_URL into the .env of every account this reseller
+# currently owns, so their OpenPanel container picks up the change without
+# needing any shared filesystem/DB access -- each per-user container only
+# ever sees its own home directory, not /etc/openpanel/openadmin/resellers/.
+sync_reseller_logo_to_owned_users() {
+    local reseller="$1"
+    local logo_url="$2"
+    source /usr/local/opencli/db.sh
+    local escaped_reseller
+    escaped_reseller=$(mysql_escape "$reseller")
+
+    local contexts
+    contexts="$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT server FROM users WHERE owner='$escaped_reseller';" 2>/dev/null)"
+
+    local context env_file
+    while IFS= read -r context; do
+        [[ -z "$context" ]] && continue
+        env_file="/home/${context}/.env"
+        [[ -f "$env_file" ]] || continue
+        if grep -q "^RESELLER_LOGO_URL=" "$env_file"; then
+            sed -i "s|^RESELLER_LOGO_URL=.*|RESELLER_LOGO_URL=\"${logo_url}\"|" "$env_file"
+        else
+            printf 'RESELLER_LOGO_URL="%s"\n' "$logo_url" >> "$env_file"
+        fi
+    done <<< "$contexts"
 }
 
 
