@@ -20,7 +20,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 20.08.2026
-# Company: openpanel.com
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy

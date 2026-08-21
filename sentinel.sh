@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: sentinel.sh
-# Description: Check system services, traffic and resource usage.
-# Usage: opencli sentinel
+# Description: Check system services, traffic and resource usage, and log/send custom notifications on request.
+# Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
-# Copyright (c) Stefan Pejcic <stefan@pejcic.rs>
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal

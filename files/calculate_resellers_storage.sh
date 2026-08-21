@@ -5,8 +5,8 @@
 # Usage: opencli files-calculate_resellers_storage
 # Author: Stefan Pejcic
 # Created: 24.09.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

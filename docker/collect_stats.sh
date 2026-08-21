@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: collect_stats.sh
 # Description: Collect resource usage information for user(s).
-# Usage: opencli docker-collect_stats
+# Usage: opencli docker-collect_stats <username|--all>
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

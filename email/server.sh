@@ -2,12 +2,12 @@
 ################################################################################
 # Script Name: email/server.sh
 # Description: Manage mailserver
-# Usage: opencli email-server <install|start|restart|stop|uninstall> [--debug]
+# Usage: opencli email-server <status|config|install|start|stop|restart|queue|flush|view|unhold|delete|fail2ban|ports|logs|login|supervisor|postfwd|pflogsumm|update-check|update-packages|versions> [args] [--debug]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -117,8 +117,8 @@ check_ent() {
 	    :
 	else
 	    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-	    ENTERPRISE="/usr/local/opencli/enterprise.sh"
-	    # shellcheck source=/usr/local/opencli/enterprise.sh
+	    ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
+	    # shellcheck source=/usr/local/opencli/lib/enterprise.sh
 	    source "$ENTERPRISE"
 	    echo "$ENTERPRISE_LINK"
 	    exit 1

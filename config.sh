@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: config.sh
-# Description: View / change configuration for users and set defaults for new accounts.
+# Description: Get or update a value in the OpenPanel configuration file.
 # Usage: opencli config get <setting_name> 
 #        opencli config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

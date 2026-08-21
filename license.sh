@@ -5,8 +5,8 @@
 # Usage: opencli license verify 
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -73,7 +73,9 @@ Usage: opencli license [options]
 
 Commands:
   key                                           View current license key.
-  enterprise-XXXXXXXXXX                         Save the license key.
+  enterprise-XXXXXXXXXX                         Save an Enterprise license key.
+  noc-XXXXXXXXXX                                Save a NOC license key.
+  lifetime-XXXXXXXXXX                           Save a Lifetime license key.
   verify                                        Verify the license key.
   info                                          Display information about the license owner and expiration.
   delete                                        Delete the license key and downgrade OpenPanel to Community edition.

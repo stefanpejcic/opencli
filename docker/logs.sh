@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: logs.sh
-# Description: Display log sizes for user and sytem containers
-# Usage: opencli docker-logs [--all|system|<USERNAME>]
+# Description: Display log sizes for user and system containers
+# Usage: opencli docker-logs [--all|--system|--users|<USERNAME>]
 # Author: Stefan Pejcic
 # Created: 28.05.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

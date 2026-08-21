@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: api.sh
-# Description: On/Off OpenAdmin API access and list available API endpoints.
+# Description: Check status, enable or disable OpenAdmin API access, and list available API endpoints.
 # Usage: opencli api <status|on|off|list>
 # Author: Stefan Pejcic
 # Created: 04.09.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -57,7 +57,7 @@ fi
 license_key=$(grep "^key=" "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2-)
 [ -n "$license_key" ] || {
     echo "Error: OpenPanel Community edition does not support API access. Please consider purchasing the Enterprise version that has remote API access and integrations with billing softwares such as WHMCS and FOSSBilling."
-    source "/usr/local/opencli/enterprise.sh"
+    source "/usr/local/opencli/lib/enterprise.sh"
     echo "$ENTERPRISE_LINK"
     exit 1
 }

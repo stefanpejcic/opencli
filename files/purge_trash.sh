@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: files/purge_trash.sh
 # Description: Auto-purge .Trash folders for users.
-# Usage: opencli files-purge_trash --user [USERNAME]
+# Usage: opencli files-purge_trash [--user USERNAME] [--force] [--dry-run]
 # Author: Stefan Pejcic
 # Created: 03.06.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

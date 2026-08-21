@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: server/migrate.sh
 # Description: Migrates all data from this server to another.
-# Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD>
+# Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--exclude-* options]
 # Author: Stefan Pejcic
 # Created: 26.06.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,7 +29,7 @@
 ################################################################################
 
 : '
-Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <password>] [--exclude-home] [--exclude-logs] [--exclude-csf] [--exclude-mail] [--exclude-bind] [--exclude-openpanel] [--exclude-mysql] [--exclude-stack] [--exclude-postupdate] [--exclude-users]
+Usage: opencli server-migrate -h <remote_host> -u <remote_user> [--password <password>] [--force] [--exclude-home] [--exclude-logs] [--exclude-csf] [--exclude-mail] [--exclude-bind] [--exclude-openpanel] [--exclude-mysql] [--exclude-stack] [--exclude-postupdate] [--exclude-users] [--exclude-contexts]
 '
 
 # shellcheck disable=SC1091

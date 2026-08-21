@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: email/manage.sh
-# Description: Manage mailserver configuration and overview.
+# Description: Pass commands through to docker-mailserver's setup CLI inside the mailserver container.
 # Usage: opencli email-manage <COMMAND> <ATTRIBUTES>
 # Author: Stefan Pejcic
 # Created: 31.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-ENTERPRISE="/usr/local/opencli/enterprise.sh"
+ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 

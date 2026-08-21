@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: files/fix_permissions.sh
 # Description: Fix permissions for users /home directory files inside the container.
-# Usage: opencli files-fix_permissions <USERNAME> [PATH]
+# Usage: opencli files-fix_permissions <USERNAME|--all> [PATH] [--debug]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

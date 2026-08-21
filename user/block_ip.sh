@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: user/block_ip.sh
-# Description: Block IP addresses from accessng user domains.
+# Description: View, add, or remove blocked IP addresses for a user's domains.
 # Usage: opencli user-block_ip <username> [--list='ip_here another_ip' | --delete-all]
 # Author: Stefan Pejcic
 # Created: 13.03.2026
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

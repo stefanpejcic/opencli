@@ -2,12 +2,12 @@
 ################################################################################
 # Script Name: ftp/add.sh
 # Description: List FTP sub-users for openpanel user.
-# Usage: opencli ftp-list <OPENPANEL_USERNAME> [--json]
+# Usage: opencli ftp-list [OPENPANEL_USERNAME] [--json]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 10.09.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

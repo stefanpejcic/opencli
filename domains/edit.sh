@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/docroot.sh
-# Description: Enter docroot for a domain.
-# Usage: opencli domains-edit <DOMAIN_NAME>
+# Description: Open a domain's docroot directory, or its webserver vhost config file in nano with --ws.
+# Usage: opencli domains-edit <DOMAIN_NAME> [--ws]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,7 +32,7 @@
 . /usr/local/opencli/lib/podman.sh
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: opencli domains-edit <DOMAIN_NAME>"
+    echo "Usage: opencli domains-edit <DOMAIN_NAME> [--ws]"
     exit 1
 fi
 

@@ -5,8 +5,8 @@
 # Usage: opencli admin <command> [options]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -47,7 +47,7 @@ admin_failed_login_log="/var/log/openpanel/admin/failed_login.log"
 notifications_file="/etc/openpanel/openadmin/config/notifications.ini"
 admin_crons_log="/var/log/openpanel/admin/cron.log"
 db_file_path="/etc/openpanel/openadmin/users.db"
-ENTERPRISE="/usr/local/opencli/enterprise.sh"
+ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 
 # Escape a single quote for safe use inside a SQLite single-quoted string literal
 sqlite_escape() {
@@ -68,7 +68,7 @@ usage() {
     echo "  log                                           Display the last 25 lines of the OpenAdmin error log."
     echo "  logs                                          Display live logs for all OpenAdminn services."
     echo "  list                                          List all current admin users."
-    echo "  new <user> <pass>                             Add a new user with the specified username and password."
+    echo "  new <user> <pass> [--reseller|--super]        Add a new user, optionally as a reseller or super admin."
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
     echo "  update <user> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 --logo_url=<url> Assign plans, limits, and branding for reseller."
 	echo "  rename <old> <new>                            Change the admin username."
@@ -85,11 +85,13 @@ usage() {
     echo "  opencli admin on"
     echo "  opencli admin off"
     echo "  opencli admin port"
-    echo "  opencli admin 8443"
+    echo "  opencli admin port 8443"
     echo "  opencli admin log"
     echo "  opencli admin logs"
     echo "  opencli admin list"
     echo "  opencli admin new stefan SuperStrong1"
+    echo "  opencli admin new stefan SuperStrong1 --reseller"
+    echo "  opencli admin new stefan SuperStrong1 --super"
     echo "  opencli admin password stefan SuperStrong2"
     echo "  opencli admin rename stefan pejcic"
     echo "  opencli admin suspend pejcic"

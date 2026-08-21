@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/dnssec.sh
-# Description: Enable DNSSEC for a domain and re-sign after changes in the zone.
+# Description: Enable DNSSEC for a domain, re-sign the zone after changes, or check its DNSSEC status.
 # Usage: opencli domains-dnssec <DOMAIN> [--update | --check]
 # Author: Stefan Pejcic
 # Created: 09.07.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

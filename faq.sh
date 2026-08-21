@@ -5,9 +5,9 @@
 # Usage: opencli faq
 # Author: Stefan Pejcic
 # Created: 20.05.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
+# Copyright (c) openpanel.com
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal

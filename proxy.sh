@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: proxy.sh
 # Description: View and change proxy path '/openpanel' for accessing openpanel.
-# Usage: opencli port [set <path>] 
+# Usage: opencli proxy [set <path>|default]
 # Author: Stefan Pejcic
 # Created: 17.02.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

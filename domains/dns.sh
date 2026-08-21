@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/dns.sh
-# Description: Manage DNS for a domain.
-# Usage: opencli domains-dns <DOMAIN>
+# Description: Manage DNS zones and the DNS server via subcommands (create, delete, reload, list, check, start/stop/restart, etc).
+# Usage: opencli domains-dns <reconfig|check|reload|show|list|create|delete|default|count|config|start|restart|hard-restart|stop> [DOMAIN]
 # Author: Stefan Pejcic
 # Created: 31.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

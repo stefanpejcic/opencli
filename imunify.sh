@@ -6,8 +6,8 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -360,7 +360,7 @@ case "$1" in
         exit 0
         ;;
     *)
-        echo "Usage: opencli imunify {install|update|uninstall|start|stop}"
+        echo "Usage: opencli imunify {status|install|update|uninstall|start|stop}"
         exit 1
         ;;
 esac

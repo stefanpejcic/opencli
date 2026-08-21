@@ -6,9 +6,9 @@
 # Docs: https://docs.openpanel.com
 # Author: Radovan Jecmenica
 # Created: 01.12.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,7 @@
 
 # Function to print usage instructions
 print_usage() {
-    script_name=$(basename "$0")
-    echo "Usage: $script_name <plan_name> [--json]"
+    echo "Usage: opencli plan-delete <plan_name> [--json]"
     exit 1
 }
 

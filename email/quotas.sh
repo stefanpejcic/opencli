@@ -5,8 +5,8 @@
 # Usage: opencli email-quotas
 # Author: Stefan Pejcic
 # Created: 03.12.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,13 +28,13 @@
 # THE SOFTWARE.
 ##################################################################################
 
-readonly ENTERPRISE="/usr/local/opencli/enterprise.sh"
+readonly ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 if [ -z "$key_value" ]; then
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    # shellcheck source=/usr/local/opencli/enterprise.sh
+    # shellcheck source=/usr/local/opencli/lib/enterprise.sh
     source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1

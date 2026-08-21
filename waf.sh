@@ -5,8 +5,8 @@
 # Usage: opencli waf <setting> 
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,7 +45,9 @@ usage() {
     echo "  tags                                         Display all tags from enabled sets."
     echo "  ids                                          Display all rule IDs from enabled sets."
     echo "  update                                       Update OWASP CRS."
+    echo "  update log                                   Show OWASP CRS update history (git log)."
     echo "  stats <country|agent|hourly|ip|request|path> Display top requests by country, ip, path, etc."
+    echo "  count                                         Display total number of audit log records."
     echo ""
     echo "Examples:"
     echo "  opencli waf status"

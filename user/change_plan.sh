@@ -5,8 +5,8 @@
 # Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,7 +29,7 @@
 ################################################################################
 
 if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
-    echo "Usage: opencli user-change-plan <username> <new_plan_name>"
+    echo "Usage: opencli user-change_plan <username> <new_plan_name> [--debug]"
     exit 1
 fi
 

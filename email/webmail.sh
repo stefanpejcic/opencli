@@ -1,13 +1,13 @@
 #!/bin/bash
 ################################################################################
 # Script Name: email/webmail.sh
-# Description: Display webmail domain or choose webmail software
-# Usage: opencli email-webmail [--debug]
+# Description: Display or update the domain used for accessing webmail.
+# Usage: opencli email-webmail [--debug] [domain <domain>]
 # Docs: https://docs.openpanel.com
 # Author: 27.08.2024
 # Created: 18.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,7 +31,7 @@
 
 
 usage() {
-    echo "Usage: opencli email-webmail"
+    echo "Usage: opencli email-webmail [--debug] [domain <domain>]"
     echo
     echo "Examples:"
     echo "  opencli email-webmail                            # Display webmail domain."
@@ -52,7 +52,7 @@ WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain pro
 
 
 # ENTERPRISE
-ENTERPRISE="/usr/local/opencli/enterprise.sh"
+ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 PROXY_FILE="/etc/openpanel/caddy/redirects.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
@@ -62,7 +62,7 @@ if [ -n "$key_value" ]; then
     :
 else
     echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    # shellcheck source=/usr/local/opencli/enterprise.sh
+    # shellcheck source=/usr/local/opencli/lib/enterprise.sh
     source "$ENTERPRISE"
     echo "$ENTERPRISE_LINK"
     exit 1

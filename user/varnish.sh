@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/varnish.sh
 # Description: Enable/disable Varnish Caching for user and display current status.
-# Usage: opencli user-varnish <USERNAME> [on|off]
+# Usage: opencli user-varnish <USERNAME> [enable|disable|status]
 # Author: Stefan Pejcic
 # Created: 20.03.2025
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

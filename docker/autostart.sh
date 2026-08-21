@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
 # Script Name: autostart.sh
-# Description: Set services to auto-start for user on acocunt creation.
-# Usage: opencli docker-autostart
+# Description: Prefetch (pull) container images for services listed as autostart, skipping if free disk space is low.
+# Usage: opencli docker-autostart [-f|--force]
 # Author: Stefan Pejcic
 # Created: 14.05.2026
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy

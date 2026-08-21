@@ -2,12 +2,12 @@
 ################################################################################
 # Script Name: user/add.sh
 # Description: Create a new user with the provided plan_name.
-# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|openresty|openlitespeed|litespeed|varnish+nginx|varnish+apache|varnish+openresty|varnish+openlitespeed>"] [--sql=<mysql|mariadb>] [--RESELLER=<RESELLER_USERNAME>] [--private-note="this user.."] [--no-sentinel]
+# Usage: opencli user-add <USERNAME> <PASSWORD|generate> <EMAIL> "<PLAN_NAME>" [--send-email] [--debug]  [--webserver="<nginx|apache|openresty|openlitespeed|litespeed|varnish+nginx|varnish+apache|varnish+openresty|varnish+openlitespeed>"] [--sql=<mysql|mariadb>] [--reseller=<RESELLER_USERNAME>] [--private-note="this user.."] [--no-sentinel]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 10.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,7 +36,7 @@ readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
 readonly SHARED_STORE="/var/lib/containers/shared-storage"
 
 if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
-    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>]"
+    echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>] [--webserver=<TYPE>] [--sql=<mysql|mariadb>] [--no-sentinel]"
     echo
     echo "Required arguments:"
     echo "  <username>                 The username of the new user."
@@ -48,6 +48,10 @@ if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
     printf "%-25s %-45s\n" "  --send-email" "Send a welcome email to the user."
     printf "%-25s %-45s\n" "  --debug" "Enable debug mode for additional output."
     printf "%-25s %-45s\n" "  --private-note=" "Write a private note for this user (visible only on OpenAdmin)."
+    printf "%-25s %-45s\n" "  --reseller=" "Assign a reseller as the owner of this user."
+    printf "%-25s %-45s\n" "  --webserver=" "Webserver type to use (nginx|apache|openresty|openlitespeed|litespeed, optionally varnish+ prefixed)."
+    printf "%-25s %-45s\n" "  --sql=" "Database type to use (mysql|mariadb)."
+    printf "%-25s %-45s\n" "  --no-sentinel" "Skip sending a Sentinel notification for this action."
 	echo
     exit 1
 fi

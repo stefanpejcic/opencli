@@ -6,9 +6,9 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.comm
-# Copyright (c) openpanel.comm
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
+# Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ validate_first() {
 
     if [ -z "$key_value" ]; then
         echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-        local ENTERPRISE="/usr/local/opencli/enterprise.sh"
+        local ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
         # shellcheck disable=SC1090
         . "$ENTERPRISE"
         echo "$ENTERPRISE_LINK"

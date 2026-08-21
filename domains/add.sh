@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: domains/add.sh
 # Description: Add a domain name for user.
-# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy --skip_vhost --skip_containers --skip_dns] --debug
+# Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 09.07.2026
-# Company: openpanel.com
+# Last Modified: 21.08.2026
+# Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -84,7 +84,7 @@ warn() { echo "WARNING: $*" >&2; }
 # ======================================================================
 # Arg parsing
 parse_args() {
-	[[ "$#" -lt 2 ]] && { echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot /var/www/html/...] [--php_version N.N] [--debug]"; exit 1; }
+	[[ "$#" -lt 2 ]] && { echo "Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot /var/www/html/...] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_dns] [--skip_containers] [--skip-sentinel] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY] [--debug]"; exit 1; }
 
     domain_name="$1"
     user="$2"
