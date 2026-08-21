@@ -749,12 +749,12 @@ update_opencli() {
         fi
 
         # (re)install bash tab-completion for opencli
-        if [[ -f /usr/local/opencli/completion.bash ]]; then
+        if [[ -f /usr/local/opencli/lib/completion.bash ]]; then
             if ! rpm -q bash-completion &>/dev/null 2>&1 && ! dpkg -s bash-completion &>/dev/null 2>&1; then
                 install_package "bash-completion" "true"
             fi
             if [[ -d /etc/bash_completion.d ]]; then
-                ln -sf /usr/local/opencli/completion.bash /etc/bash_completion.d/opencli
+                ln -sf /usr/local/opencli/lib/completion.bash /etc/bash_completion.d/opencli
             fi
         fi
     fi
