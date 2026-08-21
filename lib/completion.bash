@@ -151,7 +151,7 @@ _opencli_command_names() {
 }
 
 # commands whose next positional argument is a username
-_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-block_ip user-change_plan domains-user php-default websites-user files-fix_permissions docker-logs docker ftp-list"
+_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
 
 # commands whose next positional argument is a domain name
 _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-suspend domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-vulnerability"
@@ -233,7 +233,7 @@ _opencli_completions() {
                 return 0
                 ;;
             email-server)
-                COMPREPLY=( $(compgen -W "install start restart stop uninstall" -- "$cur") )
+                COMPREPLY=( $(compgen -W "status config install start stop restart queue flush view unhold delete fail2ban ports logs login supervisor postfwd pflogsumm update-check update-packages versions" -- "$cur") )
                 return 0
                 ;;
             update)
@@ -260,6 +260,16 @@ _opencli_completions() {
             files-purge_trash)
                 # opencli files-purge_trash [--user USERNAME] [--force] [--dry-run]
                 COMPREPLY=( $(compgen -W "--user --force --dry-run" -- "$cur") )
+                return 0
+                ;;
+            docker-logs)
+                # opencli docker-logs [--all|--system|--users|<USERNAME>]
+                COMPREPLY=( $(compgen -W "$(_opencli_usernames) --all --system --users" -- "$cur") )
+                return 0
+                ;;
+            files-fix_permissions)
+                # opencli files-fix_permissions <USERNAME|--all> [PATH] [--debug]
+                COMPREPLY=( $(compgen -W "$(_opencli_usernames) --all" -- "$cur") )
                 return 0
                 ;;
             user-backup)
@@ -424,8 +434,8 @@ _opencli_completions() {
                 return 0
                 ;;
             domains-hsts)
-                # opencli domains-hsts <domain> [on|off]
-                COMPREPLY=( $(compgen -W "on off" -- "$cur") )
+                # opencli domains-hsts <domain> [enable|disable]
+                COMPREPLY=( $(compgen -W "enable disable" -- "$cur") )
                 return 0
                 ;;
             domains-ssl)
@@ -449,8 +459,8 @@ _opencli_completions() {
                 return 0
                 ;;
             user-varnish)
-                # opencli user-varnish <username> [on|off]
-                COMPREPLY=( $(compgen -W "on off" -- "$cur") )
+                # opencli user-varnish <username> [enable|disable|status]
+                COMPREPLY=( $(compgen -W "enable disable status" -- "$cur") )
                 return 0
                 ;;
             user-ip)
@@ -518,8 +528,8 @@ _opencli_completions() {
                     COMPREPLY=( $(compgen -W "nginx apache openresty openlitespeed litespeed varnish+nginx varnish+apache varnish+openresty varnish+openlitespeed" -- "$val") )
                     return 0
                     ;;
-                --RESELLER=*)
-                    COMPREPLY=( $(compgen -W "$(_opencli_reseller_usernames)" -- "${cur#--RESELLER=}") )
+                --reseller=*)
+                    COMPREPLY=( $(compgen -W "$(_opencli_reseller_usernames)" -- "${cur#--reseller=}") )
                     return 0
                     ;;
             esac
