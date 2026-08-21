@@ -20,6 +20,24 @@ _opencli_domains() {
     _opencli_query "SELECT domain_url FROM domains;"
 }
 
+_opencli_plan_names() {
+    _opencli_query "SELECT name FROM plans;"
+}
+
+# plan names may contain spaces, so they can't go through compgen -W (which
+# word-splits its argument); match and quote them manually instead
+_opencli_complete_plan_names() {
+    local cur="$1" name
+    while IFS= read -r name; do
+        [[ -n "$name" && "$name" == "$cur"* ]] || continue
+        if [[ "$name" == *" "* ]]; then
+            COMPREPLY+=( "'${name}'" )
+        else
+            COMPREPLY+=( "$name" )
+        fi
+    done < <(_opencli_plan_names)
+}
+
 _opencli_command_names() {
     local aliases_file="${_opencli_scripts_dir}/aliases.txt"
     [[ -f "$aliases_file" ]] && awk '{print $2}' "$aliases_file"
@@ -30,6 +48,9 @@ _opencli_username_arg_commands="user-2fa user-check user-delete user-email user-
 
 # commands whose next positional argument is a domain name
 _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-stats domains-suspend domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-secure websites-vulnerability"
+
+# commands whose next positional argument is a plan name
+_opencli_plan_arg_commands="plan-usage plan-delete"
 
 _opencli_completions() {
     local cur prev cmd
@@ -52,6 +73,9 @@ _opencli_completions() {
         elif [[ " $_opencli_domain_arg_commands " == *" $cmd "* ]]; then
             COMPREPLY=( $(compgen -W "$(_opencli_domains)" -- "$cur") )
             return 0
+        elif [[ " $_opencli_plan_arg_commands " == *" $cmd "* ]]; then
+            _opencli_complete_plan_names "$cur"
+            return 0
         fi
         return 0
     fi
@@ -68,6 +92,11 @@ _opencli_completions() {
             user-rename)
                 # opencli user-rename <old_username> <new_username>
                 COMPREPLY=( $(compgen -W "$(_opencli_usernames)" -- "$cur") )
+                return 0
+                ;;
+            user-change_plan)
+                # opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
+                _opencli_complete_plan_names "$cur"
                 return 0
                 ;;
         esac
