@@ -1091,7 +1091,7 @@ check_swap_usage() {
   if (( pct2 < SWAP_THRESHOLD )); then
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
     resolve_notification "$title"
-    write_notification "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME."
+    write_notification "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME at $DISPLAY_TIME. Was ${sused}MB/${stotal}MB (${pct}%), now ${sused2}MB/${stotal2}MB (${pct2}%)."
     echo -e "\e[32m[✔]\e[0m SWAP cleared successfully. Now: ${pct2}%"
   else
     ((FAIL++)); STATUS=2
