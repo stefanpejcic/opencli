@@ -553,7 +553,7 @@ mysql_docker_containers_status() {
     if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((FAIL--)); STATUS=1
       echo "    MariaDB is back online."
-      write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB and it is responding now."
+      write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB on $HOSTNAME at $DISPLAY_TIME after the container was found not running. It is responding now."
     else
       echo "    Error: MariaDB still not responding!"
       write_notification "$title" "MariaDB did not respond after restart. Please check ASAP."
@@ -1035,7 +1035,7 @@ check_swap_usage() {
           read -r _ stotal sused _rest < <(free -m | awk '/^Swap:/')
           if (( stotal > 0 )); then
             ((WARN++))
-            write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off and re-enabled it. Now: ${stotal}MB total."
+            write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off on $HOSTNAME at $DISPLAY_TIME and re-enabled it via swapon -a. Now: ${stotal}MB total."
             echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}MB total)."
           else
             ((WARN++))
