@@ -747,6 +747,11 @@ update_opencli() {
             # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
             [[ "$1" == "--no-log" ]] && echo "$message" || log_error  "$message"
         fi
+
+        # (re)install bash tab-completion for opencli
+        if [[ -d /etc/bash_completion.d && -f /usr/local/opencli/completion.bash ]]; then
+            ln -sf /usr/local/opencli/completion.bash /etc/bash_completion.d/opencli
+        fi
     fi
 }
 
