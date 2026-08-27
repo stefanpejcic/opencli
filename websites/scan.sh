@@ -145,7 +145,7 @@ extract_composer_lock_version() {
 # scanner's own inline equivalent so all 11 supported types report through
 # the same found/skipped counters and end-of-scan summary.
 insert_scanned_site() {
-    local site_name="$1" admin_email="$2" version="$3" cms_type="$4" inside_container_path="$5"
+    local site_name="$1" admin_email="$2" version="$3" cms_type="$4" inside_container_path="$5" container="$6"
 
     if check_site_already_exists_in_db "$site_name"; then
         echo "  Site $site_name already exists in the SiteManager - Skipping"
@@ -163,7 +163,17 @@ insert_scanned_site() {
     fi
 
     echo "Adding website $site_name ($cms_type) to Site Manager"
-    echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', '$(mysql_escape "$cms_type")');" | mysql
+    # container is only meaningful for the docker-compose-service app types
+    # (ruby/nodejs/python) - appinstall/install.go's own INSERT sets it to
+    # the uppercase service name so getPM2ForApplication() can find that
+    # service's <SERVICE>_<TYPE>_CPU/_RAM/etc env vars in .env; every CMS
+    # type passes this empty, matching how drupal/flarum/etc's own installers
+    # never set this column either (NULL is the correct value for those).
+    if [ -n "$container" ]; then
+        echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type, container) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', '$(mysql_escape "$cms_type")', '$(mysql_escape "$container")');" | mysql
+    else
+        echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', '$(mysql_escape "$cms_type")');" | mysql
+    fi
 
     echo "Fixing permissions and ownership for the directory $inside_container_path"
     nohup timeout 600 opencli files-fix_permissions "$current_username" "$inside_container_path" >/dev/null 2>&1 &
@@ -463,7 +473,7 @@ run_ruby_scan() {
         [ -z "$site_name" ] && continue
 
         domain_name="${site_name%%/*}"
-        insert_scanned_site "$site_name" "admin@$domain_name" "$version" "ruby" "$workdir"
+        insert_scanned_site "$site_name" "admin@$domain_name" "$version" "ruby" "$workdir" "$upper"
     done < <(awk '
         /^[[:space:]]{2}[a-zA-Z0-9_-]+:[[:space:]]*$/ { svc=$1; sub(/:$/,"",svc); pending=svc; next }
         pending && /image:[[:space:]]*ruby:/ { print pending; pending="" }
