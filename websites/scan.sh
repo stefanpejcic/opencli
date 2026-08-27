@@ -427,6 +427,50 @@ run_sofawiki_scan() {
     done < <(find "$base_directory" -path '*/site/configuration.php' -print0 2>/dev/null)
 }
 
+# run_ruby_scan: unlike the CMS types above, a Ruby app has no config file
+# to find on disk - it's a generic docker-compose service (same shape as
+# the nodejs/python app installers, which this scan intentionally skips
+# entirely since they have no config-file marker either). What CAN be
+# detected here is a compose service using the official ruby image that
+# hasn't been recorded in the sites table yet (e.g. a service someone added
+# by hand, or a site row that got deleted without removing the compose
+# service). Each service block looks like:
+#   svcname:
+#     image: ruby:${SVCNAME_RUBY_TAG:-X.Y}
+# so this greps for a 2-space-indented top-level key followed (before the
+# next top-level key) by an "image: ruby:" line, then reads that service's
+# workdir/tag out of .env (SVCNAME_RUBY_WORKDIR/SVCNAME_RUBY_TAG, written by
+# the ruby install flow - see appinstall.buildAppRunCommand's env-var infix
+# convention) - confirmed live against a real installed service's exact
+# compose/env output.
+run_ruby_scan() {
+    local compose_file="$base_directory/docker-compose.yml"
+    local env_file="$base_directory/.env"
+    [ -f "$compose_file" ] || return
+
+    while IFS= read -r svc; do
+        [ -z "$svc" ] && continue
+        local upper
+        upper=$(echo "$svc" | tr '[:lower:]' '[:upper:]')
+        local workdir
+        workdir=$(grep "^${upper}_RUBY_WORKDIR=" "$env_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"')
+        [ -z "$workdir" ] && continue
+        local version
+        version=$(grep "^${upper}_RUBY_TAG=" "$env_file" 2>/dev/null | cut -d'=' -f2- | tr -d '"')
+        [ -z "$version" ] && version="Unknown"
+
+        site_name=$(resolve_site_name_for_path "$workdir")
+        [ -z "$site_name" ] && continue
+
+        domain_name="${site_name%%/*}"
+        insert_scanned_site "$site_name" "admin@$domain_name" "$version" "ruby" "$workdir"
+    done < <(awk '
+        /^[[:space:]]{2}[a-zA-Z0-9_-]+:[[:space:]]*$/ { svc=$1; sub(/:$/,"",svc); pending=svc; next }
+        pending && /image:[[:space:]]*ruby:/ { print pending; pending="" }
+        /^[[:space:]]{2}[a-zA-Z0-9_-]+:/ { pending="" }
+    ' "$compose_file")
+}
+
 
 run_for_single_user() {
 
@@ -518,6 +562,7 @@ run_matomo_scan
 run_mediawiki_scan
 run_moodle_scan
 run_sofawiki_scan
+run_ruby_scan
 
 
 # Summary messages
