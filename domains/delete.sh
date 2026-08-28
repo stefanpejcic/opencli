@@ -470,7 +470,7 @@ delete_domain() {
     local domain_name="$2"
     
     delete_websites $domain_name                     # delete sites associated with domain id
-    # TODO: delete pm2 apps associated with domain
+    # TODO: delete apps associated with domain
     delete_domain_from_mysql $domain_name            # delete
 
 	local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
