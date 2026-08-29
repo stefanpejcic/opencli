@@ -171,6 +171,41 @@ run_tinyphotogallery_scan() {
     done < <(find "$base_directory" -name 'index.php' -print0)
 }
 
+# run_tinyfilemanager_scan detects an EXISTING TinyFileManager install not
+# yet tracked in the sites table: unlike TinyPhotoGallery's generic
+# index.php, TinyFileManager's own filename (tinyfilemanager.php) is
+# distinctive enough on its own - no content grep needed, see
+# internal/modules/tinyfilemanager in the openpanel repo for the installer
+# this mirrors.
+run_tinyfilemanager_scan() {
+    while IFS= read -r -d '' tfm_file; do
+        local inside_container_path
+        inside_container_path=$(echo "$tfm_file" | sed -E 's~^.*/_data/~/var/www/html/~')
+
+        echo "- Found possible TinyFileManager install: $inside_container_path"
+
+        local resolved domain_id site_name
+        resolved=$(resolve_site_name_for_path "$inside_container_path")
+        if [ -z "$resolved" ]; then
+            echo "  WARNING: unable to resolve domain for $inside_container_path - make sure a domain/subdirectory docroot covers this path - Skipping"
+            continue
+        fi
+        domain_id="${resolved%%$'\t'*}"
+        site_name="${resolved#*$'\t'}"
+
+        if check_site_already_exists_in_db "$site_name"; then
+            echo "  Site $site_name already exists in the SiteManager - Skipping"
+            continue
+        fi
+
+        local domain_name admin_email
+        domain_name="${site_name%%/*}"
+        admin_email="admin@${domain_name}"
+
+        insert_scanned_site "$site_name" "$domain_id" "$admin_email" "latest" "tinyfilemanager"
+    done < <(find "$base_directory" -name 'tinyfilemanager.php' -print0)
+}
+
 run_for_single_user() {
 
 current_username=$1
@@ -269,6 +304,7 @@ else
 fi
 
 run_tinyphotogallery_scan
+run_tinyfilemanager_scan
 
 }
 
