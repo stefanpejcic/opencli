@@ -82,6 +82,95 @@ get_mariadb_or_mysql_for_user() {
 }
 
 
+insert_scanned_site() {
+    local site_name="$1" domain_id="$2" admin_email="$3" version="$4" cms_type="$5"
+
+    echo "Adding website $site_name to Site Manager"
+    echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', '$(mysql_escape "$cms_type")');" | mysql
+
+    local inside_container_path
+    inside_container_path="/var/www/html/${site_name}"
+    echo "Fixing permissions and ownership for the directory $inside_container_path"
+    nohup timeout 600 opencli files-fix_permissions "$current_username" "$inside_container_path" >/dev/null 2>&1 &
+    disown
+}
+
+# resolve_site_name_for_path takes an inside-container path (e.g.
+# /var/www/html/example.com/sub/index.php) and, by matching it against the
+# current user's domains.docroot values (longest match wins, so a
+# subdirectory install resolves to the subdirectory rather than the parent
+# domain), echoes back "<domain_id>\t<site_name>" - site_name being
+# "domain.tld" for a root install or "domain.tld/sub" for a subdirectory
+# one. Returns non-zero (nothing echoed) if no domain owns the path.
+resolve_site_name_for_path() {
+    local file_path="$1"
+    local target_dir
+    target_dir=$(dirname "$file_path")
+
+    local domain_rows
+    domain_rows=$(mariadb -sse "SELECT domains.domain_id, domains.domain_url, domains.docroot FROM domains JOIN users ON users.id = domains.user_id WHERE users.username = '$(mysql_escape "$current_username")' AND domains.docroot IS NOT NULL AND domains.docroot != '' ORDER BY LENGTH(domains.docroot) DESC;")
+
+    local domain_id domain_url docroot
+    while IFS=$'\t' read -r domain_id domain_url docroot; do
+        [ -z "$docroot" ] && continue
+        docroot="${docroot%/}"
+        if [ "$target_dir" == "$docroot" ] || [[ "$target_dir" == "$docroot"/* ]]; then
+            local subdir="${target_dir#"$docroot"}"
+            subdir="${subdir#/}"
+            if [ -n "$subdir" ]; then
+                echo -e "${domain_id}\t${domain_url}/${subdir}"
+            else
+                echo -e "${domain_id}\t${domain_url}"
+            fi
+            return 0
+        fi
+    done <<< "$domain_rows"
+
+    return 1
+}
+
+# run_tinyphotogallery_scan detects an EXISTING TinyPhotoGallery install
+# not yet tracked in the sites table: every index.php under the user's
+# html_data tree whose content mentions "tinyphotogallery" (case
+# insensitive) AND that has a sibling photos/ directory is treated as a
+# TinyPhotoGallery install (this is the entire upstream install - a single
+# index.php plus an empty photos/ folder, see internal/modules/tinyphotogallery
+# in the openpanel repo for the installer this mirrors).
+run_tinyphotogallery_scan() {
+    while IFS= read -r -d '' index_file; do
+        grep -qi "tinyphotogallery" "$index_file" || continue
+
+        local photos_dir
+        photos_dir="$(dirname "$index_file")/photos"
+        [ -d "$photos_dir" ] || continue
+
+        local inside_container_path
+        inside_container_path=$(echo "$index_file" | sed -E 's~^.*/_data/~/var/www/html/~')
+
+        echo "- Found possible TinyPhotoGallery install: $inside_container_path"
+
+        local resolved domain_id site_name
+        resolved=$(resolve_site_name_for_path "$inside_container_path")
+        if [ -z "$resolved" ]; then
+            echo "  WARNING: unable to resolve domain for $inside_container_path - make sure a domain/subdirectory docroot covers this path - Skipping"
+            continue
+        fi
+        domain_id="${resolved%%$'\t'*}"
+        site_name="${resolved#*$'\t'}"
+
+        if check_site_already_exists_in_db "$site_name"; then
+            echo "  Site $site_name already exists in the SiteManager - Skipping"
+            continue
+        fi
+
+        local domain_name admin_email
+        domain_name="${site_name%%/*}"
+        admin_email="admin@${domain_name}"
+
+        insert_scanned_site "$site_name" "$domain_id" "$admin_email" "main" "tinyphotogallery"
+    done < <(find "$base_directory" -name 'index.php' -print0)
+}
+
 run_for_single_user() {
 
 current_username=$1
@@ -179,6 +268,7 @@ else
     echo "Scan completed. No WordPress installations detected."
 fi
 
+run_tinyphotogallery_scan
 
 }
 
