@@ -70,6 +70,11 @@ done
 source /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+
+require_command mariadb mariadb-client
+require_command bc
 
 IFS=$'\t' read -r cpu ram disk_limit inodes_limit max_hourly_email _ < <(
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT cpu, ram, disk_limit, inodes_limit, max_hourly_email, bandwidth FROM plans WHERE id = '$(mysql_escape "$new_plan_id")' LIMIT 1;"
@@ -115,6 +120,10 @@ for username in "${usernames[@]}"; do
 
     # 4. get docker context and UID
     read -r _ context < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT plan_id, server FROM users WHERE username = '$(mysql_escape "$username")'")
+    if [[ -z "$context" || "$context" == "NULL" ]]; then
+        echo "ERROR: No context/server found for user '$username' - skipping."
+        continue
+    fi
     user_id=$(stat -c '%u' "/home/$context")
     # user_id=$(ssh -o LogLevel=ERROR $key_flag "root@$node_ip_address" "id -u $username" 2>/dev/null)
 
@@ -169,9 +178,13 @@ EOF
 
     # Disk and Inodes
     if ! $partial || $dodsk; then
-        setquota -u "$context" "$storage_in_blocks" "$storage_in_blocks" "$inodes_limit" "$inodes_limit" /
-        echo "- Disk        [OK]   $disk_text"
-        echo "- Inodes:     [OK]   $inodes_text"
+        setquota_err=$(setquota -u "$context" "$storage_in_blocks" "$storage_in_blocks" "$inodes_limit" "$inodes_limit" / 2>&1)
+        if [ $? -eq 0 ]; then
+            echo "- Disk        [OK]   $disk_text"
+            echo "- Inodes:     [OK]   $inodes_text"
+        else
+            echo "- Disk       [WARN]   Disk quota not applied: ${setquota_err} (filesystem may not support quotas)."
+        fi
 		if (! $bulk); then
 			nohup opencli docker-collect_stats "${username}" >/dev/null 2>&1 &
 		    disown
@@ -189,7 +202,7 @@ EOF
 
     # Bandwidth (Port Speed)
     if ! $partial || $donet; then
-        cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
+        [ -d "/home/$context" ] && cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
 
         # NOTE: bandwidth shaping used to nsenter into rootless dockerd's shared
         # network namespace (one dockerd PID per user, holding docker-created
