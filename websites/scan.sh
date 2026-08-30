@@ -206,6 +206,49 @@ run_tinyfilemanager_scan() {
     done < <(find "$base_directory" -name 'tinyfilemanager.php' -print0)
 }
 
+# run_ojs_scan detects an existing OJS (Open Journal Systems) install. OJS
+# installs itself into a sibling "<slug>_ojsapp" directory with the docroot
+# left as a symlink pointing at it (see internal/modules/ojs's package doc
+# comment), so a plain (non-symlink-following) find would only ever report
+# the "_ojsapp" sibling path, which resolve_site_name_for_path can't map
+# back to a domain since it isn't a real docroot. Using `find -L` instead
+# makes find also descend through the docroot symlink and report
+# config.inc.php a second time under the actual domain-facing docroot
+# path - the "-not -path '*_ojsapp/config.inc.php'" filter keeps only that
+# second, resolvable copy and drops the raw approot one.
+run_ojs_scan() {
+    while IFS= read -r -d '' ojs_config; do
+        local inside_container_path
+        inside_container_path=$(echo "$ojs_config" | sed -E 's~^.*/_data/~/var/www/html/~')
+        inside_container_path="${inside_container_path%/config.inc.php}"
+
+        echo "- Found possible OJS install: $inside_container_path"
+
+        local resolved domain_id site_name
+        resolved=$(resolve_site_name_for_path "$inside_container_path")
+        if [ -z "$resolved" ]; then
+            echo "  WARNING: unable to resolve domain for $inside_container_path - make sure a domain/subdirectory docroot covers this path - Skipping"
+            continue
+        fi
+        domain_id="${resolved%%$'\t'*}"
+        site_name="${resolved#*$'\t'}"
+
+        if check_site_already_exists_in_db "$site_name"; then
+            echo "  Site $site_name already exists in the SiteManager - Skipping"
+            continue
+        fi
+
+        local domain_name admin_email
+        domain_name="${site_name%%/*}"
+        admin_email="admin@${domain_name}"
+
+        # OJS tracks its installed version in the database, not in
+        # config.inc.php, so an exact version can't be read off disk here -
+        # matches tinyphotogallery/tinyfilemanager's "latest" fallback.
+        insert_scanned_site "$site_name" "$domain_id" "$admin_email" "latest" "ojs"
+    done < <(find -L "$base_directory" -name 'config.inc.php' -not -path '*_ojsapp/config.inc.php' -print0 2>/dev/null)
+}
+
 run_for_single_user() {
 
 current_username=$1
@@ -305,6 +348,7 @@ fi
 
 run_tinyphotogallery_scan
 run_tinyfilemanager_scan
+run_ojs_scan
 
 }
 
