@@ -721,43 +721,37 @@ update_openadmin() {
 
 update_opencli() {    
     message="Updating OpenCLI"
-    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
+    # shellcheck disable=SC2015
     [[ "$1" == "--no-log" ]] && echo "$message" || log "$message"
-    if [[ -d /usr/local/opencli ]]; then
-        rm -f /usr/local/opencli/aliases.txt
-        cd /usr/local/opencli || return
-        if [[ "$1" == "--no-log" ]]; then
-            git reset --hard origin/podman 2>&1
-        else
-            git reset --hard origin/podman 2>&1 | tee -a "$log_file"
-        fi
-        if [[ "$1" == "--no-log" ]]; then
-            git pull 2>&1
-        else
-            git pull 2>&1 | tee -a "$log_file"
-        fi
-        latest_commit=$(git rev-parse origin/podman)
-        current_commit=$(git rev-parse HEAD)
-        if [[ "$current_commit" == "$latest_commit" ]]; then
-            message="[✔] OpenCLI is up-to-date"
-            # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
-            [[ "$1" == "--no-log" ]] && echo "$message" || log  "$message"
-        else
-            message="OpenCLI is NOT up-to-date - something is blocking update. Run: 'cd /usr/local/opencli && git pull' and check for errors."
-            # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
-            [[ "$1" == "--no-log" ]] && echo "$message" || log_error  "$message"
-        fi
 
-        # (re)install bash tab-completion for opencli
-        if [[ -f /usr/local/opencli/lib/completion.bash ]]; then
-            if ! rpm -q bash-completion &>/dev/null 2>&1 && ! dpkg -s bash-completion &>/dev/null 2>&1; then
-                install_package "bash-completion" "true"
-            fi
-            if [[ -d /etc/bash_completion.d ]]; then
-                ln -sf /usr/local/opencli/lib/completion.bash /etc/bash_completion.d/opencli
+    rm -rf /usr/local/opencli && mkdir -p /usr/local/opencli
+    local url="https://github.com/stefanpejcic/opencli/archive/refs/heads/podman.tar.gz"
+    local target_log="${log_file:-/dev/null}"
+    if wget --spider -q "$url" 2>/dev/null; then
+        log_info "Downloading terminal scripts from github: $url"
+        if timeout "$UPDATE_TIMEOUT" bash -c "wget --timeout=1 --tries=1 -q -O /tmp/opencli.tar.gz '$url' && mkdir -p /tmp/opencli_extract && tar -xzf /tmp/opencli.tar.gz -C /tmp/opencli_extract && cp -rf /tmp/opencli_extract/*/. /usr/local/opencli/ && rm -rf /tmp/opencli.tar.gz /tmp/opencli_extract && find /usr/local/opencli -type f -name '*.sh' -exec chmod +x {} +" &>> "$target_log"; then
+            log_info "[✔] Terminal commands updated successfully"
+        else
+            local exit_code=$?
+            if [[ $exit_code -eq 124 ]]; then
+                log_error "[!] Updating terminal commands timed out after ${UPDATE_TIMEOUT} seconds."
+            else
+                log_error "[!] Updating terminal commands failed with exit code: $exit_code."
             fi
         fi
+    else
+        log_info "[!] Failed to reach github."
     fi
+
+	# (re)install bash tab-completion for opencli
+	if [[ -f /usr/local/opencli/lib/completion.bash ]]; then
+		if ! rpm -q bash-completion &>/dev/null 2>&1 && ! dpkg -s bash-completion &>/dev/null 2>&1; then
+			install_package "bash-completion" "true"
+		fi
+		if [[ -d /etc/bash_completion.d ]]; then
+			ln -sf /usr/local/opencli/lib/completion.bash /etc/bash_completion.d/opencli
+		fi
+	fi
 }
 
 # Main update check and execution
