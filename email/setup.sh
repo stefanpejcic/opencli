@@ -84,9 +84,9 @@ reload_emails_data_file_for_user() {
 # ======================================================================
 # Run setup command
 validate_first
-command="$*"
+command=("$@")
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
-podman exec openadmin_mailserver setup "$command"
+podman exec openadmin_mailserver setup "${command[@]}"
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
     if is_valid_email "$3"; then
