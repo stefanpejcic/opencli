@@ -104,7 +104,6 @@ delete_user_from_database() {
 	# 2. Prepare SQL queries and execute all at once
     sql=""
 	[ -n "$domain_ids" ] && sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
-	# legacy, handle: active_sessions
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "
 	sql+="DELETE FROM users WHERE username='$escaped_openpanel_username' OR username LIKE 'SUSPENDED_%_$escaped_openpanel_username';"
 	[ -n "$sql" ] && mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
