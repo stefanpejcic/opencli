@@ -228,7 +228,7 @@ start_containers_for_socket() {
     dead=$(CONTAINER_HOST="unix://$socket" timeout 20 podman ps -a --format '{{.ID}} {{.State}}' 2>/dev/null | awk '$2!="running"{print $1"|"$2}' || true)
 
     if [ -z "$dead" ]; then
-        echo "$label: no dead containers"
+        echo -e "\e[32m[✔]\e[0m $label: no dead containers"
         { flock -x 201; echo "${label}:0" >> "$results_file"; } 201>>"$results_file.lock"
         return
     fi
@@ -240,11 +240,10 @@ start_containers_for_socket() {
         state="${entry##*|}"
         name=$(CONTAINER_HOST="unix://$socket" timeout 10 podman inspect "$id" --format '{{.Name}}' 2>/dev/null || echo "$id")
         echo "$label: starting $name (was: $state)"
-        if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null \
-            || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
+        if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
             ((count++))
         else
-            echo "$label: FAILED to start $name"
+            echo -e "\e[31m[✘]\e[0m $label: FAILED to start $name"
         fi
     done
     { flock -x 201; echo "${label}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
@@ -257,8 +256,8 @@ start_containers_for_user() {
     local uid
     uid=$(id -u "$user")
     local user_sock="/run/user/$uid/podman/podman.sock"
-    [ -S "$user_sock" ] || { echo "$user: no active podman socket at $user_sock, skipping"; return; }
-    start_containers_for_socket "$user_sock" "$user" "$results_file"
+    [ -S "$user_sock" ] || { echo -e "\e[38;5;214m[!]\e[0m $user: no active podman socket at $user_sock, skipping"; return; }
+    start_containers_for_socket "$user_sock" "$user" "$results_file"    
 }
 
 # Loops root, then every non-suspended user, starting/recovering dead containers.
@@ -363,6 +362,8 @@ perform_startup_actions() {
 }
 
 check_user_containers() {
+  hr
+  echo "Checking container status for openpanel users..."
   local flag_tt=3600
   if [[ -f "$LOCK_FILE_FOR_USER_CONTAINERS" ]]; then
     local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_USER_CONTAINERS") ))
@@ -494,7 +495,7 @@ docker_containers_status() {
           write_notification "OpenPanel restarted and responding!" "$(_docker_log openpanel)"
         else
           ((WARN--)); ((FAIL++)); STATUS=2
-          echo -e "\e[31m[✘]\e[0m openpanel still unresponsive after restart."
+          echo -e "\e[31m[✘]\e[0m openpanel still unresponsive after restart!"
           write_notification "$title" "$(_docker_log openpanel)"
         fi
       fi
