@@ -262,9 +262,9 @@ start_conditional_containers_for_user() {
     local home="/home/$user"
 
     local -a needed=()
-    # the cron/backup containers reach podman through docker-proxy so we need it running
+    # the cron container reach rootless podman through docker-proxy
     if [[ -f "$home/crons.ini" && -n "$(tr -d '[:space:]' < "$home/crons.ini" 2>/dev/null)" ]]; then
-        needed+=("docker-proxy" "backup")
+        needed+=("docker-proxy" "cron")
     fi
 
     (( ${#needed[@]} == 0 )) && return
