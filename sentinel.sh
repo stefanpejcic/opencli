@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 
 # config
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -249,6 +251,38 @@ start_containers_for_socket() {
     { flock -x 201; echo "${label}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
 }
 
+
+# Starts per-user containers that a currently-enabled feature depends on but that podman never saw "die"
+# e.g. a container that was never created because the feature was off at provisioning time needs a plain 
+# `podman-compose up`, not a restart, so start_containers_for_socket can't reach it.
+start_conditional_containers_for_user() {
+    local user="$1"
+    local user_sock="$2"
+    local results_file="$3"
+    local home="/home/$user"
+
+    local -a needed=()
+    # the cron/backup containers reach podman through docker-proxy so we need it running
+    if [[ -f "$home/crons.ini" && -n "$(tr -d '[:space:]' < "$home/crons.ini" 2>/dev/null)" ]]; then
+        needed+=("docker-proxy" "backup")
+    fi
+
+    (( ${#needed[@]} == 0 )) && return
+
+    local count=0 svc
+    for svc in "${needed[@]}"; do
+        CONTAINER_HOST="unix://$user_sock" podman_is_running "$svc" && continue
+        echo "$user: starting required container $svc"
+        if CONTAINER_HOST="unix://$user_sock" podman_ensure_running "$svc" "$home" "$svc" 20; then
+            ((count++))
+        else
+            echo -e "\e[31m[✘]\e[0m $user: FAILED to start required container $svc"
+        fi
+    done
+
+    (( count > 0 )) && { flock -x 201; echo "${user}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
+}
+
 start_containers_for_user() {
     local user="$1"
     local results_file="$2"
@@ -258,6 +292,7 @@ start_containers_for_user() {
     local user_sock="/run/user/$uid/podman/podman.sock"
     [ -S "$user_sock" ] || { echo -e "\e[38;5;214m[!]\e[0m $user: no active podman socket at $user_sock, skipping"; return; }
     start_containers_for_socket "$user_sock" "$user" "$results_file"    
+    start_conditional_containers_for_user "$user" "$user_sock" "$results_file"
 }
 
 # Loops root, then every non-suspended user, starting/recovering dead containers.
@@ -315,6 +350,9 @@ restart_dead_user_containers() {
       echo "$NUM_USERS users to process, running in parallel (max $PARALLEL_JOBS jobs, $CORES cores x2)"
       export -f start_containers_for_user
       export -f start_containers_for_socket
+      export -f start_conditional_containers_for_user
+      export -f podman_is_running
+      export -f podman_ensure_running
       printf '%s\n' "${USERS_TO_PROCESS[@]}" | xargs -I{} -P "$PARALLEL_JOBS" bash -c 'start_containers_for_user "$@"' _ {} "$RESULTS_FILE"
   fi
 
@@ -381,13 +419,13 @@ check_user_containers() {
   fi
 
   ((WARN++))
-  local summary_msg="Restarted ${RESTART_ROOT_COUNT} container(s) for root and ${RESTART_USER_TOTAL} container(s) across ${#RESTART_USER_LINES[@]} user(s) in ${RESTART_ELAPSED}s."
+  local summary_msg="Started/restarted ${RESTART_ROOT_COUNT} container(s) for root and ${RESTART_USER_TOTAL} container(s) across ${#RESTART_USER_LINES[@]} user(s) in ${RESTART_ELAPSED}s."
   if (( ${#RESTART_USER_LINES[@]} > 0 )); then
     local IFS=', '
     summary_msg+=" Per user: ${RESTART_USER_LINES[*]}."
   fi
   echo -e "\e[38;5;214m[!]\e[0m $summary_msg"
-  write_notification "Dead user containers restarted" "$summary_msg"
+  write_notification "Dead/required user containers started" "$summary_msg"
 }
 
 email_daily_report() {
