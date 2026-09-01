@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 01.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -262,9 +262,27 @@ start_conditional_containers_for_user() {
     local home="/home/$user"
 
     local -a needed=()
-    # the cron container reach rootless podman through docker-proxy
+
+    # cron if crons.ini has any content
     if [[ -f "$home/crons.ini" && -n "$(tr -d '[:space:]' < "$home/crons.ini" 2>/dev/null)" ]]; then
         needed+=("docker-proxy" "cron")
+    fi
+
+    # backup if backup.env for any active remote backup config
+    if [[ -f "$home/backup.env" ]] && grep -qE '^(WEBDAV_URL|AWS_S3_BUCKET_NAME|SSH_HOST_NAME|AZURE_STORAGE_ACCOUNT_NAME|DROPBOX_REMOTE_PATH)=' "$home/backup.env"; then
+      needed+=("docker-proxy" "backup")
+    fi
+
+    # dedupe while preserving order
+    if (( ${#needed[@]} )); then
+        local -A seen=()
+        local -a deduped=()
+        for svc in "${needed[@]}"; do
+            [[ -n "${seen[$svc]}" ]] && continue
+            seen[$svc]=1
+            deduped+=("$svc")
+        done
+        needed=("${deduped[@]}")
     fi
 
     (( ${#needed[@]} == 0 )) && return
