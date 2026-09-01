@@ -403,7 +403,7 @@ check_reboot_required() {
 purge_previous_images() {
     log_info "Cleaning up old Podman images"
     local all_images
-    all_images=$(podman images --format "{{.Repository}} {{.ID}}" | grep "^$IMAGE_NAME" | awk '{print $2}')
+    all_images=$(podman images --format "{{.Repository}} {{.ID}}" | grep "^docker.io/$IMAGE_NAME" | awk '{print $2}')
     local used_images
     used_images=$(podman ps --format "{{.Image}}" | xargs -n1 podman inspect --format '{{.Id}}' 2>/dev/null | sort | uniq)
     for img in $all_images; do
