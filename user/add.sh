@@ -430,15 +430,12 @@ EOF
 	fi
 }
 
-# todo: this hangs!
-get_podman_service_errors() {
-    podman_service_errors=$(timeout 5 machinectl shell "${USERNAME}@" /bin/bash -c 'systemctl --user status podman.socket --no-pager 2>&1' 2>&1)
-}
-
 test_podman_service() {
     local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
     local sock_path="/hostfs/run/user/${USER_ID}/podman/podman.sock"
     local elapsed=0 max_time=60 ready=false
+
+	log "Testing connection to podman service.."
 
     while (( elapsed < max_time )); do
         if [[ -S "$sock_path" ]] && CONTAINER_HOST="$sock" timeout 3 podman --remote info >/dev/null 2>&1; then
@@ -450,7 +447,6 @@ test_podman_service() {
     done
 
     if [[ "$ready" != true ]]; then
-        get_podman_service_errors
         hard_cleanup
         die "Podman not responding after ${max_time}s! ${podman_service_errors:-}"
     fi
