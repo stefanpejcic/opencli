@@ -431,6 +431,12 @@ _docker_ps_refresh() { DOCKER_PS_CACHE=$(podman ps --format "{{.Names}}" 2>/dev/
 _docker_ps() { echo "$DOCKER_PS_CACHE"; }
 _docker_log() { podman logs --tail 10 "$1" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\\n",$0}'; }
 
+_openpanel_http_ok() {
+  local code
+  code=$(curl -sko /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "https://localhost:2083/")
+  [[ "$code" =~ ^(200|301|302|401)$ ]]
+}
+
 _caddy_http_ok() {
   local code
   code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "http://localhost/check")
@@ -471,6 +477,24 @@ docker_containers_status() {
           ((WARN--)); ((FAIL++)); STATUS=2
           echo -e "\e[31m[✘]\e[0m caddy still unresponsive after restart."
           write_notification "$title" "$(_docker_log caddy)"
+        fi
+      fi
+    elif [[ "$svc" == "openpanel" ]]; then
+      if _openpanel_http_ok; then
+        ((PASS++)); echo -e "\e[32m[✔]\e[0m openpanel is active and responding."
+      else
+        ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
+        podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
+        cd /root && podman-compose up -d openpanel &>/dev/null
+        sleep 2
+        _docker_ps_refresh
+        if _openpanel_http_ok; then
+          ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m openpanel recovered."
+          write_notification "OpenPanel restarted and responding!" "$(_docker_log openpanel)"
+        else
+          ((WARN--)); ((FAIL++)); STATUS=2
+          echo -e "\e[31m[✘]\e[0m openpanel still unresponsive after restart."
+          write_notification "$title" "$(_docker_log openpanel)"
         fi
       fi
     else
