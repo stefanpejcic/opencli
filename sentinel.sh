@@ -488,6 +488,7 @@ docker_containers_status() {
         cd /root && podman-compose up -d openpanel &>/dev/null
         sleep 2
         _docker_ps_refresh
+        sleep 2
         if _openpanel_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m openpanel recovered."
           write_notification "OpenPanel restarted and responding!" "$(_docker_log openpanel)"
