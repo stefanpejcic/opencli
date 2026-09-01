@@ -1305,9 +1305,11 @@ if [[ -n "$action" ]]; then
   exit 0
 fi
 
-exec 200>/root/sentinel_run.lock
-flock -n 200 || { echo "Error: Another instance is already running."; exit 1; }
-
+if [ "${FLOCKED}" != "1" ]; then
+  exec env FLOCKED=1 flock -n /root/sentinel_run.lock "$0" "$@"
+  echo "Error: Another instance is already running."
+  exit 1
+fi
 hr
 echo "  Sentinel - OpenPanel server health monitor"
 hr
