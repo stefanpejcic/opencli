@@ -28,6 +28,9 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+require_command git
 
 # ======================================================================
 # Helpers

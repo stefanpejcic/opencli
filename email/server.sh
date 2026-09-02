@@ -42,6 +42,9 @@ DEBUG=false
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+require_command git
 
 
 
