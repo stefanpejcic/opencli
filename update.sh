@@ -581,8 +581,11 @@ run_update_immediately() {
     print_header "Starting update to version $version"
     log_info "Update log: $log_file"
     write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
-    
-    # ---------------------- 3. DOWNLOAD NEW IMAGE FROM DOCKER HUB
+
+    # ---------------------- 3. DOWNLOAD BASH SCRIPTS FROM GITHUB (must be befor openpanel image update)
+    update_opencli
+	
+    # ---------------------- 4. DOWNLOAD NEW IMAGE FROM DOCKER HUB
     log "Updating OpenPanel container image"
     if ! timeout 60 podman image pull "${IMAGE_NAME}:${version}" 2>&1 | tee -a "$log_file"; then
         log_error "Failed to pull image or command timed out: podman image pull ${IMAGE_NAME}:${version}"
@@ -607,9 +610,6 @@ run_update_immediately() {
         log "Cleaning up previous images" # ------------------ 3.3 DELETE PREVIOUS
         purge_previous_images
     fi
-
-    # ---------------------- 4. DOWNLOAD BASH SCRIPTS FROM GITHUB
-    update_opencli
 
     # ---------------------- 5. UPDATE INSTALLED LOCALES
     update_locales  
@@ -752,6 +752,8 @@ update_opencli() {
 			ln -sf /usr/local/opencli/lib/completion.bash /etc/bash_completion.d/opencli
 		fi
 	fi
+
+	[[ "$1" == "--no-log" ]] && podman restart openpanel &>/dev/null 2>&1
 }
 
 # Main update check and execution
