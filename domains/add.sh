@@ -426,6 +426,10 @@ make_docroot_dirs() {
     )
 
     mkdir -p "${dirs[@]}"
+
+	# https://github.com/stefanpejcic/OpenPanel/discussions/1084
+	[[ "$WEB_SERVER" == *litespeed* ]] && cp -f "/etc/openpanel/nginx/default_page.html" "/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped/index.html" 
+
     timeout 3s chown -R "$context_uid:$context_uid" "${dirs[@]}" || true
     timeout 1s chmod -R g+w "${dirs[@]}" || true
 }
