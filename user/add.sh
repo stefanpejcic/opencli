@@ -33,7 +33,7 @@ readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_use
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
-readonly SHARED_STORE="/var/lib/containers/shared-storage"
+readonly SHARED_STORE="/var/lib/containers/shared-storage" # for 2.0.0-beta: ln -s /var/lib/containers/shared-storage /var/lib/openpanel/shared-containers/storage
 
 if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>] [--webserver=<TYPE>] [--sql=<mysql|mariadb>] [--no-sentinel]"
@@ -451,7 +451,7 @@ test_podman_service() {
 			# Error: configure storage: overlay: can't stat imageStore dir /var/lib/containers/shared-storage: stat /var/lib/containers/shared-storage: permission denied
 	        elif [[ "$fixed_permissions" != true ]] && [[ "$output" == *"permission denied"* ]] && [[ "$output" == *"shared-storage"* ]]; then
 	            log "Detected shared-storage permission issue. Fixing permissions..."
-	            chmod -R o+rX /var/lib/containers/shared-storage || true
+	            chmod -R o+rX "${SHARED_STORE}" || true
 	            fixed_permissions=true
 	            continue
 	        fi
