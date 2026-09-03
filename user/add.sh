@@ -433,7 +433,7 @@ EOF
 test_podman_service() {
     local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
     local sock_path="/hostfs/run/user/${USER_ID}/podman/podman.sock"
-    local elapsed=0 max_time=60 ready=false
+    local elapsed=0 max_time=6z0 ready=false
 
 	log "Testing connection to podman service.."
 
@@ -448,7 +448,7 @@ test_podman_service() {
 
     if [[ "$ready" != true ]]; then
         hard_cleanup
-        die "Podman not responding after ${max_time}s! ${podman_service_errors:-}"
+        die "Podman not responding after ${max_time}s!"
     fi
 
     # podman-compose can reach this user's rootless podman instance?
