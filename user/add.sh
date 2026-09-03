@@ -91,8 +91,9 @@ hard_cleanup() {
         echo "ERROR: Neither deluser nor userdel found"
     fi
 
-	# delete user files
+	# delete openpanel and podman files
     rm -rf /etc/openpanel/openpanel/core/users/"$USERNAME" > /dev/null 2>&1
+	rm -rf /run/user/$(id -u $USERNAME)/ > /dev/null 2>&1
 }
 
 trap cleanup EXIT
@@ -437,18 +438,30 @@ test_podman_service() {
 
 	log "Testing connection to podman service.."
 
-    while (( elapsed < max_time )); do
-        if [[ -S "$sock_path" ]] && CONTAINER_HOST="$sock" timeout 3 podman --remote info >/dev/null 2>&1; then
-            ready=true
-            log "Podman socket live ($sock_path)"
-            break
-        fi
-        sleep 1; (( elapsed++ )) || true
-    done
+	fixed_permissions=false
+	while (( elapsed < max_time )); do
+	    if [[ -S "$sock_path" ]]; then
+	        output=$(CONTAINER_HOST="$sock" timeout 3 podman info 2>&1)
+	        status=$?
+	
+	        if [[ $status -eq 0 ]]; then
+	            ready=true
+	            log "Podman socket live ($sock_path)"
+	            break
+			# Error: configure storage: overlay: can't stat imageStore dir /var/lib/containers/shared-storage: stat /var/lib/containers/shared-storage: permission denied
+	        elif [[ "$fixed_permissions" != true ]] && [[ "$output" == *"permission denied"* ]] && [[ "$output" == *"shared-storage"* ]]; then
+	            log "Detected shared-storage permission issue. Fixing permissions..."
+	            chmod -R o+rX /var/lib/containers/shared-storage || true
+	            fixed_permissions=true
+	            continue
+	        fi
+	    fi
+	    sleep 1; (( elapsed++ )) || true
+	done
 
     if [[ "$ready" != true ]]; then
         hard_cleanup
-        die "Podman not responding after ${max_time}s!"
+        die "Podman not responding after ${max_time}s! error is: $output"
     fi
 
     # podman-compose can reach this user's rootless podman instance?
