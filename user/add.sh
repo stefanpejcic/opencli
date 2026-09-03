@@ -441,7 +441,7 @@ test_podman_service() {
 	fixed_permissions=false
 	while (( elapsed < max_time )); do
 	    if [[ -S "$sock_path" ]]; then
-	        output=$(CONTAINER_HOST="$sock" timeout 3 podman info 2>&1)
+	        output=$(CONTAINER_HOST="$sock" timeout 3 podman --remote info 2>&1)
 	        status=$?
 	
 	        if [[ $status -eq 0 ]]; then
