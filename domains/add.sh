@@ -298,7 +298,7 @@ check_apex_ownership() {
         if [[ "$permit_subdomain_sharing" == "yes" ]]; then
             warn "Another user owns $apex_domain — adding as separate addon domain"
         else
-            err "Another user owns $apex_domain — cannot add subdomain $domain_name"
+            err "Another user owns $apex_domain — cannot add subdomain $domain_name when 'permit_subdomain_sharing' is disabled."
         fi
     fi
 }
