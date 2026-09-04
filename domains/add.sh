@@ -564,7 +564,14 @@ create_caddy_domain_file() {
 
     # WAF rule engine
     local waf_value="Off"
-    grep -qi "waf" "$PANEL_CONFIG_FILE" 2>/dev/null && waf_value="On"
+
+	# https://github.com/stefanpejcic/OpenPanel/discussions/1107
+	if [[ -f "/home/${context}/waf.disabled" ]]; then
+	    waf_value="Off"
+	elif grep -qi "waf" "$PANEL_CONFIG_FILE" 2>/dev/null; then
+	    waf_value="On"
+	fi
+
     log "WAF SecRuleEngine: $waf_value"
     sed -i "s/SecRuleEngine .*/SecRuleEngine $waf_value/" "$domains_file"
 
