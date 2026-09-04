@@ -5,7 +5,7 @@
 # Usage: opencli sentinel
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 28.08.2026
+# Last Modified: 04.09.2026
 # Company: openpanel.com
 # Copyright (c) Stefan Pejcic <stefan@pejcic.rs>
 # 
