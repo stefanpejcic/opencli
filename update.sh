@@ -83,6 +83,7 @@ Options:
     --admin             Update OpenAdmin UI only
     --panel             Update OpenPanel UI only
     --cli               Update OpenCLI only
+    --translations      Update translation files and restart OpenPanel UI
     -h, --help          Show this help message
 
 Examples:
@@ -90,6 +91,7 @@ Examples:
     opencli update --check         # Check for available updates
     opencli update --force         # Force update regardless of settings
     opencli update --panel beta    # Update OpenPanel UI to the nightly-release
+    opencli update --translations  # Update translation files and restart OpenPanel UI
 
 EOF
     exit 1
@@ -500,6 +502,14 @@ update_locales() {
     [[ "$no_log" == "--no-log" ]] && echo "[✔] $summary" || log "[✔] $summary"
 }
 
+# ---------------------- UPDATES TRANSLATIONS ONLY, THEN RESTARTS OPENPANEL ---------------------- #
+update_translations() {
+    update_locales --no-log
+    log_info "Restarting OpenPanel service"
+    podman restart openpanel &>/dev/null 2>&1
+    log_info "[✔] Translations updated and OpenPanel restarted"
+}
+
 # ---------------------- CHECKS IF CUSTOM FILE EXISTS AND RUNS IT ---------------------- #
 
 # https://github.com/stefanpejcic/OpenPanel/issues/984
@@ -835,6 +845,7 @@ main() {
             --admin) MODE="admin" ;;
             --panel) MODE="panel" ;;
             --cli)   MODE="cli"   ;;
+            --translations) MODE="translations" ;;
             beta)    BETA=true    ;;
             -h|--help) usage ;;
             *) log_error "[!] Unknown argument: $arg"; usage ;;
@@ -846,7 +857,8 @@ main() {
         force) check_update --force ;;
         panel) update_openpanel --no-log ;;
         cli)   update_opencli --no-log ;;
-        admin) update_openadmin --no-log ;;		
+        admin) update_openadmin --no-log ;;
+        translations) update_translations ;;
         "")    check_update ;;
     esac
 }
