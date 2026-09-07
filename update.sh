@@ -696,13 +696,23 @@ update_openadmin() {
 		if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
 			if systemctl is-active --quiet admin; then
 				was_active=true
-				systemctl stop admin
+				if ! timeout 30 systemctl stop admin; then
+					log_warn "systemctl stop admin timed out, forcing kill"
+					systemctl kill -s SIGKILL admin
+					systemctl reset-failed admin
+				fi
 			else
 				was_active=false
 			fi
+
 			curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
 			if [ "$was_active" = true ]; then
 			    systemctl start admin
+			    sleep 2
+			    if ! systemctl is-active --quiet admin; then
+			        log_error "admin service failed to start after update"
+			        systemctl status admin --no-pager >> "$target_log" 2>&1
+			    fi
 			fi
 		else
 		    echo "Release asset not found: $url" >&2
