@@ -716,8 +716,14 @@ update_openadmin() {
 			fi
 
 			curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
+			chmod +x "/usr/local/admin/$admin_binary"
+
+	        # restore report for 'OpenAdmin > Emails > Reports'
+	        [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
+				
 			if [ "$was_active" = true ]; then
-			    systemctl start admin
+			    setsid nohup systemctl start admin < /dev/null > /dev/null 2>&1 &
+			    disown
 			    sleep 2
 			    if ! systemctl is-active --quiet admin; then
 			        log_error "admin service failed to start after update"
@@ -728,11 +734,6 @@ update_openadmin() {
 		    echo "Release asset not found: $url" >&2
 		    exit 1
 		fi
-		
-		chmod +x "/usr/local/admin/$admin_binary"
-
-        # restore report for 'OpenAdmin > Emails > Reports'
-        [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
         echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
     fi
