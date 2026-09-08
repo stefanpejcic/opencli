@@ -702,38 +702,39 @@ update_openadmin() {
         target_log="${log_file:-/dev/null}"
 
         if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
-            setsid nohup bash -c '
-                admin_binary="'"$admin_binary"'"
-                url="'"$url"'"
-                target_log="'"$target_log"'"
-                was_active=false
-
-                if systemctl is-active --quiet admin; then
-                    was_active=true
-                    if ! timeout 30 systemctl stop admin; then
-                        systemctl kill -s SIGKILL admin
-                        systemctl reset-failed admin
-                    fi
-                fi
-
-                curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
-                chmod +x "/usr/local/admin/$admin_binary"
-
-	       		# restore report for "OpenAdmin > Emails > Reports"
-                [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
-
-                if [ "$was_active" = true ]; then
-                    systemctl start admin
-                    sleep 2
-                    if ! systemctl is-active --quiet admin; then
-                        {
-                            echo "[$(date "+%Y-%m-%d %H:%M:%S")] admin service failed to start after update"
-                            systemctl status admin --no-pager
-                        } >> "$target_log" 2>&1
-                    fi
-                fi
-            ' < /dev/null > /dev/null 2>&1 &
-            disown
+			setsid nohup bash -c '
+			    admin_binary="'"$admin_binary"'"
+			    url="'"$url"'"
+			    target_log="'"$target_log"'"
+			    was_active=false
+			
+			    curl -sSL "$url" -o "/usr/local/admin/${admin_binary}.new" || exit 1
+			    chmod +x "/usr/local/admin/${admin_binary}.new"
+			
+			    if systemctl is-active --quiet admin; then
+			        was_active=true
+			        if ! timeout 30 systemctl stop admin; then
+			            systemctl kill -s SIGKILL admin
+			            systemctl reset-failed admin
+			        fi
+			    fi
+			
+			    mv -f "/usr/local/admin/${admin_binary}.new" "/usr/local/admin/$admin_binary"
+			
+			    [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
+			
+			    if [ "$was_active" = true ]; then
+			        systemctl start admin
+			        sleep 2
+			        if ! systemctl is-active --quiet admin; then
+			            {
+			                echo "[$(date "+%Y-%m-%d %H:%M:%S")] admin service failed to start after update"
+			                systemctl status admin --no-pager
+			            } >> "$target_log" 2>&1
+			        fi
+			    fi
+			' < /dev/null > /dev/null 2>&1 &
+			disown
         else
             echo "No release asset found: $url" >&2
             exit 1
