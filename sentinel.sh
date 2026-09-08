@@ -1113,7 +1113,9 @@ check_swap_usage() {
       fstab_swap=$(awk '$3=="swap"{print $1}' /etc/fstab)
       if [[ -n "$fstab_swap" ]]; then
         echo -e "\e[38;5;214m[!]\e[0m SWAP is off but fstab entries exist. Attempting to re-enable..."
-        if swapon -a 2>/dev/null; then
+        local swapon_err
+        swapon_err=$(swapon -a 2>&1 >/dev/null)
+        if [[ -z "$swapon_err" ]]; then
           read -r _ stotal sused _rest < <(free -m | awk '/^Swap:/')
           if (( stotal > 0 )); then
             ((WARN++))
@@ -1127,8 +1129,8 @@ check_swap_usage() {
           fi
         else
           ((WARN++))
-          echo -e "\e[31m[✘]\e[0m Failed to re-enable SWAP. Check swap device/file."
-          write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a failed on $HOSTNAME at $DISPLAY_TIME."
+          echo -e "\e[31m[✘]\e[0m Failed to re-enable SWAP: $swapon_err"
+          write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a failed on $HOSTNAME at $DISPLAY_TIME. Error: $swapon_err"
           return
         fi
       else
