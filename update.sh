@@ -683,59 +683,63 @@ update_openpanel() {
 }
 
 update_openadmin() {
-    # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
+    # shellcheck disable=SC2015
     [[ "$1" == "--no-log" ]] && echo "Updating OpenAdmin" || log "Updating OpenAdmin"
     if [[ -d /usr/local/admin ]]; then
-        cd /usr/local/admin || return 
+        cd /usr/local/admin || return
 
-        # keep report for 'OpenAdmin > Emails > Reports'
-        [[ -f "/usr/local/admin/templates/emails/reports.html" ]] && cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup      
+        [[ -f "/usr/local/admin/templates/emails/reports.html" ]] && cp /usr/local/admin/templates/emails/reports.html /tmp/report.html.backup
 
-		# update binary	
-    	local remote_version admin_binary url
+        local remote_version admin_binary url target_log
+        case "$(uname -m)" in
+            x86_64|amd64)  admin_binary="openadmin-amd64" ;;
+            aarch64|arm64) admin_binary="openadmin-arm64" ;;
+            *)             admin_binary="$(uname -m)" ;;
+        esac
 
-	    case "$(uname -m)" in
-	        x86_64|amd64)  admin_binary="openadmin-amd64" ;;
-	        aarch64|arm64) admin_binary="openadmin-arm64" ;;
-	        *)             admin_binary="$(uname -m)" ;;
-	    esac
+        remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
+        url="https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary"
+        target_log="${log_file:-/dev/null}"
 
-		remote_version=$(opencli update --check 2>/dev/null | jq -r '.latest_version' 2>/dev/null)
-		url="https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary"
+        if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
+            setsid nohup bash -c '
+                admin_binary="'"$admin_binary"'"
+                url="'"$url"'"
+                target_log="'"$target_log"'"
+                was_active=false
 
-		if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
-			if systemctl is-active --quiet admin; then
-				was_active=true
-				if ! timeout 30 systemctl stop admin; then
-					log_warn "systemctl stop admin timed out, forcing kill"
-					systemctl kill -s SIGKILL admin
-					systemctl reset-failed admin
-				fi
-			else
-				was_active=false
-			fi
+                if systemctl is-active --quiet admin; then
+                    was_active=true
+                    if ! timeout 30 systemctl stop admin; then
+                        systemctl kill -s SIGKILL admin
+                        systemctl reset-failed admin
+                    fi
+                fi
 
-			curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
-			chmod +x "/usr/local/admin/$admin_binary"
+                curl -sSL "$url" -o "/usr/local/admin/$admin_binary"
+                chmod +x "/usr/local/admin/$admin_binary"
 
-	        # restore report for 'OpenAdmin > Emails > Reports'
-	        [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
-				
-			if [ "$was_active" = true ]; then
-			    setsid nohup systemctl start admin < /dev/null > /dev/null 2>&1 &
-			    disown
-			    sleep 2
-			    if ! systemctl is-active --quiet admin; then
-			        log_error "admin service failed to start after update"
-			        systemctl status admin --no-pager >> "$target_log" 2>&1
-			    fi
-			fi
-		else
-		    echo "Release asset not found: $url" >&2
-		    exit 1
-		fi
+	       		# restore report for "OpenAdmin > Emails > Reports"
+                [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 
-        echo "[✔] OpenAdmin is up-to-date" || log "[✔] OpenAdmin is up-to-date"
+                if [ "$was_active" = true ]; then
+                    systemctl start admin
+                    sleep 2
+                    if ! systemctl is-active --quiet admin; then
+                        {
+                            echo "[$(date "+%Y-%m-%d %H:%M:%S")] admin service failed to start after update"
+                            systemctl status admin --no-pager
+                        } >> "$target_log" 2>&1
+                    fi
+                fi
+            ' < /dev/null > /dev/null 2>&1 &
+            disown
+        else
+            echo "No release asset found: $url" >&2
+            exit 1
+        fi
+
+        echo "[✔] OpenAdmin update triggered (applying in background)" || log "[✔] OpenAdmin update triggered (applying in background)"
     fi
 }
 
