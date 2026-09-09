@@ -790,7 +790,12 @@ restart_admin() {
     if systemctl is-active --quiet admin; then
         message="'OpenAdmin' service is running, restarting..."
         [[ "$1" == "--no-log" ]] && echo $message || log $message
-        [[ "$1" == "--no-log" ]] && systemctl restart admin || systemctl restart admin 2>&1 | tee -a "$log_file"
+
+        if [[ "$1" == "--no-log" ]]; then
+            systemd-run --on-active=3s --unit=openadmin-restart --quiet /bin/systemctl restart admin
+        else
+            systemctl restart admin 2>&1 | tee -a "$log_file"
+        fi
     else
         message="[!] Service 'admin' is not running, skipping restart."
         [[ "$1" == "--no-log" ]] && echo $message || echo $message | tee -a "$log_file"
