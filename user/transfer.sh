@@ -264,7 +264,7 @@ get_used_uids() {
     getent passwd | cut -d: -f3
 }
 
-# Find a free UID >= 1000 and not in use
+# Find a free UID >= 1002 and not in use
 find_free_uid() {
     used_uids=\$(get_used_uids)
     uid=\$1
