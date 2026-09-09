@@ -774,7 +774,7 @@ check_oom_logs() {
     if [[ "$uid" -eq 0 ]]; then
         ((SYSTEM_COUNT++))
         SYSTEM_MSG+=$' | '"$line"
-    elif [[ "$uid" -ge 1000 ]]; then
+    elif [[ "$uid" -ge 1002 ]]; then
         ((USER_COUNT++))
         user=$(getent passwd "$uid" | cut -d: -f1)
         [[ -z "$user" ]] && continue
