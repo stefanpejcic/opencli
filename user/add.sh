@@ -312,8 +312,8 @@ create_linux_user_local() {
 
     # never hand out uid 1000
     local uid
-	uid=$(getent passwd | awk -F: '$3>=1001{print $3}' | sort -n | awk '
-	    BEGIN{c=1001}
+	uid=$(getent passwd | awk -F: '$3>=1002{print $3}' | sort -n | awk '
+	    BEGIN{c=1002}
 	    {while(c<$1){print c; exit} c=$1+1}
 	    END{print c}' | head -1)
 
