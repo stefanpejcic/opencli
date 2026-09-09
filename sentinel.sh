@@ -510,14 +510,20 @@ check_new_logins() {
   fi
 
   local found_new=0
+  local reported_pairs=""
   while IFS= read -r line; do
-    local username ip_address
+    local username ip_address pair
     read -r _ _ username ip_address _ <<< "$line"
 
     [[ ! "$ip_address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && continue
     [[ "$ip_address" == "127.0.0.1" ]] && continue
 
-    if ! grep -qF "$username $ip_address" <<< "$seen_pairs"; then
+    # only report each user+ip once per run
+    pair="$username $ip_address"
+    grep -qxF "$pair" <<< "$reported_pairs" && continue
+    reported_pairs+="$pair"$'\n'
+
+    if ! grep -qxF "$pair" <<< "$seen_pairs"; then
       if is_ip_whitelisted "$ip_address"; then
         echo -e "\e[32m[✔]\e[0m $username from new but whitelisted IP: $ip_address"
       else
