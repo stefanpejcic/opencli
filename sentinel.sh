@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 01.09.2026
+# Last Modified: 09.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -417,6 +417,14 @@ perform_startup_actions() {
   write_notification "$title" "$message"
 }
 
+remove_dependent_openpanel() {
+  podman inspect openpanel &>/dev/null || return
+  echo "  - Removing openpanel first (has a dependency on this container)"
+  podman kill openpanel &>/dev/null
+  podman container cleanup openpanel &>/dev/null
+  podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
+}
+
 check_user_containers() {
   hr
   echo "Checking container status for openpanel users..."
@@ -491,6 +499,7 @@ _docker_log() { podman logs --tail 10 "$1" 2>&1 | awk '{gsub(/\\/, "\\\\"); gsub
 _openpanel_http_ok() {
   local code
   code=$(curl -sko /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "https://localhost:2083/")
+  [[ "$code" == "000" ]] && code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "http://localhost:2083/")
   [[ "$code" =~ ^(200|301|302|401)$ ]]
 }
 
@@ -506,7 +515,7 @@ _docker_check_after_restart() {
   if _docker_ps | grep -wq "$svc"; then
     ((WARN--)); echo -e "\e[32m[✔]\e[0m $svc restarted successfully."
   else
-    ((FAIL++)); STATUS=2
+    ((WARN--)); ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m $svc failed to restart."
     write_notification "$title" "$(_docker_log "$svc")"
   fi
@@ -618,22 +627,53 @@ docker_containers_status() {
 
 mysql_docker_containers_status() {
   local title="MariaDB service not active!"
+  local mdb_ok mdb_tries
+
   if _docker_ps | grep -q "openpanel_mysql"; then
     if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m MariaDB container active and responding."
-    else
-      echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
-      write_notification "MariaDB service restarted!" "MariaDB service running but not responding, attempting restart."
-      podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
-      cd /root && podman-compose up -d openpanel_mysql &>/dev/null
+      return
     fi
+
+    ((WARN++))
+    echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
+    write_notification "MariaDB service restarted!" "MariaDB service running but not responding, attempting restart."
+    remove_dependent_openpanel
+    podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
+    cd /root && podman-compose up -d openpanel_mysql &>/dev/null
+
+    mdb_ok=0
+    for mdb_tries in 1 2 3 4 5 6; do
+      sleep 5
+      if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+        mdb_ok=1; break
+      fi
+    done
+
+    if (( mdb_ok )); then
+      ((WARN--)); ((PASS++))
+      echo "    MariaDB is back online."
+    else
+      ((WARN--)); ((FAIL++)); STATUS=2
+      echo "    Error: MariaDB still not responding!"
+      write_notification "$title" "MariaDB was restarted after not responding but is still unresponsive. Please check ASAP."
+    fi
+
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m MariaDB container not running — restarting."
     cd /root && podman-compose up -d openpanel_mysql &>/dev/null
-    sleep 5
-    if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
-      ((FAIL--)); STATUS=1
+
+    mdb_ok=0
+    for mdb_tries in 1 2 3 4 5 6; do
+      sleep 5
+      if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
+        mdb_ok=1; break
+      fi
+    done
+
+    if (( mdb_ok )); then
+      ((FAIL--)); (( STATUS < 1 )) && STATUS=1
       echo "    MariaDB is back online."
       write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB on $HOSTNAME at $DISPLAY_TIME after the container was found not running. It is responding now."
     else
@@ -648,9 +688,10 @@ redis_docker_container_status() {
   local container="openpanel_redis"
 
   if ! podman inspect "$container" &>/dev/null; then
-    ((FAIL++)); STATUS=2
+    ((WARN++))
     echo -e "\e[31m[✘]\e[0m Redis container not found — starting."
     cd /root && podman-compose up -d openpanel_redis &>/dev/null
+    sleep 2
     _docker_check_after_restart "$container" "$title"
     return
   fi
@@ -665,6 +706,7 @@ redis_docker_container_status() {
       else
         echo -e "\e[31m[✘]\e[0m Redis running but not responding — restarting."
         write_notification "Redis service restarted!" "Redis container running but not responding, attempting restart."
+        remove_dependent_openpanel
         podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
         cd /root && podman-compose up -d openpanel_redis &>/dev/null
         _docker_check_after_restart "$container" "$title"
@@ -704,13 +746,15 @@ redis_docker_container_status() {
         return
       fi
 
-      ((FAIL++)); STATUS=2
+      ((WARN++))
       echo -e "\e[31m[✘]\e[0m Redis container stuck in '$state' for ${stuck_age}s — forcing removal and recreation."
       write_notification "Redis container stuck" "openpanel_redis was stuck in state '$state' for ${stuck_age}s. Forcing recreation."
       rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
+      remove_dependent_openpanel
       podman kill "$container" &>/dev/null
       podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
       cd /root && podman-compose up -d openpanel_redis &>/dev/null
+      sleep 2
       _docker_check_after_restart "$container" "$title"
       ;;
   esac
@@ -720,7 +764,7 @@ check_services() {
   local svc
   # "docker" kept as an accepted alias for "podman" so existing services= ini
   # entries from before the podman migration keep working unchanged
-  for svc in caddy csf admin docker podman panel mysql phpmyadmin named; do
+  for svc in caddy csf admin docker podman mysql panel phpmyadmin named; do
     [[ ",$SERVICES," != *",$svc,"* ]] && continue
     case "$svc" in
       caddy)  docker_containers_status  'caddy'         'Caddy not active — websites down!'             ;;
@@ -729,8 +773,8 @@ check_services() {
       admin)  check_service_status      'admin'         'OpenAdmin service not accessible!'             ;;
       mysql)  mysql_docker_containers_status                                                            ;;
       docker|podman) check_service_status 'podman.socket' 'Podman not active — user websites down!'     ;;
-      panel)  docker_containers_status  'openpanel'     'OpenPanel container not running!'
-              redis_docker_container_status                                                             ;;
+      panel)  redis_docker_container_status
+              docker_containers_status  'openpanel'     'OpenPanel container not running!'               ;;
       named)  docker_containers_status  'openpanel_dns' 'BIND9 not active — DNS broken!'                ;;
     esac
   done
