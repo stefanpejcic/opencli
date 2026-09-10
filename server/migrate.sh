@@ -125,6 +125,8 @@ fi
 
 RSYNC_OPTS="-az" #--progress
 
+export SSHPASS="$REMOTE_PASS"
+
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
 	if [[ -n "$REMOTE_PASS" ]]; then
@@ -141,9 +143,9 @@ check_install_sshpass() {
 		        exit 2
 		    fi
 		fi
-  		RSYNC_CMD="sshpass -p '$REMOTE_PASS' rsync $RSYNC_OPTS -e 'ssh -o StrictHostKeyChecking=no'"
+  		RSYNC_CMD=(sshpass -e rsync $RSYNC_OPTS -e "ssh -o StrictHostKeyChecking=no")
 	else
-	    	RSYNC_CMD="rsync $RSYNC_OPTS"
+	    	RSYNC_CMD=(rsync $RSYNC_OPTS)
 	fi
 }
 
@@ -158,7 +160,7 @@ check_disk_used_on_source() {
 check_if_dest_has_space(){
     echo "Checking available disk on destination server ..."
 
-    AVAILABLE_HOME_ON_DEST=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    AVAILABLE_HOME_ON_DEST=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
         "df --output=avail $HOME_DIR | tail -n 1")
 
     AVAILABLE_HOME_ON_DEST_BYTES=$(($AVAILABLE_HOME_ON_DEST * 1024)) #1K blocks
@@ -203,7 +205,7 @@ get_users_count_on_destination() {
 
 	user_count_query="SELECT COUNT(*) FROM users"
 
-    user_count=$(sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    user_count=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "mysql --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN")
  
         if [ $? -ne 0 ]; then
@@ -225,10 +227,10 @@ copy_user_accounts() {
     awk -F: '$3 >= 1000 {print}' /etc/passwd > "$TMPDIR/passwd.users"
     awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
     grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
-    eval $RSYNC_CMD "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    "${RSYNC_CMD[@]}" "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" ${REMOTE_USER}@${REMOTE_HOST}:/root/
     rm -rf "$TMPDIR" >/dev/null
 
-sshpass -p "$REMOTE_PASS" ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
+sshpass -e ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
 USER_PASSWD="/root/passwd.users"
 USER_GROUP="/root/group.users"
 USER_SHADOW="/root/shadow.users"
@@ -283,7 +285,7 @@ for userdir in /home/*; do
     fi
 done
 
-eval $RSYNC_CMD $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
+"${RSYNC_CMD[@]}" $output_file ${REMOTE_USER}@${REMOTE_HOST}:$output_file
 }
 
 restore_running_containers_for_all_users() {
@@ -306,7 +308,7 @@ while IFS=: read -r username containers <&3; do
     fi
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
         "docker --context=$username compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && docker --context=$username compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
@@ -316,10 +318,10 @@ exec 3<&-
 
 copy_docker_contexts() {
 
-    eval $RSYNC_CMD /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
-    eval $RSYNC_CMD /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
+    "${RSYNC_CMD[@]}" /run/user/ ${REMOTE_USER}@${REMOTE_HOST}:/run/user/
+    "${RSYNC_CMD[@]}" /etc/apparmor.d/home.* ${REMOTE_USER}@${REMOTE_HOST}:/etc/apparmor.d/
 
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"systemctl restart apparmor.service"
     
 	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
@@ -334,13 +336,13 @@ copy_docker_contexts() {
 	    SRC="/home/$USERNAME/.docker"
 	    if [[ -d "$SRC" ]]; then
 	        echo "Setting linger for: $USERNAME"
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "loginctl enable-linger $USERNAME" \
 		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
      
-     		eval $RSYNC_CMD /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
+     		"${RSYNC_CMD[@]}" /run/user/$USER_ID ${REMOTE_USER}@${REMOTE_HOST}:/run/user/$USER_ID
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "
+		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "
 		    if [ -d /run/user/$USER_ID ]; then
 		        ls -l /run/user/$USER_ID
 		    else
@@ -350,16 +352,16 @@ copy_docker_contexts() {
       "
 
 	        echo "Creating Docker context: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
-	        sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	        sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	            "docker context create $USERNAME --docker 'host=unix:///hostfs/run/user/${USER_ID}/docker.sock' --description '$USERNAME'" || echo "Failed context for $USERNAME"
 	
 	        echo "Configuring docker service for: $USERNAME"
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
 		    >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
 
-		sshpass -p "$REMOTE_PASS" ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user --quiet restart docker'" \
 		    >/dev/null 2>&1 || echo "Failed to restart docker for $USERNAME"
 	    else
@@ -375,12 +377,12 @@ copy_docker_contexts() {
 
 restart_services_on_target() {
             echo "Restarting services on ${REMOTE_HOST} server ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "cd /root && docker compose compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Starting mailserver and webmail on ${REMOTE_HOST} server ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "cd /usr/local/mail/openmail && docker --context default compose up -d mailserver roundcube >/dev/null 2>&1"  
 	fi
 
@@ -390,13 +392,13 @@ restart_services_on_target() {
 
 refresh_quotas() {
             echo "Recalculating disk and inodes usage for all users on ${REMOTE_HOST} ..."
-            sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
                 "opencli user-quota >/dev/null 2>&1"
 }
 
   
 replace_ip_in_zones() {
-	sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -c "'
+	sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -c "'
 	    zones_dir=\"/etc/bind/zones\"
 	
 	    for ZONE_CONF in \"\$zones_dir\"/*.zone; do
@@ -432,7 +434,7 @@ fi
 
 if [[ $EXCLUDE_HOME -eq 0 ]]; then
     echo "Syncing files (/home directory) ..."
-    RSYNC_OUTPUT=$(eval $RSYNC_CMD /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    RSYNC_OUTPUT=$("${RSYNC_CMD[@]}" /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
@@ -451,23 +453,23 @@ if [[ $EXCLUDE_CONTEXTS -eq 0 ]]; then
 fi
 
 
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 "systemctl daemon-reload" 
 
 
 
 # set quotas
 echo "Restoring user quotas ..."
-sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"opencli user-quota --update --all"
 
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
     echo "Syncing /var/log/openpanel ..."
-    eval $RSYNC_CMD /var/log/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/openpanel/
+    "${RSYNC_CMD[@]}" /var/log/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/openpanel/
 
     echo "Syncing /var/log/caddy/ ..."
-    eval $RSYNC_CMD /var/log/caddy/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/
+    "${RSYNC_CMD[@]}" /var/log/caddy/ ${REMOTE_USER}@${REMOTE_HOST}:/var/log/caddy/
 fi
 
 if [[ $EXCLUDE_MAIL -eq 0 ]]; then
@@ -477,7 +479,7 @@ if [[ $EXCLUDE_MAIL -eq 0 ]]; then
 	if [ -n "$key_value" ]; then
 	    if [ -d /usr/local/mail/openmail ]; then
 	        echo "Syncing /var/mail ..."
-	        eval $RSYNC_CMD /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
+	        "${RSYNC_CMD[@]}" /usr/local/mail/openmail ${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail
 	        COMPOSE_START_MAIL=1
 	    fi
 	fi
@@ -487,31 +489,31 @@ fi
 
 if [[ $EXCLUDE_CSF -eq 0 ]]; then
     echo "Syncing /etc/csf/ ..."
-    eval $RSYNC_CMD /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+    "${RSYNC_CMD[@]}" /etc/csf/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/csf/     
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 	"csf -a $current_ip > /dev/null && csf -r >/dev/null && systemctl restart lfd"    
 fi
 
 
 if [[ $EXCLUDE_BIND -eq 0 ]]; then
     echo "Syncing /etc/bind ..."
-    eval $RSYNC_CMD /etc/bind/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/
+    "${RSYNC_CMD[@]}" /etc/bind/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/bind/
     replace_ip_in_zones   
 fi
 
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
     echo "Syncing /etc/openpanel ..."
-    eval $RSYNC_CMD /etc/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/
+    "${RSYNC_CMD[@]}" /etc/openpanel/ ${REMOTE_USER}@${REMOTE_HOST}:/etc/openpanel/
 
     echo "Syncing system cronjobs..."
-    eval $RSYNC_CMD /etc/cron.d/openpanel ${REMOTE_USER}@${REMOTE_HOST}:/etc/cron.d/
+    "${RSYNC_CMD[@]}" /etc/cron.d/openpanel ${REMOTE_USER}@${REMOTE_HOST}:/etc/cron.d/
     
 fi
 
 if [[ $EXCLUDE_MYSQL -eq 0 ]]; then
     echo "Syncing root_mysql Docker volume ..."
     if [[ -d "/var/lib/docker/volumes/root_mysql/_data" ]]; then
-        eval $RSYNC_CMD /var/lib/docker/volumes/root_mysql/_data/ ${REMOTE_USER}@${REMOTE_HOST}:/var/lib/docker/volumes/root_mysql/_data/
+        "${RSYNC_CMD[@]}" /var/lib/docker/volumes/root_mysql/_data/ ${REMOTE_USER}@${REMOTE_HOST}:/var/lib/docker/volumes/root_mysql/_data/
     else
         echo "/var/lib/docker/volumes/root_mysql/_data does not exist! Skipping."
     fi
@@ -519,14 +521,14 @@ fi
 
 if [[ $EXCLUDE_STACK -eq 0 ]]; then
     echo "Syncing /root/docker-compose.yml and /root/.env ..."
-    eval $RSYNC_CMD /root/docker-compose.yml ${REMOTE_USER}@${REMOTE_HOST}:/root/
-    eval $RSYNC_CMD /root/.env ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    "${RSYNC_CMD[@]}" /root/docker-compose.yml ${REMOTE_USER}@${REMOTE_HOST}:/root/
+    "${RSYNC_CMD[@]}" /root/.env ${REMOTE_USER}@${REMOTE_HOST}:/root/
 fi
 
 if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
     if [[ -e /root/openpanel_run_after_update ]]; then
         echo "Syncing /root/openpanel_run_after_update ..."
-        eval $RSYNC_CMD /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
+        "${RSYNC_CMD[@]}" /root/openpanel_run_after_update ${REMOTE_USER}@${REMOTE_HOST}:/root/
     fi
 fi
 
