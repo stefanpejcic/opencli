@@ -92,7 +92,6 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
     if is_valid_email "$3"; then
         # get OpenPanel user UID and store/update it in postfix-accounts.cf
         get_openpanel_username_and_uid_for_domain "$3"
-        mkdir -p "/usr/local/mail/openmail/docker-data/dms/config/"
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
             sed -i "/^$3|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "/usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf"
             # TODO: after 2.0 edit to only run on 'add' and not on 'update'!
