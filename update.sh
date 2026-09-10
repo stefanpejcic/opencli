@@ -702,7 +702,7 @@ update_openadmin() {
         target_log="${log_file:-/dev/null}"
 
         if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
-			setsid nohup bash -c '
+			systemd-run --collect --unit="openadmin-selfupdate-$$" --no-block bash -c '
 			    admin_binary="'"$admin_binary"'"
 			    url="'"$url"'"
 			    target_log="'"$target_log"'"
@@ -733,8 +733,7 @@ update_openadmin() {
 			            } >> "$target_log" 2>&1
 			        fi
 			    fi
-			' < /dev/null > /dev/null 2>&1 &
-			disown
+			'
         else
             echo "No release asset found: $url" >&2
             exit 1
