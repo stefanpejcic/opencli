@@ -662,6 +662,8 @@ mysql_docker_containers_status() {
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m MariaDB container not running — restarting."
+    remove_dependent_openpanel
+    podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
     cd /root && podman-compose up -d openpanel_mysql &>/dev/null
 
     mdb_ok=0
