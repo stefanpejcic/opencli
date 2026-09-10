@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli]
+# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 21.08.2026
