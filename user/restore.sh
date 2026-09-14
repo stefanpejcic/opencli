@@ -75,7 +75,6 @@ else
     [[ -n "$(ls -A "$WORK" 2>/dev/null)" ]] && { echo "[ERROR] WORK dir not empty: $WORK - remove the --temp-dir= flag to use /tmp/ instead OR create a new subdirectory (e.g. --temp-dir=/home/restore_process)"; exit 1; }
 fi
 
-# DB
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 [[ -f "$DB_CONFIG_FILE" ]] || { echo "[ERROR] $DB_CONFIG_FILE not found — is OpenPanel installed?"; exit 1; }
 # shellcheck disable=SC1090
@@ -127,8 +126,7 @@ check_disk_space_extract() {
     gzip_size=$(gzip -l "$ARCHIVE" 2>/dev/null | awk 'NR==2{print $2}')
     if [[ "$gzip_size" =~ ^[0-9]+$ && "$gzip_size" -gt 0 ]]; then
         estimated_kb=$(( gzip_size / 1024 ))
-        # gzip stores the uncompressed size mod 2^32 — if it looks smaller than
-        # the compressed archive itself, the field wrapped and can't be trusted.
+        # gzip stores the uncompressed size mod 2^32, so if it looks smaller than the compressed archive the field wrapped and can't be trusted
         [[ "$estimated_kb" -lt "$compressed_kb" ]] && estimated_kb=$(( compressed_kb * 3 ))
     else
         estimated_kb=$(( compressed_kb * 3 ))
@@ -467,7 +465,7 @@ restore_ftp() {
     [[ "$GID" =~ ^[0-9]+$ ]] || { warn "Cannot get GID for $CONTEXT — FTP container step skipped."; return; }
     podman exec openadmin_ftp sh -c "getent group '$GID' >/dev/null 2>&1" || podman exec openadmin_ftp addgroup -g "$GID" "$CONTEXT" 2>/dev/null || true
 
-    # TODO: check if UID already taken and not our username, in which case assign new UID and update in $LDIR/users.list
+    # todo: check if UID already taken and not our username, in which case assign new UID and update in $LDIR/users.list
     while IFS='|' read -r fu hp dir uid gid; do
         [[ -z "$fu" ]] && continue
         if podman exec openadmin_ftp id "$fu" >/dev/null 2>&1; then
@@ -582,10 +580,7 @@ restore_email
 
 # ── 8) Podman ────────────────────────────────────────────────────────────────
 restore_docker() {
-    # NOTE: rootless Docker needed a per-user AppArmor profile for rootlesskit;
-    # podman rootless doesn't use rootlesskit, so this is only relevant when
-    # restoring a backup taken before the podman migration - harmless either way,
-    # the profile just won't be enforced against anything if rootlesskit isn't in use.
+    # only relevant when restoring a backup taken before the podman migration, since podman doesn't use rootlesskit -- harmless either way, the profile just won't be enforced if rootlesskit isn't in use
     [[ -f "$WORK/docker/apparmor.profile" ]] && {
         cp -a "$WORK/docker/apparmor.profile" "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit"
         systemctl restart apparmor.service >/dev/null 2>&1 || true
@@ -602,15 +597,10 @@ restore_docker() {
                 chown -R "${uid_now}:${uid_now}" "/home/$CONTEXT/docker-data/libpod"
             fi
 
-            # context resolution is dynamic (based on /home/$CONTEXT's owner uid) -
-            # there's no context to register anymore, just make sure the user's
-            # rootless podman.socket is enabled and running (mirrors user/add.sh)
+            # context resolution is dynamic based on /home/$CONTEXT's owner uid, nothing to register anymore, just make sure the user's rootless podman.socket is enabled and running (mirrors user/add.sh)
             loginctl enable-linger "$CONTEXT" >/dev/null 2>&1 || true
 
-            # enable-linger only asks systemd-logind to start the user's systemd
-            # instance - it doesn't block until it's actually up. Hitting
-            # `systemctl --user` before user@<uid>.service is active fails, so
-            # wait for it first (same 30s poll used in user/add.sh).
+            # enable-linger doesn't block until the user's systemd instance is actually up, and `systemctl --user` fails before user@<uid>.service is active, so wait for it first (same 30s poll as user/add.sh)
             local w=0
             while (( w < 30 )); do
                 systemctl is-active "user@${uid_now}.service" >/dev/null 2>&1 && break

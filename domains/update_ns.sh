@@ -30,12 +30,10 @@
 ################################################################################
 
 
-# Define the path to the configuration file
 CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 ZONE_DIR="/etc/bind/zones"
 BACKUP_DIR="$ZONE_DIR/backups"
 
-# Function to print usage
 print_usage() {
   echo "Usage: $0 [--all | --all -y | domain_name]"
   echo "Options:"
@@ -45,35 +43,30 @@ print_usage() {
   exit 1
 }
 
-# Function to create a backup of a zone file
 backup_zone_file() {
   local zone_file="$1"
   mkdir -p "$BACKUP_DIR"
   cp "$zone_file" "$BACKUP_DIR/$(basename "$zone_file").bak"
 }
 
-# Function to update nameservers in a zone file
 update_zone_file() {
   local zone_file="$1"
   local tmp_file; tmp_file=$(mktemp)
 
-  # Backup the file before editing
   backup_zone_file "$zone_file"
 
-  # Remove existing NS records and create new content
+  # strip out existing NS records
   grep -v '^[^;].*IN[[:space:]]*NS[[:space:]]*' "$zone_file" > "$tmp_file"
 
-  # Add new NS records at the top
+  # append the new ones
   for ns in "${NAMESERVERS[@]}"; do
     echo "@ IN NS $ns." >> "$tmp_file"
   done
 
-  # Prepend new NS records and restore original file structure
   cat "$tmp_file" > "$zone_file"
   rm "$tmp_file"
 }
 
-# Function to confirm the operation for --all
 confirm_all() {
   echo "You are about to update all zone files. This action cannot be undone."
   echo "Proceed? (y/n)"
@@ -84,25 +77,22 @@ confirm_all() {
   fi
 }
 
-# Check if the configuration file exists
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "Configuration file not found: $CONFIG_FILE"
   exit 1
 fi
 
-# Extract nameserver values from the configuration file
+# pull nameserver values from the config
 NS1=$(grep '^ns1=' "$CONFIG_FILE" | cut -d'=' -f2)
 NS2=$(grep '^ns2=' "$CONFIG_FILE" | cut -d'=' -f2)
 NS3=$(grep '^ns3=' "$CONFIG_FILE" | cut -d'=' -f2)
 NS4=$(grep '^ns4=' "$CONFIG_FILE" | cut -d'=' -f2)
 
-# Check if at least ns1 and ns2 are set
 if [ -z "$NS1" ] || [ -z "$NS2" ]; then
   echo "ns1 and ns2 must be set in the configuration file."
   exit 1
 fi
 
-# Collect nameservers to be used
 NAMESERVERS=("$NS1" "$NS2")
 [ -n "$NS3" ] && NAMESERVERS+=("$NS3")
 [ -n "$NS4" ] && NAMESERVERS+=("$NS4")
@@ -136,7 +126,6 @@ case "$1" in
 esac
 
 
-# Reload BIND service
 podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 

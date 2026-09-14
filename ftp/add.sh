@@ -38,14 +38,14 @@ username="${1,,}"
 password="$2"
 directory="$3"
 openpanel_username="$4"
-DEBUG=false  # Default value for DEBUG
+DEBUG=false
 
 source /usr/local/opencli/lib/password_strength.sh
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/podman.sh
 
 
-# Parse optional flags to enable debug mode when needed!
+# parse optional flags, enabling debug mode if asked
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
@@ -61,7 +61,6 @@ check_and_start_ftp_server(){
 }
 
 
-# Function to read users from users.list files and create them
 create_user() {
     real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
     relative_path="${directory##/var/www/html/}"
@@ -140,7 +139,6 @@ print('\$6\$' + salt.hex() + '\$' + h)
 
 
 validate_data() {
-	# user.openpanel_username
 	if [[ $username != *@* ]]; then
 	    echo "ERROR: FTP username must be in format: username@domain"
 	    exit 1
@@ -195,35 +193,30 @@ validate_data() {
 		exit 1
 	fi
 
-	# Check if password length is at least 8 characters
 	if [ ${#password} -lt 8 ]; then
 	    echo "ERROR: Password is too short. It must be at least 8 characters long."
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
 	    exit 1
 	fi
 	
-	# Check if password contains at least one uppercase letter
 	if ! [[ $password =~ [A-Z] ]]; then
 	    echo "ERROR: Password must contain at least one uppercase letter."
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
 	    exit 1
 	fi
 	
-	# Check if password contains at least one lowercase letter
 	if ! [[ $password =~ [a-z] ]]; then
 	    echo "ERROR: Password must contain at least one lowercase letter."
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
 	    exit 1
 	fi
 	
-	# Check if password contains at least one digit
 	if ! [[ $password =~ [0-9] ]]; then
 	    echo "ERROR: Password must contain at least one digit."
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
 	    exit 1
 	fi
 	
-	# Check if password contains at least one special character
 	if ! [[ $password =~ [[:punct:]] ]]; then
 	    echo "ERROR: Password must contain at least one special character."
 	    echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#ftp"
@@ -234,7 +227,6 @@ validate_data() {
 	require_password_strength "$password"
 }
 
-# check if ftp user exists
 check_user_exists() {
 	if grep -Fq "$username|" "/etc/openpanel/ftp/users/${context}/users.list"; then
 	    echo "ERROR: FTP User '$username' already exists."
@@ -252,7 +244,7 @@ make_dirs() {
 # main
 validate_data                 # check username, path and password
 make_dirs		              # create dir for user and users file
-check_user_exists             # check user exists
+check_user_exists
 check_and_start_ftp_server    # start ftpserver if not running
-create_user                   # create new user
+create_user
 exit 0

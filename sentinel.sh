@@ -210,11 +210,7 @@ is_ip_whitelisted() {
   return 1
 }
 
-# STARTS/RECOVERS CONTAINERS FOR ROOT OR A USER'S PODMAN SOCKET
-# handles both plain "exited" containers and ones wedged in a transitional
-# state (created, paused, restarting, removing, stuck starting/exiting) that
-# `podman ps` (without -a) never surfaces — `podman start` is tried first,
-# falling back to `podman restart` for anything already non-exited.
+# starts/recovers containers for root or a user's podman socket -- handles plain exited containers and ones wedged in a transitional state that plain `podman ps` never surfaces, podman start is tried first, falling back to restart
 start_containers_for_socket() {
     local socket="$1"
     local label="$2"
@@ -252,9 +248,7 @@ start_containers_for_socket() {
 }
 
 
-# Starts per-user containers that a currently-enabled feature depends on but that podman never saw "die"
-# e.g. a container that was never created because the feature was off at provisioning time needs a plain 
-# `podman-compose up`, not a restart, so start_containers_for_socket can't reach it.
+# starts per-user containers a currently-enabled feature needs but that podman never saw "die" -- e.g. one never created because the feature was off at provisioning time needs a plain podman-compose up, not a restart
 start_conditional_containers_for_user() {
     local user="$1"
     local user_sock="$2"
@@ -313,9 +307,7 @@ start_containers_for_user() {
     start_conditional_containers_for_user "$user" "$user_sock" "$results_file"
 }
 
-# Loops root, then every non-suspended user, starting/recovering dead containers.
-# Sets RESTART_ROOT_COUNT, RESTART_USER_TOTAL, RESTART_USER_LINES[], RESTART_ELAPSED
-# for the caller to build its own summary/notification from.
+# loops root then every non-suspended user starting/recovering dead containers, sets RESTART_ROOT_COUNT/RESTART_USER_TOTAL/RESTART_USER_LINES[]/RESTART_ELAPSED for the caller to build a summary from
 restart_dead_user_containers() {
   local START_TIME; START_TIME=$(date +%s)
   local RESULTS_FILE; RESULTS_FILE=$(mktemp /tmp/sentinel.container_restart_results.XXXXXX)
@@ -722,10 +714,7 @@ redis_docker_container_status() {
       _docker_check_after_restart "$container" "$title"
       ;;
     *)
-      # anything else (created, paused, restarting, removing, stuck "starting"/"exiting") is
-      # treated as wedged — podman occasionally hangs mid-transition and never recovers on its own.
-      # only force-recreate once the same stuck state has been observed on two consecutive runs,
-      # so we don't nuke a container that's simply mid-startup.
+      # anything else is treated as wedged -- podman occasionally hangs mid-transition and never recovers, so only force-recreate once the same stuck state shows up on two consecutive runs, to avoid nuking a container that's simply mid-startup
       local now; now=$(date +%s)
       local stuck_since=""
       if [[ -f "$LOCK_FILE_FOR_REDIS_STUCK" ]]; then
@@ -764,8 +753,7 @@ redis_docker_container_status() {
 
 check_services() {
   local svc
-  # "docker" kept as an accepted alias for "podman" so existing services= ini
-  # entries from before the podman migration keep working unchanged
+  # "docker" kept as an accepted alias for "podman" so existing services= ini entries from before the podman migration keep working
   for svc in caddy csf admin docker podman mysql panel phpmyadmin named; do
     [[ ",$SERVICES," != *",$svc,"* ]] && continue
     case "$svc" in
@@ -974,8 +962,7 @@ check_disk_usage() {
     timeout 30 podman system prune -f --filter "until=24h" > /dev/null 2>&1
     for context in /home/*; do
        [ -d "$context" ] || continue
-       # timeout execs a binary directly and can't invoke podman_user (a bash function),
-       # so the socket is inlined via CONTAINER_HOST instead
+       # timeout execs a binary directly and can't invoke podman_user (a bash function), so the socket is inlined via CONTAINER_HOST instead
        context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
        timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
     done

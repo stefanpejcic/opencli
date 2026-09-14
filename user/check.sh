@@ -51,19 +51,16 @@ INFO_COUNT=0
 
 # ====== Utility Functions ======
 
-# Print colored header
 print_header() {
     local title="$1"
     echo -e "${BLUE}===== ${title} =====${NC}"
 }
 
-# Print colored subheader
 print_subheader() {
     local title="$1"
     echo -e "${CYAN}---- ${title} ----${NC}"
 }
 
-# Print result with colors and increment counters
 print_result() {
     local status="$1"
     local message="$2"
@@ -97,17 +94,14 @@ print_result() {
     fi
 }
 
-# Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Check if file exists and is readable
 file_readable() {
     [[ -f "$1" && -r "$1" ]]
 }
 
-# get context
 get_docker_context() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${user}';"
@@ -130,7 +124,6 @@ get_docker_context() {
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 
-# Get container property safely
 get_container_property() {
     local container="$1"
     local format="$2"
@@ -458,7 +451,7 @@ check_container_image() {
     local container="$1"
     local name="$2"
     
-    # Skip specific containers as per original logic
+    # php-fpm containers aren't tagged individually, skip
     if [[ "$name" == php-fpm-* ]]; then
         return 0
     fi
@@ -853,22 +846,17 @@ main() {
 
     print_header "Checking user: $user"
 
-    # context
     get_docker_context "$user"
-    
-    # service
+
     check_daemon_security "$user"
     echo ""
 
-    # files
     check_files "$user"
     echo ""
-    
-    # containers
+
     check_all_containers
     echo ""
-    
-    # Print summary
+
     print_summary
 }
 

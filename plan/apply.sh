@@ -51,7 +51,6 @@ dodsk=false
 donet=false
 doemail=false
 
-# Parse arguments
 for arg in "$@"; do
     case "$arg" in
         --debug)   debug=true ;;
@@ -95,7 +94,6 @@ limit_text() {
     fi
 }
 
-# Usage
 ram_text=$(limit_text "${ram//[!0-9]/}" "GB" "total")
 cpu_text=$(limit_text "$cpu" " core(s)" "total")
 disk_text=$(limit_text "$storage_in_blocks" " blocks" "total")
@@ -204,14 +202,7 @@ EOF
     if ! $partial || $donet; then
         [ -d "/home/$context" ] && cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
 
-        # NOTE: bandwidth shaping used to nsenter into rootless dockerd's shared
-        # network namespace (one dockerd PID per user, holding docker-created
-        # "br-<hash>" bridges for that user's compose networks) and apply tc
-        # qdiscs there. There's no equivalent single per-user daemon/netns under
-        # rootless podman, and netavark doesn't create the same bridge naming
-        # convention - this needs a fresh design (see docker/collect_stats.sh,
-        # same underlying issue on the measurement side) rather than a
-        # find-and-replace, so it's stripped for now rather than guessed at.
+        # bandwidth shaping used to nsenter into rootless dockerd's netns and apply tc there -- no podman equivalent exists yet (same issue as docker/collect_stats.sh), needs a fresh design so it's stripped for now
         echo "- Bandwidth:[WARN]   Bandwidth limiting is not implemented yet under podman."
     fi
 done

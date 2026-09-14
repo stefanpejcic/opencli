@@ -29,17 +29,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Function to print usage instructions
 print_usage() {
     echo "Usage: opencli plan-delete <plan_name> [--json]"
     exit 1
 }
 
-# Initialize variables
 plan_name=""
 output_json=0
 
-# Command-line argument processing
 if [ "$#" -lt 1 ]; then
     print_usage
 fi
@@ -50,7 +47,7 @@ do
     case $arg in
         --json)
         output_json=1
-        shift # Remove --json from processing
+        shift
         ;;
         *)
         if [ -z "$plan_name" ]; then
@@ -66,12 +63,10 @@ done
 
 
 
-# Source database configuration
 source /usr/local/opencli/db.sh
 
 escaped_plan_name=$(mysql_escape "$plan_name")
 
-# Check if there are users on the plan
 users_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT COUNT(*) FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$escaped_plan_name';" | tail -n +2)
 
 if [ "$users_count" -gt 0 ]; then
@@ -97,15 +92,11 @@ if [ "$users_count" -gt 0 ]; then
     exit 1
 else
     if [ "$output_json" -eq 1 ]; then
-        # Delete the plan data
         mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        # Delete the Podman network
         podman network rm "$plan_name" > /dev/null 2>&1
         echo "{\"message\": \"Plan '$plan_name' and Podman network '$plan_name' deleted successfully.\"}"
     else
-        # Delete the plan data
         mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        # Delete the Podman network
         podman network rm "$plan_name" > /dev/null 2>&1
         echo "Podman network '$plan_name' deleted successfully."
         echo "Plan '$plan_name' deleted successfully."

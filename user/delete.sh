@@ -109,7 +109,7 @@ delete_user_from_database() {
 	[ -n "$sql" ] && mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 
 	# 3. terminate redis sessions
-	# TODO: drop all cache by username!
+	# todo: drop all cache by username!
 	redis_drop_user_sessions "$user_id"
 
 	# 4. delete domain files, emails and reload Caddy
@@ -276,7 +276,7 @@ delete_system_user() {
 
 refresh_resellers_data() {
 	local reseller_files="/etc/openpanel/openadmin/resellers"
-	# TODO: optimize: now it checks all resellers, instead should check just the account owner!
+	# todo: optimize, this checks all resellers instead of just the account owner
 	if [ -d "$reseller_files" ]; then
 		for json_file in "$reseller_files"/*.json; do
 			if [ -f "$json_file" ]; then
@@ -292,8 +292,6 @@ refresh_resellers_data() {
 	fi
 }
 
-# ======================================================================
-# Parse args
 USERNAME="$1"
 
 if [ "$2" = "-y" ]; then

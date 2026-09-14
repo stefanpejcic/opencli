@@ -49,12 +49,10 @@ sign_and_reload() {
 }
 
 setup_zone() {
-  # Check if the zone file exists
   if [ ! -f "$ZONEFILE" ]; then
     error_exit "Zone file $ZONEFILE does not exist"
   fi
 
-  # Change to the zone directory
   cd $ZONEDIR >/dev/null 2>&1 || error_exit "Failed to change directory to $ZONEDIR"
 
   # Generate key pairs
@@ -73,13 +71,11 @@ setup_zone() {
 
   podman exec openpanel_dns bash -c "cd $ZONEDIR && dnssec-signzone -A -3 $(head -c 1000 /dev/random | sha1sum | cut -b 1-16) -N INCREMENT -P -o ${ZONE} -t ${ZONEFILE} >/dev/null 2>&1" || error_exit 'Failed to sign the zone file'
 
-  # Use sed to append .signed to the filename on the specific line containing the zone
+  # point named.conf at the signed zone file instead
   sed -i "/zone \"${ZONE}\"/,/file/s|\(file \"/etc/bind/zones/${ZONE}\.zone\)|\1.signed|" "$CONFIG_FILE" >/dev/null 2>&1 || error_exit "Failed to update the config file"
 
-  # relaod service
   opencli domains-dns reload "$ZONE" >/dev/null 2>&1 || error_exit "Failed to reload the DNS zone"
 
-  # Display DS records
   cat dsset-"${ZONE}". || error_exit "Failed to display DS records"
 }
 
@@ -87,7 +83,6 @@ setup_zone() {
 
 
 
-# Check for required arguments
 if [ -z "$ZONE" ]; then
   error_exit "Usage: opencli domains-dnssec <DOMAIN> [--update | --check]"
 fi

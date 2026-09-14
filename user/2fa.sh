@@ -50,11 +50,9 @@ action="$2"
 source /usr/local/opencli/db.sh
 escaped_username=$(mysql_escape "$username")
 if [ "$action" == "disable" ]; then
-    # Disable 2fa
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET twofa_enabled='0' WHERE username='$escaped_username';"
     echo -e "Two-factor authentication for $username is now ${RED}DISABLED${RESET}."
 else
-    # Check status
     twofa=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -se "SELECT twofa_enabled FROM users WHERE username='$escaped_username';")
     if [ "$twofa" == "0" ]; then
         echo -e "Two-factor authentication for $username is ${RED}DISABLED${RESET}."

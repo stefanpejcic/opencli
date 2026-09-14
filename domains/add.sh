@@ -77,7 +77,7 @@ SKIP_NOTIFY=false
 # Logging / error helpers
 
 log()  { [[ "$debug_mode" == true ]] && echo "$*" >&2 || true; }
-die()  { echo "FATAL ERROR: $*" >&2; exit 1; } #TODO: hard_cleanup like on user/add.sh
+die()  { echo "FATAL ERROR: $*" >&2; exit 1; } # todo: hard_cleanup like in user/add.sh
 err()  { echo "ERROR: $*" >&2; exit 1; }
 warn() { echo "WARNING: $*" >&2; }
 
@@ -347,7 +347,7 @@ check_domains_limit() {
 }
 
 get_user_env_value() {
-	# TODO: merge with source we do later
+	# todo: merge with the source we do later
     grep "^${1}=" "/home/$context/.env" | head -n1 | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/'
 }
 
@@ -396,12 +396,7 @@ get_server_ip() {
 
     [[ -n "$current_ip" ]] || die "Unable to determine server IP address"
 
-    # Check for dedicated IP
-    # NOTE: this used to also detect whether the IP belonged to a registered
-    # remote/slave "docker context" (multi-node clustering). That registration
-    # mechanism doesn't exist anymore (see user/add.sh) - contexts aren't
-    # created at all now, so REMOTE_SERVER can never legitimately be "yes"
-    # under the current architecture. Left as the (already-default) "no".
+    # this used to also detect remote/slave docker contexts for clustering, that's gone now so REMOTE_SERVER just stays the default "no"
     local json_file="/etc/openpanel/openpanel/core/users/$user/ip.json"
     if [[ -f "$json_file" ]]; then
         dedicated_ip=$(jq -r '.ip // empty' "$json_file")

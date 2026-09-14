@@ -50,7 +50,6 @@ usage() {
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}auto${RESET}            - Switch back to AutoSSL for the domain."
 }
 
-# Ensure a domain name is provided
 if [ -z "$1" ]; then
     echo "ERROR: Domain name is required!"
     usage
@@ -61,7 +60,6 @@ fi
 DOMAIN="$1"
 CONFIG_FILE="/etc/openpanel/caddy/domains/$DOMAIN.conf"
 
-# Ensure the file exists
 if [ ! -f "$CONFIG_FILE" ]; then
     echo -e "${RED}Domain ${DOMAIN} does not exist.$RESET"
     exit 1
@@ -91,10 +89,8 @@ get_user_info() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${user}';"
     
-    # Retrieve both id and context
     user_info=$(mariadb -se "$query")
-    
-    # Extract user_id and context from the result
+
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
     
@@ -196,9 +192,7 @@ show_ssl_logs() {
     echo "-------------------------------------------------------"
 	# podman logs --tail 1000 caddy 2>&1  | grep "$DOMAIN" | grep -Ei 'tls|acme|certificate|renew|obtain|challenge'
 
-    # NOTE: LogPath is only populated for the json-file/k8s-file log drivers;
-    # if this container is using podman's default journald driver instead,
-    # log_path will come back empty and hit the same error path below.
+    # LogPath is only populated for json-file/k8s-file log drivers -- podman's default journald driver leaves this empty and hits the same error path below
     local log_path
     log_path=$(podman inspect --format='{{.LogPath}}' caddy 2>/dev/null)
 

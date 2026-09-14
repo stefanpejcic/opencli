@@ -87,7 +87,7 @@ fi
 
 # ======================================================================
 # Main
-if [ "$table_output" = true ]; then    # TABLE (default since 1.7.41)
+if [ "$table_output" = true ]; then    # table (default since 1.7.41)
     {
         echo -e "IP\tCountry\tTime"
         awk '
@@ -99,11 +99,11 @@ if [ "$table_output" = true ]; then    # TABLE (default since 1.7.41)
             printf "%s\t%s\t%s\n", ip[2], country[2], time[2]
         }' "$login_log_file"
     } | column -t -s $'\t'    
-elif [ "$json_output" = true ]; then   # JSON
+elif [ "$json_output" = true ]; then   # json
     require_command jq
     json_data=$(awk 'BEGIN {print "["} {if(NR>1)print ","; split($0, arr, " - "); split(arr[1], ipArr, ": "); split(arr[2], countryArr, ": "); split(arr[3], timeArr, ": "); print "{\n\t\"ip\": \""ipArr[2]"\",\n\t\"country\": \""countryArr[2]"\",\n\t\"time\": \""timeArr[2] "\"\n}"} END {print "\n]"}' "$login_log_file")
     echo -e "$json_data" | jq .
-elif [ "$text_output" = true ]; then   # TEXT
+elif [ "$text_output" = true ]; then   # text
     cat "$login_log_file"
     echo
 fi

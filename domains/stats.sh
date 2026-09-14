@@ -31,11 +31,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-DEBUG=false # Default value for DEBUG
+DEBUG=false
 SINGLE_USER=false
 OPENPANEL_CONF_DIR="/etc/openpanel/goaccess"
 
-# Parse optional flags to enable debug mode when needed!
+# parse optional flags, enabling debug mode if asked
 for arg in "$@"; do
     case $arg in
         --debug)
@@ -52,12 +52,9 @@ done
 
 check_if_reports_are_enabled() {
     enabled_modules=$(grep '^enabled_modules=' "/etc/openpanel/openpanel/conf/openpanel.config" | cut -d'=' -f2)
-    # Check if 'domains_visitors' is in the list of enabled modules
     if echo "$enabled_modules" | grep -q 'goaccess'; then
-        # 'goaccess' is enabled
         :
     else
-        # 'domains_visitors' is not enabled
         echo "'goaccess' module is not enabled. Skipping report generation."
         exit 1
     fi
@@ -66,7 +63,6 @@ check_if_reports_are_enabled() {
 
 
 configure_goaccess() {
-    # GoAccess
     tar -xzvf "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219.tar.gz" -C "${OPENPANEL_CONF_DIR}/" > /dev/null
     mkdir -p /usr/local/share/GeoIP/GeoLite2-City_20231219
     cp -r "${OPENPANEL_CONF_DIR}/GeoLite2-City_20231219/"* /usr/local/share/GeoIP/GeoLite2-City_20231219 

@@ -61,7 +61,6 @@ check_and_fix_FTP_permissions() {
     fi
 }
 
-# Function to apply permissions and ownership changes within a Docker container
 apply_permissions_in_container() {
   local username="$1"
   local path="$2"
@@ -111,23 +110,23 @@ apply_permissions_in_container() {
         # https://github.com/litespeedtech/ols-dockerfiles/issues/13#issuecomment-4275956701
         apply_workaround_for_litespeed
 
-        # USERNAME OWNER
+        # owner
         #chown -R $verbose $uid:$uid $directory
         find "$directory" -print0 | xargs -0 chown $verbose "$uid":"$gid" > /dev/null 2>&1
         owner_result=$?
 
-        # FILES
+        # files
         find "$directory" -type f -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
         files_result=$?
 
-        # FOLDERS
+        # folders
         find "$directory" -type d -print0 | xargs -0 chmod $verbose 775
         folders_result=$?
 
         check_and_fix_FTP_permissions "$username" "$uid"
         ftp_result=$?
 
-        # CHECK ALL 4
+        # check all 4
         if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ] && [ $ftp_result -eq 0 ]; then
             echo "Permissions applied successfully to $fake_directory"
         else

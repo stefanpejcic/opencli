@@ -110,7 +110,7 @@ case "$command" in
         
         case "$param_name" in
             email)
-                # special case for 'email' - need to update CSF conf also 
+                # email also needs the CSF conf updated
                 if [[ "$new_value" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
                     sed -i "s/LF_ALERT_TO = \"\"/LF_ALERT_TO = \"$new_value\"/" /etc/csf/csf.conf
                 fi

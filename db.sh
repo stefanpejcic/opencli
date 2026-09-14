@@ -15,8 +15,7 @@ mysql_database="panel"
     exit 1
 }
 
-# Escape backslashes and single quotes so a value can be safely placed
-# inside a single-quoted string literal, e.g.: "'$(mysql_escape "$value")'"
+# escapes backslashes and quotes so a value is safe inside a single-quoted sql literal
 mysql_escape() {
     local s="$1"
     s="${s//\\/\\\\}"

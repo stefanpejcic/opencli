@@ -26,8 +26,7 @@ podman_user_socket() {
     echo "unix:///hostfs/run/user/${uid}/podman/podman.sock"
 }
 
-# run a podman command against <username>'s rootless podman instance
-# usage: podman_user <username> <podman-args...>
+# runs a podman command against <username>'s rootless instance, e.g. podman_user <username> <podman-args...>
 podman_user() {
     local user="$1"; shift
     local sock
@@ -35,14 +34,8 @@ podman_user() {
     CONTAINER_HOST="$sock" podman --remote "$@"
 }
 
-# run podman-compose against <username>'s rootless podman instance
-# usage: podman_compose_user <username> <podman-compose-args...>
-# NOTE: don't try to force this via `--podman-args="--remote"` - podman-compose
-# inserts extra podman-args AFTER the subcommand (e.g. `podman ps --remote`),
-# but `--remote` is only valid as a GLOBAL flag BEFORE the subcommand
-# (`podman --remote ps`), so that combination fails with "unknown flag:
-# --remote". CONTAINER_HOST alone is enough - podman auto-detects remote mode
-# when it points somewhere other than the default local socket.
+# runs podman-compose against <username>'s rootless instance, e.g. podman_compose_user <username> <podman-compose-args...>
+# don't try to force this via --podman-args="--remote" -- podman-compose puts it after the subcommand where --remote isn't valid; CONTAINER_HOST alone is enough, podman auto-detects remote mode from it
 podman_compose_user() {
     local user="$1"; shift
     local sock
@@ -50,10 +43,7 @@ podman_compose_user() {
     CONTAINER_HOST="$sock" podman-compose "$@"
 }
 
-# many scripts carry a "context" value pulled from the users table's `server`
-# column (a holdover from when it could be a remote node/ssh host - now it's
-# always either a username or "default"/"root"/"" for root's own system stack)
-# usage: podman_ctx <context> <podman-args...>
+# "context" comes from the users table's server column (used to be a remote node/ssh host, now it's just a username or "default"/"root"/"" for root's own stack), e.g. podman_ctx <context> <podman-args...>
 podman_ctx() {
     local context="$1"; shift
     case "$context" in
@@ -62,8 +52,7 @@ podman_ctx() {
     esac
 }
 
-# same as podman_ctx but for podman-compose
-# usage: podman_compose_ctx <context> <podman-compose-args...>
+# same as podman_ctx but for podman-compose, e.g. podman_compose_ctx <context> <podman-compose-args...>
 podman_compose_ctx() {
     local context="$1"; shift
     case "$context" in
@@ -72,23 +61,12 @@ podman_compose_ctx() {
     esac
 }
 
-# Tells whether <container> is actually running, by state rather than by
-# presence in `podman ps` — a container wedged in a transitional state
-# (created/paused/restarting/removing, or a stuck "starting"/"exiting") is
-# absent from `podman ps` too, so a plain `podman ps -q -f name=X` check
-# can't tell "not running" apart from "stuck", and callers that assume it
-# means "not running" end up recompose-up'ing on top of a wedged container
-# instead of recovering it.
-# usage: podman_is_running <container>
+# checks by state rather than presence in `podman ps` -- a wedged container (paused/restarting/stuck starting-exiting) is absent from `podman ps` too, so that check can't tell "not running" from "stuck", e.g. podman_is_running <container>
 podman_is_running() {
     [[ "$(podman inspect "$1" --format '{{.State.Status}}' 2>/dev/null)" == "running" ]]
 }
 
-# Ensures <container> is actually running, recovering it via podman-compose
-# if it's exited/absent, or by force-removing it first if it's wedged in a
-# transitional state that a plain restart/compose-up won't clear. Returns 0
-# once the container is confirmed running, 1 otherwise.
-# usage: podman_ensure_running <container> <compose_dir> <compose_service> [timeout_secs]
+# recovers <container> via podman-compose if exited/absent, or force-removes it first if wedged in a state a plain restart won't clear; returns 0 once running, 1 otherwise -- e.g. podman_ensure_running <container> <compose_dir> <compose_service> [timeout_secs]
 podman_ensure_running() {
     local container="$1" compose_dir="$2" service="$3" timeout_secs="${4:-30}"
     local state
@@ -99,8 +77,7 @@ podman_ensure_running() {
     fi
 
     if [[ -n "$state" && "$state" != "exited" && "$state" != "stopped" ]]; then
-        # wedged (created/paused/restarting/removing/stuck starting-exiting) — a
-        # plain restart or compose-up won't clear this, force it out first
+        # wedged (created/paused/restarting/removing/stuck starting-exiting) -- a plain restart or compose-up won't clear this, force it out first
         podman kill "$container" &>/dev/null
         podman rm -f "$container" &>/dev/null
         podman rm -f --storage "$container" &>/dev/null
@@ -110,9 +87,7 @@ podman_ensure_running() {
     podman_is_running "$container"
 }
 
-# echoes the path to <context>'s docker-compose.yml (root's own stack for
-# ""/default/root, otherwise the user's per-account compose file)
-# usage: podman_compose_file <context>
+# echoes the path to <context>'s docker-compose.yml (root's own stack for ""/default/root, otherwise the user's per-account file), e.g. podman_compose_file <context>
 podman_compose_file() {
     local context="$1"
     case "$context" in
@@ -121,13 +96,7 @@ podman_compose_file() {
     esac
 }
 
-# derives a user-<uid>.slice TasksMax (cgroup pids.max) ceiling from the plan's
-# RAM allotment (GB). Unlike CPU/RAM/disk, a process/thread cap isn't a plan
-# tier customers shop for - it's a fork-bomb/runaway-process safety net - so
-# it's derived from ram rather than stored as its own plan column, and stays
-# proportional automatically whenever a plan's ram value changes. A user's own
-# /home/<user>/TasksMax file (single integer) overrides the derived value.
-# usage: derive_tasks_max <ram_gb> [username]
+# derives a user-<uid>.slice TasksMax (cgroup pids.max) from the plan's RAM, since a process cap is a fork-bomb safety net rather than something customers shop for, so it scales with ram instead of being its own plan column; a /home/<user>/TasksMax file overrides it -- e.g. derive_tasks_max <ram_gb> [username]
 readonly TASKS_PER_RAM_GB=1000
 readonly TASKS_MAX_FLOOR=1000
 

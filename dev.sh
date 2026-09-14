@@ -201,7 +201,7 @@ copy_to_container() {
     return 0
 }
 
-#   Error: unable to restart a container in a paused or unknown state: container state improper
+# added this recovery path after hitting: "unable to restart a container in a paused or unknown state: container state improper"
 restart_container_and_follow_logs() {
     log_info "Restarting OpenPanel container to pick up the new file..."
 
@@ -252,37 +252,30 @@ process_file() {
     fi
     
     tmpfile=$(mktemp)
-    
-    # cleanup tmpfile
+
     cleanup_tmpfile() {
         rm -f "$tmpfile"
     }
     trap cleanup_tmpfile EXIT
-    
-    # open nano editor
+
     nano "$tmpfile"
-    
-    # abort if empty
+
     if [ ! -s "$tmpfile" ]; then
         log_error "Aborting: The file is empty!"
         exit 1
     fi
-    
-    # validate HTML / PYTHON
+
     if ! validate_file "$tmpfile" "$extension"; then
         log_error "File validation failed"
         exit 1
     fi
-    
-    # copy to container
+
     if ! copy_to_container "$tmpfile" "$file_path"; then
         exit 1
     fi
 
-    # enable dev_mode
     opencli config update dev_mode on  > /dev/null 2>&1
 
-    # restart and tail
     restart_container_and_follow_logs
 }
 

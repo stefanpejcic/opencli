@@ -59,7 +59,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-# DB
 source /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
@@ -101,10 +100,7 @@ fi
 QUOTA_REPORT_PATH="/etc/openpanel/openpanel/quota_report.json"
 IP_FILES_BASE="/etc/openpanel/openpanel/core/users"
 
-# strip_suspended_prefix mirrors users.go's stripSuspendedPrefix: a
-# "SUSPENDED_<id>_<username>" account name is reduced to "<username>" by
-# cutting everything up to the LAST underscore; a normal username is
-# returned unchanged.
+# mirrors users.go's stripSuspendedPrefix -- cuts a "SUSPENDED_<id>_<username>" name down to "<username>" at the last underscore, leaves a normal username unchanged
 strip_suspended_prefix() {
     local u="$1"
     if [[ "$u" == *"SUSPENDED_"* ]]; then
@@ -114,9 +110,7 @@ strip_suspended_prefix() {
     fi
 }
 
-# build_online_users scans Redis (via the openpanel_redis container, same as
-# lib/redis.sh) for live openpanel login sessions and fills the
-# ONLINE_USERS assoc array with every username that owns at least one.
+# scans redis (via openpanel_redis, same as lib/redis.sh) for live login sessions and fills ONLINE_USERS with every username that owns at least one
 declare -A ONLINE_USERS
 build_online_users() {
     local keys key uname
@@ -129,9 +123,7 @@ build_online_users() {
     done <<< "$keys"
 }
 
-# humangb converts a quota_report.json KB figure to the same "N.NNGB" string
-# users.go's humanGB() renders (KB / 1024000). Forced to the C locale so the
-# decimal point is always "." regardless of the server's locale.
+# converts a quota_report.json KB figure to the same "N.NNGB" string users.go's humanGB() renders (KB / 1024000), forced to the C locale so the decimal point is always "."
 humangb() {
     LC_NUMERIC=C awk -v v="${1:-0}" 'BEGIN { printf "%.2fGB", v/1024000 }'
 }
@@ -162,9 +154,7 @@ get_quota_for_user() {
 
 require_command jq
 
-# print_users queries users+plans (plus a separate per-user domain count,
-# since joining "domains" directly would multiply the user row per domain),
-# then augments each row with the live/on-disk info documented above.
+# queries users+plans (plus a separate per-user domain count, since joining "domains" directly would multiply the user row per domain), then augments each row with the live/on-disk info documented above
 print_users() {
     local rows
     rows=$(timeout 10 mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "
@@ -229,10 +219,7 @@ print_users() {
         local notes
         notes=$(get_user_notes "$context")
 
-        # Allocated RAM/CPU come from the user's plan (same columns the
-        # list page's "Allocated Memory"/"Allocated CPU" columns render,
-        # users_list.html) -- "0"/"0g" is that plan's convention for
-        # unlimited.
+        # allocated RAM/CPU come from the user's plan (same columns users_list.html renders) -- "0"/"0g" is that plan's convention for unlimited
         local ram_alloc cpu_alloc
         if [ "$ram" = "0g" ]; then
             ram_alloc="Unlimited"

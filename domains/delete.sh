@@ -120,7 +120,7 @@ get_webserver_for_user(){
 rm_domain_to_clamav_list(){	
 	local domains_list="/etc/openpanel/clamav/domains.list"
 	local domain_path="/home/$user/$domain_name"
-	# from 0.3.4 we have optional script to run clamav scan for all files in domains dirs, this adds new domains to list of directories to monitor
+	# clamav upload scanner watches domains in this list since 0.3.4, so remove this domain's entry too
 	if [ -f $domains_list ]; then
 		log "ClamAV Upload Scanner is enabled - Removing $domain_path for monitoring"
 		sed -i "\|$domain_path|d" "$domains_list"
@@ -435,8 +435,7 @@ delete_ftp_accounts() {
 	if [ -f "$ftp_accounts_file" ]; then
 	    log "Removing FTP accounts for domain: $domain"
 	
-	    # sed -i replaces the file via a new inode+rename each call, so the read loop's
-	    # already-open fd keeps iterating the original snapshot — safe despite the same path
+	    # sed -i swaps in a new inode each call, so the read loop's already-open fd keeps iterating the original snapshot, safe despite the same path
 	    # shellcheck disable=SC2094
 	    while IFS='|' read -r ftp_account _; do
 	        if [[ "$ftp_account" == *@"$domain" ]]; then
@@ -478,15 +477,15 @@ delete_domain() {
     local domain_name="$2"
     
     delete_websites "$domain_name"                     # delete sites associated with domain id
-    # TODO: delete apps associated with domain
-    delete_domain_from_mysql "$domain_name"            # delete
+    # todo: delete apps associated with domain
+    delete_domain_from_mysql "$domain_name"
 
 	local verify_query="SELECT COUNT(*) FROM domains WHERE domain_url = '$domain_name';"
     local result
     result=$(mariadb -N -e "$verify_query")
 
     if [ "$result" -eq 0 ]; then
-        get_webserver_for_user                          #
+        get_webserver_for_user
         vhost_files_delete                              # delete file in container
 
 		nohup opencli sentinel --action=domains_delete --title="Domain deleted" --message="Domain name: '$domain_name' has been removed from OpenPanel user: '$user'." >/dev/null 2>&1 &

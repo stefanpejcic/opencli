@@ -606,18 +606,18 @@ run_update_immediately() {
     else
         log "[✔] image ${IMAGE_NAME}:${version} downloaded successfully"
 
-        log "Updating version in /root/.env"     # ------------------ 3.1 UPDATE TAG
+        log "Updating version in /root/.env"
         if [[ -f /root/.env ]]; then
             sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
         fi
 
-        log "Restarting OpenPanel service"       # ------------------ 3.2 RESTART PANEL
+        log "Restarting OpenPanel service"
         if [[ -f /root/docker-compose.yml ]] || [[ -f /root/compose.yml ]]; then
             cd /root && podman-compose down openpanel && \
             podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
         fi
 
-        log "Cleaning up previous images" # ------------------ 3.3 DELETE PREVIOUS
+        log "Cleaning up previous images"
         purge_previous_images
     fi
 

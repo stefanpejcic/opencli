@@ -202,7 +202,6 @@ mode_delete_user() {
         exit 1
     fi
 
-    # Check if any rules exist for this user before attempting removal
     if ! grep -q "^id=limit_${USERNAME}_" "$OUTPUT" 2>/dev/null; then
         echo "No rules found for user '${USERNAME}'. Nothing changed."
         exit 0
@@ -226,8 +225,7 @@ mode_delete_domain() {
         exit 1
     fi
 
-    # We need the username to reconstruct the rule ID.
-    # Try to derive it from existing rules in the file first (no DB needed).
+    # derive the username from existing rules in the file first, no db needed, to reconstruct the rule id
     key=$(echo "$DOMAIN" | tr '.' '_')
     ID=$(grep "^id=limit_[^_]*_${key} " "$OUTPUT" 2>/dev/null | head -1 | sed 's/^id=//; s/ .*//')
 

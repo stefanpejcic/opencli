@@ -46,8 +46,8 @@ if [ "$#" -gt 2 ]; then
     usage
 fi
 
-DEBUG=false  # Default value for DEBUG
-WEBMAIL_PORT="8080" # TODO: 8080 should be disabled and instead allow domain proxy only!
+DEBUG=false
+WEBMAIL_PORT="8080" # todo: 8080 should be disabled and instead allow domain proxy only!
 
 
 
@@ -57,7 +57,6 @@ PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 PROXY_FILE="/etc/openpanel/caddy/redirects.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
-# Check if 'enterprise edition'
 if [ -n "$key_value" ]; then
     :
 else
@@ -81,7 +80,6 @@ update_webmail_domain() {
 
     mkdir -p "$DOMAINS_DIR"
 
-    # basic
     if ! is_valid_domain "$new_domain"; then
         log_error "Invalid domain format. Please provide a valid domain."
         usage
@@ -108,7 +106,6 @@ update_webmail_domain() {
         if [[ "$DEBUG" = true ]]; then
             echo "Updating webmail redirect domain to: $new_domain"
         fi
-        # Determine protocol
         if [[ "$new_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             proto="http"
         else
@@ -142,10 +139,9 @@ ${new_domain} {\\
 
         echo "Webmail domain updated to ${proto}://${new_domain}"
 
-        # Restart Caddy
         cd /root && podman-compose down caddy >/dev/null 2>&1
         cd /root && podman-compose up -d caddy >/dev/null 2>&1
-        # TODO: RELOAD!
+        # todo: reload instead of a full down/up!
         exit 0
     else
         echo "Error: No redir @webmail line found in $PROXY_FILE"
@@ -183,13 +179,12 @@ done
 
 
 get_domain_for_webmail() {
-    # Check if the file exists
     if [[ ! -f "$PROXY_FILE" ]]; then
         echo "Configuration file not found at $PROXY_FILE"
         exit 1
     fi
-    
-    # Use grep and awk to extract the domain from the /webmail block
+
+    # grab the domain out of the /webmail redir line
     domain=$(grep "^redir @webmail" "$PROXY_FILE" | awk '{print $3}' | sed -e 's|https://||' -e 's|http://||' -e 's|:.*||')
     
     if [[ -n "$domain" ]]; then
@@ -217,10 +212,8 @@ function open_port_csf() {
     local port=$1
     local csf_conf="/etc/csf/csf.conf"
     
-    # Check if port is already open
     port_opened=$(grep "TCP_IN = .*${port}" "$csf_conf")
     if [ -z "$port_opened" ]; then
-        # Open port
       if [ "$DEBUG" = true ]; then
           echo ""
           echo "Opening port on Sentinel Firewall"
@@ -244,7 +237,6 @@ if [ "$DEBUG" = true ]; then
     echo ""
     echo "----------------- OPENING PORT 8080 ON FIREWALL ------------------"
 fi
-# CSF
 if command -v csf >/dev/null 2>&1; then
     open_port_csf $WEBMAIL_PORT    
 else

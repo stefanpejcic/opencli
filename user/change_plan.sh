@@ -166,8 +166,7 @@ change_plan_name_in_db() {
 }
 
 drop_redis_cache() {
-    # A plan change only affects the user's plan/feature-set lookups, not
-    # unrelated cached data for other users - so only drop those.
+    # a plan change only affects the user's plan/feature-set lookups, so only drop those, not unrelated cached data for other users
     redis_drop_memver \
         "app.get_user_details_with_plan" \
         "app.get_feature_set_on_plan" \
@@ -176,15 +175,12 @@ drop_redis_cache() {
 
 
 # Main
-# NOTE: this used to check `docker context inspect --format '{{.Endpoints.docker.Host}}'`
-# for an ssh:// endpoint to detect a remote/multi-node context and enforce limits there
-# over ssh. Multi-node support has no equivalent yet under the podman migration (contexts
-# aren't registered at all anymore - see user/add.sh), so only the local path remains.
+# used to check for an ssh:// docker context endpoint to enforce limits on a remote/multi-node context over ssh -- no equivalent yet under podman (contexts aren't registered anymore, see user/add.sh), so only the local path remains
 user_id=$(stat -c '%u' "/home/$CONTEXT")
 
 update_resource cpu "$Ncpu"
 update_resource ram "$numNram"
-# update_total_tc   # TODO
+# update_total_tc   # todo
 update_disk_inodes
 
 change_plan_name_in_db

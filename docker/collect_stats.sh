@@ -42,11 +42,7 @@ require_command jq
 (
 flock -n 200 || { echo "Error: Script already running."; exit 1; }
 
-# NOTE: bandwidth measurement used to nsenter into rootless dockerd's shared
-# network namespace (one dockerd PID per user) and read `tc` stats from it.
-# There's no equivalent single per-user daemon/netns under rootless podman,
-# so bandwidth is reported as 0 for now until that's redesigned; CPU/memory
-# stats below are cgroup-based and unaffected by the docker->podman migration.
+# bandwidth used to come from nsentering dockerd's netns and reading tc stats -- no podman equivalent yet, so it's just 0 for now
 
 SEMAPHORE_DIR=$(mktemp -d /run/openpanel_stats_XXXXXX)
 SEMAPHORE_FIFO="$SEMAPHORE_DIR/sem"
@@ -117,8 +113,7 @@ process_user() {
         PIDS_CURRENT=$(< "$CGROUP/pids.current")
         PIDS_MAX=$(< "$CGROUP/pids.max")   # contains "max" (TasksMax=infinity) or a number
 
-        # bandwidth measurement removed with the docker->podman migration (see NOTE
-        # above); fields stay in the JSON output as 0 so consumers don't break
+        # bandwidth removed with the podman migration (see note above), kept at 0 in the json so consumers don't break
         local BW_LIMIT_BITS=0 BW_USED_BYTES=0 BW_USAGE_PCT=0
 
         sleep "$SAMPLE_DELAY"

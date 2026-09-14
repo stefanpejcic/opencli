@@ -251,8 +251,7 @@ set_ssl_for_mailserver() {
         sed -i '/^SSL_CERT_PATH=/d' "$MAILSERVER_ENV"
         sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
 
-        # podman-compose does not interpolate ${VAR:+alt} conditionals like docker compose does,
-        # so hardcode the resolved roundcube values directly in the compose file too
+        # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
         if [[ -f "$MAILSERVER_COMPOSE_FILE" ]]; then
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=mailserver|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|" "$MAILSERVER_COMPOSE_FILE"
@@ -296,8 +295,7 @@ set_ssl_for_mailserver() {
             echo "SSL_KEY_PATH=$key_path_on_hosts" >> "$MAILSERVER_ENV"
         fi
 
-        # podman-compose does not interpolate ${VAR:+alt} conditionals like docker compose does,
-        # so hardcode the resolved roundcube values directly in the compose file too
+        # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
         if [[ -f "$MAILSERVER_COMPOSE_FILE" ]]; then
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$current_hostname|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$MAILSERVER_COMPOSE_FILE"
@@ -339,7 +337,6 @@ open_port_csf() {
     local port=$1
     local csf_conf="/etc/csf/csf.conf"
 
-    # Check if port is already open
     if grep -q "TCP_IN = .*${port}" "$csf_conf"; then
         dbg "Port ${port} is already open in CSF."
     else
@@ -412,7 +409,7 @@ process_all_domains_and_start(){
 			dbg "- MAIL STORAGE LOCATION: $STORE_EMAILS_IN"
 			dbg "- MAIL SETTINGS FILE:    $COMPOSE_FILE"
 		#elif [[ "$STORE_EMAILS_IN" == "user_dir" ]]; then
-		else # TODO: this is a fallback for <1.7.3
+		else # todo: this is a fallback for <1.7.3
 			section "MOUNT USERS HOME DIRECTORIES"
 			dbg "Re-mounting mail directories for all domains:"
 			dbg ""
@@ -751,7 +748,7 @@ case "${1:-}" in
 		execute_cmd_in_container fail2ban "$@"
 		;;
 
-	ports)		# ports
+	ports)
 		echo "Published ports:"
 		echo
 		check_exposed_ports_for_container
@@ -762,7 +759,7 @@ case "${1:-}" in
 		execute_cmd_in_container postconf "$@"
 		;;
 
-	logs)		# logs
+	logs)
 		if [ "${2:-}" == "-f" ]; then
 			podman logs -f "$CONTAINER"
 		else

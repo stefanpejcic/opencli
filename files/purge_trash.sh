@@ -90,7 +90,7 @@ purge_user_trash() {
   [[ -d "$trash_dir" ]] || return 0
   [[ -f "$restore_file" ]] || touch "$restore_file"
 
-# FORCE MODE: Remove everything & recreate .trash_restore empty
+# force mode: wipe everything and reset .trash_restore
 if $FORCE_PURGE; then
   if $DRY_RUN; then
     freed=$(du -sb "$trash_dir" 2>/dev/null | cut -f1)
@@ -106,13 +106,12 @@ if $FORCE_PURGE; then
   return
 fi
 
-  # NORMAL & DRY-RUN MODE
+  # normal / dry-run mode
   # shellcheck disable=SC2094 # restore_file is rewritten mid-loop below, but the read below already holds it open on its original inode, so this is safe
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     local file_name file_path deletion_date deletion_epoch age file_size
 
-    # Extract parts
     file_name="${line%%=*}"                                      # name inside trash dir
     file_path="${line#*=}"                                       # original file path
     file_path="${file_path%%|deletion_date=*}"
@@ -136,9 +135,7 @@ fi
         echo "[DRY-RUN] Would delete: $trash_file (user: $user_name)"
       else
         rm -rf -- "$trash_file"
-        # Remove line from .trash_restore (exact match). Safe to rewrite mid-loop:
-        # the while loop below already holds $restore_file open on its original
-        # inode, so replacing the directory entry via mv doesn't disturb the read.
+        # removes this line from .trash_restore -- safe to rewrite mid-loop since the read loop already holds the file open on its original inode
         tmpfile="${restore_file}.tmp"
         # shellcheck disable=SC2094
         grep -Fxv -- "$line" "$restore_file" > "$tmpfile" || true

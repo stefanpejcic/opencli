@@ -74,9 +74,7 @@ for arg in "$@"; do
     esac
 done
 
-# awk that turns a `podman-compose config` (or raw compose) stream into
-# "service image" pairs. Tracks 2-space service headers, turns off inside
-# top-level networks/volumes/configs/secrets blocks.
+# awk turns a podman-compose config stream into service/image pairs, tracks 2-space service headers, off inside top-level networks/volumes/configs/secrets blocks
 read -r -d '' PARSE_COMPOSE <<'AWK'
 BEGIN { s=1 }
 /^services:[[:space:]]*$/ { s=1; next }
@@ -91,9 +89,7 @@ s && /image:[[:space:]]/ {
 }
 AWK
 
-# echoes "service image" pairs actually deployed for <context>, resolving
-# ${VAR} placeholders via podman-compose config, falling back to a raw parse
-# (which may leave compose-default tags) if that produces nothing.
+# echoes service/image pairs deployed for <context>, resolving ${VAR} via podman-compose config, falling back to a raw parse if that's empty
 get_context_images() {
     local context="$1" compose_file="$2"
     local pairs
@@ -104,17 +100,13 @@ get_context_images() {
     echo "$pairs"
 }
 
-# echoes the manifest digest (sha256:...) of <image> as currently seen in
-# the shared store, or nothing if it isn't pulled at all. Root's and every
-# user's podman read this store via additionalimagestores, so checking it
-# once here is equivalent to checking every context individually.
+# echoes <image>'s digest in the shared store (empty if not pulled) -- every context reads this store, so checking once covers them all
 local_digest() {
     local image="$1"
     podman --root "$SHARED_STORE" image inspect --format '{{.Digest}}' "$image" 2>/dev/null
 }
 
-# echoes the manifest digest (sha256:...) that <image> currently resolves to
-# in its registry, without pulling it.
+# echoes what digest <image> currently resolves to in its registry, without pulling it
 remote_digest() {
     local image="$1"
     skopeo inspect --format '{{.Digest}}' "docker://${image}" 2>/dev/null
@@ -275,8 +267,7 @@ for context in "${CONTEXTS_TO_UPDATE[@]}"; do
     fi
     if (cd "$compose_dir" && podman_compose_ctx "$context" up -d) >/dev/null 2>&1; then
         log "  $label is back up"
-        # the stack is up, but any service still on a failed-pull image
-        # didn't actually get updated - still worth flagging
+        # stack's up, but any service still on a failed-pull image never actually updated, worth flagging
         for img in "${needed[@]}"; do
             if [[ -n "${FAILED_IMAGES[$img]:-}" ]]; then
                 log "  WARNING: $label - $img failed to pull, service left on old image"

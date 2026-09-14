@@ -31,7 +31,6 @@
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 
-# Function to get domain ID from the database
 get_domain_id() {
     local domain_name="$1"
     result=$(mariadb -sse "SELECT domain_id FROM domains WHERE domain_url = '$(mysql_escape "$domain_name")';")
@@ -51,7 +50,6 @@ get_php_default_for_user() {
 	default_php_version=$(opencli php-default "$current_username" | grep -oP '\d+\.\d+')
 }
 
-#Function to run WordPress CLI commands
 run_wp_cli() {
     local path="$2"
     local command="$3"
@@ -267,7 +265,6 @@ get_mariadb_or_mysql_for_user
 
 
 
-# Iterate through user files
 while IFS= read -r -d '' config_file_path; do
     inside_container_path=$(echo "$config_file_path" | sed -E 's~^.*/_data/~\/var\/www\/html/~')
 
@@ -291,7 +288,6 @@ while IFS= read -r -d '' config_file_path; do
 
     domain_name=$(echo "$domain" | sed -E 's~https?://~~' | cut -d'/' -f1)
 
-    # Check if website exists in sites table
     if check_site_already_exists_in_db "$site_name"; then
     	echo "  Site $site_name already exists in the SiteManager - Skipping"
         existing_installations+=("- $site_name - domain: $domain_name, config: ${inside_container_path%/wp-config.php}")
@@ -299,20 +295,18 @@ while IFS= read -r -d '' config_file_path; do
         continue
     fi
 
-    # Get domain ID
     domain_id=$(get_domain_id "$domain_name")
     if ! [[ "$domain_id" =~ ^[0-9]+$ ]]; then
     	echo "  WARNING: ID not detected for domain $domain_name - make sure that domain is added for user - Skipping"
     	exit 1
     fi
     
-    # Get admin email from wp-config.php
+    # get admin email via wp-cli
     admin_email=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "option get admin_email 2>/dev/null")
     if [[ ! "$admin_email" =~ "@" ]]; then
         echo "  WARNING: Invalid admin email: $admin_email"
     fi
 
-    # Get WordPress version
     version=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "core version 2>/dev/null")
     
     echo "Adding website $site_name to Site Manager"
@@ -361,7 +355,7 @@ if [ $# -eq 0 ]; then
   echo "Usage: opencli websites-scan <USERNAME> OR opencli websites-scan -all"
   exit 1
 elif [[ "$1" == "-all" ]]; then
-# ALL USERS
+# all users
 
   users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 
@@ -381,7 +375,7 @@ elif [[ "$1" == "-all" ]]; then
   done
   echo "DONE."
 
-# SINGLE USER
+# single user
 elif [ $# -eq 1 ]; then
   run_for_single_user "$1"
 else

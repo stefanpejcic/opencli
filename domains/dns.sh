@@ -32,7 +32,6 @@
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
-# COLORS
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
@@ -56,7 +55,6 @@ usage() {
   exit 1
 }
 
-# Check if at least one argument is provided
 if [ "$#" -lt 1 ]; then
     usage
 fi
@@ -140,7 +138,7 @@ delete_dns_zone(){
     # backup zone
     mkdir -p /etc/bind/zones/backups/
     mv /etc/bind/zones/"$DOMAIN".zone /etc/bind/zones/backups/"$DOMAIN".zone."$(date +%Y%m%d%H%M%S)"
-    #TODO: reload zones!
+    # todo: reload zones!
   }
 
 
@@ -150,7 +148,6 @@ delete_dns_zone(){
       delete_zone_file
       exit 0
     else
-      # wait for confirmation
       if ! read -r -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN ? (y/n): " CONFIRM; then
         echo "Timed out."
         exit 1
@@ -195,7 +192,6 @@ add_subdomains_to_zone() {
     echo -e "$sub\t14400\tIN\tTXT\t\"v=spf1 ip4:$SERVER_IP +a +mx ~all\"" >> "$zone_file"
   done
 
-  # Reload BIND zone
   podman exec openpanel_dns rndc reload "$apex_domain"
 }
 
@@ -228,7 +224,6 @@ restore_zone_to_default(){
       edit_zone_to_default "$DOMAIN"
       exit 0
     else
-      # wait for confirmation
       if ! read -r -t 10 -p "Are you sure you want to delete the existing DNS zone for domain: $DOMAIN and restore default records? (y/n): " CONFIRM; then
         echo "Timed out."
         exit 1
@@ -269,7 +264,6 @@ create_dns_zone_for_domain(){
 
     zone_template=$(<"$ZONE_TEMPLATE_PATH")
 
-	# Function to extract value from config file
 	get_config_value() {
 	    local key="$1"
 	    grep -E "^\s*${key}=" "$CONFIG_FILE" | sed -E "s/^\s*${key}=//" | tr -d '[:space:]'
@@ -328,13 +322,10 @@ create_dns_zone_for_domain(){
 											   -e "s|YYYYMMDD|$timestamp|g")
 	fi
 
-    # Ensure the directory exists
     mkdir -p "$ZONE_FILE_DIR"
 
-    # Write the zone content to the zone file
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
-    # Reload BIND service
 	podman exec openpanel_dns rndc reload "$domain_name" >/dev/null 2>&1
     cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 }
@@ -372,8 +363,7 @@ soft_reset(){
 
 
 hard_reset(){
-  # stop_dns_server/start_dns_server each exit unconditionally, so they can't
-  # be chained here (start_dns_server would never run) — inline both steps instead
+  # stop_dns_server/start_dns_server each exit unconditionally, so they can't be chained here, inline both steps instead
   echo "Stopping DNS service.."
   podman stop openpanel_dns && podman rm openpanel_dns
   echo "Starting DNS service.."

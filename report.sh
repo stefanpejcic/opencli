@@ -144,7 +144,6 @@ collect_services_status() {
   run_command "systemctl status csf"                     "Checking if Sentinel Firewall (CSF) is running" "$tmp"
 }
 
-# NOT USED ANYMORE
 collect_user_services() {
   local tmp="$1"
   echo "=== Podman Context Services ===" >> "$tmp"
@@ -164,14 +163,8 @@ collect_user_services() {
 # ======================================================================
 # Parallel runner
 #
-# Functions are split into two groups:
-#   PARALLEL_FUNCS  – independent, run concurrently via xargs
-#   SERIAL_FUNCS    – must run after parallel phase (e.g. need flags set, or
-#                     iterate over dynamic data like /home/*)
-#
-# Each function writes to its own numbered temp file so output order is
-# deterministic regardless of which job finishes first. The temp files are
-# merged in order at the end.
+# functions split into two groups: ORDERED_FUNCS run in parallel via xargs, collect_user_services runs after (needs flags set, iterates dynamic /home/* data)
+# each writes to its own numbered temp file so output order stays deterministic regardless of finish order, then they're merged at the end
 
 export output_file non_interactive
 
@@ -236,8 +229,7 @@ main() {
 
   rm -rf "$TMPDIR_REPORT"
 
-  # Serial phase: iterates dynamic /home/* data, so it can't be pre-indexed
-  # into ORDERED_FUNCS like the parallel collectors above
+  # serial phase: iterates dynamic /home/* data, so it can't be pre-indexed into ORDERED_FUNCS like the parallel collectors above
   collect_user_services "$output_file"
 
   upload_report

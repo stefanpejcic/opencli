@@ -90,17 +90,14 @@ check_coraza_status() {
   local image_enabled=false
   local waf_enabled=false
 
-  # Check image
   if grep -q "^$custom_image" "$env_file" 2>/dev/null; then
     image_enabled=true
   fi
 
-  # Check waf module
   if grep -qi "waf" "$openpanel_config" 2>/dev/null; then
     waf_enabled=true
   fi
 
-  # Report
   if $image_enabled && $waf_enabled; then
     echo "CorazaWAF is ENABLED"
   elif $image_enabled; then

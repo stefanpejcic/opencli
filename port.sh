@@ -36,10 +36,7 @@ PROXY_FILE="/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
 
 
 get_current_port() {
-  # NOTE: this used to also require /.dockerenv (running inside a container).
-  # OpenAdmin now always runs natively on the host (see PODMAN_INSTALL.sh), so
-  # /.dockerenv never exists anymore, and this would have silently stopped
-  # detecting the no_port case - the file's presence is the actual signal.
+  # used to also require /.dockerenv, but OpenAdmin always runs natively on the host now, so the file's presence alone is the signal
   if [ -f /etc/openpanel/no_port ]; then
       current_port=443
   fi
@@ -108,9 +105,7 @@ update_port() {
     update_env
     update_redirects
     update_proxy_file
-    # flock guards the in-place edit — sentinel.sh and other opencli scripts
-    # also rewrite /root/docker-compose.yml in place, and an unlocked
-    # concurrent sed -i could interleave writes and corrupt the file
+    # flock guards the in-place edit -- sentinel.sh and other opencli scripts also rewrite /root/docker-compose.yml, and an unlocked concurrent sed -i could interleave writes and corrupt it
     if [ "$new_port" == '443' ]; then
         flock /tmp/opencli.root_compose.lock sed -i "s#\${PORT}:2083/tcp#2083:2083/tcp#g" /root/docker-compose.yml
     else

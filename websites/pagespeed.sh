@@ -84,7 +84,6 @@ get_page_speed() {
   local api_response
   api_response=$(curl -s --connect-timeout 10 --max-time 60 "$api_url")
   
-  # Check for error in API response
   local error_message
   error_message=$(echo "$api_response" | jq -r '.error.message // empty')
   if [[ -n "$error_message" ]]; then
@@ -105,7 +104,6 @@ get_page_speed() {
 }
 
 
-# Function to generate report for a domain
 generate_report() {
   local website=$1
   local desktop_speed

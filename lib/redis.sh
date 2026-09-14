@@ -33,9 +33,7 @@ redis_drop_key() {
     redis_cli DEL "$@" >/dev/null 2>&1
 }
 
-# Invalidates one or more @cache.memoize'd functions by dropping their
-# "_memver" key, e.g.:
-#   redis_drop_memver "app.get_user_details_with_plan" "modules.json.helpers.query_plan_details_by_id"
+# invalidates one or more @cache.memoize'd functions by dropping their "_memver" key, e.g. redis_drop_memver "app.get_user_details_with_plan" "modules.json.helpers.query_plan_details_by_id"
 redis_drop_memver() {
     [ "$#" -eq 0 ] && return 0
 

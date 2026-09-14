@@ -30,7 +30,6 @@
 
 readonly DB_CONFIG="/usr/local/opencli/db.sh"
 
-# Source database configuration
 if [[ ! -f "$DB_CONFIG" ]]; then
     echo "Error: Database configuration file not found: $DB_CONFIG" >&2
     exit 1
@@ -42,7 +41,6 @@ source "$DB_CONFIG"
 source /usr/local/opencli/lib/requirement.sh
 require_command jq
 
-# Global variables
 declare -g mysql_database config_file
 
 

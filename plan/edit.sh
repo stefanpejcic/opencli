@@ -29,7 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# DB
 source /usr/local/opencli/db.sh
 source /usr/local/opencli/lib/redis.sh
 
@@ -67,11 +66,7 @@ usage() {
 
 
 
-# Apply rate limit using tc command for the gateway of existing Podman network
-# NOTE: unused (only ever called commented-out below) - and even if wired up,
-# podman/netavark's network model isn't the same as Docker's bridge driver, so
-# this needs verification before relying on it, same as the other bandwidth
-# shaping code stripped from plan/apply.sh and docker/collect_stats.sh.
+# unused (only ever called commented out below) -- podman/netavark's network model differs from docker's bridge driver, needs verification before relying on it, same issue as plan/apply.sh and docker/collect_stats.sh
 edit_docker_network() {
     local name="$1"
     local bandwidth="$2"
@@ -81,11 +76,7 @@ edit_docker_network() {
 
 
 drop_plan_cache() {
-        # Only invalidate what a plan edit can actually change - name, feature
-        # set, email/mailbox limits and the per-user feature lists derived
-        # from them. Do NOT flush the whole cache: that also drops unrelated
-        # data (dashboard stats, sessions info, etc.) for every user on the
-        # panel, not just the ones on this plan.
+        # only invalidates what a plan edit can change -- never flush the whole cache, that would drop unrelated data (dashboard stats, sessions, etc.) for every user
         redis_drop_memver \
             "app.get_user_details_with_plan" \
             "app.get_feature_set_on_plan" \
@@ -127,13 +118,13 @@ check_if_we_need_to_edit_docker_containers() {
         flags+=( "--ram" )
     fi
 
-    # BANDWIDTH CHANGE
+    # bandwidth change
     if [ "$old_bandwidth" != "$bandwidth" ]; then
         if [ "$DEBUG" = true ]; then
             echo "DEBUG: Port speed limit is changed, applying new bandwidth limit to the podman network."
         fi
         flags+=( "--net" )
-        # TODO
+        # todo:
         # edit_docker_network "$old_plan_name" "$bandwidth"
     fi
 
@@ -153,7 +144,6 @@ check_if_we_need_to_edit_docker_containers() {
 
 
 
-# Function to update values in the database
 update_plan() {
   local plan_id="$1"
 
@@ -304,12 +294,10 @@ validate_fields_first() {
         [[ "$1" =~ ^-?[0-9]+$ ]]
     }
 
-    # Check if value is a valid float or integer
     is_number() {
         [[ "$1" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]
     }
-    
-    # Validate all numeric inputs
+
     for var_name in plan_id ftp_limit emails_limit max_hourly_email domains_limit websites_limit disk_limit inodes_limit db_limit bandwidth; do
         value="${!var_name}"
         if ! is_integer "$value"; then
@@ -360,7 +348,6 @@ validate_name_and_feature_set() {
 
 
 
-# Initialize default values
 plan_id=""
 new_plan_name=""
 description=""

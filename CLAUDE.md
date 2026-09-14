@@ -1,10 +1,21 @@
+# Code comments
+
+Write comments like a human dev jotting a quick note, not like documentation.
+
+- Single line only. Don't wrap a comment across multiple lines unless the thing is genuinely too complex to say in one sentence.
+- Keep it short and plain. No formal tone, no "Note:" prefixes, no " - " hyphen clauses stacked together, no restating what the code already makes obvious.
+- Apply this whenever you write or edit comments in this repo, not just when asked to clean up comments specifically.
+
+Exception is the multi-line comment at the beginning of the files, that one needs to have format with the copyright text, example:
+
+```
 #!/bin/bash
 ################################################################################
-# Script Name: email/manage.sh
-# Description: Pass commands through to docker-mailserver's setup CLI inside the mailserver container.
-# Usage: opencli email-manage <COMMAND> <ATTRIBUTES>
+# Script Name: websites/all.sh
+# Description: Lists all websites currently hosted on the server.
+# Usage: opencli websites-all [TYPE]
 # Author: Stefan Pejcic
-# Created: 31.08.2024
+# Created: 26.10.2023
 # Last Modified: 21.08.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
@@ -27,22 +38,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
+```
 
-if [ "$#" -lt 1 ]; then
-    echo "Usage: opencli email-manage <command> [<args>...]"
-    exit 1
-fi
 
-ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
-PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
-key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
+# Git
 
-if [ -z "$key_value" ]; then
-    echo "Error: OpenPanel Community edition does not support emails. Please consider purchasing the Enterprise version that allows unlimited number of email addresses."
-    # shellcheck disable=SC1090,SC1091 # ENTERPRISE is a fixed path assigned once at top of file, but not statically resolvable by shellcheck
-    source "$ENTERPRISE"
-    echo "$ENTERPRISE_LINK"
-    exit 1
-fi
-
-podman exec openadmin_mailserver "$@"
+- After making changes, `git add` them and stop there. Don't `git commit` - the user commits themselves.

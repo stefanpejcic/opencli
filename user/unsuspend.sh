@@ -119,7 +119,7 @@ start_user_containers() {
             $DEBUG && echo "Starting container: $container"
             podman_user "$context" start "$container" > /dev/null 2>&1
         else
-            #no contianer = compose up
+            # no container, run compose up instead
             $DEBUG && echo "Container $container not found, running compose up"
             (cd "/home/$context" && podman_compose_user "$context" up -d "$container" > /dev/null 2>&1)
         fi

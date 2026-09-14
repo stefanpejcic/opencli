@@ -36,12 +36,7 @@ print_logs() {
     local context=$1
     local log_dir
 
-    # NOTE: this assumes the json-file/k8s-file log driver, which lays logs out as
-    # <container-id>/<container-id>-json.log under the storage graphroot. Podman
-    # defaults to the journald log driver on systemd hosts (true for every distro
-    # PODMAN_INSTALL.sh supports), in which case this directory won't exist and
-    # print_logs will just report nothing found below - it won't crash or lie,
-    # but log sizes need a journald-based query instead if that's the case here.
+    # assumes the json-file log driver's layout -- podman defaults to journald on systemd hosts, where this dir just won't exist and we report nothing found instead of crashing
     if [ -z "$context" ] || [ "$context" == "default" ]; then
         log_dir="/var/lib/containers/storage/overlay-containers"
         echo "System Containers"
@@ -87,7 +82,6 @@ print_logs() {
 
 
 
-# Display usage information
 usage() {
     echo "Usage: opencli docker-logs [options]"
     echo ""
@@ -110,7 +104,7 @@ usage() {
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 
-# there's no registered "docker context" list anymore - enumerate users from the DB instead
+# no registered docker context list anymore, so enumerate users from the db instead
 list_user_contexts() {
     opencli user-list --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'
 }

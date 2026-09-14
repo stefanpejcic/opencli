@@ -29,7 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Parse args
 JSON_OUTPUT=0
 ARGS=()
 for arg in "$@"; do
@@ -52,7 +51,7 @@ json_escape() {
 }
 
 if [ -z "$1" ]; then
-    # ALL USERS
+    # all users
     if [ "$JSON_OUTPUT" -eq 1 ]; then
         json_out="["
         first=1
@@ -92,7 +91,7 @@ if [ -z "$1" ]; then
         done
     fi
 else
-    # SINGLE USER
+    # single user
     context="$1"
     user_dir_name="$context"
     users_file="/etc/openpanel/ftp/users/${context}/users.list"

@@ -29,7 +29,6 @@
 ################################################################################
 
 
-# DB
 source /usr/local/opencli/db.sh
 
 
@@ -58,7 +57,6 @@ get_all_domains() {
         shift
     done
 
-    # Check if the config file exists
     if [ ! -f "$config_file" ]; then
         echo "Config file $config_file not found."
         exit 1
@@ -112,7 +110,6 @@ get_all_domains() {
             [ -z "$owner" ] && owner="null" || owner=$(printf '%s' "$owner" | sed 's/"/\\"/g')
             [ -z "$server" ] && server=""
 
-            # Replace /var/www/html/ prefix if present
             prefix="/var/www/html/"
             if [[ "$docroot" == "$prefix"* && -n "$server" ]]; then
                 replacement="/home/$server/docker-data/volumes/${server}_html_data/_data/"
@@ -132,7 +129,7 @@ get_all_domains() {
                 php_version_formatted="$php_ver_num"
             fi
             
-            # Also clean ini_path in case
+            # clean ini_path too
             ini_path=""
             if [ -n "$server" ] && [ -n "$php_version_formatted" ]; then
                 ini_path="/home/$server/php.ini/${php_version_formatted}.ini"

@@ -73,9 +73,7 @@ log() {
 
 die() { log "[✘] $1"; exit "${2:-1}"; }
 
-# record_run appends one JSON-line summary of this invocation to RUNS_FILE,
-# which is what OpenAdmin's "Runs" tab reads -- the human-readable LOG_FILE
-# above is for full detail, this is the compact, easily-parsed summary.
+# writes one json-line summary to RUNS_FILE for OpenAdmin's Runs tab -- LOG_FILE above has the full detail
 record_run() {
     local action="$1" status="$2" archive="$3" size_bytes="$4" duration="$5" detail="$6"
     printf '{"timestamp":"%s","action":"%s","status":"%s","archive":"%s","size_bytes":%s,"duration_seconds":%s,"detail":"%s"}\n' \
@@ -83,12 +81,7 @@ record_run() {
         "$(echo "$detail" | sed 's/"/\\"/g')" >> "$RUNS_FILE"
 }
 
-# Curated list of system/user CONFIGURATION paths (relative to /, since the
-# archive is built with `tar -C /` so it can be restored with a plain
-# `tar -xzf archive -C /`). This is deliberately hand-picked, not "the whole
-# of /etc/openpanel" -- see the file header for what's excluded and why. Add
-# more paths here as needed; a path that doesn't exist on this install (e.g.
-# an app that was never used) is silently skipped, not an error.
+# hand-picked config paths relative to /, so tar -C / restores with a plain tar -xzf -C / -- a path missing on this install is just skipped
 BACKUP_PATHS=(
     "root/docker-compose.yml"
     "root/.env"
@@ -97,10 +90,7 @@ BACKUP_PATHS=(
     "usr/local/mail/openmail/.env"
     "usr/local/mail/openmail/mailserver.env"
     "etc/cron.d/openpanel"
-    # /etc/bind holds the LIVE named config (named.conf.local,
-    # rndc.key) and every domain's actual DNS zone file --
-    # etc/openpanel/bind9 below is only install-time templates/defaults,
-    # not the same thing.
+    # /etc/bind has the live named config and zone files -- etc/openpanel/bind9 below is just install-time templates
     "etc/bind"
     "etc/openpanel/openadmin/config"
     "etc/openpanel/openadmin/cluster"
@@ -143,9 +133,7 @@ BACKUP_PATHS=(
     "etc/openpanel/email"
 )
 
-# read_ini_value reads a flat "key=value" line from CONFIG_FILE, ignoring
-# any [section] header (backups.ini only has one section's worth of keys,
-# so which section it's under doesn't matter for lookup purposes).
+# reads a key=value line from CONFIG_FILE, ignores [section] headers since backups.ini only has one section anyway
 read_ini_value() {
     local key="$1"
     grep -E "^${key}=" "$CONFIG_FILE" 2>/dev/null | tail -1 | cut -d'=' -f2- | xargs
@@ -176,11 +164,7 @@ do_backup() {
     archive_name="${ARCHIVE_PREFIX}${timestamp}.tar.gz"
     archive_path="${destination%/}/${archive_name}"
 
-    # --exclude guards against the (common) case of the destination sitting
-    # inside one of BACKUP_PATHS (e.g. destination under
-    # /etc/openpanel/backups/, which is itself backed up) -- without it tar
-    # tries to read the archive it's still writing and fails with "file
-    # changed as we read it".
+    # --exclude stops tar from choking on its own archive when destination lives inside a backed-up path like /etc/openpanel/backups/
     if ! tar -czf "$archive_path" -C / --exclude="${destination#/}/*" "${existing_paths[@]}" 2>>"$LOG_FILE"; then
         record_run "backup" "failed" "$archive_name" "0" "$(( $(date +%s) - start_time ))" "tar command failed, see $LOG_FILE"
         die "Backup failed -- see $LOG_FILE for details."
@@ -190,7 +174,7 @@ do_backup() {
     local duration=$(( $(date +%s) - start_time ))
     log "Backup archive created: $archive_path ($(du -h "$archive_path" | cut -f1), ${duration}s)"
 
-    # Retention: prune older backups beyond retention_days, if set (>0).
+    # prune backups older than retention_days, if it's set above 0
     local pruned=0
     if [[ "$retention_days" =~ ^[0-9]+$ && "$retention_days" -gt 0 ]]; then
         while IFS= read -r old_file; do
@@ -209,8 +193,7 @@ do_restore() {
     local destination; destination=$(read_ini_value "destination")
     [[ -n "$destination" ]] || die "No backup destination configured in $CONFIG_FILE."
 
-    # basename only -- never let a caller-supplied filename escape the
-    # configured destination directory.
+    # basename only, so a caller-supplied filename can't escape the destination dir
     filename="$(basename -- "$filename")"
     local archive_path="${destination%/}/${filename}"
     [[ -f "$archive_path" ]] || die "Backup archive not found: $archive_path"

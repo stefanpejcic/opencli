@@ -105,9 +105,7 @@ if ! grep -q "# modsecurity" "$domain_file"; then
   exit 1
 fi
 
-# ---------------------------
-# Helper functions
-# ---------------------------
+# helper functions
 reload_caddy() {
     nohup podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 &
     disown
@@ -130,9 +128,7 @@ helper_list_active_rules() {
   awk '/# modsecurity/{flag=1; next} flag && /^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+$/{print $2}'
 }
 
-# ---------------------------
-# Delete all rules
-# ---------------------------
+# delete all rules
 if [[ "$DELETE_ALL" = true ]]; then
   helper_to_empty_rules
   reload_caddy
@@ -140,9 +136,7 @@ if [[ "$DELETE_ALL" = true ]]; then
   exit 0
 fi
 
-# ---------------------------
-# List active rules
-# ---------------------------
+# list active rules
 if [[ "$LIST_ACTIVE" = true ]]; then
   ACTIVE_RULES=$(helper_list_active_rules)
   if [[ -n "$ACTIVE_RULES" ]]; then
@@ -154,9 +148,7 @@ if [[ "$LIST_ACTIVE" = true ]]; then
   exit 0
 fi
 
-# ---------------------------
-# Show status if no arguments
-# ---------------------------
+# show status if no arguments
 if [[ -z "$RULES" && "$DELETE_ALL" = false ]]; then
   ACTIVE_RULES=$(helper_list_active_rules)
   if [[ -n "$ACTIVE_RULES" ]]; then
@@ -168,9 +160,7 @@ if [[ -z "$RULES" && "$DELETE_ALL" = false ]]; then
   exit 0
 fi
 
-# ---------------------------
-# Update rules
-# ---------------------------
+# update rules
 if [[ -n "$RULES" ]]; then
   # 1. validate rules
   VALID_RULES=$(grep -oP '^\(\K[a-z0-9_]+' "$WP_MANAGER_RULES" | grep '^wp_manager_')

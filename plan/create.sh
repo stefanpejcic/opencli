@@ -191,7 +191,6 @@ insert_plan() {
   escaped_description=$(mysql_escape "$description")
   escaped_feature_set=$(mysql_escape "$feature_set")
 
-  # Insert the plan into the 'plans' table
   local sql="INSERT INTO plans (name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set, max_email_quota, max_hourly_email) VALUES ('$escaped_name', '$escaped_description', $email_limit, $ftp_limit, $domains_limit, $websites_limit, '$disk_limit', $inodes_limit, $db_limit, $cpu, '$ram', $bandwidth, '$escaped_feature_set', '$max_email_quota', '$max_hourly_email');"
 
   if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"; then

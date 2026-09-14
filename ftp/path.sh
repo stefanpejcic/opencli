@@ -29,7 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check for the correct number of arguments
 if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
     echo "Usage: opencli ftp-path <username> <path> <openpanel_username> [--debug]"
     exit 1
@@ -38,9 +37,9 @@ fi
 username="$1"
 path="$2"
 openpanel_username="$3"
-DEBUG=false  # Default value for DEBUG
+DEBUG=false
 
-# Parse optional flags to enable debug mode when needed
+# parse optional flags, enabling debug mode if asked
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
@@ -69,7 +68,6 @@ get_docker_context_for_user(){
     fi    
 }
 
-# Validate the path
 validate_path() {
     if [[ "$path" != /var/www/html/* ]]; then
         echo "ERROR: Invalid path. It must start with /var/www/html/"
@@ -95,7 +93,6 @@ validate_path() {
 
 
 
-# Function to add or update the FTP path
 change_path() {
     real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
     relative_path="${path##/var/www/html/}"

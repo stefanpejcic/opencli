@@ -102,8 +102,7 @@ escape_value() {
     sed 's/\([\/\&]\)/\\\1/g' <<< "$1"
 }
 
-# Reads the mailserver image out of compose.yml, so the offline password
-# hasher below uses whatever image is actually deployed.
+# reads the mailserver image out of compose.yml, so the offline password hasher below uses whatever's actually deployed
 get_mailserver_image() {
     awk '
         /^  mailserver:/ { in_ms=1; next }
@@ -206,16 +205,13 @@ offline_quota_del() {
     [[ -f "$QUOTAS_FILE" ]] && sed -i "/^${key}:/Id" "$QUOTAS_FILE"
 }
 
-# Best-effort: now that an account exists on disk, try bringing the
-# container up in the background so it stops hitting the "no accounts"
-# shutdown on its next boot. Not awaited - the caller shouldn't block on it.
+# best-effort: account exists on disk now, so try bringing the container up in the background so it stops hitting the "no accounts" shutdown on next boot, not awaited
 try_start_mailserver_in_background() {
     nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running "$1" "$2" "$3" "$4"' \
         _ "$CONTAINER" "$MAIL_DIR" mailserver 60 >/dev/null 2>&1 &
 }
 
-# Runs the requested setup command against the running container, or - if
-# the container isn't up - against the config files directly (offline_* above).
+# runs the setup command against the running container, or straight against the config files (offline_* above) if it's not up
 run_setup_command() {
     if podman_is_running "$CONTAINER"; then
         podman exec "$CONTAINER" setup "$@"
@@ -272,7 +268,7 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
             nohup timeout 300 podman exec "$CONTAINER" bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" &
         fi
 
-        # if email add/del OR quita set/del then we need to reload the cached user file for OpenPanel UI to display to user
+        # reload the cached user file so the OpenPanel UI picks up email/quota add/del changes
         if [[ "$2" != "update" && "$5" != "--wait" ]]; then
             reload_emails_data_file_for_user
         fi

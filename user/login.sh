@@ -109,11 +109,11 @@ get_openpanel_url() {
 			domain="$ip"
 		fi
 	fi
-	# ---------------------- letsencrypt
+	# letsencrypt
 	local cert_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.crt"
 	local key_path_on_hosts="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${domain}/${domain}.key"
 
-	# ---------------------- custom ssl
+	# custom ssl
 	local fallback_cert_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.crt"
 	local fallback_key_path="/etc/openpanel/caddy/ssl/custom/${domain}/${domain}.key"
  
@@ -135,7 +135,7 @@ get_openpanel_url() {
 # 1. get username
 USER_DIR="/etc/openpanel/openpanel/core/users/${USERNAME}"
 if [ ! -d "$USER_DIR" ]; then
-    # TODO: handle case when suer is suspended
+    # todo: handle case when user is suspended
     echo "[✘] Error: Username '$USERNAME' does not exist or was not properly created (missing files)."
     exit 1
 fi

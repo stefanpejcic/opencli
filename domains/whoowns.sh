@@ -36,7 +36,6 @@ source /usr/local/opencli/db.sh
 
 
 
-# Function to fetch the owner username of a domain
 get_domain_owner() {
   
     if [ ! -f "$config_file" ]; then

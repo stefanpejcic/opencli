@@ -29,17 +29,14 @@
 # THE SOFTWARE.
 ################################################################################
 
-# --- Function to print usage instructions ---
 print_usage() {
     echo "Usage: plan-usage <plan_name> [--json]"
     exit 1
 }
 
-# --- Initialize variables ---
 json_output=false
 plan_name=""
 
-# --- Command-line argument processing ---
 if [ "$#" -lt 1 ]; then
     print_usage
 fi
@@ -59,13 +56,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Source database configuration ---
 # shellcheck disable=SC1091
 source /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
-# --- Fetch user data based on the provided plan name ---
 fetch_users_json() {
     require_command jq
     local data
@@ -92,7 +87,6 @@ fetch_users_table() {
     fi
 }
 
-# --- Main ---
 if $json_output; then
     fetch_users_json
 else

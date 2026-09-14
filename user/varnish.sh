@@ -36,9 +36,7 @@ ACTION=$2
 
 [ -z "$USER" ] && { echo "Usage: opencli user-varnish <user> [enable|disable]"; exit 1; }
 
-# NOTE: this used to be resolved via a (dead - never actually called, and
-# referencing the wrong variable) get_docker_context() DB lookup; context
-# always equals the username in the current single-node setup
+# this used to go through a dead get_docker_context() DB lookup (never called, and referenced the wrong variable) -- context always equals the username in this single-node setup
 CONTEXT="$USER"
 
 ENV_FILE="/home/$CONTEXT/.env"
@@ -82,8 +80,7 @@ if [ -n "$ACTION" ]; then
         enable)
             toggle_service down "$WEB_SERVER"
             sed -i 's/^#PROXY_HTTP_PORT=/PROXY_HTTP_PORT=/' "$ENV_FILE"
-            # podman-compose can't resolve nested ${VAR:-${VAR}} defaults, so the
-            # compose file's webserver port is kept flat and swapped here instead.
+            # podman-compose can't resolve nested ${VAR:-${VAR}} defaults, so the compose file's webserver port is kept flat and swapped here instead
             sed -i "/container_name: ${WEB_SERVER}\$/,/HTTPS_PORT/ s|\${HTTP_PORT}|\${PROXY_HTTP_PORT}|" "$COMPOSE_FILE"
             toggle_service up -d "$WEB_SERVER" varnish
             check_varnish_status start

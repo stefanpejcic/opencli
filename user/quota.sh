@@ -292,7 +292,7 @@ generate_report() {
 main() {
     local exit_code=0
 
-    # REPORT
+    # report
     if [[ $# -eq 0 ]] || [[ "$1" != "--update" ]]; then
         generate_report
         exit 0

@@ -8,11 +8,7 @@
 # it is safe to `source` from any script.
 # ======================================================================
 
-# Ensures the given command is available, installing it via the system
-# package manager if it isn't. Pass a second argument if the package name
-# differs from the command name, e.g.:
-#   require_command jq
-#   require_command mariadb
+# installs <cmd> via the system package manager if missing, pass a 2nd arg if the package name differs, e.g. require_command mariadb
 require_command() {
     local cmd="$1"
     local package="${2:-$1}"
@@ -23,8 +19,7 @@ require_command() {
         apt-get update -qq > /dev/null 2>&1
         apt-get install -y -qq "$package" > /dev/null 2>&1
     elif command -v dnf &> /dev/null; then
-        # some packages (e.g. fzf on older RHEL) only exist in EPEL - retry
-        # through it if the plain install fails, no-op if not needed
+        # some packages (e.g. fzf on older RHEL) only exist in EPEL, retry through it if the plain install fails
         dnf install -y -q "$package" > /dev/null 2>&1 || {
             dnf install -y -q epel-release > /dev/null 2>&1
             dnf install -y -q "$package" > /dev/null 2>&1

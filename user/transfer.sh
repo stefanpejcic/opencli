@@ -160,7 +160,6 @@ format_commands() {
 
 
 get_server_ipv4(){
-	# Get server ipv4
 	current_ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" || curl --silent --max-time 1 -4 "https://ifconfig.me")
 
 	if [ -z "$current_ip" ]; then
@@ -206,8 +205,7 @@ get_users_count_on_destination() {
 }
 
 
-# Resolve the "context" (system user / home dir / docker context / ftp context).
-# This is the users.server column and is NOT necessarily the same as $USERNAME.
+# "context" is the users.server column (system user / home dir / docker context / ftp context), not necessarily the same as $USERNAME
 resolve_context() {
     CONTEXT=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
         -e "SELECT server FROM users WHERE username = '$USERNAME';")
@@ -218,10 +216,8 @@ resolve_context() {
     log "Resolved context for $USERNAME: $CONTEXT"
 }
 
-# Function to check if username already exists in the database
 check_username_exists() {
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$USERNAME'"
-    # Check if successful
     if ! user_count=$("${SSH_CMD[@]}" "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$username_exists_query\" -sN"); then
         log "[✘] Error: Unable to check username existence in the database. Is mariadb running?"
         exit 1
@@ -276,17 +272,17 @@ find_free_uid() {
     echo "\$uid"
 }
 
-# Dodaj grupe
+# add groups
 cut -d: -f1,3 "\$USER_GROUP" | while IFS=: read -r group gid; do
     if ! getent group "\$group" > /dev/null; then
         groupadd -g "\$gid" "\$group"
     fi
 done
 
-# Kreiraj UID map fajl
+# create the UID map file
 > "\$UID_MAP_FILE"
 
-# Kreiraj korisnika i upiši mapiranje ako treba
+# create the user and record the mapping if needed
 while IFS=: read -r user uid gid comment home shell; do
     free_uid=\$(find_free_uid "\$uid")
     CHOWN_HOMEDIR=false
@@ -309,14 +305,14 @@ while IFS=: read -r user uid gid comment home shell; do
     fi
 done < <(cut -d: -f1,3,4,5,6,7 "\$USER_PASSWD")
 
-# Postavi šifru
+# set the password
 cut -d: -f1,2 "\$USER_SHADOW" | while IFS=: read -r user hash; do
     if [[ -n "\$hash" ]]; then
         usermod -p "\$hash" "\$user"
     fi
 done
 
-# Obriši privremene fajlove
+# remove temp files
 rm -f "\$USER_PASSWD" "\$USER_GROUP" "\$USER_SHADOW"
 EOF
 
@@ -760,13 +756,7 @@ fi
 
 
 setup_remote_podman() {
-    # context resolution is dynamic (based on /home/$CONTEXT's owner uid) under
-    # podman - there's no context to register, and no per-user AppArmor profile
-    # (that was for rootless Docker's rootlesskit, which podman doesn't use).
-    # ~/.config/containers/{storage,containers}.conf already ride along with
-    # the rest of the home directory via rsync_files_for_user - the paths in
-    # them (graphroot under the same username, the shared store's fixed system
-    # path) stay valid as-is on the destination.
+    # context resolution is dynamic per user uid under podman, nothing to register and no per-user AppArmor (that was rootlesskit, podman doesn't use it) -- ~/.config/containers/*.conf already rides along via rsync_files_for_user and stays valid as-is on the destination
     SRC="/home/$CONTEXT/.config/containers"
     if [[ -d "$SRC" ]]; then
         REMOTE_UID=$("${SSH_CMD[@]}" "stat -c '%u' /home/$CONTEXT" 2>/dev/null)
@@ -798,7 +788,7 @@ restart_services_on_target() {
             "${SSH_CMD[@]}" "cd /usr/local/mail/openmail && podman-compose up -d mailserver roundcube >/dev/null 2>&1"
 	fi
 
-	#todo: clamav 
+	# todo: clamav
 }
 
 refresh_quotas() {
@@ -832,10 +822,7 @@ restore_ftp_for_user() {
 set -e
 context="$CONTEXT"
 
-# Start the FTP server if it isn't actually running — checked by real state
-# (not just \`podman ps\`, which misses a container wedged in a transitional
-# state like stuck starting/exiting) so a stuck container gets force-removed
-# and recreated instead of being no-op'd over by compose-up.
+# starts the FTP server if not actually running, checked by real state (not just podman ps, which misses a container wedged mid-transition) so a stuck one gets force-removed and recreated instead of no-op'd over by compose-up
 FTP_STATE=\$(podman inspect openadmin_ftp --format '{{.State.Status}}' 2>/dev/null)
 if [ "\$FTP_STATE" != "running" ]; then
     if [ -n "\$FTP_STATE" ] && [ "\$FTP_STATE" != "exited" ] && [ "\$FTP_STATE" != "stopped" ]; then

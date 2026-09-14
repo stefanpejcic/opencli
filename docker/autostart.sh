@@ -49,8 +49,7 @@ fi
 [[ -f "$AUTOSTART_FILE" ]] || { echo "autostart file not found: $AUTOSTART_FILE"; exit 1; }
 mkdir -p "$SHARED_STORE"
 cd "$COMPOSE_DIR" || exit 1
-# awk that emits "service image" pairs. Tracks 2-space service headers,
-# turns off inside top-level networks/volumes/configs/secrets blocks.
+# awk emits "service image" pairs, tracking 2-space service headers, off inside top-level networks/volumes/configs/secrets blocks
 read -r -d '' PARSE <<'AWK'
 BEGIN { s=1 }
 /^services:[[:space:]]*$/ { s=1; next }

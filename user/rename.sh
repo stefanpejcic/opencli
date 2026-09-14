@@ -27,7 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
-# Check if the correct number of arguments is provided
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
     echo "Usage: opencli user-rename <old_username> <new_username>"
     exit 1
@@ -40,7 +39,7 @@ RENAME_CONTEXT=false
 FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_usernames.txt"
 
 
-# Parse optional flags to enable debug mode when needed!
+# parse optional flags, enabling debug mode if asked
 for arg in "$@"; do
     case $arg in
         --debug)
@@ -93,8 +92,7 @@ check_username_is_valid() {
     }
 
 
-    
-    # Validate username
+
     if is_username_valid "$new_username"; then
         echo "Error: The username '$new_username' is not valid. Ensure it is a single word with no hyphens or underscores, contains only letters and numbers, and has a length between 3 and 20 characters."
         echo "       docs: https://openpanel.com/docs/articles/accounts/forbidden-usernames/#openpanel"
@@ -109,18 +107,15 @@ check_username_is_valid() {
 
 
 check_if_exists_in_db() {
-    
-    # DB
+
     source /usr/local/opencli/db.sh
-    
-    # Check if the username already exists in the users table
+
     username_exists_query="SELECT COUNT(*) FROM users WHERE username = '$(mysql_escape "$new_username")'"
     if ! username_exists_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$username_exists_query" -sN); then
         echo "Error: Unable to check username existence in the database."
         exit 1
     fi
     
-    # count > 0) show error and exit
     if [ "$username_exists_count" -gt 0 ]; then
         echo "Error: Username '$new_username' already exists."
         exit 1
@@ -130,7 +125,6 @@ check_if_exists_in_db() {
     context_exists_query="SELECT COUNT(*) FROM users WHERE server = '$(mysql_escape "$new_username")'"
     context_exists_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$context_exists_query" -sN)
     
-    # count > 0) show error and exit
     if [ "$context_exists_count" -gt 0 ]; then
         echo "Error: Context '$new_username' already exists."
         exit 1
@@ -144,15 +138,12 @@ check_if_exists_in_db() {
 get_context() {
 
 
-# get user ID from the database
 get_user_info() {
     local user="$1"
     local query; query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
-    
-    # Retrieve both id and context
+
     user_info=$(mariadb -se "$query")
-    
-    # Extract user_id and context from the result
+
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
     
@@ -183,7 +174,6 @@ mv_user_data() {
 }
 
 
-# Function to rename user in the database
 rename_user_in_db() {
     OLD_USERNAME=$1
     NEW_USERNAME=$2
@@ -212,7 +202,7 @@ mv_user_data                                                               # /et
 require_command jq                                                         # just helper for parsing json
 rename_user_in_db "$old_username" "$new_username"                          # rename username in db
 #reload_user_quotas
-#TODO: rename ftp accounts suffix!
+# todo: rename ftp accounts suffix!
 # rename paths
 
 exit 0

@@ -100,13 +100,13 @@ if [ -z "$php_version" ]; then
 	exit 1
 fi
 
-# SHOW
+# show
 if [ "$update_flag" == false ]; then
 	echo "Domain '$domain' (owned by user: $owner) uses PHP version: $php_version"
 	exit 0
 fi
 
-# UPDATE
+# update
 # 1. replace in domain vhost file
 sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
 

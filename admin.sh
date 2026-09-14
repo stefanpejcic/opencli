@@ -49,7 +49,7 @@ admin_crons_log="/var/log/openpanel/admin/cron.log"
 db_file_path="/etc/openpanel/openadmin/users.db"
 ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 
-# Escape a single quote for safe use inside a SQLite single-quoted string literal
+# escape single quotes so sqlite doesn't choke on the string literal
 sqlite_escape() {
     local s="$1"
     printf '%s' "${s//\'/\'\'}"
@@ -212,8 +212,7 @@ delete_existing_users() {
 			rm "$reseller_limits_file"  > /dev/null 2>&1
 
             local reseller_features="/etc/openpanel/features/$username"
-			# todo: check and also delete plans assigned to the user and no-one else!
-			#         SELECT 1         FROM plans         WHERE feature_set = %s         LIMIT 1;
+			# todo: also delete plans assigned only to this user
 			rm -rf "$reseller_features"  > /dev/null 2>&1
 		
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"  
@@ -253,7 +252,7 @@ update_config() {
 }
 
 
-# added validation (only letters and numbers) in 0.2.8
+# only letters and numbers allowed, added this check in 0.2.8
 validate_password_and_username() {
     local input="$1"
     local field_name="$2"
@@ -265,8 +264,7 @@ validate_password_and_username() {
         exit 1
     fi
 
-    
-    # Check if input contains only letters and numbers
+
     if [[ "$input" =~ ^[a-zA-Z0-9_]{5,30}$ ]]; then
         :
     else
@@ -275,19 +273,7 @@ validate_password_and_username() {
         exit 1
     fi
     
-    # TODO: we will at some point include dictionary checks from lists:
-    # https://weakpass.com/wordlist
-    # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
-    #
-    # DICTIONARY="dictionary.txt"
-    # Convert input to lowercase for dictionary check
-    # local input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
-    #
-    # Check if input contains any common dictionary word
-    # if grep -qi "^$input_lower$" "$DICTIONARY"; then
-    #     echo "ERROR: $field_name is invalid. It contains a common dictionary word, which is not allowed."
-    #     exit 1
-    # fi
+    # todo: reject common passwords using a wordlist like https://weakpass.com/wordlist
 }
 
 
@@ -368,7 +354,7 @@ add_new_user() {
 	# ---------------------- determine role
 	if [ "$flag" == "--reseller" ]; then
 		role="reseller"
-		#TODO: check_edition	
+		# todo: call check_edition here too
 	elif [ "$flag" == "--super" ]; then
 		admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin';"
 		admin_count=$(sqlite3 "$db_file_path" "$admin_check_sql")
@@ -444,9 +430,7 @@ update_reseller_account() {
         return 1
     fi
 
-    # Only fields whose flag was actually passed are touched -- e.g.
-    # `update <reseller> --logo_url=...` alone must not reset
-    # max_accounts/max_disk_blocks/allowed_plans back to empty/0.
+    # only touch fields whose flag was actually passed, so e.g. --logo_url alone doesn't wipe the rest
     local jq_filter="."
     local jq_args=()
     if [[ -n "$max_accounts" ]]; then
@@ -477,10 +461,7 @@ update_reseller_account() {
 }
 
 # ------------- opencli admin update --logo_url= fan-out ------------- #
-# Writes RESELLER_LOGO_URL into the .env of every account this reseller
-# currently owns, so their OpenPanel container picks up the change without
-# needing any shared filesystem/DB access -- each per-user container only
-# ever sees its own home directory, not /etc/openpanel/openadmin/resellers/.
+# pushes RESELLER_LOGO_URL into each owned user's .env since their containers can't reach the resellers dir directly
 sync_reseller_logo_to_owned_users() {
     local reseller="$1"
     local logo_url="$2"

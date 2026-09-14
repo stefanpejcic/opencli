@@ -47,7 +47,6 @@ usage() {
 }
 
 
-# Execute query with error handling
 execute_query() {
     local query="$1"
     if ! mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -sN 2>/dev/null; then
@@ -56,7 +55,6 @@ execute_query() {
     fi
 }
 
-# Get user ID from username
 get_user_id() {
     local username="$1"
     local user_id
@@ -88,7 +86,6 @@ get_domains() {
         query="$query WHERE d.user_id = '$(mysql_escape "$user_id")'"
     fi
 
-    # Add domain filter
     if [ -n "$domains_filter" ]; then
         # Support comma-separated list
         IFS=',' read -ra DOMAIN_ARRAY <<< "$domains_filter"
@@ -131,7 +128,6 @@ get_sites() {
     execute_query "$query"
 }
 
-# Output in table format
 output_table() {
     local user_id="$1"
     local filter_type="$2"
@@ -165,7 +161,6 @@ output_table() {
     done <<< "$domains_info"
 }
 
-# Output in JSON format
 output_json() {
     local user_id="$1"
     local filter_type="$2"
@@ -210,7 +205,6 @@ output_json() {
 }
 
 
-# Main function
 main() {
     [ $# -lt 1 ] && usage
 
@@ -219,7 +213,6 @@ main() {
     local filter_type=""
     local filter_domains=""
 
-    # Parse additional flags
     shift
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -239,17 +232,14 @@ main() {
         shift
     done
 
-    # Validate config file
     if [ ! -f "$config_file" ]; then
         echo "Error: Config file $config_file not found" >&2
         exit 1
     fi
 
-    # Get user ID
     local user_id
     user_id=$(get_user_id "$username")
 
-    # Output
     case "$output_format" in
         "json")
             output_json "$user_id" "$filter_type" "$filter_domains"
@@ -260,5 +250,4 @@ main() {
     esac
 }
 
-# Run main function with all arguments
 main "$@"

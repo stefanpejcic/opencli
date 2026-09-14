@@ -34,12 +34,11 @@
 debug_mode=false
 args=()
 
-# Process arguments and check for --debug
 for arg in "$@"; do
     if [[ "$arg" == "--debug" ]]; then
         debug_mode=true
     else
-        args+=("$arg")  # Store non-debug arguments
+        args+=("$arg")
     fi
 done
 
@@ -49,7 +48,6 @@ show_help() {
 }
 
 
-# Ensure at least one non-debug argument is provided
 if [[ ${#args[@]} -lt 1 ]]; then
     show_help
 fi
@@ -73,15 +71,12 @@ log "New Docroot: ${new_docroot:-None}"
 
 ################################## helpers
 
-# get user ID from the database
 get_user_info() {
     local user="$1"
     local query="SELECT id, server FROM users WHERE username = '${user}';"
-    
-    # Retrieve both id and context
+
     user_info=$(mariadb -se "$query")
-    
-    # Extract user_id and context from the result
+
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
     

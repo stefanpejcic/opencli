@@ -140,7 +140,6 @@ die() { log "[✘] $1"; exit "${2:-1}"; }
 # Summary always prints to stdout + log regardless of --quiet
 slog() { echo "$1" | tee -a "$log_file"; }
 
-# Disk space check
 check_disk_space() {
     log "Checking disk space ..."
     mkdir -p "$DEST_DIR" 2>/dev/null || true
@@ -183,8 +182,7 @@ check_disk_space() {
     log "  Source size  (~${DISK_ESTIMATE_MB} MB via $DISK_CHECK_SOURCE)"
     log "  Free at dest (~${DISK_FREE_MB} MB at $DEST_DIR)"
 
-    # Abort threshold: compressed archive typically reaches 30–70 % of source.
-    # If free < 1/3 of source, even a heavily compressed archive would fill the disk.
+    # abort if free < 1/3 of source -- compressed archives typically reach 30-70% of source, so even a heavily compressed one would fill the disk
     local abort_kb=$(( used_kb / 3 ))
     if [[ "$free_kb" -lt "$abort_kb" ]]; then
         die "Not enough disk space. Source ~${DISK_ESTIMATE_MB} MB, free ~${DISK_FREE_MB} MB at $(dirname "$ARCHIVE"). Aborting to avoid a partial archive."
@@ -255,8 +253,7 @@ rm -f "$STAGE/db/user.tsv"
 
 if [[ -n "$DOMAIN_IDS" ]]; then
     DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-    # domain_url is included so restore can re-resolve the site's domain_id by name —
-    # domains-add assigns a fresh auto-increment ID on restore, which rarely matches this server's.
+    # domain_url is included so restore can re-resolve the site's domain_id by name, since domains-add assigns a fresh auto-increment ID that rarely matches this server's
     mysql_q "
       SELECT s.site_name, s.domain_id, s.admin_email, s.version, s.created_date, s.type, s.ports, s.path, s.container, d.domain_url
       FROM sites s JOIN domains d ON s.domain_id = d.domain_id
@@ -283,7 +280,7 @@ fi
 [[ ${#BACKUP_DOMAINS[@]} -gt 0 ]] && DOMAIN_LIST_STR="${BACKUP_DOMAINS[*]}"
 
 # --- system user ---
-# TODO: fails in container, do we need it for restore?
+# todo: fails in container, do we need it for restore?
 log "Capturing system user ($CONTEXT) ..."
 awk -F: -v u="$CONTEXT" '$1==u{print}' /etc/passwd > "$STAGE/system/passwd.user"
 awk -F: -v u="$CONTEXT" 'BEGIN{gid=""}
@@ -344,9 +341,7 @@ if [[ -f "$(podman_compose_file "$CONTEXT")" ]]; then
     containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
     echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt" && log "Collected list of currently active containers for user"
 fi
-# NOTE: rootless Docker needed a per-user AppArmor profile for rootlesskit;
-# podman rootless doesn't use rootlesskit at all, so this file never exists
-# anymore and the backup step below is a permanent no-op (harmless: guarded by -f)
+# rootless docker needed a per-user AppArmor profile for rootlesskit, podman doesn't use rootlesskit so this file never exists anymore, permanent no-op below (harmless: guarded by -f)
 [[ -f "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" ]] && cp -a "/etc/apparmor.d/home.$CONTEXT.bin.rootlesskit" "$STAGE/docker/apparmor.profile" && log "Collected AppArmor profile for user"
 echo "${SYS_UID}" > "$STAGE/docker/uid.txt"
 
@@ -484,7 +479,7 @@ else
     [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1)."
 fi
 
-# verify archive integrity ---
+# verify archive integrity
 gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHIVE"
 
 # Permissions + ownership

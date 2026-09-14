@@ -28,7 +28,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Usage
 if [ $# -eq 0 ] || [ $# -gt 2 ]; then
     echo "Usage: opencli user-block_ip <username> [--list='IP_ADDRESS ANOTHER_IP' | --delete-all]"
     echo ""
@@ -44,7 +43,6 @@ delete_all=false
 list=""
 show_ips=false
 
-# Parse
 USERNAME="$1"
 
 if [ -z "$2" ]; then
@@ -100,14 +98,14 @@ reload_caddy() {
 # MAIN
 get_docker_context
 
-# DELETE
+# delete
 if [ "$delete_all" = true ]; then
   : > "$DENY_IPS_FILE"
   reload_caddy
   exit 0
 fi
 
-# LIST
+# list
 if [ "$show_ips" = true ]; then
   if [ -f "$DENY_IPS_FILE" ]; then
     grep -oP 'remote_ip\s+\K[\d./]+' "$DENY_IPS_FILE"
@@ -115,7 +113,7 @@ if [ "$show_ips" = true ]; then
   exit 0
 fi
 
-# UPDATE
+# update
 if [ -n "$list" ]; then
 
   # 1. validate IP

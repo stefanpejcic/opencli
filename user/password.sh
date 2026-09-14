@@ -52,10 +52,7 @@ fi
 
 source /usr/local/opencli/lib/password_strength.sh
 
-# Guarantees at least one upper, one lower, one digit and one punctuation
-# character (in addition to 8 fully random characters) so this always
-# scores at the top of the password_strength rubric, regardless of the
-# admin-configured threshold.
+# guarantees at least one upper, lower, digit and punctuation char (plus 8 fully random chars) so this always scores top of the password_strength rubric, regardless of the admin-configured threshold
 generate_random_password() {
     local pool='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+'
     local pw

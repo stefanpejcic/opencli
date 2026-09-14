@@ -44,7 +44,6 @@ ZONE_FILE="/etc/bind/zones"
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 ALLOWED_IP_ADDRESSES=$(hostname -I | tr ' ' '\n' | grep -v '^172\.' | tr '\n' ' ')
 
-# Parse flags
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
@@ -168,8 +167,7 @@ edit_domain_files() {
 }
 
 drop_redis_cache() {
-    # An IP change only invalidates the cached IP lookup (used on dashboard,
-    # temporary links, ftp and emails) - not the rest of the app's cache.
+    # an IP change only invalidates the cached IP lookup (used on dashboard, temporary links, ftp and emails), not the rest of the app's cache
     redis_drop_memver "modules.json.helpers.get_cached_ip_for_user_or_public_ipv4"
 }
 

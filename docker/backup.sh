@@ -49,14 +49,13 @@ run_for_user() {
     
     cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
     start_user_time=$(date +%s)
-    # TODO: edit to podman run style so we can set cpu and ram here and run it outside of user context (if admin want backup job to use server resources instead of user's)
+    # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
     podman_compose_ctx "$context" run --remove-orphans --rm --entrypoint backup backup
     end_user_time=$(date +%s)
     duration=$((end_user_time - start_user_time))
     log "Backup completed for user: $username (context: $context) | Time taken: ${duration}s"
 }
 
-# Function to process a single user
 process_user() {
     local username="$1"
     log "Processing user: $username"
@@ -69,7 +68,6 @@ process_user() {
     return 0
 }
 
-# Function to get list of active users
 get_active_users() {
     local users
     users=$(opencli user-list --json 2>/dev/null | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
@@ -83,7 +81,6 @@ get_active_users() {
     return 0
 }
 
-# Function to process all users
 process_all_users() {
     local users user_count current_index=1
     local failed_users=()
@@ -100,7 +97,6 @@ process_all_users() {
     user_count=$(echo "$users" | wc -w)
     log "Found $user_count active users to process"
     
-    # Process each user
     for user in $users; do
         log "Processing user: $user ($current_index/$user_count)"
         

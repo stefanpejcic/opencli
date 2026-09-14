@@ -54,7 +54,6 @@ EXCLUDE_CONTEXTS=0
 FORCE=0
 COMPOSE_START_MAIL=0
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         -h|--host)
@@ -171,7 +170,6 @@ check_if_dest_has_space(){
 
 
 get_server_ipv4(){
-	# Get server ipv4
 	current_ip=$(curl --silent --max-time 1 -4 "https://ip.openpanel.com" || curl --silent --max-time 1 -4 "https://ifconfig.me/ip")
 
 	if [ -z "$current_ip" ]; then
@@ -310,13 +308,7 @@ exec 3<&-
 }
 
 setup_remote_podman_for_all_users() {
-    # context resolution is dynamic (based on /home/$USERNAME's owner uid) under
-    # podman - there's no context to register, and no per-user AppArmor profile
-    # (that was for rootless Docker's rootlesskit, which podman doesn't use), and
-    # no /run/user/* to rsync (ephemeral, host-specific - sockets are created
-    # fresh by systemd on the destination). ~/.config/containers/{storage,containers}.conf
-    # already ride along with the rest of each home directory rsync elsewhere in
-    # this script - the paths in them stay valid on the destination as-is.
+    # context resolution is dynamic per user uid under podman -- nothing to register, no per-user AppArmor (that was rootlesskit, podman doesn't use it), no /run/user/* to rsync (ephemeral, recreated by systemd), and ~/.config/containers/*.conf already rides along with the home dir rsync elsewhere in this script
 	awk -F: '$3 >= 1000 && $3 < 65534 {print $1 ":" $3}' /etc/passwd > /tmp/userlist.txt
 	TOTALCOUNT=$(wc -l < /tmp/userlist.txt)
 	CURRENT=0

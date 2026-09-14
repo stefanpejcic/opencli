@@ -72,7 +72,6 @@ configure_av_limits_and_email() {
   # https://docs.imunifyav.com/config_file_description/
   imunify-antivirus config update '{"MALWARE_SCANNING": {"hyperscan": true}}'
   
-  # ionice
   echo "Setting 2CPU and 1GB Memory limits for ImunifyAV service.."
   imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"cpu": 2}}'
   imunify-antivirus config update '{"MALWARE_SCAN_INTENSITY": {"io": 2}}'
@@ -227,21 +226,17 @@ NEW_SERVICE='    {
         "real_name": "imunify-antivirus"
     }'
   
-  # Check if file ends with a closing array bracket
   if tail -n 1 "$FILE" | grep -q '\]'; then
-      # Remove the last line (closing bracket)
       head -n -1 "$FILE" > "$FILE.tmp"
-      
-      # Add comma to the last existing object if needed
+
+      # add comma to the last existing object if needed
       if tail -n 1 "$FILE.tmp" | grep -vq '},'; then
           sed -i '$s/}/},/' "$FILE.tmp"
       fi
-  
-      # Append the new service and closing bracket
+
       echo "$NEW_SERVICE" >> "$FILE.tmp"
       echo "]" >> "$FILE.tmp"
-  
-      # Replace the original file
+
       mv "$FILE.tmp" "$FILE"
   
       echo "New service added successfully."

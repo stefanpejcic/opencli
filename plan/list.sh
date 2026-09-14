@@ -29,13 +29,11 @@
 # THE SOFTWARE.
 ################################################################################
 
-# --- Usage function ---
 print_usage() {
     echo "Usage: opencli plan-list [--json]"
     exit 1
 }
 
-# --- Command line argument handling ---
 json_output=false
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -49,12 +47,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Source DB config ---
 source /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
 
-# --- Fetch and output plans ---
 fetch_plans_json() {
     require_command jq
     local data
@@ -85,7 +81,6 @@ fetch_plans_table() {
     fi
 }
 
-# --- Main ---
 if $json_output; then
     fetch_plans_json
 else

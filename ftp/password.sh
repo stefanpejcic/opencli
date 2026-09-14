@@ -29,7 +29,6 @@
 # THE SOFTWARE.
 ################################################################################
 
-# Check for the correct number of arguments
 if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
     echo "Usage: opencli ftp-password <username> <new_password> <openpanel_username> [--debug]"
     exit 1
@@ -38,11 +37,11 @@ fi
 username="${1,,}"
 new_password="$2"
 openpanel_username="$3"
-DEBUG=false  # Default value for DEBUG
+DEBUG=false
 
 source /usr/local/opencli/lib/password_strength.sh
 
-# Parse optional flags to enable debug mode when needed!
+# parse optional flags, enabling debug mode if asked
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
@@ -71,7 +70,6 @@ get_docker_context_for_user(){
 }
 
 
-# Function to update the user's password
 update_password() {
 
     PYTHON_PATH=$(which python3 || echo "/usr/local/bin/python")
@@ -116,43 +114,36 @@ get_docker_context_for_user
 mkdir -p /etc/openpanel/ftp/users/"${context}"
 touch /etc/openpanel/ftp/users/"${context}"/users.list
 
-# Check if the FTP user exists
 user_exists() {
     local user="$1"
     grep -Fq "$user|" /etc/openpanel/ftp/users/"${context}"/users.list
 }
 
-# Check if user exists
 if ! user_exists "$username"; then
     echo "Error: FTP User '$username' does not exist."
     exit 1
 fi
 
-# Check if password length is at least 8 characters
 if [ ${#new_password} -lt 8 ]; then
     echo "ERROR: New password is too short. It must be at least 8 characters long."
     exit 1
 fi
 
-# Check if password contains at least one uppercase letter
 if ! [[ $new_password =~ [A-Z] ]]; then
     echo "ERROR: New password must contain at least one uppercase letter."
     exit 1
 fi
 
-# Check if password contains at least one lowercase letter
 if ! [[ $new_password =~ [a-z] ]]; then
     echo "ERROR: New password must contain at least one lowercase letter."
     exit 1
 fi
 
-# Check if password contains at least one digit
 if ! [[ $new_password =~ [0-9] ]]; then
     echo "ERROR: New password must contain at least one digit."
     exit 1
 fi
 
-# Check if password contains at least one special character
 if ! [[ $new_password =~ [[:punct:]] ]]; then
     echo "ERROR: New password must contain at least one special character."
     exit 1
@@ -161,5 +152,4 @@ fi
 # Check against the admin-configured strength threshold
 require_password_strength "$new_password"
 
-# Call the function to update the password
 update_password

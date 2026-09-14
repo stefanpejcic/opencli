@@ -54,7 +54,6 @@ readonly RESET='\033[0m'
 JSON="no"
 NO_RESTART="no"
 
-# Parse command line flags
 parse_flags() {
     JSON="no"
     NO_RESTART="no"

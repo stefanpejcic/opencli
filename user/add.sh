@@ -114,7 +114,6 @@ die()  { echo "[✘] ERROR: $*" >&2; exit 1; }
 
 read_config_file
 
-# Parse args
 for arg in "$@"; do
     case "$arg" in
         --debug)          DEBUG=true ;;
@@ -322,8 +321,7 @@ create_linux_user_local() {
 }
 
 ensure_subuid_subgid() {
-    # rootless podman needs a user/group ID range in /etc/subuid and /etc/subgid;
-    # modern useradd assigns this automatically, but add it if it's missing
+    # modern useradd assigns the /etc/subuid /etc/subgid range automatically, but add it if it's missing
     grep -q "^${USERNAME}:" /etc/subuid 2>/dev/null || usermod --add-subuids 100000-165535 "$USERNAME" || die "Failed to assign subuid range for '$USERNAME'."
     grep -q "^${USERNAME}:" /etc/subgid 2>/dev/null || usermod --add-subgids 100000-165535 "$USERNAME" || die "Failed to assign subgid range for '$USERNAME'."
 }
@@ -377,11 +375,7 @@ setup_podman_rootless() {
     local home_dir="/home/${USERNAME}"
     local config_dir="${home_dir}/.config/containers"
 
-    # graphroot stays under docker-data/ so the rest of opencli (backups, quota,
-    # restore, ...) keeps working with the same ~/docker-data/volumes/... layout
-    # that was used under rootless Docker; additionalimagestores points at the
-    # shared, read-only image store populated once by PODMAN_INSTALL.sh so this
-    # user's containers can reuse already-pulled images without duplicating them
+    # graphroot stays under docker-data/ so the rest of opencli (backups, quota, restore) keeps the same layout as rootless docker; additionalimagestores points at the shared read-only store from PODMAN_INSTALL.sh so containers reuse pulled images instead of duplicating them
     mkdir -p "${home_dir}/docker-data" "$config_dir"
     cat > "${config_dir}/storage.conf" << EOF
 [storage]
@@ -397,9 +391,7 @@ additionalimagestores = [
 mount_program = "/usr/bin/fuse-overlayfs"
 EOF
 
-    # security hardening that used to live in rootless Docker's daemon.json
-    # (no-new-privileges + custom DNS resolvers) - containers.conf is the podman
-    # equivalent, applied as the default for every container this user creates
+    # security hardening that used to live in rootless docker's daemon.json (no-new-privileges + custom DNS) -- containers.conf is the podman equivalent, applied as the default for every container this user creates
     cat > "${config_dir}/containers.conf" << 'EOF'
 [containers]
 no_new_privileges = true
@@ -513,10 +505,7 @@ configure_environment() {
     local home_dir="/home/${USERNAME}"
     cp /etc/openpanel/docker/compose/1.0/docker-compose.yml "${home_dir}/docker-compose.yml" || die "docker-compose.yml template missing from /etc/openpanel/"
 
-    # podman-compose can't resolve a ${VAR} nested inside another ${VAR:-default}
-    # (docker-compose can), so flatten the webservers' port mapping to a single var
-    # here instead: HTTP_PORT by default, swapped to PROXY_HTTP_PORT below when the
-    # requested webserver sits behind Varnish.
+    # podman-compose can't resolve a ${VAR} nested inside another ${VAR:-default} (docker-compose can), so flatten the webserver port mapping to HTTP_PORT here, swapped to PROXY_HTTP_PORT below when the webserver sits behind Varnish
     # shellcheck disable=SC2016 # single-quoted on purpose: matching the literal ${...} text in the compose file, not expanding a shell var
     sed -i 's|\${PROXY_HTTP_PORT:-\${HTTP_PORT}}|\${HTTP_PORT}|g' "${home_dir}/docker-compose.yml"
 
@@ -575,10 +564,7 @@ configure_environment() {
         fi
     fi
 
-    # Reseller branding: if this account is owned by a reseller who has set
-    # their own logo URL, write it into the new account's .env so its
-    # OpenPanel container can pick it up directly -- the container only
-    # ever sees its own home directory, not /etc/openpanel/openadmin/resellers/.
+    # if owned by a reseller with their own logo URL set, write it into the new account's .env so its container can pick it up directly, since it only ever sees its own home directory
     if [[ -n "$RESELLER" ]]; then
         local reseller_logo_url
         reseller_logo_url="$(jq -r '.logo_url // empty' "/etc/openpanel/openadmin/resellers/${RESELLER}.json" 2>/dev/null)"
