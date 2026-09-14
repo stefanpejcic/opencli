@@ -128,8 +128,8 @@ podman_compose_file() {
 # proportional automatically whenever a plan's ram value changes. A user's own
 # /home/<user>/TasksMax file (single integer) overrides the derived value.
 # usage: derive_tasks_max <ram_gb> [username]
-readonly TASKS_PER_RAM_GB=150
-readonly TASKS_MAX_FLOOR=150
+readonly TASKS_PER_RAM_GB=1000
+readonly TASKS_MAX_FLOOR=1000
 
 derive_tasks_max() {
     local ram_gb="$1" username="${2:-}"
