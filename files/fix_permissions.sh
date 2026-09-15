@@ -140,7 +140,7 @@ apply_permissions_in_container() {
         owner_result=$?
 
         # files
-        find "$directory" -type f -print0 | xargs -0 chmod $verbose 644 > /dev/null 2>&1
+        find "$directory" -type f -print0 | xargs -0 chmod $verbose 664 > /dev/null 2>&1
         files_result=$?
 
         # folders
