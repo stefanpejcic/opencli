@@ -543,6 +543,8 @@ docker_containers_status() {
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
+        podman rm -f clamav
+        podman rm -f phpmyadmin
         cd /root && podman-compose up -d openpanel &>/dev/null
         sleep 2
         _docker_ps_refresh
@@ -570,6 +572,8 @@ docker_containers_status() {
         ((WARN--)); echo "  - No users found; $svc not needed."
       else
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
+        podman rm -f clamav
+        podman rm -f phpmyadmin
         cd /root && podman-compose up -d openpanel &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       fi ;;
