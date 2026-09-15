@@ -581,7 +581,7 @@ configure_environment() {
     [[ -f "${home_dir}/.env" ]] || { hard_cleanup; die "Failed to create .env file."; }
 
     # Socket dirs and config files
-    mkdir -p "${home_dir}/sockets/"{mysqld,postgres,redis,valkey,memcached}
+    mkdir -p "${home_dir}/sockets/"{mysqld,postgres,redis,valkey,memcached,mongodb}
     cp /etc/openpanel/mysql/user.cnf             "${home_dir}/custom.cnf"
     cp /etc/openpanel/postgres/postgresql.conf   "${home_dir}/postgre_custom.conf"
     cp /etc/openpanel/nginx/user-nginx.conf      "${home_dir}/nginx.conf"
