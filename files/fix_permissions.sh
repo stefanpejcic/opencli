@@ -76,11 +76,35 @@ apply_permissions_in_container() {
             echo "$user_id,$context"
         }
         
+        # openlitespeed's lsphp always runs as container uid/gid 65534 (nobody:nogroup) since the image can't be configured to run as another user - https://github.com/litespeedtech/ols-dockerfiles/issues/13#issuecomment-4275956701     
+        mapped_gid_for_container_nogroup() {
+            local container="$1" uid sock gid_map
+            uid=$(stat -c '%u' "/home/$context" 2>/dev/null) || return 1
+            sock="unix:///hostfs/run/user/${uid}/podman/podman.sock"
+
+            # https://github.com/stefanpejcic/openpanel/issues/1116
+            gid_map=$(CONTAINER_HOST="$sock" podman --remote exec "$container" cat /proc/self/gid_map 2>/dev/null)
+            [ -z "$gid_map" ] && return 1
+
+            awk -v want=65534 '
+                { inside=$1; hostid=$2; len=$3
+                  if (want >= inside && want < inside+len) { print hostid + (want-inside); found=1; exit } }
+                END { exit !found }
+            ' <<< "$gid_map"
+        }
+
         apply_workaround_for_litespeed() {
-            local raw_ws webserver
+            local raw_ws webserver mapped_gid
             raw_ws=$(grep "^WEB_SERVER=" "/home/$context/.env" | head -n1 | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
             webserver=$(echo "$raw_ws" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
-            [[ "$webserver" == "openlitespeed" || "$webserver" == "litespeed" ]] && gid="65534" # nogroup
+            [[ "$webserver" == "openlitespeed" || "$webserver" == "litespeed" ]] || return
+
+            if mapped_gid=$(mapped_gid_for_container_nogroup "$webserver"); then
+                gid="$mapped_gid"
+            else
+                echo "WARNING: could not determine ${context}'s real nogroup gid (is the '${webserver}' container running?) - falling back to 65534, which is likely wrong. Run 'opencli files-fix_permissions ${context}' again once the container is up." >&2
+                gid="65534" # nogroup
+            fi
         }
 
         result=$(get_user_info "$username")
@@ -126,7 +150,7 @@ apply_permissions_in_container() {
         check_and_fix_FTP_permissions "$username" "$uid"
         ftp_result=$?
 
-        # check all 4
+        # CHECK ALL 4
         if [ $owner_result -eq 0 ] && [ $files_result -eq 0 ] && [ $folders_result -eq 0 ] && [ $ftp_result -eq 0 ]; then
             echo "Permissions applied successfully to $fake_directory"
         else
