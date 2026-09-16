@@ -279,6 +279,30 @@ start_conditional_containers_for_user() {
         needed=("${deduped[@]}")
     fi
 
+    # https://github.com/stefanpejcic/OpenPanel/issues/1132
+    local cron_needed=0 backup_needed=0
+    [[ " ${needed[*]} " == *" cron "* ]] && cron_needed=1
+    [[ " ${needed[*]} " == *" backup "* ]] && backup_needed=1
+
+    local stopped=0
+
+    if (( ! cron_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "cron"; then
+        echo "$user: stopping cron (no longer needed)"
+        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "cron" &>/dev/null && ((stopped++))
+    fi
+
+    if (( ! backup_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "backup"; then
+        echo "$user: stopping backup (no longer needed)"
+        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "backup" &>/dev/null && ((stopped++))
+    fi
+
+    if (( ! cron_needed && ! backup_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "docker-proxy"; then
+        echo "$user: stopping docker-proxy (no longer needed)"
+        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "docker-proxy" &>/dev/null && ((stopped++))
+    fi
+
+    (( stopped > 0 )) && { flock -x 201; echo "${user}:-${stopped}" >> "$results_file"; } 201>>"$results_file.lock"
+
     (( ${#needed[@]} == 0 )) && return
 
     local count=0 svc
