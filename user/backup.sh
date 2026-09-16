@@ -71,10 +71,10 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 mysql_q() { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1"; }
 
 # Resolve account identity
-USER_ID=$(mysql_q "SELECT id FROM users WHERE username = '$USERNAME';")
+USER_ID=$(mysql_q "SELECT id FROM users WHERE username = '$(mysql_escape "$USERNAME")';")
 [[ -z "$USER_ID" ]] && { echo "[ERROR] No user found: $USERNAME"; exit 1; }
 
-CONTEXT=$(mysql_q "SELECT server FROM users WHERE username = '$USERNAME';")
+CONTEXT=$(mysql_q "SELECT server FROM users WHERE username = '$(mysql_escape "$USERNAME")';")
 [[ -z "$CONTEXT" ]] && { echo "[ERROR] Could not resolve context (server) for '$USERNAME'"; exit 1; }
 
 read -r PLAN_ID PLAN_NAME PLAN_FEATURE_SET < <(mysql_q "
