@@ -42,6 +42,13 @@ fi
 username="${1,,}"
 openpanel_username="$2"
 
+# reject anything outside the charset the panel enforces at account-creation time - username gets interpolated into a SQL string and a podman exec command below
+at_count="${username//[^@]/}"
+if [[ -z "$username" ]] || [[ "${#at_count}" -ne 1 ]] || [[ "$username" == @* || "$username" == *@ ]] || ! [[ "$username" =~ ^[A-Za-z0-9._@-]+$ ]]; then
+    echo "ERROR: Invalid FTP username '$username'."
+    exit 1
+fi
+
 get_docker_context_for_user(){
     context=$(mariadb -e "SELECT server FROM users WHERE username='$openpanel_username';" -N)   
 	context=$(mariadb -N -e "
