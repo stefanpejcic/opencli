@@ -39,7 +39,14 @@ path="$2"
 openpanel_username="$3"
 DEBUG=false
 
-# parse optional flags, enabling debug mode if asked
+# reject anything outside the charset the panel enforces at account-creation time - username gets interpolated into a SQL string and a podman exec command below
+at_count="${username//[^@]/}"
+if [[ -z "$username" ]] || [[ "${#at_count}" -ne 1 ]] || [[ "$username" == @* || "$username" == *@ ]] || ! [[ "$username" =~ ^[A-Za-z0-9._@-]+$ ]]; then
+    echo "ERROR: Invalid FTP username '$username'."
+    exit 1
+fi
+
+# Parse optional flags to enable debug mode when needed
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
