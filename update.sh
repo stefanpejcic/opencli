@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations]
+# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 21.08.2026
@@ -84,6 +84,7 @@ Options:
     --panel             Update OpenPanel UI only
     --cli               Update OpenCLI only
     --translations      Update translation files and restart OpenPanel UI
+	--system            Update system packages and kernel, purge older kernels, check if reboot required
     -h, --help          Show this help message
 
 Examples:
@@ -92,7 +93,7 @@ Examples:
     opencli update --force         # Force update regardless of settings
     opencli update --panel beta    # Update OpenPanel UI to the nightly-release
     opencli update --translations  # Update translation files and restart OpenPanel UI
-
+    opencli update --system  # Update system packages and kernel
 EOF
     exit 1
 }
@@ -566,6 +567,23 @@ run_version_specific_script() {
     fi
 }
 
+
+update_system() {
+	: "${log_file:=/var/log/openpanel/updates/system_$(date +%Y%m%d_%H%M%S).log}"
+	mkdir -p "$(dirname "$log_file")"
+	log_info "Updating system packages"
+
+	if [[ "$1" != "-y" ]]; then
+		read -t 10 -p "System package update ready to proceed. A full server backup is recommended beforehand. Continue? [y/N] " confirm || { echo; log_info "No response, aborting update"; return 1; }
+		[[ "$confirm" =~ ^[yY]([eE][sS])?$ ]] || { log_info "System upgrade cancelled"; return 1; }
+	fi
+
+	install_required_tools
+	update_system_packages
+	remove_old_kernels
+	check_reboot_required
+}
+
 # ---------------------- MAIN UPDATE FUNCTION - THIS IS WHERE MAGIC HAPPENS ---------------------- #
 run_update_immediately() {
     local version="$1"
@@ -630,7 +648,6 @@ run_update_immediately() {
     # ---------------------- 7. DOWNLOAD OPENADMIN FILES FROM GITHUB
     update_openadmin
 
-
     # ---------------------- 8. RUN VERSION-SPECIFIC FILES IF EXIST
     run_version_specific_scripts_in_range "$local_version" "$version"
 
@@ -638,11 +655,7 @@ run_update_immediately() {
     current_major=$(echo "$local_version" | cut -d. -f1)
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
-        log "Updating system packages"
-        install_required_tools
-        update_system_packages
-        remove_old_kernels
-        check_reboot_required
+		update_system "-y"
     else
         log "[✔] Minor update - skipping system updates"
     fi
@@ -850,6 +863,7 @@ main() {
             --panel) MODE="panel" ;;
             --cli)   MODE="cli"   ;;
             --translations) MODE="translations" ;;
+			--system) MODE="system" ;;
             beta)    BETA=true    ;;
             -h|--help) usage ;;
             *) log_error "[!] Unknown argument: $arg"; usage ;;
@@ -863,6 +877,7 @@ main() {
         cli)   update_opencli --no-log ;;
         admin) update_openadmin --no-log ;;
         translations) update_translations ;;
+		system) update_system ;;
         "")    check_update ;;
     esac
 }
