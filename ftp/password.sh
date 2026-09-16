@@ -39,6 +39,13 @@ new_password="$2"
 openpanel_username="$3"
 DEBUG=false
 
+# reject anything outside the charset the panel enforces at account-creation time - username gets interpolated into a SQL string and a podman exec command below
+at_count="${username//[^@]/}"
+if [[ -z "$username" ]] || [[ "${#at_count}" -ne 1 ]] || [[ "$username" == @* || "$username" == *@ ]] || ! [[ "$username" =~ ^[A-Za-z0-9._@-]+$ ]]; then
+    echo "ERROR: Invalid FTP username '$username'."
+    exit 1
+fi
+
 source /usr/local/opencli/lib/password_strength.sh
 
 # parse optional flags, enabling debug mode if asked
