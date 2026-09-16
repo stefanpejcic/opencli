@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/db.sh
 
 debug_mode=false
 args=()
@@ -140,8 +142,8 @@ main_func() {
   get_user
   get_user_context
 
-  mariadb -e "UPDATE domains SET docroot='$new_docroot' WHERE domain_url='$domain';"
-  local verify_query="SELECT COUNT(*) FROM domains WHERE docroot = '$new_docroot' AND domain_url = '$domain';"
+  mariadb -e "UPDATE domains SET docroot='$(mysql_escape "$new_docroot")' WHERE domain_url='$(mysql_escape "$domain")';"
+  local verify_query="SELECT COUNT(*) FROM domains WHERE docroot = '$(mysql_escape "$new_docroot")' AND domain_url = '$(mysql_escape "$domain")';"
   local result
   result=$(mariadb -N -e "$verify_query")
   
