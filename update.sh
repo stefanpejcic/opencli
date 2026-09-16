@@ -98,7 +98,7 @@ EOF
 }
 
 # ---------------------- HELPER ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 command_exists() {
     command -v "$1" &> /dev/null
 }
@@ -121,7 +121,7 @@ fi
 
 
 # ---------------------- INSTALL PACKAGE ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 install_package() {
     local package="$1"
     local quiet="${2:-false}"
@@ -278,7 +278,7 @@ update_check() {
 }
 
 # ---------------------- HELPERS USED IN MAJOR UPDATES ONLY ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 detect_system() {
     if command_exists apt; then
         echo "debian"
@@ -293,7 +293,7 @@ detect_system() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 install_required_tools() {
     local distro
     distro=$(detect_system)
@@ -313,7 +313,7 @@ install_required_tools() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 remove_old_kernels() {
     local distro
     distro=$(detect_system)
@@ -342,7 +342,7 @@ remove_old_kernels() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 update_system_packages() {
     local distro
     distro=$(detect_system)
@@ -380,7 +380,7 @@ update_system_packages() {
 }
 
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
-# shellcheck disable=SC2329  # part of the major-update feature, currently commented out at its call site below
+# shellcheck disable=SC2329
 check_reboot_required() {
     log_info "Checking if reboot is required"
     local distro
@@ -638,12 +638,11 @@ run_update_immediately() {
     current_major=$(echo "$local_version" | cut -d. -f1)
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
-        #log "Updating system packages"
-        :
-        #install_required_tools
-        #update_system_packages
-        #remove_old_kernels
-        #check_reboot_required
+        log "Updating system packages"
+        install_required_tools
+        update_system_packages
+        remove_old_kernels
+        check_reboot_required
     else
         log "[✔] Minor update - skipping system updates"
     fi
