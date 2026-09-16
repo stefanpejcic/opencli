@@ -118,7 +118,7 @@ check_and_use_tls() {
  	local full_key="$2"
 
 	# 1. validate and format paths
-	if [[ ! "$full_cert" =~ ^/var/www/html/ && ! "$full_key" =~ ^/var/www/html/ ]]; then
+	if [[ ! "$full_cert" =~ ^/var/www/html/ || ! "$full_key" =~ ^/var/www/html/ ]]; then
 	  echo "ERROR: Paths must be inside /var/www/html/ directory."
 	  exit 1
 	fi
