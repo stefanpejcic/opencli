@@ -38,6 +38,9 @@ if [ $# -eq 0 ] || [ $# -gt 2 ]; then
     exit 1
 fi
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/db.sh
+
 readonly CADDY_VHOST_DIR="/etc/openpanel/caddy/domains"
 delete_all=false
 list=""
@@ -58,7 +61,7 @@ fi
 # HELPERS
 
 get_docker_context() {
-    local query="SELECT id, server FROM users WHERE username = '${USERNAME}';"
+    local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$USERNAME")';"
     user_info=$(mariadb -se "$query")
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')
