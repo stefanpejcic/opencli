@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/db.sh
 
 verbose=""
 
@@ -67,7 +69,7 @@ apply_permissions_in_container() {
 
         get_user_info() {
             local user="$1"
-            local query="SELECT id, server FROM users WHERE username = '${user}';"
+            local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
             user_info=$(mariadb -se "$query")
             
             user_id=$(echo "$user_info" | awk '{print $1}')
@@ -76,7 +78,6 @@ apply_permissions_in_container() {
             echo "$user_id,$context"
         }
         
-        # openlitespeed's lsphp always runs as container uid/gid 65534 (nobody:nogroup) since the image can't be configured to run as another user - https://github.com/litespeedtech/ols-dockerfiles/issues/13#issuecomment-4275956701     
         mapped_gid_for_container_nogroup() {
             local container="$1" uid sock gid_map
             uid=$(stat -c '%u' "/home/$context" 2>/dev/null) || return 1
