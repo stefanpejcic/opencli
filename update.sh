@@ -208,13 +208,15 @@ get_remote_version() {
 compare_versions() {
     local version1="$1"
     local version2="$2"
-    
     if [[ "$version1" == "$version2" ]]; then
         echo 0
-    elif [[ "$version1" > "$version2" ]]; then
-        echo 1
-    else
+        return
+    fi
+
+    if [[ "$(printf '%s\n%s' "$version1" "$version2" | sort -V | head -n1)" == "$version1" ]]; then
         echo -1
+    else
+        echo 1
     fi
 }
 
