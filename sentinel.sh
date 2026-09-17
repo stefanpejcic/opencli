@@ -897,9 +897,11 @@ check_new_logins() {
     ((PASS++)); echo -e "\e[32m[✔]\e[0m No new logins to OpenAdmin."; return
   fi
 
-  local seen_pairs=""
+  local -A seen_pairs
   if (( last_count > 0 )); then
-    seen_pairs=$(head -n "$last_count" "$login_log" | awk '{print $(NF-1), $NF}')
+    while read -r seen_user seen_ip; do
+      seen_pairs["$seen_user $seen_ip"]=1
+    done < <(head -n "$last_count" "$login_log" | awk '{print $(NF-1), $NF}')
   fi
 
   local found_new=0
@@ -910,7 +912,8 @@ check_new_logins() {
     [[ ! "$ip_address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && continue
     [[ "$ip_address" == "127.0.0.1" ]] && continue
 
-    if ! grep -qF "$username $ip_address" <<< "$seen_pairs"; then
+    local pair="$username $ip_address"
+    if [[ -z "${seen_pairs[$pair]}" ]]; then
       if is_ip_whitelisted "$ip_address"; then
         echo -e "\e[32m[✔]\e[0m $username from new but whitelisted IP: $ip_address"
       else
@@ -918,6 +921,8 @@ check_new_logins() {
         echo -e "\e[31m[✘]\e[0m $username logged in from new IP: $ip_address"
         write_notification "Admin $username accessed from new IP" "Admin account $username was accessed from new IP: $ip_address"
       fi
+      # remember it so repeat logins for this IP in the same run aren't flagged again
+      seen_pairs["$pair"]=1
     else
       echo -e "\e[32m[✔]\e[0m $username from known IP: $ip_address"
     fi
