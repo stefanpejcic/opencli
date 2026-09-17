@@ -137,7 +137,7 @@ email_notification() {
 
   local auth_opt=""
   local admin_ini="/etc/openpanel/openadmin/config/admin.ini"  
-  if awk -F= '/^basic_auth=/{exit ($2=="yes")?0:1}' "$admin_ini" 2>/dev/null; then
+  if grep -qx 'basic_auth=yes' "$admin_ini" 2>/dev/null; then
     local u p
     u=$(awk -F= '/^basic_auth_username=/{print $2; exit}' "$admin_ini")
     p=$(awk -F= '/^basic_auth_password=/{print $2; exit}' "$admin_ini")
@@ -492,7 +492,7 @@ check_service_status() {
       systemctl reset-failed "$svc"
       systemctl restart "$svc"
       # shellcheck disable=SC2015 # safe: the A-block's last command is always echo, which can't fail, so C never wrongly runs
-      systemctl is-active --quiet "$svc" && { ((FAIL--)); echo -e "\e[32m[✔]\e[0m $svc restarted successfully."; } || { write_notification "$title" "$log"; echo -e "\e[31m[✘]\e[0m Failed to restart $svc."; }
+      systemctl is-active --quiet "$svc" && { ((FAIL--)); (( STATUS < 1 )) && STATUS=1; echo -e "\e[32m[✔]\e[0m $svc restarted successfully."; } || { write_notification "$title" "$log"; echo -e "\e[31m[✘]\e[0m Failed to restart $svc."; }
       return
     fi
     if echo "$log" | grep -q "Deactivated successfully"; then
@@ -502,7 +502,8 @@ check_service_status() {
     echo -e "\e[31m[✘]\e[0m $svc is not active."
     [[ -n "$log" ]] && write_notification "$title" "$log"
     systemctl restart "$svc"
-    systemctl is-active --quiet "$svc" && echo -e "\e[32m[✔]\e[0m $svc restarted." || echo -e "\e[31m[✘]\e[0m Failed to restart $svc."
+    # shellcheck disable=SC2015 # safe: the A-block's last command is always echo, which can't fail, so C never wrongly runs
+    systemctl is-active --quiet "$svc" && { ((FAIL--)); (( STATUS < 1 )) && STATUS=1; echo -e "\e[32m[✔]\e[0m $svc restarted."; } || echo -e "\e[31m[✘]\e[0m Failed to restart $svc."
   fi
 }
 
@@ -567,8 +568,8 @@ docker_containers_status() {
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
-        podman rm -f clamav
-        podman rm -f phpmyadmin
+        podman rm -f clamav &>/dev/null
+        podman rm -f phpmyadmin &>/dev/null
         cd /root && podman-compose up -d openpanel &>/dev/null
         sleep 2
         _docker_ps_refresh
@@ -596,8 +597,8 @@ docker_containers_status() {
         ((WARN--)); echo "  - No users found; $svc not needed."
       else
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
-        podman rm -f clamav
-        podman rm -f phpmyadmin
+        podman rm -f clamav &>/dev/null
+        podman rm -f phpmyadmin &>/dev/null
         cd /root && podman-compose up -d openpanel &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       fi ;;
@@ -919,7 +920,7 @@ check_new_logins() {
       else
         ((FAIL++)); STATUS=2; found_new=1
         echo -e "\e[31m[✘]\e[0m $username logged in from new IP: $ip_address"
-        write_notification "Admin $username accessed from new IP" "Admin account $username was accessed from new IP: $ip_address"
+        write_notification "Admin $username accessed from new IP: $ip_address" "Admin account $username was accessed from new IP: $ip_address"
       fi
       # remember it so repeat logins for this IP in the same run aren't flagged again
       seen_pairs["$pair"]=1
@@ -984,7 +985,6 @@ check_disk_usage() {
     if [ -f "$LOCK_FILE_FOR_DOCKER_PRUNE" ]; then
       local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_DOCKER_PRUNE") ))
       if [ "$age" -lt "$flag_tt" ]; then
-        $DEBUG && echo "[$context] Skipping cleanup — ran ${age}s ago"
         write_notification "$title" "Disk usage: ${pct}% | Partitions: $(df -h | sort -r -k 5 -i | sed ':a;N;$!ba;s/\n/\\n/g')"
         return
       fi
