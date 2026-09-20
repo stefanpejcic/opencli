@@ -38,6 +38,12 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "$LOG_FILE"
 }
 
+# https://github.com/stefanpejcic/OpenPanel/discussions/1146
+COMPOSE_RUN_FLAGS=(--rm --entrypoint backup)
+if podman-compose run --help 2>&1 | grep -q -- '--remove-orphans'; then
+    COMPOSE_RUN_FLAGS=(--remove-orphans "${COMPOSE_RUN_FLAGS[@]}")
+fi
+
 run_for_user() {
     local username="$1"
     source /usr/local/opencli/db.sh
@@ -46,13 +52,25 @@ run_for_user() {
     if [ -z "$context" ]; then
         context=$username
     fi
-    
+
     cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
     start_user_time=$(date +%s)
     # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
-    podman_compose_ctx "$context" run --remove-orphans --rm --entrypoint backup backup
+    local backup_output backup_exit
+    backup_output=$(podman_compose_ctx "$context" run "${COMPOSE_RUN_FLAGS[@]}" backup 2>&1)
+    backup_exit=$?
     end_user_time=$(date +%s)
     duration=$((end_user_time - start_user_time))
+
+    log "--- backup container output for user: $username ---"
+    echo "$backup_output" | tee -a "$LOG_FILE"
+    log "--- end of backup container output for user: $username ---"
+
+    if [ $backup_exit -ne 0 ]; then
+        log "ERROR: Backup FAILED for user: $username (context: $context) | exit code: $backup_exit | Time taken: ${duration}s"
+        return 1
+    fi
+
     log "Backup completed for user: $username (context: $context) | Time taken: ${duration}s"
 }
 
