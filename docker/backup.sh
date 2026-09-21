@@ -5,7 +5,7 @@
 # Usage: opencli docker-backup
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 21.08.2026
+# Last Modified: 21.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -44,6 +44,46 @@ if podman-compose run --help 2>&1 | grep -q -- '--remove-orphans'; then
     COMPOSE_RUN_FLAGS=(--remove-orphans "${COMPOSE_RUN_FLAGS[@]}")
 fi
 
+# https://github.com/stefanpejcic/OpenPanel/discussions/1146#discussioncomment-18528896
+DOCKER_PROXY_WAIT_SECS=15
+
+ensure_docker_proxy_running() {
+    local context="$1"
+    local proxy_state
+
+    proxy_state=$(podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | awk 'NR==2{print $NF}')
+
+    if [[ "$proxy_state" == "running" ]] || [[ "$proxy_state" == "Up" ]]; then
+        return 0
+    fi
+
+    log "docker-proxy not running for context: $context (state: '${proxy_state:-unknown}') — starting it"
+
+    local start_output start_exit
+    start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
+    start_exit=$?
+    echo "$start_output" | tee -a "$LOG_FILE"
+
+    if [ $start_exit -ne 0 ]; then
+        log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
+        return 1
+    fi
+
+    local waited=0
+    while (( waited < DOCKER_PROXY_WAIT_SECS )); do
+        proxy_state=$(podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | awk 'NR==2{print $NF}')
+        if [[ "$proxy_state" == "running" ]] || [[ "$proxy_state" == "Up" ]]; then
+            log "docker-proxy is up for context: $context (after ${waited}s)"
+            return 0
+        fi
+        sleep 1
+        ((waited++))
+    done
+
+    log "ERROR: docker-proxy did not reach running state for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
+    return 1
+}
+
 run_for_user() {
     local username="$1"
     source /usr/local/opencli/db.sh
@@ -54,6 +94,11 @@ run_for_user() {
     fi
 
     cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
+
+    if ! ensure_docker_proxy_running "$context"; then
+        log "Backup FAILED for user: $username (context: $context) — docker-proxy unavailable"
+        return 1
+    fi
     start_user_time=$(date +%s)
     # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
     local backup_output backup_exit
@@ -65,6 +110,14 @@ run_for_user() {
     log "--- backup container output for user: $username ---"
     echo "$backup_output" | tee -a "$LOG_FILE"
     log "--- end of backup container output for user: $username ---"
+
+    local down_output down_exit
+    down_output=$(podman_compose_ctx "$context" down backup 2>&1)
+    down_exit=$?
+    if [ $down_exit -ne 0 ]; then
+        log "WARNING: failed to bring down backup service for user: $username (context: $context) | exit code: $down_exit"
+        echo "$down_output" | tee -a "$LOG_FILE"
+    fi
 
     if [ $backup_exit -ne 0 ]; then
         log "ERROR: Backup FAILED for user: $username (context: $context) | exit code: $backup_exit | Time taken: ${duration}s"
