@@ -37,6 +37,7 @@
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
 readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
+readonly NOTIFICATIONS_PAUSE_FILE="/tmp/openpanel_notifications_paused"
 
 DISPLAY_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 readonly DISPLAY_TIME
@@ -111,8 +112,20 @@ get_public_ip() {
 }
 
 
+# notifications_paused checks the pause flag file admins set from OpenAdmin > Settings > Notifications; deletes it once expired, same as the timestamp inside it says
+notifications_paused() {
+  [[ -f "$NOTIFICATIONS_PAUSE_FILE" ]] || return 1
+  local until; until=$(cat "$NOTIFICATIONS_PAUSE_FILE" 2>/dev/null)
+  if [[ -z "$until" || ! "$until" =~ ^[0-9]+$ || "$until" -le "$(date +%s)" ]]; then
+    rm -f "$NOTIFICATIONS_PAUSE_FILE"
+    return 1
+  fi
+  return 0
+}
+
 webhook_notification() {
   local title=$1 message=$2
+  notifications_paused && return
   [[ -z "$WEBHOOK_URL" ]] && return
   local clean_msg; clean_msg=$(echo "$message" | sed 's/"/\\"/g' | tr '\n' ' ')
   local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"OpenAdmin-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
@@ -121,6 +134,7 @@ webhook_notification() {
 
 email_notification() {
   local title=$1 message=$2
+  notifications_paused && return
   local token; token=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 64)
   awk -v t="$token" '/^mail_security_token=/{$0="mail_security_token="t} 1' "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
 
