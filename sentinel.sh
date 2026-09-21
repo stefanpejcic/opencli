@@ -123,6 +123,20 @@ notifications_paused() {
   return 0
 }
 
+# title_snoozed checks the per-alert snooze flag an admin sets by clicking "Snooze" on one notification row in OpenAdmin; hashes the title the same way OpenAdmin does so both sides agree on the flag filename
+title_snoozed() {
+  local title="$1"
+  local hash; hash=$(printf '%s' "$title" | md5sum | cut -d' ' -f1)
+  local flag="/tmp/openpanel_notification_snooze_${hash}"
+  [[ -f "$flag" ]] || return 1
+  local until; until=$(cat "$flag" 2>/dev/null)
+  if [[ -z "$until" || ! "$until" =~ ^[0-9]+$ || "$until" -le "$(date +%s)" ]]; then
+    rm -f "$flag"
+    return 1
+  fi
+  return 0
+}
+
 webhook_notification() {
   local title=$1 message=$2
   notifications_paused && return
@@ -170,6 +184,9 @@ email_notification() {
 
 write_notification() {
   local title="$1" message="$2" action="$3"
+
+  # snoozed alerts skip logging and email/webhook entirely -- unlike the global pause, which still logs
+  title_snoozed "$title" && { echo "[!] This alert is snoozed: $title"; return; }
 
   # if user action: check if admin enabled notification
   if [ "$action" ]; then
