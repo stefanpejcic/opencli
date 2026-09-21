@@ -190,7 +190,7 @@ user_id=$(echo "$result" | cut -d',' -f1)
 context=$(echo "$result" | cut -d',' -f2)
 
 if [ -z "$user_id" ]; then
-    echo "ERROR: user $old_username does not exist."
+    echo "ERROR: User $old_username does not exist."
     exit 1
 fi
 
@@ -202,8 +202,8 @@ fi
 }
 
 mv_user_data() {
-        mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
-	mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/ > /dev/null 2>&1
+    mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
+    mv /var/log/caddy/stats/$old_username/ /var/log/caddy/stats/$new_username/ > /dev/null 2>&1
 }
 
 
@@ -216,12 +216,12 @@ rename_user_in_db() {
     mysql --defaults-extra-file=$config_file -D "$mysql_database" -e "$mysql_query"
 
     if [ $? -eq 0 ]; then
-		# postfwd ratelimit rules use usernames
-		nohup bash -c "opencli email-ratelimit --delete-user=$OLD_USERNAME && opencli email-ratelimit --username=$NEW_USERNAME" >/dev/null 2>&1 &
-		disown
+        # postfwd ratelimit rules use usernames
+        nohup bash -c "opencli email-ratelimit --delete-user=$OLD_USERNAME && opencli email-ratelimit --username=$NEW_USERNAME" >/dev/null 2>&1 &
+        disown
 
-	    nohup opencli sentinel --action=user_rename --title="User accountu username changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1 &
-		disown
+        nohup opencli sentinel --action=user_rename --title="User Account Username Changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1 &
+        disown
 
         echo "User '$OLD_USERNAME' successfully renamed to '$NEW_USERNAME'."
     else
@@ -230,12 +230,12 @@ rename_user_in_db() {
 }
 
 rename_env(){
-	sed -i -E "s/^USERNAME=.*/USERNAME=\"${NEW_USERNAME}\"/" "$file"
+    sed -i -E "s/^USERNAME=.*/USERNAME=\"${NEW_USERNAME}\"/" "$file"
 }
 
 
 # MAIN
-check_username_is_valid                                                    # validate username first
+check_username_is_valid                                                     # validate username first
 check_if_exists_in_db                                                      # check in mysql db
 get_context "$old_username"
 mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
