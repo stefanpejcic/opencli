@@ -881,7 +881,7 @@ main() {
         admin) update_openadmin --no-log ;;
         translations) update_translations ;;
 		system) update_system ;;
-		modules) update_modules ;;
+		modules) update_modules --no-log ;;
         "")    check_update ;;
     esac
 }
