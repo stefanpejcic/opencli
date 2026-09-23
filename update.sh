@@ -433,9 +433,6 @@ run_custom_postupdate_script() {
 
 # ---------------------- RUNS AFTER UPDATE ---------------------- #
 update_modules() {
-	: "${log_file:=/var/log/openpanel/updates/system_$(date +%Y%m%d_%H%M%S).log}"
-	mkdir -p "$(dirname "$log_file")"
-
     local no_log="${1:-}"
     local msg="Updating OpenAdmin modules"
     # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
