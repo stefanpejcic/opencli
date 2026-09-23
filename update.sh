@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system]
+# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 21.08.2026
@@ -866,6 +866,7 @@ main() {
             --cli)   MODE="cli"   ;;
             --translations) MODE="translations" ;;
 			--system) MODE="system" ;;
+			--modules) MODE="modules" ;;
             beta)    BETA=true    ;;
             -h|--help) usage ;;
             *) log_error "[!] Unknown argument: $arg"; usage ;;
@@ -880,6 +881,7 @@ main() {
         admin) update_openadmin --no-log ;;
         translations) update_translations ;;
 		system) update_system ;;
+		modules) update_modules ;;
         "")    check_update ;;
     esac
 }
