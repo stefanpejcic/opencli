@@ -32,11 +32,12 @@
 . /usr/local/opencli/lib/requirement.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/notifications.sh
 
 # config
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly INI_FILE="/etc/openpanel/openadmin/config/notifications.ini"
-readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 readonly NOTIFICATIONS_PAUSE_FILE="/tmp/openpanel_notifications_paused"
 
 DISPLAY_TIME=$(date +"%Y-%m-%d %H:%M:%S")
@@ -56,8 +57,6 @@ readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 [ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
 
-mkdir -p "$(dirname "$LOG_FILE")"
-[[ ! -f "$LOG_FILE" ]] && : > "$LOG_FILE"
 
 STATUS=0 PASS=0 WARN=0 FAIL=0
 
@@ -89,9 +88,7 @@ RAM_THRESHOLD=$(validate_number  "$(ini_get ram)"  85)
 DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
 
-readonly LOG_LOCK_FILE="${LOG_FILE}.lock"
-
-is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
+is_unread_message_present() { notification_is_unread "$1"; }
 
 # alerts of a full run are queued here and sent as one email/webhook at the end, see flush_notification_queue
 SENTINEL_QUEUE=""
@@ -99,43 +96,19 @@ SENTINEL_QUEUE=""
 # consecutive over-threshold runs needed before load/cpu/ram alert, so short spikes don't page the admin
 readonly STREAK_RUNS=2
 
-# marks UNREAD alerts with this title as READ once the issue is gone, --prefix matches titles with dynamic parts (ips, domains)
+# marks unread alerts with this title as read and resolved once the issue is gone, --prefix matches titles with dynamic parts (ips, domains)
 resolve_notification() {
-  local title="$1" match="UNREAD $1" exact=1
-  [[ "$2" == "--prefix" ]] && exact=0
-  grep -qF "$match" "$LOG_FILE" 2>/dev/null || return 0
-  local changed=0 first_seen=""
-  {
-    flock -x 200
-    local tmp; tmp=$(mktemp /tmp/sentinel.notifications.XXXXXX) || return 0
-    local seen; seen=$(mktemp /tmp/sentinel.first_seen.XXXXXX) || { rm -f "$tmp"; return 0; }
-    # cat instead of mv so the log keeps its inode and permissions
-    awk -v m="$match" -v exact="$exact" -v seen="$seen" '
-      {
-        pre = $1 " " $2 " "; rest = substr($0, length(pre) + 1)
-        if (substr(rest, 1, length(m)) == m && (!exact || substr(rest, length(m) + 1, 9) == " MESSAGE:")) {
-          if (!n) print $1 " " $2 > seen
-          $0 = pre "READ" substr(rest, 7); n++
-        }
-      } 1
-      END { exit !n }' "$LOG_FILE" > "$tmp" && cat "$tmp" > "$LOG_FILE" && changed=1
-    first_seen=$(cat "$seen" 2>/dev/null)
-    rm -f "$tmp" "$seen"
-  } 200>"$LOG_LOCK_FILE"
-  (( changed )) || return 0
-
+  local title="$1" first
+  first=$(notification_resolve "$@") || return 0
   title="${title% }"
   echo -e "\e[32m[✔]\e[0m Issue resolved, marked notification as read: $title"
 
   # the admin got the alert by email/webhook, so tell them it's over too
-  local since="" first_epoch
-  first_epoch=$(date -d "$first_seen" +%s 2>/dev/null)
-  [[ -n "$first_epoch" ]] && since=" It was first reported at $first_seen, $(format_duration $(( $(date +%s) - first_epoch ))) ago."
   title_snoozed "$title" && return 0
-  local resolved_title="Resolved: $title" resolved_msg="Sentinel no longer detects this issue on $HOSTNAME.$since"
-  log_notification READ "$resolved_title" "$resolved_msg"
-  send_notification "$resolved_title" "$resolved_msg"
-  return 0
+  local since="" first_epoch
+  first_epoch=$(date -d "$first" +%s 2>/dev/null)
+  [[ -n "$first_epoch" ]] && since=" It was first reported at $first, $(format_duration $(( $(date +%s) - first_epoch ))) ago."
+  send_notification resolved "Resolved: $title" "Sentinel no longer detects this issue on $HOSTNAME.$since"
 }
 
 format_duration() {
@@ -212,7 +185,7 @@ webhook_notification() {
 }
 
 email_notification() {
-  local title=$1 message=$2
+  local title=$1 message=$2 items=${3:-[]}
   notifications_paused && return
   local token; token=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 64)
   awk -v t="$token" '/^mail_security_token=/{$0="mail_security_token="t} 1' "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
@@ -239,7 +212,7 @@ email_notification() {
 
   local admin_port resp
   admin_port=$(awk '/# START HOSTNAME DOMAIN #/{flag=1; next} /# END HOSTNAME DOMAIN #/{flag=0} flag' "/etc/openpanel/caddy/Caddyfile" | grep -oP 'localhost:\K[0-9]+' | head -n 1)
-  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" "${auth_opt[@]}" -F "transient=$token" -F "recipient=$EMAIL" -F "subject=$title"   -F "body=$message" 2>/dev/null)
+  resp=$(curl -4 --max-time 5 -ksf -X POST "$proto://$domain:$admin_port/send_email" "${auth_opt[@]}" --form-string "transient=$token" --form-string "recipient=$EMAIL" --form-string "subject=$title" --form-string "body=$message" --form-string "notifications=$items" 2>/dev/null)
 
   case "$resp" in
     *'"error"'*)             echo "Error sending email: $resp" ;;
@@ -247,76 +220,74 @@ email_notification() {
   esac
 }
 
+# alerts that need the admin: logged as unread and sent by email/webhook, a repeat of an unread one only bumps its count
+# usage: write_notification <critical|warning> <category> <title> <message> [details json]
 write_notification() {
-  local title="$1" message="$2" action="$3"
+  local severity="$1" category="$2" title="$3" message="$4" details="${5:-null}"
 
   # snoozed alerts skip logging and email/webhook entirely -- unlike the global pause, which still logs
   title_snoozed "$title" && { echo "[!] This alert is snoozed: $title"; return; }
 
-  # if user action: check if admin enabled notification
-  if [ "$action" ]; then
-    [[ -n "$RUN_ACTION_LOCKED" ]] && return
-    export RUN_ACTION_LOCKED=1
-    
-    ACTION=$(validate_yes_no "$(ini_get "$action")")
-    if [[ "$ACTION" == "no" ]]; then
-      echo "[!] Notifications are disabled for action: $action"; return
-    fi
-  else
-    # if system action: check if admin already notified
-    is_unread_message_present "$title" && return
-  fi
+  notification_add yes unread "$severity" "$category" sentinel "$title" "$message" "$details" || return
+  send_notification "$severity" "$title" "$message"
+}
 
-  log_notification UNREAD "$title" "$message"
-  send_notification "$title" "$message"
+# user actions logged by other opencli commands via --action, only if the admin enabled that action
+write_action_notification() {
+  local action="$1" title="$2" message="$3"
+  title_snoozed "$title" && { echo "[!] This alert is snoozed: $title"; return; }
+  [[ -n "$RUN_ACTION_LOCKED" ]] && return
+  export RUN_ACTION_LOCKED=1
+
+  ACTION=$(validate_yes_no "$(ini_get "$action")")
+  if [[ "$ACTION" == "no" ]]; then
+    echo "[!] Notifications are disabled for action: $action"; return
+  fi
+  notification_add no unread info action "$action" "$title" "$message" "$(jq -nc --arg a "$action" '{action: $a}')"
+  send_notification info "$title" "$message"
 }
 
 # for things sentinel already fixed on its own: kept on the Notifications page as history, no email/webhook
 write_info_notification() {
-  local title="$1" message="$2"
+  local category="$1" title="$2" message="$3"
   title_snoozed "$title" && return
-  log_notification READ "$title" "$message"
-}
-
-log_notification() {
-  local status="$1" title="$2" message="$3"
-  { flock -x 200; echo "$DISPLAY_TIME $status $title MESSAGE: $message" >> "$LOG_FILE"; } 200>"$LOG_LOCK_FILE"
+  notification_add no read info "$category" sentinel "$title" "$message"
 }
 
 # queued during a full run, sent right away for --startup and --action
 send_notification() {
-  local title="$1" message="$2"
+  local severity="$1" title="$2" message="$3"
+  local item; item=$(jq -nc --arg s "$severity" --arg t "$title" --arg m "$message" '{severity: $s, title: $t, message: $m}')
   if [[ -n "$SENTINEL_QUEUE" ]]; then
-    { flock -x 201; printf '%s\x1f%s\n' "$title" "$message" >> "$SENTINEL_QUEUE"; } 201>"$SENTINEL_QUEUE.lock"
+    { flock -x 201; echo "$item" >> "$SENTINEL_QUEUE"; } 201>"$SENTINEL_QUEUE.lock"
     return
   fi
-  [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$title" "${message//\\n/$'\n'}"
-  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$title" "$message"
+  deliver_notification "$title" "$message" "[$item]"
+}
+
+deliver_notification() {
+  local subject="$1" body="$2" items="$3"
+  [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$subject" "$body" "$items"
+  [[ -n "$WEBHOOK_URL" ]] && webhook_notification "$subject" "$body"
 }
 
 # sends everything this run queued as one email and one webhook
 flush_notification_queue() {
   [[ -n "$SENTINEL_QUEUE" && -s "$SENTINEL_QUEUE" ]] || { rm -f "$SENTINEL_QUEUE" "$SENTINEL_QUEUE.lock"; return; }
-  local -a titles=() messages=()
-  local t m
-  while IFS=$'\x1f' read -r t m; do
-    titles+=("$t"); messages+=("$m")
-  done < "$SENTINEL_QUEUE"
+  local items count subject body
+  items=$(jq -sc . "$SENTINEL_QUEUE")
   rm -f "$SENTINEL_QUEUE" "$SENTINEL_QUEUE.lock"
   SENTINEL_QUEUE=""
 
-  local subject body i
-  if (( ${#titles[@]} == 1 )); then
-    subject="${titles[0]}"; body="${messages[0]}"
+  count=$(jq length <<< "$items")
+  if (( count == 1 )); then
+    subject=$(jq -r '.[0].title' <<< "$items")
+    body=$(jq -r '.[0].message' <<< "$items")
   else
-    subject="${#titles[@]} notifications from Sentinel on $HOSTNAME"
-    body=""
-    for i in "${!titles[@]}"; do
-      body+="$((i + 1)). ${titles[$i]}"$'\n'"${messages[$i]}"$'\n\n'
-    done
-    body="${body%$'\n\n'}"
+    subject="$count notifications from Sentinel on $HOSTNAME"
+    body=$(jq -r 'to_entries | map("\(.key + 1). [\(.value.severity | ascii_upcase)] \(.value.title)\n\(.value.message)") | join("\n\n")' <<< "$items")
   fi
-  send_notification "$subject" "$body"
+  deliver_notification "$subject" "$body" "$items"
 }
 
 
@@ -567,8 +538,8 @@ perform_startup_actions() {
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
   fi
   local title="SYSTEM REBOOT!"
-  local message; message="System was rebooted. $(uptime) | $summary_msg"
-  write_notification "$title" "$message"
+  local message; message="System was rebooted. $(uptime)"$'\n'"$summary_msg"
+  write_notification warning system "$title" "$message"
 }
 
 remove_dependent_openpanel() {
@@ -605,7 +576,7 @@ check_user_containers() {
     summary_msg+=" Per user: ${RESTART_USER_LINES[*]}."
   fi
   echo -e "\e[38;5;214m[!]\e[0m $summary_msg"
-  write_info_notification "Dead/required user containers started" "$summary_msg"
+  write_info_notification service "Dead/required user containers started" "$summary_msg"
 }
 
 email_daily_report() {
@@ -619,7 +590,7 @@ email_daily_report() {
 alert_details() {
   local what="$1" did="$2" check="$3" logs="$4"
   local msg="$what $did Check with: $check"
-  if [[ -n "$logs" ]]; then msg+="\\nLast log lines:\\n$logs"; else msg+="\\nNo log output."; fi
+  if [[ -n "$logs" ]]; then msg+=$'\n\nLast log lines:\n'"$logs"; else msg+=$'\n\nNo log output.'; fi
   printf '%s' "$msg"
 }
 
@@ -636,7 +607,7 @@ check_service_status() {
   fi
 
   local log reason="was not active"
-  log=$(journalctl -n 5 -u "$svc" --no-pager 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
+  log=$(journalctl -n 5 -u "$svc" --no-pager 2>/dev/null)
   if echo "$log" | grep -q "start-limit-hit"; then
     reason="hit the systemd start rate limit"
     echo -e "\e[31m[✘]\e[0m $svc hit start rate limit — resetting and restarting."
@@ -652,12 +623,12 @@ check_service_status() {
     (( STATUS < 1 )) && STATUS=1; ((WARN++))
     echo -e "\e[32m[✔]\e[0m $svc restarted successfully."
     resolve_notification "$title"
-    write_info_notification "$svc service restarted" "$svc $reason. Sentinel restarted it and it is running again."
+    write_info_notification service "$svc service restarted" "$svc $reason. Sentinel restarted it and it is running again."
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m Failed to restart $svc."
-    log=$(journalctl -n 5 -u "$svc" --no-pager 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
-    write_notification "$title" "$(alert_details "$svc $reason." "Sentinel ran 'systemctl restart $svc', but it is still not running." "systemctl status $svc and journalctl -u $svc -n 50" "$log")"
+    log=$(journalctl -n 5 -u "$svc" --no-pager 2>/dev/null)
+    write_notification critical service "$title" "$(alert_details "$svc $reason." "Sentinel ran 'systemctl restart $svc', but it is still not running." "systemctl status $svc and journalctl -u $svc -n 50" "$log")"
   fi
 }
 
@@ -665,7 +636,7 @@ check_service_status() {
 DOCKER_PS_CACHE=""
 _docker_ps_refresh() { DOCKER_PS_CACHE=$(podman ps --format "{{.Names}}" 2>/dev/null); }
 _docker_ps() { echo "$DOCKER_PS_CACHE"; }
-_docker_log() { podman logs --tail 10 "$1" 2>&1 | awk 'NR>1{printf "\\n"} {printf "%s",$0}'; }
+_docker_log() { podman logs --tail 10 "$1" 2>&1; }
 
 _openpanel_http_ok() {
   local code
@@ -687,12 +658,12 @@ _docker_check_after_restart() {
   if _docker_ps | grep -wq "$svc"; then
     ((WARN--)); echo -e "\e[32m[✔]\e[0m $svc restarted successfully."
     resolve_notification "$title"
-    write_info_notification "$svc container restarted" "Container $svc $reason. Sentinel started it and it is running again."
+    write_info_notification service "$svc container restarted" "Container $svc $reason. Sentinel started it and it is running again."
     return 0
   fi
   ((WARN--)); ((FAIL++)); STATUS=2
   echo -e "\e[31m[✘]\e[0m $svc failed to restart."
-  write_notification "$title" "$(alert_details "Container $svc $reason." "Sentinel tried to start it, but it is still not running." "podman ps -a --filter name=$svc and podman logs $svc" "$(_docker_log "$svc")")"
+  write_notification critical service "$title" "$(alert_details "Container $svc $reason." "Sentinel tried to start it, but it is still not running." "podman ps -a --filter name=$svc and podman logs $svc" "$(_docker_log "$svc")")"
   return 1
 }
 
@@ -715,11 +686,11 @@ docker_containers_status() {
         if _caddy_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m caddy recovered."
           resolve_notification "$title"
-          write_info_notification "Caddy restarted and websites are up!" "Caddy was running but not responding on http://localhost/check. Sentinel recreated the container and it responds again."
+          write_info_notification service "Caddy restarted and websites are up!" "Caddy was running but not responding on http://localhost/check. Sentinel recreated the container and it responds again."
         else
           ((WARN--)); ((FAIL++)); STATUS=2
           echo -e "\e[31m[✘]\e[0m caddy still unresponsive after restart."
-          write_notification "$title" "$(alert_details "Caddy is running but not responding on http://localhost/check, so websites may be down." "Sentinel recreated the container, but it still does not respond." "podman logs caddy" "$(_docker_log caddy)")"
+          write_notification critical service "$title" "$(alert_details "Caddy is running but not responding on http://localhost/check, so websites may be down." "Sentinel recreated the container, but it still does not respond." "podman logs caddy" "$(_docker_log caddy)")"
         fi
       fi
     elif [[ "$svc" == "openpanel" ]]; then
@@ -738,11 +709,11 @@ docker_containers_status() {
         if _openpanel_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m openpanel recovered."
           resolve_notification "$title"
-          write_info_notification "OpenPanel restarted and responding!" "OpenPanel was running but not responding on port 2083. Sentinel recreated the container and it responds again."
+          write_info_notification service "OpenPanel restarted and responding!" "OpenPanel was running but not responding on port 2083. Sentinel recreated the container and it responds again."
         else
           ((WARN--)); ((FAIL++)); STATUS=2
           echo -e "\e[31m[✘]\e[0m openpanel still unresponsive after restart!"
-          write_notification "$title" "$(alert_details "OpenPanel is running but not responding on port 2083, so users can't log in." "Sentinel recreated the container, but it still does not respond." "podman logs openpanel" "$(_docker_log openpanel)")"
+          write_notification critical service "$title" "$(alert_details "OpenPanel is running but not responding on port 2083, so users can't log in." "Sentinel recreated the container, but it still does not respond." "podman logs openpanel" "$(_docker_log openpanel)")"
         fi
       fi
     else
@@ -838,11 +809,11 @@ mysql_docker_containers_status() {
       ((WARN--)); ((PASS++))
       echo "    MariaDB is back online."
       resolve_notification "$title"
-      write_info_notification "MariaDB restarted successfully!" "MariaDB was running but not answering queries. Sentinel recreated the container and it responds again."
+      write_info_notification service "MariaDB restarted successfully!" "MariaDB was running but not answering queries. Sentinel recreated the container and it responds again."
     else
       ((WARN--)); ((FAIL++)); STATUS=2
       echo "    Error: MariaDB still not responding!"
-      write_notification "$title" "$(alert_details "MariaDB is running but not answering queries, so websites and OpenPanel can't reach their databases." "Sentinel recreated the container, but it still does not respond after 30s." "podman logs openpanel_mysql" "$(_docker_log openpanel_mysql)")"
+      write_notification critical service "$title" "$(alert_details "MariaDB is running but not answering queries, so websites and OpenPanel can't reach their databases." "Sentinel recreated the container, but it still does not respond after 30s." "podman logs openpanel_mysql" "$(_docker_log openpanel_mysql)")"
     fi
 
   else
@@ -864,10 +835,10 @@ mysql_docker_containers_status() {
       ((FAIL--)); (( STATUS < 1 )) && STATUS=1
       echo "    MariaDB is back online."
       resolve_notification "$title"
-      write_info_notification "MariaDB restarted successfully!" "The MariaDB container was not running. Sentinel started it and it responds again."
+      write_info_notification service "MariaDB restarted successfully!" "The MariaDB container was not running. Sentinel started it and it responds again."
     else
       echo "    Error: MariaDB still not responding!"
-      write_notification "$title" "$(alert_details "The MariaDB container was not running, so websites and OpenPanel can't reach their databases." "Sentinel started it, but it still does not respond after 30s." "podman ps -a --filter name=openpanel_mysql and podman logs openpanel_mysql" "$(_docker_log openpanel_mysql)")"
+      write_notification critical service "$title" "$(alert_details "The MariaDB container was not running, so websites and OpenPanel can't reach their databases." "Sentinel started it, but it still does not respond after 30s." "podman ps -a --filter name=openpanel_mysql and podman logs openpanel_mysql" "$(_docker_log openpanel_mysql)")"
     fi
   fi
 }
@@ -993,8 +964,7 @@ check_oom_logs() {
 
   local SYSTEM_COUNT=0
   local USER_COUNT=0
-  local SYSTEM_MSG=""
-  local USER_MSG=""
+  local -a SYSTEM_LINES=() USER_LINES=()
 
   while read -r line; do
     uid=$(echo "$line" | sed -n 's/.*UID:\([0-9]\+\).*/\1/p')
@@ -1002,12 +972,12 @@ check_oom_logs() {
 
     if [[ "$uid" -eq 0 ]]; then
         ((SYSTEM_COUNT++))
-        SYSTEM_MSG+=$' | '"$line"
+        SYSTEM_LINES+=("$line")
     elif [[ "$uid" -ge 1002 ]]; then
         ((USER_COUNT++))
         user=$(getent passwd "$uid" | cut -d: -f1)
         [[ -z "$user" ]] && continue
-        USER_MSG+=$' | '"$user: $line"
+        USER_LINES+=("$user"$'\t'"$line")
     fi
 
   done < <(grep "Memory cgroup out of memory: Killed process" "$LOG" | grep "^$TODAY")
@@ -1027,16 +997,24 @@ check_oom_logs() {
   message=""
 
   if [[ "$SYSTEM_COUNT" -gt 0 ]]; then
-    message+="$SYSTEM_COUNT system service(s) killed by OOM in the last 24 hours $SYSTEM_MSG"
+    message+="$SYSTEM_COUNT system service(s) killed by OOM today."$'\n'
     echo -e "\e[31m[✘]\e[0m $SYSTEM_COUNT system service(s) killed by OOM in the last 24 hours"
   fi
 
   if [[ "$USER_COUNT" -gt 0 ]]; then
-    message+="$USER_COUNT user process(es) killed by OOM in the last 24 hours $USER_MSG"
+    message+="$USER_COUNT user process(es) killed by OOM today."
     echo -e "\e[31m[✘]\e[0m $USER_COUNT user process(es) killed by OOM in the last 24 hours"
   fi
 
-  write_notification "$title" "$message"
+  message+=$'\n'"Check with: grep 'Killed process' $LOG"
+
+  local details
+  details=$(jq -nc --arg sys "$(printf '%s\n' "${SYSTEM_LINES[@]}")" --arg usr "$(printf '%s\n' "${USER_LINES[@]}")" '
+    {kind: "oom",
+     system: ($sys | split("\n") | map(select(. != ""))),
+     users: ($usr | split("\n") | map(select(. != "") | split("\t") | {username: .[0], entry: .[1]})
+             | group_by(.username) | map({username: .[0].username, entries: map(.entry)}))}')
+  write_notification warning resources "$title" "${message%$'\n'}" "$details"
 }
 
 check_new_logins() {
@@ -1085,7 +1063,7 @@ check_new_logins() {
       else
         ((FAIL++)); STATUS=2; found_new=1
         echo -e "\e[31m[✘]\e[0m $username logged in from new IP: $ip_address"
-        write_notification "Admin $username accessed from new IP: $ip_address" "Admin account $username was accessed from new IP: $ip_address. If this wasn't you, change the password for $username right away."
+        write_notification warning security "Admin $username accessed from new IP: $ip_address" "Admin account $username was accessed from new IP: $ip_address. If this wasn't you, change the password for $username right away."
       fi
       # remember it so repeat logins for this IP in the same run aren't flagged again
       seen_pairs["$pair"]=1
@@ -1131,11 +1109,15 @@ check_ssh_logins() {
   if (( ${#suspicious[@]} > 0 )); then
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m Suspicious SSH IPs: ${suspicious[*]}"
-    write_notification "Suspicious SSH login detected" "Active SSH session(s) from IP(s) that never logged into OpenAdmin and are not whitelisted: ${suspicious[*]}. Check with: who. If these are yours, add them to the SSH whitelist in OpenAdmin > Settings > Notifications."
+    write_notification critical security "Suspicious SSH login detected" "Active SSH session(s) from IP(s) that never logged into OpenAdmin and are not whitelisted: ${suspicious[*]}. Check with: who. If these are yours, add them to the SSH whitelist in OpenAdmin > Settings > Notifications."
   else
     ((PASS++))
     echo -e "\e[32m[✔]\e[0m ${#safe[@]} SSH session(s) from known IPs: ${safe[*]}"
   fi
+}
+
+disk_details() {
+  jq -nc --argjson p "$1" --arg parts "$(df -h | sort -r -k 5 -i)" '{kind: "disk", percent: $p, partitions: $parts}'
 }
 
 check_disk_usage() {
@@ -1150,7 +1132,7 @@ check_disk_usage() {
     if [ -f "$LOCK_FILE_FOR_DOCKER_PRUNE" ]; then
       local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_DOCKER_PRUNE") ))
       if [ "$age" -lt "$flag_tt" ]; then
-        write_notification "$title" "Disk usage: ${pct}% | Partitions: $(df -h | sort -r -k 5 -i | sed ':a;N;$!ba;s/\n/\\n/g')"
+        write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%)." "$(disk_details "$pct")"
         return
       fi
     fi
@@ -1171,12 +1153,12 @@ check_disk_usage() {
     local pct_after; pct_after=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
 
     if (( freed_gb >= 1 )); then
-      write_notification "$title" "Disk was ${pct}%, freed ${freed_gb}GB, now at ${pct_after}% | Partitions: $(df -h | sort -r -k 5 -i | sed ':a;N;$!ba;s/\n/\\n/g')"
+      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%)." "$(disk_details "$pct_after")"
       ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%."; return   
     else
       ((FAIL++)); STATUS=2
       echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%"
-      write_notification "$title" "Disk usage: ${pct}% | Partitions: $(df -h | sort -r -k 5 -i | sed ':a;N;$!ba;s/\n/\\n/g')"
+      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data but it freed less than 1GB. Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Disk ${pct}% < threshold ${DISK_THRESHOLD}%"
@@ -1197,7 +1179,7 @@ check_system_load() {
     echo -e "\e[31m[✘]\e[0m Load ${load} > threshold ${LOAD_THRESHOLD} for ${STREAK} checks in a row. Generating crash report."
     is_unread_message_present "$title" && return
     generate_crashlog_report
-    write_notification "$title" "Load: $load | Crashlog: $REPORT"
+    write_notification warning resources "$title" "Load average is ${load_raw} (threshold ${LOAD_THRESHOLD}) for ${STREAK} checks in a row." "$(jq -nc --arg l "$load_raw" --arg c "$REPORT" '{kind: "load", load: $l, crashlog: $c}')"
   else
     clear_streak load
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Load ${load} < threshold ${LOAD_THRESHOLD}."
@@ -1220,8 +1202,9 @@ check_ram_usage() {
     fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m RAM ${pct}% > threshold ${RAM_THRESHOLD}%"
-    local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10 | sed ':a;N;$!ba;s/\n/\\n/g')
-    write_notification "$title" "Used RAM: ${used}MB / ${total}MB (${pct}%) | $procs"
+    local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10)
+    write_notification warning resources "$title" "RAM usage is ${pct}% (${used}MB of ${total}MB, threshold ${RAM_THRESHOLD}%)." \
+      "$(jq -nc --argjson p "$pct" --argjson u "$used" --argjson t "$total" --arg procs "$procs" '{kind: "ram", percent: $p, used_mb: $u, total_mb: $t, processes: $procs}')"
   else
     clear_streak ram
     ((PASS++)); echo -e "\e[32m[✔]\e[0m RAM ${pct}% < threshold ${RAM_THRESHOLD}%"
@@ -1249,8 +1232,9 @@ check_cpu_usage() {
     fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m CPU ${pct}% > threshold ${CPU_THRESHOLD}%"
-    local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10 | sed ':a;N;$!ba;s/\n/\\n/g')
-    write_notification "$title" "CPU: ${pct}% | $procs"
+    local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10)
+    write_notification warning resources "$title" "CPU usage is ${pct}% (threshold ${CPU_THRESHOLD}%)." \
+      "$(jq -nc --argjson p "$pct" --arg procs "$procs" '{kind: "cpu", percent: $p, processes: $procs}')"
   else
     clear_streak cpu
     ((PASS++)); echo -e "\e[32m[✔]\e[0m CPU ${pct}% < threshold ${CPU_THRESHOLD}%"
@@ -1273,7 +1257,7 @@ check_https_traffic() {
   while read -r COUNT PORT; do
     if (( COUNT >= 1000 )); then
       echo -e "\e[31m[✘]\e[0m Possible SYN flood on :$PORT — $COUNT in SYN_RECV"
-      write_notification "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state"
+      write_notification warning traffic "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state"
       ALERT=1; SYN_ALERT=1
     fi
   done < <(awk '/SYN-RECV/{split($4,a,":"); print a[length(a)]}' <<< "$ALL_CONNS" | sort | uniq -c | awk '{print $1, $2}')
@@ -1327,12 +1311,11 @@ check_https_traffic() {
 
   if (( ${#HIGH_TRAFFIC_LINES[@]} > 0 )); then
     local NOTIF_BODY
-    printf -v NOTIF_BODY '%s\\n' "${HIGH_TRAFFIC_LINES[@]}"
-    NOTIF_BODY="${NOTIF_BODY%$'\n'}"
+    NOTIF_BODY=$(printf '%s\n' "${HIGH_TRAFFIC_LINES[@]}")
     if (( ${#HIGH_TRAFFIC_LINES[@]} == 1 )); then
-      write_notification "High traffic from ${HIGH_TRAFFIC_LINES[0]%%(*}" "$NOTIF_BODY"
+      write_notification warning traffic "High traffic from ${HIGH_TRAFFIC_LINES[0]%%(*}" "$NOTIF_BODY"
     else
-      write_notification "High traffic from ${#HIGH_TRAFFIC_LINES[@]} IPs" "$NOTIF_BODY"
+      write_notification warning traffic "High traffic from ${#HIGH_TRAFFIC_LINES[@]} IPs" "$NOTIF_BODY"
     fi
   else
     resolve_notification "High traffic from " --prefix
@@ -1344,7 +1327,7 @@ check_https_traffic() {
   TOTAL_CONN=$(awk '/ESTAB/' <<< "$ALL_CONNS" | wc -l)
   if (( TOTAL_CONN >= MAX_TOTAL_CONN )); then
     echo -e "\e[31m[✘]\e[0m High total connections: $TOTAL_CONN"
-    write_notification "High total connections" "$TOTAL_CONN total connections on ports 80/443"
+    write_notification warning traffic "High total connections" "$TOTAL_CONN total connections on ports 80/443"
     ALERT=1
   else
     resolve_notification "High total connections"
@@ -1377,18 +1360,18 @@ check_swap_usage() {
           if (( stotal > 0 )); then
             ((WARN++))
             resolve_notification "SWAP re-enable failed on $HOSTNAME"
-            write_info_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off on $HOSTNAME at $DISPLAY_TIME and re-enabled it via swapon -a. Now: ${stotal}MB total."
+            write_info_notification resources "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off on $HOSTNAME at $DISPLAY_TIME and re-enabled it via swapon -a. Now: ${stotal}MB total."
             echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}MB total)."
           else
             ((WARN++))
             echo -e "\e[38;5;214m[!]\e[0m swapon -a ran but swap still reports 0. Check swap device health."
-            write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a returned success but swap is still 0."
+            write_notification warning resources "SWAP re-enable failed on $HOSTNAME" "swapon -a returned success but swap is still 0."
             return
           fi
         else
           ((WARN++))
           echo -e "\e[31m[✘]\e[0m Failed to re-enable SWAP: $swapon_err"
-          write_notification "SWAP re-enable failed on $HOSTNAME" "swapon -a failed on $HOSTNAME at $DISPLAY_TIME. Error: $swapon_err"
+          write_notification warning resources "SWAP re-enable failed on $HOSTNAME" "swapon -a failed on $HOSTNAME at $DISPLAY_TIME. Error: $swapon_err"
           return
         fi
       else
@@ -1421,7 +1404,7 @@ check_swap_usage() {
   available_mb=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo)
   if (( available_mb < sused )); then
     echo "Not enough free RAM to safely clear swap (${available_mb}MB available, ${sused}MB in swap). Skipping."
-    write_notification "SWAP high but cannot safely clear" "SWAP: ${pct}%, only ${available_mb}MB RAM available vs ${sused}MB in swap."
+    write_notification warning resources "SWAP high but cannot safely clear" "SWAP: ${pct}%, only ${available_mb}MB RAM available vs ${sused}MB in swap."
     ((WARN++)); return
   fi
 
@@ -1436,12 +1419,12 @@ check_swap_usage() {
   if (( pct2 < SWAP_THRESHOLD )); then
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
     resolve_notification "$title"
-    write_info_notification "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME at $DISPLAY_TIME. Was ${sused}MB/${stotal}MB (${pct}%), now ${sused2}MB/${stotal2}MB (${pct2}%)."
+    write_info_notification resources "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME at $DISPLAY_TIME. Was ${sused}MB/${stotal}MB (${pct}%), now ${sused2}MB/${stotal2}MB (${pct2}%)."
     echo -e "\e[32m[✔]\e[0m SWAP cleared successfully. Now: ${pct2}%"
   else
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m SWAP still high after cleanup: ${pct2}%"
-    write_notification "URGENT: SWAP not cleared on $HOSTNAME" "SWAP was ${pct}% (threshold ${SWAP_THRESHOLD}%). Sentinel dropped caches and ran swapoff/swapon at $DISPLAY_TIME, but usage is still ${pct2}%. Check with: free -m and top -o %MEM"
+    write_notification critical resources "URGENT: SWAP not cleared on $HOSTNAME" "SWAP was ${pct}% (threshold ${SWAP_THRESHOLD}%). Sentinel dropped caches and ran swapoff/swapon at $DISPLAY_TIME, but usage is still ${pct2}%. Check with: free -m and top -o %MEM"
   fi
 }
 
@@ -1509,7 +1492,7 @@ check_if_panel_domain_and_ns_resolve_to_server() {
       else
         ((FAIL++)); STATUS=2
         echo -e "\e[31m[✘]\e[0m $FORCED_DOMAIN resolves to $domain_ip, expected $SERVER_IP"
-        write_notification "$FORCED_DOMAIN does not resolve to $SERVER_IP" "$FORCED_DOMAIN should point to $SERVER_IP but resolves to ${domain_ip:-nothing}. Update its A record at your DNS provider."
+        write_notification warning dns "$FORCED_DOMAIN does not resolve to $SERVER_IP" "$FORCED_DOMAIN should point to $SERVER_IP but resolves to ${domain_ip:-nothing}. Update its A record at your DNS provider."
       fi
     fi
   else
@@ -1537,7 +1520,7 @@ check_if_panel_domain_and_ns_resolve_to_server() {
     else
       ((FAIL++)); STATUS=2
       printf '    %s\n' "${failed[@]}"
-      local IFS='|'; write_notification "Nameservers do not resolve to local IPs" "${failed[*]} | Update the glue/A records of these nameservers at your domain registrar."
+      write_notification warning dns "Nameservers do not resolve to local IPs" "$(printf '%s\n' "${failed[@]}")"$'\n'"Update the glue/A records of these nameservers at your domain registrar."
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m No nameservers configured; skipping NS check."
@@ -1625,7 +1608,7 @@ for arg in "$@"; do
 done
 
 if [[ -n "$action" ]]; then
-  write_notification "$title" "$message" "$action"
+  write_action_notification "$action" "$title" "$message"
   exit 0
 fi
 

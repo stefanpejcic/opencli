@@ -32,10 +32,11 @@
 . /usr/local/opencli/lib/redis.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/notifications.sh
 
 # ---------------------- CONSTANTS ---------------------- #
 readonly COMPOSE_FILE="/root/docker-compose.yml"
-readonly LOG_FILE="/var/log/openpanel/admin/notifications.log"
 readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly SKIP_VERSIONS_FILE="/etc/openpanel/upgrade/skip_versions"
 readonly KEEP_KERNELS=2
@@ -168,39 +169,15 @@ install_package() {
 }
 
 # ---------------------- HELPERS ---------------------- #
-get_last_message_content() {
-    tail -n 1 "$LOG_FILE" 2>/dev/null || echo ""
-}
-
-is_unread_message_present() {
-    local unread_message_content="$1"
-    grep -q "UNREAD.*$unread_message_content" "$LOG_FILE" 2>/dev/null
-}
-
+# usage: write_notification <severity> <title> <message> [log file]
 write_notification() {
-    local title="$1"
-    local message="$2"
-    local current_message
-    current_message="$(date '+%Y-%m-%d %H:%M:%S') UNREAD $title MESSAGE: $message"
-    mkdir -p "$(dirname "$LOG_FILE")"
-    echo "$current_message" >> "$LOG_FILE"
+    local severity="$1" title="$2" message="$3" log="${4:-}" details=null
+    [[ -n "$log" ]] && details=$(jq -nc --arg l "$log" '{log_file: $l}')
+    notification_add no unread "$severity" update update "$title" "$message" "$details"
 }
 
 write_notification_for_update_check() {
-    local title="$1"
-    local message="$2"
-    local last_message_content
-    last_message_content=$(get_last_message_content)
-    if [[ "$message" != "$last_message_content" ]] && ! is_unread_message_present "$title"; then
-        write_notification "$title" "$message"
-    fi
-}
-
-remove_notifications_by_pattern() {
-    local pattern="$1"
-    if [[ -f "$LOG_FILE" ]]; then
-        sed -i "/$pattern/d" "$LOG_FILE"
-    fi
+    notification_add yes unread "$1" update update "$2" "$3"
 }
 
 # ---------------------- GET CURRENT ---------------------- #
@@ -271,7 +248,7 @@ update_check() {
     remote_version=$(get_remote_version)
     
     if [[ -z "$remote_version" ]]; then
-        write_notification_for_update_check "Update check failed" "Failed connecting to Docker Hub"
+        write_notification_for_update_check warning "Update check failed" "Failed connecting to Docker Hub"
         echo '{"error": "Error fetching remote version"}' >&2
         exit 1
     fi
@@ -294,7 +271,7 @@ update_check() {
             if is_version_skipped "$remote_version"; then
                 echo '{"status": "Skipped version", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
             else
-                write_notification_for_update_check "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
+                write_notification_for_update_check info "New OpenPanel update is available" "Installed version: $local_version | Available version: $remote_version"
                 echo '{"status": "Update available", "installed_version": "'"$local_version"'", "latest_version": "'"$remote_version"'"}'
             fi
             ;;
@@ -934,7 +911,7 @@ run_update_immediately() {
     # ---------------------- 2. START PROCESS, WRITE NOTIFICATION
     print_header "Starting update to version $version"
     log_info "Update log: $log_file"
-    write_notification "OpenPanel update started" "Started update to version $version - Log file: $log_file"
+    write_notification info "OpenPanel update started" "Started update to version $version." "$log_file"
 
     # ---------------------- 3. DOWNLOAD BASH SCRIPTS FROM GITHUB (must be befor openpanel image update)
     update_opencli
@@ -943,8 +920,8 @@ run_update_immediately() {
     log "Updating OpenPanel container image"
     if ! timeout 60 podman image pull "${IMAGE_NAME}:${version}" 2>&1 | tee -a "$log_file"; then
         log_error "Failed to pull image or command timed out: podman image pull ${IMAGE_NAME}:${version}"
-        remove_notifications_by_pattern "OpenPanel update started MESSAGE"
-        write_notification "OpenPanel update failed!" "OpenPanel failed to update to version $version - Log file: $log_file"
+        notification_delete_title "OpenPanel update started"
+        write_notification critical "OpenPanel update failed!" "OpenPanel failed to update to version $version." "$log_file"
         log "Update failed!"
         return 1
     else
@@ -991,9 +968,9 @@ run_update_immediately() {
     run_custom_postupdate_script
     
     # ---------------------- 11. CLEANUP     
-    remove_notifications_by_pattern "OpenPanel update started MESSAGE"
-    remove_notifications_by_pattern "New OpenPanel update is available"
-    write_notification "OpenPanel updated successfully!" "OpenPanel updated to version $version - Log file: $log_file"
+    notification_delete_title "OpenPanel update started"
+    notification_delete_title "New OpenPanel update is available"
+    write_notification info "OpenPanel updated successfully!" "OpenPanel updated to version $version." "$log_file"
     log "Update completed successfully!"
 
 }

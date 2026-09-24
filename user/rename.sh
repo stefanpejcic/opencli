@@ -5,7 +5,7 @@
 # Usage: opencli user-rename <old_username> <new_username>
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 24.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -185,7 +185,7 @@ rename_user_in_db() {
 		nohup bash -c "opencli email-ratelimit --delete-user=$OLD_USERNAME && opencli email-ratelimit --username=$NEW_USERNAME" >/dev/null 2>&1 &
 		disown
 
-	    nohup opencli sentinel --action=user_rename --title="User accountu username changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1 &
+	    nohup opencli sentinel --action=user_rename --title="User account username changed" --message="Username for user account '$OLD_USERNAME' has been changed to: '$NEW_USERNAME'." >/dev/null 2>&1 &
 		disown
 
         echo "User '$OLD_USERNAME' successfully renamed to '$NEW_USERNAME'."
