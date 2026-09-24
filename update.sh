@@ -1074,24 +1074,39 @@ update_opencli() {
     # shellcheck disable=SC2015
     [[ "$1" == "--no-log" ]] && echo "$message" || log "$message"
 
-    rm -rf /usr/local/opencli && mkdir -p /usr/local/opencli
     local url="https://github.com/stefanpejcic/opencli/archive/refs/heads/podman.tar.gz"
     local target_log="${log_file:-/dev/null}"
+    # download next to /usr/local/opencli so the final swap is a same-filesystem mv
+    local tmp_dir new_dir
+    tmp_dir=$(mktemp -d /usr/local/.opencli_update.XXXXXX)
     if wget --spider -q "$url" 2>/dev/null; then
         log_info "Downloading terminal scripts from github: $url"
-        if timeout "$UPDATE_TIMEOUT" bash -c "wget --timeout=1 --tries=1 -q -O /tmp/opencli.tar.gz '$url' && mkdir -p /tmp/opencli_extract && tar -xzf /tmp/opencli.tar.gz -C /tmp/opencli_extract && cp -rf /tmp/opencli_extract/*/. /usr/local/opencli/ && rm -rf /tmp/opencli.tar.gz /tmp/opencli_extract && find /usr/local/opencli -type f -name '*.sh' -exec chmod +x {} +" &>> "$target_log"; then
-            log_info "[✔] Terminal commands updated successfully"
+        if timeout "$UPDATE_TIMEOUT" bash -c "wget --timeout=30 --tries=3 -q -O '$tmp_dir/opencli.tar.gz' '$url' && tar -xzf '$tmp_dir/opencli.tar.gz' -C '$tmp_dir'" &>> "$target_log" \
+            && new_dir=$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n1) \
+            && [[ -f "$new_dir/opencli" ]]; then
+            # only replace the old scripts once the new ones are fully downloaded and extracted
+            find "$new_dir" -type f -name '*.sh' -exec chmod +x {} +
+            rm -rf /usr/local/opencli.old
+            mv /usr/local/opencli /usr/local/opencli.old 2>/dev/null
+            if mv "$new_dir" /usr/local/opencli; then
+                rm -rf /usr/local/opencli.old
+                log_info "[✔] Terminal commands updated successfully"
+            else
+                mv /usr/local/opencli.old /usr/local/opencli 2>/dev/null
+                log_error "[!] Failed to replace /usr/local/opencli, kept the previous version."
+            fi
         else
             local exit_code=$?
             if [[ $exit_code -eq 124 ]]; then
-                log_error "[!] Updating terminal commands timed out after ${UPDATE_TIMEOUT} seconds."
+                log_error "[!] Updating terminal commands timed out after ${UPDATE_TIMEOUT} seconds, kept the previous version."
             else
-                log_error "[!] Updating terminal commands failed with exit code: $exit_code."
+                log_error "[!] Updating terminal commands failed with exit code: $exit_code, kept the previous version."
             fi
         fi
     else
         log_info "[!] Failed to reach github."
     fi
+    rm -rf "$tmp_dir"
 
 	# (re)install bash tab-completion for opencli
 	if [[ -f /usr/local/opencli/lib/completion.bash ]]; then

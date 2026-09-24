@@ -751,7 +751,6 @@ case "$1" in
 				else
 	            	echo "Make sure to open the new port on Firewall and restart OpenAdmin service to apply new port."
 				fi
-				echo "Make sure to open the new port on Firewall and restart OpenAdmin service to apply new port."
 			fi
 			nohup opencli sentinel --action=admin_port --title="OpenAdmin port changed" --message="Port for administrator-level panel has been changed to '$new_port'." >/dev/null 2>&1 &
 			disown

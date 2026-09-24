@@ -70,10 +70,9 @@ fetch_users_json() {
         json=$(echo "$data" | jq -R 'split("\n") | map(select(length > 0) | split("\t") | {
             id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]
         })')
-        echo "Users on plan '$plan_name':"
         echo "$json"
     else
-        echo "No users on plan '$plan_name'."
+        echo "[]"
     fi
 }
 

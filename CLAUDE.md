@@ -55,6 +55,29 @@ Whenever you change any script here, before finishing:
 2. Edit the page if anything is missing, wrong or outdated: new, renamed or removed commands, flags, arguments, defaults, behavior, output paths. Remove docs for anything the script no longer supports. Don't document things you haven't verified in the code.
 3. Keep the script's `# Usage:` header and `usage()` output in sync with the flags it actually parses. `opencli --help` prints the header, and the example help output in `opencli.md` is built from the headers, so update that entry too.
 4. Also check the pages that mirror or reference scripts: `faq.md` mirrors `faq.sh`, `config.md` documents every key in `/etc/openpanel/openpanel/conf/openpanel.config` (template in the openpanel-configuration repo) and which keys `config.sh` restarts OpenPanel for, and other docs may show the command in examples (`grep -rn "opencli <command>" /home/stefan/OpenPanel/website/docs`).
-5. `git add` the docs change in the OpenPanel repo too, same as the script change.
+5. Every command example in the docs has a collapsed "Example output" dropdown right after it, closed by default. When a script's output changes (messages, format, columns, JSON), update the matching dropdown, and add one for any new command or flag. Use exactly this format:
+
+   ````
+   <details>
+     <summary>Example output</summary>
+
+   ```bash
+   # opencli <command> <args>
+   <output>
+   ```
+   </details>
+   ````
+
+   Build the output from what the script actually prints (its `echo`/`printf` lines and the format of any tables or JSON), with placeholder data (usernames like `stefan`, `example.com`, `server.example.com`). Never invent messages the script doesn't print. Shorten long output with `...`. For interactive commands (e.g. `nano`, `multitail`, shells) describe what opens instead of adding a dropdown.
+6. `git add` the docs change in the OpenPanel repo too, same as the script change.
 
 If you notice a mismatch between docs and code that isn't part of your change, fix the docs as well, or point it out if the code looks like the part that's wrong.
+
+# Changelog
+
+Every fix or change you make to a script also gets a one-line entry in the latest changelog: the highest-numbered version file in `/home/stefan/OpenPanel/website/docs/changelog/` (find it with `ls /home/stefan/OpenPanel/website/docs/changelog/ | grep -E '^[0-9]' | sort -V | tail -1`).
+
+- Put bug fixes under `### 🐛 Bug Fixes`, new commands/flags under `### 💡 New`, and small improvements under `### 💅 Polish`. Add the heading if the file doesn't have it yet.
+- One line per change, starting with the command in backticks and saying what now works, e.g. ``- `opencli plan-usage --json` now returns valid JSON.``
+- Don't edit changelog files of already released versions.
+- `git add` the changelog in the OpenPanel repo together with the docs change.

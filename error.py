@@ -7,11 +7,11 @@ import argparse
 Display logs for error code
 '''
 
-def extract_error_log_from_docker(error_code):
+def extract_error_log_from_podman(error_code):
     # Use subprocess to get the container logs
     try:
         result = subprocess.run(
-            ['docker', '--context', 'default',  'logs', '--since=60m', 'openpanel'],
+            ['podman', 'logs', '--since=60m', 'openpanel'],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             #stderr=subprocess.PIPE,
@@ -19,8 +19,8 @@ def extract_error_log_from_docker(error_code):
             check=True
         )
     except subprocess.CalledProcessError as e:
-        print(f"Error running docker logs: {e.stderr}")
-        return f"Error while fetching logs: {e.stderr}"
+        print(f"Error running podman logs: {e.output}")
+        return f"Error while fetching logs: {e.output}"
 
     logs = result.stdout.splitlines()
 
@@ -49,7 +49,7 @@ def main():
     parser.add_argument("error_code", help="The error code to search for in the logs")
 
     args = parser.parse_args()
-    error_log = extract_error_log_from_docker(args.error_code)
+    error_log = extract_error_log_from_podman(args.error_code)
 
     # Print the result
     if isinstance(error_log, str):

@@ -488,7 +488,7 @@ echo "MailServer started successfully."
 stop_mailserver_if_running(){
 	section "STOP MAILSERVER"
 	run bash -c "cd $DIR && timeout 30 podman-compose down mailserver"
-	[ "$DEBUG" = true ] || echo "MailServer stopped succesfully."
+	[ "$DEBUG" = true ] || echo "MailServer stopped successfully."
 }
 
 
@@ -609,7 +609,7 @@ case "${1:-}" in
 		;;
   
 	uninstall)	#  Uninstall
-        echo "Uninstalling the mailsserver..."
+        echo "Uninstalling the mailserver..."
         remove_mailserver_and_all_config
 		;;
 
@@ -803,6 +803,7 @@ case "${1:-}" in
 		$APP start                            Start the email server
 		$APP stop                             Stop the email server
 		$APP restart                          Restart the email server
+		$APP uninstall                        Uninstall the email server
 		$APP queue                            Show mail queue
 		$APP flush                            Flush mail queue
 		$APP view   <queue id>                Show mail by queue id

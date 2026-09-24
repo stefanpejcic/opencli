@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: ftp/add.sh
-# Description: Display all active FTP connection or for particular OpenPanel user.
+# Description: Display all active FTP connections, or only those for domains owned by an OpenPanel user.
 # Usage: opencli ftp-connections [OPENPANEL_USERNAME]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
@@ -37,12 +37,14 @@ fi
 # ======================================================================
 # Main
 if [ -n "$1" ]; then
-	context=$(mariadb -N -e "SELECT u.server FROM users u WHERE u.username='${1}';")
-    if [ -z "$context" ]; then
-        echo "ERROR: No context found for user '$1'. Aborting!"
+    # FTP sub-users are named user@domain, so only show connections for domains this user owns
+    domains=$(opencli domains-user "$1" 2>/dev/null | grep -E '^[A-Za-z0-9.-]+\.[A-Za-z0-9-]+$')
+    if [ -z "$domains" ]; then
+        echo "ERROR: No domains found for user '$1'. Aborting!"
         exit 1
     fi
-    podman exec openadmin_ftp sh -c "ps | grep 'vsftpd:' | grep '$1' | grep -w -v grep"
+    pattern="@($(sed 's/\./\\./g' <<< "$domains" | paste -sd'|')):"
+    podman exec openadmin_ftp sh -c 'ps | grep "vsftpd:" | grep -w -v grep' | grep -E -- "$pattern"
 else
     podman exec openadmin_ftp sh -c 'ps | grep "vsftpd:" | grep -w -v grep'
 fi

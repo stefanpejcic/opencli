@@ -48,9 +48,9 @@ if [[ -z "$1" ]]; then
 	echo
 	echo "opencli domains-varnish pejcic.rs               - Display Varnish Cache status for domain"
 	echo "opencli domains-varnish pejcic.rs on            - Enable Varnish Cache for domain with verbose output"
-	echo "opencli domains-varnish pejcic.rs               - Disable Varnish Cache for domain with verbose output"
+	echo "opencli domains-varnish pejcic.rs off           - Disable Varnish Cache for domain with verbose output"
 	echo "opencli domains-varnish pejcic.rs on --short    - Enable Varnish Cache"
-	echo "opencli domains-varnish pejcic.rs ff --short    - Disable Varnish Cache"
+	echo "opencli domains-varnish pejcic.rs off --short   - Disable Varnish Cache"
     exit 1
 fi
 
@@ -94,7 +94,7 @@ start_varnish() {
 	get_context
 	if podman_user "$context" ps -q -f name="varnish" > /dev/null; then
 		if ! $JSON_OUTPUT; then
-		    echo "The Varnish ontainer is running."
+		    echo "The Varnish container is running."
 		fi
 	else
 		if ! $JSON_OUTPUT; then
