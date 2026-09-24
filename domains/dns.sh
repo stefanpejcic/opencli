@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/dns.sh
 # Description: Manage DNS zones and the DNS server via subcommands (create, delete, reload, list, check, start/stop/restart, etc).
-# Usage: opencli domains-dns <reconfig|check|reload|show|list|create|delete|default|count|config|start|restart|hard-restart|stop> [DOMAIN]
+# Usage: opencli domains-dns <reconfig|check|reload|show|list|create|delete|default|count|config|start|restart|hard-restart|stop> [DOMAIN] [-y]
 # Author: Stefan Pejcic
 # Created: 31.08.2024
 # Last Modified: 21.08.2026

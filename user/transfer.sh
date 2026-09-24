@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/transfer.sh
 # Description: Transfers a single user account from this server to another.
-# Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]
+# Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer]
 # Author: Stefan Pejcic
 # Created: 28.06.2025
 # Last Modified: 21.08.2026

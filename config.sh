@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: config.sh
 # Description: Get or update a value in the OpenPanel configuration file.
-# Usage: opencli config get <setting_name> 
+# Usage: opencli config <get|update> <setting_name> [new_value]
 #        opencli config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 01.11.2023

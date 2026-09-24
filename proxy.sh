@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: proxy.sh
 # Description: View and change proxy path '/openpanel' for accessing openpanel.
-# Usage: opencli proxy [set <path>|default]
+# Usage: opencli proxy [set <path>|default] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 17.02.2025
 # Last Modified: 21.08.2026
@@ -45,6 +45,8 @@ echo ""
 echo "opencli proxy                        - displays current path"
 echo "opencli proxy set /custompath        - set /custompath for access"
 echo "opencli proxy default                - set /openpanel for access"
+echo ""
+echo "Add --no-restart to skip restarting services after the change."
 }
 
 
@@ -59,9 +61,8 @@ update_redirects() {
 }
 
 # for redirects!
-# shellcheck disable=SC2120 # intentionally reads the script's own $3 (inherited, not a function arg) so callers can pass --no-restart as the script's 3rd CLI arg
 do_reload() {
-  if [[ "$3" != '--no-restart' ]]; then
+  if [[ "$NO_RESTART" != true ]]; then
     cd $COMPOSE_DIR || exit
     nohup podman-compose restart openpanel > /dev/null 2>&1 &
    fi
@@ -73,7 +74,6 @@ update_path() {
   current_path=$(get_current_path)
       if [ "$current_path" != "$new_path" ]; then
         update_redirects
-        # shellcheck disable=SC2119 # do_reload intentionally inherits the script's own $3, not called with explicit args
         do_reload
         success_msg
       else
@@ -85,6 +85,11 @@ update_path() {
 
 
 
+
+NO_RESTART=false
+for arg in "$@"; do
+  [[ "$arg" == "--no-restart" ]] && NO_RESTART=true
+done
 
 if [ -z "$1" ]; then
     get_current_path

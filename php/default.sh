@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: php/default.sh
 # Description: View or change the default PHP version used for new domains added by user.
-# Usage: opencli php-default <username>
+# Usage: opencli php-default <USERNAME> [--update <PHP_VERSION>]
 #        opencli php-default <username> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023

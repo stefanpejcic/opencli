@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: waf.sh
 # Description: Manage CorazaWAF
-# Usage: opencli waf <setting> 
+# Usage: opencli waf <status|enable|disable|domain|tags|ids|update|stats|count> [options]
 # Author: Stefan Pejcic
 # Created: 22.05.2025
 # Last Modified: 21.08.2026

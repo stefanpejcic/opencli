@@ -590,16 +590,17 @@ volume_target() {
     cut -d: -f2 <<< "$v"
 }
 
-# adds php related mounts of openlitespeed from $1 missing in $2, sets PHP_ADDED
-merge_ols_mounts() {
-    local src="$1" dst="$2" line target block vols at source
+# adds volumes of service $3 from $1 that are missing in $2, only lines matching glob $4, sets PHP_ADDED
+merge_service_mounts() {
+    local src="$1" dst="$2" svc="$3" pattern="$4" line target block vols at source
     PHP_ADDED=()
-    grep -q "^  openlitespeed:[[:space:]]*$" "$dst" || return 0
+    grep -q "^  $svc:[[:space:]]*$" "$dst" || return 0
 
     block=$(mktemp)
     while IFS= read -r line; do
-        [[ "$line" == *php* ]] || continue
-        vols=$(service_volumes "$dst" openlitespeed)
+        # shellcheck disable=SC2053  # $pattern is a glob on purpose
+        [[ "$line" == $pattern ]] || continue
+        vols=$(service_volumes "$dst" "$svc")
         [[ -n "$vols" ]] || break
         target=$(volume_target "$line")
         cut -f2- <<< "$vols" | while IFS= read -r l; do volume_target "$l"; done | grep -qxF "$target" && continue
@@ -611,9 +612,21 @@ merge_ols_mounts() {
 
         echo "$line" > "$block"
         insert_after_line "$dst" "$at" "$block" false
-        PHP_ADDED+=("$source")
-    done < <(service_volumes "$src" openlitespeed | cut -f2-)
+        PHP_ADDED+=("$svc:$source")
+    done < <(service_volumes "$src" "$svc" | cut -f2-)
     rm -f "$block"
+}
+
+# adds missing php mounts to openlitespeed and missing ionCube mounts to existing php-fpm services, sets PHP_ADDED
+merge_php_mounts() {
+    local src="$1" dst="$2" v added=()
+    merge_service_mounts "$src" "$dst" openlitespeed '*php*'
+    added+=("${PHP_ADDED[@]}")
+    for v in $(php_versions_in_compose "$dst"); do
+        merge_service_mounts "$src" "$dst" "php-fpm-$v" '*ioncube*'
+        added+=("${PHP_ADDED[@]}")
+    done
+    PHP_ADDED=("${added[@]}")
 }
 
 compose_config_valid() {
@@ -680,10 +693,10 @@ update_php() {
         added+=("${PHP_ADDED[@]}")
         merge_php_env "$remote_env" "$env" "$versions"
         added+=("${PHP_ADDED[@]}")
-        merge_ols_mounts "$remote_compose" "$compose"
-        local ols_added=("${PHP_ADDED[@]}")
+        merge_php_mounts "$remote_compose" "$compose"
+        local mounts_added=("${PHP_ADDED[@]}")
 
-        if [[ ${#added[@]} -eq 0 && ${#ols_added[@]} -eq 0 ]]; then
+        if [[ ${#added[@]} -eq 0 && ${#mounts_added[@]} -eq 0 ]]; then
             rm -f "$compose.php_$ts.bak" "$env.php_$ts.bak"
             log_info "[$label] up to date"
             PHP_RESULT="unchanged"; return
@@ -713,9 +726,9 @@ update_php() {
             log_info "[$label] added: ${added[*]}"
             PHP_RESULT+=" ${added[*]}"
         fi
-        if [[ ${#ols_added[@]} -gt 0 ]]; then
-            log_info "[$label] openlitespeed mounts added: ${ols_added[*]}"
-            PHP_RESULT+=" | openlitespeed mounts: ${ols_added[*]}"
+        if [[ ${#mounts_added[@]} -gt 0 ]]; then
+            log_info "[$label] mounts added: ${mounts_added[*]}"
+            PHP_RESULT+=" | mounts: ${mounts_added[*]}"
         fi
         log_info "[$label] backups: $compose.php_$ts.bak, $env.php_$ts.bak"
     }

@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/stats.sh
 # Description: Parse caddy access logs for users domains and generate static html
-# Usage: opencli domains-stats
+# Usage: opencli domains-stats [USERNAME] [--debug]
 #        opencli domains-stats --debug
 #        opencli domains-stats <USERNAME>
 #        opencli domains-stats <USERNAME> --debug

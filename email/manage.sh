@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: email/manage.sh
 # Description: Pass commands through to docker-mailserver's setup CLI inside the mailserver container.
-# Usage: opencli email-manage <COMMAND> <ATTRIBUTES>
+# Usage: opencli email-manage <COMMAND> [<ARGS>...]
 # Author: Stefan Pejcic
 # Created: 31.08.2024
 # Last Modified: 21.08.2026

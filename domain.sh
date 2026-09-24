@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domain.sh
 # Description: View and set domain/ip for accessing panels.
-# Usage: opencli domain [set <domain_name> | ip] [--debug]
+# Usage: opencli domain [set <domain_name> | ip] [--debug] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 09.02.2025
 # Last Modified: 21.08.2026

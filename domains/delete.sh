@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/delete.sh
 # Description: Delete a domain name.
-# Usage: opencli domains-delete <DOMAIN_NAME> --debug
+# Usage: opencli domains-delete <DOMAIN_NAME> [--debug]
 # Author: Stefan Pejcic
 # Created: 07.11.2024
 # Last Modified: 21.08.2026

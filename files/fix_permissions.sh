@@ -177,7 +177,7 @@ done
 
 if [ "${args[0]}" == "--all" ]; then
   require_command jq
-  for username in $(opencli user-list --json | jq -r '.[].username'); do
+  for username in $(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .username'); do
     apply_permissions_in_container "$username"
   done
 else

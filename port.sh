@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: port.sh
 # Description: View and change port for accessing openpanel.
-# Usage: opencli port [set <port>] 
+# Usage: opencli port [set <port> | default] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 17.02.2025
 # Last Modified: 21.08.2026
@@ -55,6 +55,8 @@ usage() {
   echo "opencli port                        - displays current port  "
   echo "opencli port set 2090               - set 2090 as port for user panel"
   echo "opencli port default                - set 2083 as port for user panel"
+  echo ""
+  echo "Add --no-restart to skip restarting services after the change."
 }
 
 
@@ -69,9 +71,8 @@ update_env() {
 }
 
 # for redirects!
-# shellcheck disable=SC2120 # --no-restart isn't wired up by any current caller; kept for a future opt-out
 do_reload() {
-  if [[ "$3" != '--no-restart' ]]; then
+  if [[ "$NO_RESTART" != true ]]; then
     # restart caddy and openpanel
     cd $COMPOSE_DIR || exit
     nohup podman-compose restart caddy > /dev/null 2>&1 < /dev/null &
@@ -111,7 +112,6 @@ update_port() {
     else
         flock /tmp/opencli.root_compose.lock sed -i "s#2083:2083/tcp#\${PORT}:2083/tcp#g" /root/docker-compose.yml
     fi
-    # shellcheck disable=SC2119
     do_reload
     success_msg
   else
@@ -122,6 +122,11 @@ update_port() {
 
 
 
+
+NO_RESTART=false
+for arg in "$@"; do
+  [[ "$arg" == "--no-restart" ]] && NO_RESTART=true
+done
 
 if [ -z "$1" ]; then
     get_current_port

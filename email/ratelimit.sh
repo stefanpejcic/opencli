@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: ratelimit.sh
 # Description: Configure rate-limiting using postfwd for domains and users. 
-# Usage: opencli email-ratelimit
+# Usage: opencli email-ratelimit [--username=<user>] [--domain=<domain>] [--all-users] [--delete-user=<user>] [--delete-domain=<domain>] [--skip-reload]
 # Author: Stefan Pejcic
 # Created: 03.12.2025
 # Last Modified: 21.08.2026

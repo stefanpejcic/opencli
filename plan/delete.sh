@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: plan/delete
 # Description: Delete hosting plan
-# Usage: opencli plan-delete <PLAN_NAME>
+# Usage: opencli plan-delete <PLAN_NAME> [--json]
 # Docs: https://docs.openpanel.com
 # Author: Radovan Jecmenica
 # Created: 01.12.2023

@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: websites/pagespeed.sh
 # Description: Check Google PageSpeed data for website(s)
-# Usage: opencli websites-pagespeed <DOMAIN> [-all]
+# Usage: opencli websites-pagespeed <DOMAIN | -all>
 # Author: Stefan Pejcic
 # Created: 27.06.2024
 # Last Modified: 21.08.2026

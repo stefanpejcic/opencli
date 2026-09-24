@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: license.sh
 # Description: Manage OpenPanel Enterprise license.
-# Usage: opencli license verify 
+# Usage: opencli license [key|verify|info|delete|<LICENSE_KEY>] [--json] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
 # Last Modified: 21.08.2026
@@ -372,7 +372,7 @@ main() {
         "info")                       show_license_info ;;
         "verify")                     verify_existing_license ;;
         "delete")                     delete_license ;;
-        enterprise*|noc-*|lifetime-) verify_and_save_license "$command" ;;
+        enterprise*|noc-*|lifetime-*) verify_and_save_license "$command" ;;
         *)                            output_message "Invalid command." "$RED"; usage ;;
     esac
 }

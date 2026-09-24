@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/suspend.sh
 # Description: Suspend user: stop all containers and suspend domains.
-# Usage: opencli user-suspend <USERNAME>
+# Usage: opencli user-suspend <USERNAME> [-y] [--debug]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
 # Last Modified: 21.08.2026

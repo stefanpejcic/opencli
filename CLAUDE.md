@@ -44,3 +44,17 @@ Exception is the multi-line comment at the beginning of the files, that one need
 # Git
 
 - After making changes, `git add` them and stop there. Don't `git commit` - the user commits themselves.
+
+# Docs
+
+Command docs live in `/home/stefan/OpenPanel/website/docs/articles/opencli/` (the OpenPanel repo, `../OpenPanel/website/docs/articles/opencli/` from here), published at https://openpanel.com/docs/articles/opencli/. They must always match the scripts exactly.
+
+Whenever you change any script here, before finishing:
+
+1. Open the matching docs page and compare it against the script's actual argument parsing, not just its `usage()` text. Pages map by command group: `update.sh` -> `update.md`, `domains/*.sh` -> `domains.md`, `user/*.sh` -> `user.md`, `email/*.sh` -> `email.md`, `plan/*.sh` -> `plan.md`, `docker.sh` and `docker/*.sh` -> `docker.md`, `files/*.sh` -> `files.md`, `ftp/*.sh` -> `ftp.md`, `php/*.sh` -> `php.md`, `server/*.sh` -> `server.md`, `websites/*.sh` -> `websites.md`, otherwise `<script>.md`.
+2. Edit the page if anything is missing, wrong or outdated: new, renamed or removed commands, flags, arguments, defaults, behavior, output paths. Remove docs for anything the script no longer supports. Don't document things you haven't verified in the code.
+3. Keep the script's `# Usage:` header and `usage()` output in sync with the flags it actually parses. `opencli --help` prints the header, and the example help output in `opencli.md` is built from the headers, so update that entry too.
+4. Also check the pages that mirror or reference scripts: `faq.md` mirrors `faq.sh`, `config.md` documents every key in `/etc/openpanel/openpanel/conf/openpanel.config` (template in the openpanel-configuration repo) and which keys `config.sh` restarts OpenPanel for, and other docs may show the command in examples (`grep -rn "opencli <command>" /home/stefan/OpenPanel/website/docs`).
+5. `git add` the docs change in the OpenPanel repo too, same as the script change.
+
+If you notice a mismatch between docs and code that isn't part of your change, fix the docs as well, or point it out if the code looks like the part that's wrong.

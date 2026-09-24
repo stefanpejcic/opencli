@@ -14,7 +14,7 @@
 #              touched. Destination and retention are read from
 #              /etc/openpanel/openadmin/config/backups.ini -- OpenAdmin's
 #              System Backups page writes that file.
-# Usage: opencli backup
+# Usage: opencli backup [--restore <ARCHIVE>] [--quiet]
 #        opencli backup --restore <archive_filename>
 #        opencli backup --quiet
 # Docs: https://docs.openpanel.com

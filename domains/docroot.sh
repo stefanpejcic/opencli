@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/docroot.sh
 # Description: View and change docroot for a domain.
-# Usage: opencli domains-docroot <DOMAIN_NAME> [update </var/www/html/>] --debug
+# Usage: opencli domains-docroot <DOMAIN_NAME> [update <DOCROOT>] [--debug]
 # Author: Stefan Pejcic
 # Created: 10.02.2025
 # Last Modified: 21.08.2026

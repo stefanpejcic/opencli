@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: ftp/add.sh
 # Description: View the FTP server log
-# Usage: opencli ftp-log
+# Usage: opencli ftp-logs
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 11.09.2024

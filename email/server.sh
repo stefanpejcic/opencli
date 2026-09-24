@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: email/server.sh
 # Description: Manage mailserver
-# Usage: opencli email-server <status|config|install|start|stop|restart|queue|flush|view|unhold|delete|fail2ban|ports|logs|login|supervisor|postfwd|pflogsumm|update-check|update-packages|versions> [args] [--debug]
+# Usage: opencli email-server <status|config|install|uninstall|start|stop|restart|queue|flush|view|unhold|delete|fail2ban|ports|postconf|logs|login|supervisor|postfwd|pflogsumm|update-check|update-packages|versions> [args] [--debug]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
