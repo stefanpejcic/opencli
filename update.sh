@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules]
+# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 24.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -74,7 +74,7 @@ print_header() {
 # ---------------------- USAGE ---------------------- #
 usage() {
     cat << EOF
-Usage: opencli update [OPTION]
+Usage: opencli update [OPTION]...
 
 Options:
     --check             Check if update is available
@@ -84,7 +84,11 @@ Options:
     --panel             Update OpenPanel UI only
     --cli               Update OpenCLI only
     --translations      Update translation files and restart OpenPanel UI
-	--system            Update system packages and kernel, purge older kernels, check if reboot required
+    --system            Update system packages and kernel, purge older kernels, check if reboot required
+    --modules           Update OpenAdmin modules/features list
+    --compose           Update docker-compose.yml template in /etc/openpanel/docker/compose/1.0/
+    --env               Update .env template in /etc/openpanel/docker/compose/1.0/
+    --php               Update /etc/openpanel/php/ and add new PHP versions to the template and all users
     -h, --help          Show this help message
 
 Examples:
@@ -93,7 +97,11 @@ Examples:
     opencli update --force         # Force update regardless of settings
     opencli update --panel beta    # Update OpenPanel UI to the nightly-release
     opencli update --translations  # Update translation files and restart OpenPanel UI
-    opencli update --system  # Update system packages and kernel
+    opencli update --system        # Update system packages and kernel
+    opencli update --compose --env # Update both user templates
+    opencli update --php           # Add new PHP versions to all users
+
+Multiple options can be combined and run in the order given.
 EOF
     exit 1
 }
@@ -452,6 +460,296 @@ update_modules() {
     
 }
 
+
+update_compose_template() {
+    local file="$1"
+    local dir="/etc/openpanel/docker/compose/1.0"
+    local url="https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/docker/compose/1.0/$file"
+    local tmp
+    tmp=$(mktemp)
+
+    log_info "Updating $dir/$file"
+    if wget --timeout=10 --tries=1 -q -O "$tmp" "$url" && [[ -s "$tmp" ]]; then
+        mkdir -p "$dir"
+        # keep a copy in case the new template breaks something
+        [[ -f "$dir/$file" ]] && cp -f "$dir/$file" "$dir/$file.bak" && log_info "Previous file saved as $dir/$file.bak"
+        mv -f "$tmp" "$dir/$file"
+        chmod 644 "$dir/$file"
+        log_info "[✔] $file updated"
+    else
+        rm -f "$tmp"
+        log_error "Failed to download $url"
+        return 1
+    fi
+}
+
+# ---------------------- PHP: SYNC FILES AND ADD NEW PHP VERSIONS ---------------------- #
+# prints X.Y for every php-fpm-X.Y service in a compose file
+php_versions_in_compose() {
+    sed -n 's/^  php-fpm-\([0-9][0-9.]*\):[[:space:]]*$/\1/p' "$1" | sort -uV
+}
+
+# prints the whole service block, trailing blank lines stripped
+extract_service_block() {
+    awk -v svc="$2" '
+        $0 ~ "^  " svc ":[ \t]*$" { f=1; print; next }
+        f && /^  [^ #]/ { exit }
+        f && /^[^ \t#]/ { exit }
+        f { print }
+    ' "$1" | tr -d '\r' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}'
+}
+
+# line after which a new php-fpm block goes: end of the last php-fpm service, or end of services
+php_insert_line() {
+    awk '
+        /^services:/ { s=1; next }
+        s && /^[^ \t#]/ { s=0 }
+        s && /^  [^ #]/ { php = ($0 ~ /^  php-fpm-/) }
+        s && NF { last=NR; if (php) lastphp=NR }
+        END { print (lastphp ? lastphp : last) }
+    ' "$1"
+}
+
+# inserts the contents of $3 after line $2 of $1, optionally with a blank line in front
+insert_after_line() {
+    local file="$1" line="$2" block="$3" gap="${4:-true}"
+    local tmp
+    tmp=$(mktemp)
+    awk -v n="$line" -v blk="$block" -v gap="$gap" '
+        function dump() { if (gap=="true") print ""; while ((getline l < blk) > 0) print l; done=1 }
+        { print } NR==n { dump() }
+        END { if (!done) dump() }
+    ' "$file" > "$tmp"
+    # cat keeps owner and permissions of the original file
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
+}
+
+# adds missing php-fpm services from $1 to $2, sets PHP_ADDED to what was added
+merge_php_compose() {
+    local src="$1" dst="$2" v block line
+    PHP_ADDED=()
+    local have
+    have=$(php_versions_in_compose "$dst")
+    block=$(mktemp)
+    for v in $(php_versions_in_compose "$src"); do
+        grep -qxF "$v" <<< "$have" && continue
+        extract_service_block "$src" "php-fpm-$v" > "$block"
+        [[ -s "$block" ]] || continue
+        line=$(php_insert_line "$dst")
+        insert_after_line "$dst" "$line" "$block"
+        PHP_ADDED+=("php-fpm-$v")
+    done
+    rm -f "$block"
+}
+
+# adds missing PHP_FPM_X_Y_* vars from $1 to $2, sets PHP_ADDED to what was added
+merge_php_env() {
+    local src="$1" dst="$2" v key line block
+    PHP_ADDED=()
+    block=$(mktemp)
+    for v in $3; do
+        key="PHP_FPM_${v//./_}_"
+        : > "$block"
+        local missing=()
+        while IFS= read -r l; do
+            grep -q "^${l%%=*}=" "$dst" || missing+=("$l")
+        done < <(grep "^${key}" "$src" | tr -d '\r')
+        [[ ${#missing[@]} -eq 0 ]] && continue
+
+        if grep -q "^${key}" "$dst"; then
+            line=$(grep -n "^${key}" "$dst" | tail -n1 | cut -d: -f1)
+            printf '%s\n' "${missing[@]}" > "$block"
+            insert_after_line "$dst" "$line" "$block" false
+        else
+            line=$(grep -n "^PHP_FPM_" "$dst" | tail -n1 | cut -d: -f1)
+            { echo "# PHP $v"; printf '%s\n' "${missing[@]}"; } > "$block"
+            insert_after_line "$dst" "${line:-0}" "$block"
+        fi
+        PHP_ADDED+=("${missing[@]%%=*}")
+    done
+    rm -f "$block"
+}
+
+# prints "lineno<TAB>line" for each volume entry of a service
+service_volumes() {
+    awk -v svc="$2" '
+        $0 ~ "^  " svc ":[ \t]*$" { f=1; next }
+        f && (/^  [^ #]/ || /^[^ \t#]/) { exit }
+        f && /^    volumes:/ { v=1; next }
+        f && v && /^    [^ ]/ { v=0 }
+        f && v && /^      - / { print NR "\t" $0 }
+    ' "$1" | tr -d '\r'
+}
+
+# container side of a volume line, "- ./a:/b:ro" -> /b
+volume_target() {
+    local v="${1#*- }"
+    v="${v//\"/}"
+    v="${v//\'/}"
+    cut -d: -f2 <<< "$v"
+}
+
+# adds php related mounts of openlitespeed from $1 missing in $2, sets PHP_ADDED
+merge_ols_mounts() {
+    local src="$1" dst="$2" line target block vols at source
+    PHP_ADDED=()
+    grep -q "^  openlitespeed:[[:space:]]*$" "$dst" || return 0
+
+    block=$(mktemp)
+    while IFS= read -r line; do
+        [[ "$line" == *php* ]] || continue
+        vols=$(service_volumes "$dst" openlitespeed)
+        [[ -n "$vols" ]] || break
+        target=$(volume_target "$line")
+        cut -f2- <<< "$vols" | while IFS= read -r l; do volume_target "$l"; done | grep -qxF "$target" && continue
+
+        # put it next to mounts from the same dir, else at the end of volumes
+        source=$(sed 's/^ *- *//; s/:.*//' <<< "$line")
+        at=$(grep -F -- "- ${source%/*}/" <<< "$vols" | tail -n1 | cut -f1)
+        [[ -n "$at" ]] || at=$(tail -n1 <<< "$vols" | cut -f1)
+
+        echo "$line" > "$block"
+        insert_after_line "$dst" "$at" "$block" false
+        PHP_ADDED+=("$source")
+    done < <(service_volumes "$src" openlitespeed | cut -f2-)
+    rm -f "$block"
+}
+
+compose_config_valid() {
+    (cd "$1" && podman-compose config > /dev/null 2>&1)
+}
+
+update_php() {
+    require_command podman-compose
+    local repo_url="https://github.com/stefanpejcic/openpanel-configuration/archive/refs/heads/main.tar.gz"
+    local template_dir="/etc/openpanel/docker/compose/1.0"
+    local ts tmp_dir src versions
+    ts=$(date +%Y%m%d_%H%M%S)
+    tmp_dir=$(mktemp -d)
+
+    print_header "Updating PHP"
+
+    # 1. fresh copy of the configuration repo
+    log_info "Downloading configuration files from github"
+    if ! wget --timeout=30 --tries=2 -q -O "$tmp_dir/cfg.tar.gz" "$repo_url" || ! tar -xzf "$tmp_dir/cfg.tar.gz" -C "$tmp_dir"; then
+        log_error "Failed to download $repo_url"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    src=$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)
+    if [[ ! -d "$src/php" || ! -f "$src/docker/compose/1.0/docker-compose.yml" || ! -f "$src/docker/compose/1.0/.env" ]]; then
+        log_error "Downloaded archive is missing php/ or docker/compose/1.0/ files"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    local remote_compose="$src/docker/compose/1.0/docker-compose.yml"
+    local remote_env="$src/docker/compose/1.0/.env"
+    versions=$(php_versions_in_compose "$remote_compose")
+    log_info "PHP versions on github: $(echo "$versions" | tr '\n' ' ')"
+
+    # 2. overwrite everything in /etc/openpanel/php/
+    log_info "Overwriting /etc/openpanel/php/"
+    mkdir -p /etc/openpanel/php
+    cp -rf "$src/php/." /etc/openpanel/php/
+    log_info "[✔] /etc/openpanel/php/ updated"
+
+    # 3. template files, then 4. every user, same steps for both
+    local total=0 changed=0 unchanged=0 failed=0 skipped=0
+    local summary=()
+
+    # merge into $1 dir, $2 is a label for output, sets PHP_RESULT
+    merge_php_dir() {
+        local dir="$1" label="$2"
+        local compose="$dir/docker-compose.yml" env="$dir/.env"
+        local added=()
+
+        if [[ ! -f "$compose" || ! -f "$env" ]]; then
+            log_warn "[$label] docker-compose.yml or .env missing, skipping"
+            PHP_RESULT="skipped"; return
+        fi
+        if ! compose_config_valid "$dir"; then
+            log_warn "[$label] config is already invalid before changes, skipping"
+            PHP_RESULT="skipped"; return
+        fi
+
+        cp -p "$compose" "$compose.php_$ts.bak"
+        cp -p "$env" "$env.php_$ts.bak"
+
+        merge_php_compose "$remote_compose" "$compose"
+        added+=("${PHP_ADDED[@]}")
+        merge_php_env "$remote_env" "$env" "$versions"
+        added+=("${PHP_ADDED[@]}")
+        merge_ols_mounts "$remote_compose" "$compose"
+        local ols_added=("${PHP_ADDED[@]}")
+
+        if [[ ${#added[@]} -eq 0 && ${#ols_added[@]} -eq 0 ]]; then
+            rm -f "$compose.php_$ts.bak" "$env.php_$ts.bak"
+            log_info "[$label] up to date"
+            PHP_RESULT="unchanged"; return
+        fi
+
+        if ! compose_config_valid "$dir"; then
+            cp -p "$compose.php_$ts.bak" "$compose"
+            cp -p "$env.php_$ts.bak" "$env"
+            log_error "[$label] config invalid after changes, restored backup"
+            PHP_RESULT="failed"; return
+        fi
+
+        # the new services mount ./php.ini/X.Y.ini so it has to exist
+        if [[ -d "$dir/php.ini" ]]; then
+            local v
+            for v in $versions; do
+                if [[ ! -f "$dir/php.ini/$v.ini" && -f "/etc/openpanel/php/ini/$v.ini" ]]; then
+                    cp "/etc/openpanel/php/ini/$v.ini" "$dir/php.ini/$v.ini"
+                    chown --reference="$dir/php.ini" "$dir/php.ini/$v.ini"
+                    added+=("php.ini/$v.ini")
+                fi
+            done
+        fi
+
+        PHP_RESULT="changed:"
+        if [[ ${#added[@]} -gt 0 ]]; then
+            log_info "[$label] added: ${added[*]}"
+            PHP_RESULT+=" ${added[*]}"
+        fi
+        if [[ ${#ols_added[@]} -gt 0 ]]; then
+            log_info "[$label] openlitespeed mounts added: ${ols_added[*]}"
+            PHP_RESULT+=" | openlitespeed mounts: ${ols_added[*]}"
+        fi
+        log_info "[$label] backups: $compose.php_$ts.bak, $env.php_$ts.bak"
+    }
+
+    log_info "Checking template in $template_dir"
+    merge_php_dir "$template_dir" "template"
+    summary+=("template: $PHP_RESULT")
+
+    local home user
+    for home in /home/*/; do
+        home="${home%/}"
+        [[ -f "$home/docker-compose.yml" ]] || continue
+        user=$(basename "$home")
+        (( total++ ))
+        log_info "Checking user $user ($total)"
+        merge_php_dir "$home" "$user"
+        case "$PHP_RESULT" in
+            unchanged) (( unchanged++ )) ;;
+            skipped)   (( skipped++ )); summary+=("$user: skipped") ;;
+            failed)    (( failed++ ));  summary+=("$user: failed, restored") ;;
+            *)         (( changed++ )); summary+=("$user: $PHP_RESULT") ;;
+        esac
+    done
+
+    rm -rf "$tmp_dir"
+
+    print_header "PHP update summary"
+    local s
+    for s in "${summary[@]}"; do
+        echo "  $s"
+    done
+    echo "  Users checked: $total | updated: $changed | up to date: $unchanged | skipped: $skipped | failed: $failed"
+    [[ $failed -eq 0 ]]
+}
 
 update_locales() {
     local no_log="${1:-}"
@@ -857,33 +1155,35 @@ check_update() {
 
 # ---------------------- RUNS CHECK OR STARTS UPDATE ---------------------- #
 main() {
+    local modes=()
     for arg in "$@"; do
         case "$arg" in
-            --check) MODE="check" ;;
-            --force) MODE="force" ;;
-            --admin) MODE="admin" ;;
-            --panel) MODE="panel" ;;
-            --cli)   MODE="cli"   ;;
-            --translations) MODE="translations" ;;
-			--system) MODE="system" ;;
-			--modules) MODE="modules" ;;
+            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php)
+                # skip duplicates so each mode runs once
+                [[ " ${modes[*]} " == *" ${arg#--} "* ]] || modes+=("${arg#--}") ;;
             beta)    BETA=true    ;;
             -h|--help) usage ;;
             *) log_error "[!] Unknown argument: $arg"; usage ;;
         esac
     done
 
-    case "$MODE" in
-        check) update_check ;;
-        force) check_update --force ;;
-        panel) update_openpanel --no-log ;;
-        cli)   update_opencli --no-log ;;
-        admin) update_openadmin --no-log ;;
-        translations) update_translations ;;
-		system) update_system ;;
-		modules) update_modules --no-log ;;
-        "")    check_update ;;
-    esac
+    [[ ${#modes[@]} -eq 0 ]] && { check_update; return; }
+
+    for mode in "${modes[@]}"; do
+        case "$mode" in
+            check) update_check ;;
+            force) check_update --force ;;
+            panel) update_openpanel --no-log ;;
+            cli)   update_opencli --no-log ;;
+            admin) update_openadmin --no-log ;;
+            translations) update_translations ;;
+            system) update_system ;;
+            modules) update_modules --no-log ;;
+            compose) update_compose_template docker-compose.yml ;;
+            env) update_compose_template .env ;;
+            php) update_php ;;
+        esac
+    done
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
