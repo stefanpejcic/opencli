@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
-# Usage: opencli report [--public|--link|--upload] [--non-interactive]
+# Usage: opencli report [--public|--link|--upload] [--non-interactive] [--user <USERNAME>]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 24.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,212 +32,270 @@
 # Constants
 GREEN='\033[0;32m'
 RESET='\033[0m'
+CMD_TIMEOUT=10
+LOG_LINES=50
 
 # ======================================================================
 # Variables
 upload_flag=false
 non_interactive=false
+report_user=""
 
 
 # ======================================================================
 # Helpers
 
+usage() {
+	echo "Usage: opencli report [--public|--link|--upload] [--non-interactive] [--user <USERNAME>]"
+	echo ""
+	echo "  --public, --link, --upload  upload the report to support.openpanel.org and print a key to share"
+	echo "  --non-interactive           no progress messages, screen clearing or colors"
+	echo "  --user <USERNAME>           also collect containers, logs and config for this user"
+}
+
 create_local_path() {
 	output_dir="/var/log/openpanel/admin/reports"
 	mkdir -p "$output_dir"
+	chmod 700 "$output_dir"
 	output_file="$output_dir/system_info_$(date +'%Y%m%d%H%M%S').txt"
-	export output_file
+	( umask 077; : > "$output_file" )
 }
 
 parse_args() {
 	while [[ $# -gt 0 ]]; do
 	    case $1 in
 	        --non-interactive) non_interactive=true ;;
-	        --public|--link|--upload) upload_flag=true ;; 
-	        *) echo "Unknown option: $1"; exit 1 ;;
+	        --public|--link|--upload) upload_flag=true ;;
+	        --user) report_user="$2"; shift ;;
+	        --user=*) report_user="${1#*=}" ;;
+	        -h|--help) usage; exit 0 ;;
+	        *) echo "Unknown option: $1"; usage; exit 1 ;;
 	    esac
 	    shift
 	done
+
+	if [ -n "$report_user" ] && [ ! -d "/home/$report_user" ]; then
+	    echo "Error: user $report_user does not exist (no /home/$report_user)."
+	    exit 1
+	fi
 }
 
+# masks values of password/secret/token/key lines but keeps plain yes/no/number values so settings stay readable
+redact() {
+  awk '{
+    line = tolower($0)
+    if (match(line, /^[[:space:]"-]*[a-z0-9_.]*(pass|secret|token|key|pwd)[a-z0-9_.]*"?[[:space:]]*[=:][[:space:]]*/)) {
+      val = substr($0, RLENGTH + 1)
+      if (val != "" && tolower(val) !~ /^"?(yes|no|on|off|true|false|[0-9]+)?"?$/) { print substr($0, 1, RLENGTH) "***REDACTED***"; next }
+    }
+    print
+  }'
+}
 
-# ======================================================================
-# Helpers
-
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 run_command() {
   local cmd="$1"
   local label="$2"
   local tmpfile="$3"
   {
     echo "# $label:"
-	timeout 3s bash -c "$cmd" 2>&1
+    echo "\$ $cmd"
+    timeout "$CMD_TIMEOUT" bash -c "$cmd" 2>&1
     echo "# ======================================================================"
     echo
   } >> "$tmpfile"
 }
 
-# Each collect_* function writes to its own temp file, then we merge them in order.
+section() {
+  echo "=== $1 ===" >> "$2"
+}
 
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
+# each collect_* writes to its own temp file, they run in parallel and get merged in order
+
+collect_quick_checks() {
+  local tmp="$1" out=""
+  section "Quick Checks (possible problems)" "$tmp"
+
+  out+=$(df -hP -x tmpfs -x devtmpfs -x overlay -x squashfs 2>/dev/null | awk 'NR>1 && $5+0 >= 90 {print "[!] disk " $6 " is " $5 " full"}')$'\n'
+  out+=$(df -iP -x tmpfs -x devtmpfs -x overlay -x squashfs 2>/dev/null | awk 'NR>1 && $5+0 >= 90 {print "[!] inodes on " $6 " are " $5 " used"}')$'\n'
+  out+=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if (t && a*100/t < 10) printf "[!] only %d%% RAM available\n", a*100/t}' /proc/meminfo)$'\n'
+  out+=$(awk -v c="$(nproc)" '{if ($2 > c*2) printf "[!] 5min load %s is high for %d cpus\n", $2, c}' /proc/loadavg)$'\n'
+  out+=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print "[!] failed unit: " $1}')$'\n'
+  for svc in admin podman.socket csf; do
+    systemctl list-unit-files "$svc*" &>/dev/null || continue
+    systemctl is-active --quiet "$svc" || out+="[!] service $svc is not active"$'\n'
+  done
+  out+=$(timeout "$CMD_TIMEOUT" podman ps -a --format '{{.Names}} {{.State}}' 2>/dev/null | awk '$2!="running"{print "[!] container " $1 " is " $2}')$'\n'
+  out+=$(journalctl -k --since "-7 days" --no-pager 2>/dev/null | grep -ciE "out of memory|oom-kill" | awk '$1>0{print "[!] " $1 " OOM kills in the last 7 days"}')$'\n'
+  [ -f /root/docker-compose.yml ] || out+="[!] /root/docker-compose.yml is missing"$'\n'
+  [ -f /etc/openpanel/openpanel/conf/openpanel.config ] || out+="[!] openpanel.config is missing"$'\n'
+
+  out=$(printf '%s' "$out" | sed '/^$/d')
+  { [ -n "$out" ] && echo "$out" || echo "No problems detected."; echo; } >> "$tmp"
+}
+
 collect_os_info() {
   local tmp="$1"
-  local os_info
-  os_info=$(awk -F= '/^(NAME|VERSION_ID)/{gsub(/"/, "", $2); printf("%s ", $2)}' /etc/os-release)
-  run_command "echo $os_info"  "Checking OS distribution"          "$tmp"
-  run_command "uptime"         "Checking server uptime"            "$tmp"
-  run_command "free -h"        "Collecting physical memory and swap usage" "$tmp"
-  run_command "df -h"          "Collecting disk information"       "$tmp"
+  section "System" "$tmp"
+  run_command "date; timedatectl 2>/dev/null | grep -E 'Time zone|synchronized'" "Date and time"            "$tmp"
+  run_command "hostname -f"                               "Hostname"                                  "$tmp"
+  run_command "grep -E '^(PRETTY_NAME|VERSION_ID)=' /etc/os-release; uname -srm" "OS and kernel"      "$tmp"
+  run_command "systemd-detect-virt"                       "Virtualization"                            "$tmp"
+  run_command "nproc; grep -m1 'model name' /proc/cpuinfo" "CPU"                                      "$tmp"
+  run_command "uptime"                                    "Uptime and load"                           "$tmp"
+  run_command "free -h"                                   "Memory and swap"                           "$tmp"
+  run_command "df -hT -x tmpfs -x devtmpfs -x overlay -x squashfs" "Disk usage"                       "$tmp"
+  run_command "df -i -x tmpfs -x devtmpfs -x overlay -x squashfs"  "Inode usage"                      "$tmp"
+  run_command "ps -eo pid,user,%cpu,%mem,etime,comm --sort=-%cpu | head -15" "Top processes by CPU"   "$tmp"
+  run_command "ps -eo pid,user,%cpu,%mem,etime,comm --sort=-%mem | head -15" "Top processes by memory" "$tmp"
+  run_command "journalctl -k --since '-7 days' --no-pager | grep -iE 'out of memory|oom-kill' | tail -20" "OOM kills (last 7 days)" "$tmp"
+  run_command "systemctl --failed --no-pager"             "Failed systemd units"                      "$tmp"
 }
 
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_opencli_info() {
+collect_network_info() {
   local tmp="$1"
-  run_command "opencli --version" "Listing OpenPanel version" "$tmp"
+  section "Network" "$tmp"
+  run_command "ip -br addr"                               "IP addresses"                              "$tmp"
+  run_command "ss -tulpn"                                 "Listening ports"                           "$tmp"
+  run_command "grep -v '^#' /etc/resolv.conf"             "DNS resolvers"                             "$tmp"
+  run_command "getent hosts openpanel.com || echo 'DNS resolution failed'" "DNS lookup test"          "$tmp"
+  run_command "curl -sS -o /dev/null -m 5 -w '%{http_code} in %{time_total}s\n' https://hub.docker.com" "Outbound HTTPS test" "$tmp"
 }
 
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_mysql_info() {
+collect_versions() {
   local tmp="$1"
-  run_command "mariadb --protocol=tcp --version" "Checking MariaDB Version" "$tmp"
+  section "Versions" "$tmp"
+  run_command "opencli --version"                         "OpenPanel version"                         "$tmp"
+  run_command "podman --version; podman-compose --version 2>&1 | tail -1" "Podman versions"         "$tmp"
+  run_command "mariadb --protocol=tcp --version"          "MariaDB client version"                    "$tmp"
+  run_command "csf -v"                                    "Sentinel Firewall (CSF) version"           "$tmp"
+  run_command "podman images --format 'table {{.Repository}}:{{.Tag}} {{.ID}} {{.Created}}'" "Host images" "$tmp"
 }
 
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_docker_info() {
-  local tmp="$1"
-  run_command "podman info" "Collecting host podman information" "$tmp"
-}
-
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_openpanel_settings() {
-  local tmp="$1"
-  echo "=== OpenPanel Settings ===" >> "$tmp"
-  run_command "cat /etc/openpanel/openpanel/conf/openpanel.config" "Listing OpenPanel configuration file" "$tmp"
-  run_command "cat /etc/openpanel/caddy/Caddyfile" "Listing Caddyfile" "$tmp"
-
-}
-
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_openadmin_settings() {
-  local tmp="$1"
-  echo "=== OpenAdmin Service ===" >> "$tmp"
-  run_command "cat /etc/openpanel/openadmin/config/admin.ini"        "Listing OpenAdmin configuration file"           "$tmp"
-  run_command "tail -30 /var/log/openpanel/admin/error.log"          "Checking OpenAdmin log for errors"               "$tmp"
-}
-
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-collect_mysql_information() {
-  local tmp="$1"
-  echo "=== MariaDB Information ===" >> "$tmp"
-  run_command "podman logs --tail 30 openpanel_mysql"  "Checking MariaDB service for errors"   "$tmp"
-  run_command "cat /etc/openpanel/mysql/*_my.cnf"      "Viewing MariaDB login information"      "$tmp"
-}
-
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
 collect_services_status() {
   local tmp="$1"
-  echo "=== Services Status ===" >> "$tmp"
-  run_command "podman-compose ps"                        "Listing OpenPanel Stack"                      "$tmp"
-  run_command "podman ps -a"                              "Checking system containers status"            "$tmp"
-  run_command "systemctl status admin"                   "Checking status of OpenAdmin service"         "$tmp"
-  run_command "systemctl status podman.socket"           "Checking status of Podman service"            "$tmp"
-  run_command "systemctl status csf"                     "Checking if Sentinel Firewall (CSF) is running" "$tmp"
+  section "Services" "$tmp"
+  run_command "cd /root && podman-compose ps"             "OpenPanel stack"                           "$tmp"
+  run_command "podman ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'" "Host containers" "$tmp"
+  run_command "podman stats --no-stream"                  "Host container resource usage"             "$tmp"
+  run_command "systemctl status admin --no-pager -n 20"   "OpenAdmin service"                         "$tmp"
+  run_command "systemctl status podman.socket --no-pager -n 10" "Podman socket"                      "$tmp"
+  run_command "systemctl status csf --no-pager -n 10"     "Sentinel Firewall (CSF)"                   "$tmp"
 }
 
-collect_user_services() {
+collect_openpanel_settings() {
   local tmp="$1"
-  echo "=== Podman Context Services ===" >> "$tmp"
-  for dir in /home/*; do
-      local file="$dir/docker-compose.yml"
-      local user
+  section "Configuration (secrets redacted)" "$tmp"
+  run_command "redact < /etc/openpanel/openpanel/conf/openpanel.config" "openpanel.config"            "$tmp"
+  run_command "redact < /etc/openpanel/openadmin/config/admin.ini"      "admin.ini"                   "$tmp"
+  run_command "redact < /etc/openpanel/caddy/Caddyfile"                 "Caddyfile"                   "$tmp"
+  run_command "redact < /root/.env"                                     "/root/.env"                  "$tmp"
+}
+
+collect_logs() {
+  local tmp="$1"
+  section "Logs (last $LOG_LINES lines)" "$tmp"
+  run_command "tail -n $LOG_LINES /var/log/openpanel/admin/error.log"   "OpenAdmin error log"         "$tmp"
+  run_command "tail -n $LOG_LINES /var/log/openpanel/admin/notifications.log" "Notifications"         "$tmp"
+  local c
+  for c in openpanel caddy openpanel_mysql openpanel_redis; do
+    run_command "podman logs --tail $LOG_LINES $c"      "Container $c"                              "$tmp"
+  done
+  run_command "f=\$(ls -t /var/log/openpanel/updates/*.log | head -1) && echo \"\$f\" && tail -n $LOG_LINES \"\$f\"" "Latest update log" "$tmp"
+}
+
+collect_users_overview() {
+  local tmp="$1"
+  section "Users" "$tmp"
+  run_command "opencli user-list --total"                 "Number of users"                           "$tmp"
+  {
+    echo "# Containers per user (running/total):"
+    local dir user uid sock
+    for dir in /home/*; do
+      [ -f "$dir/docker-compose.yml" ] || continue
       user=$(basename "$dir")
-      if [[ -f "$file" ]]; then
-        local uid; uid=$(stat -c '%u' "$dir" 2>/dev/null)
-        run_command "echo '- User: $user' && echo '' && CONTAINER_HOST=unix:///hostfs/run/user/${uid}/podman/podman.sock podman-compose -f $dir/docker-compose.yml config --services" \
-          "Listing services for user: $user" "$tmp"
+      uid=$(stat -c '%u' "$dir" 2>/dev/null)
+      sock="/hostfs/run/user/${uid}/podman/podman.sock"
+      if [ ! -S "$sock" ]; then
+        echo "$user: no podman socket at $sock"
+        continue
       fi
+      CONTAINER_HOST="unix://$sock" timeout 5 podman --remote ps -a --format '{{.Names}} {{.State}}' 2>&1 \
+        | awk -v u="$user" '{t++; if ($2=="running") r++; else bad=bad " " $1 "(" $2 ")"} END{printf "%s: %d/%d%s\n", u, r, t, (bad ? " not running:" bad : "")}'
+    done
+    echo "# ======================================================================"
+    echo
+  } >> "$tmp"
+}
+
+collect_user_details() {
+  local tmp="$1" user="$report_user"
+  [ -n "$user" ] || return 0
+  local uid; uid=$(stat -c '%u' "/home/$user" 2>/dev/null)
+  local host="CONTAINER_HOST=unix:///hostfs/run/user/${uid}/podman/podman.sock"
+  section "User: $user" "$tmp"
+  run_command "opencli user-list --json | jq '.data[] | select(.username==\"$user\")'" "Account info" "$tmp"
+  run_command "opencli domains-user $user --docroot"      "Domains"                                   "$tmp"
+  run_command "id $user; loginctl show-user $user -p State -p Linger"  "System user and linger"       "$tmp"
+  run_command "systemctl status user@$uid --no-pager -n 10" "User systemd instance"                  "$tmp"
+  run_command "$host podman --remote ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'" "Containers" "$tmp"
+  run_command "$host podman --remote stats --no-stream"   "Container resource usage"                  "$tmp"
+  run_command "redact < /home/$user/.env"                 ".env (secrets redacted)"                   "$tmp"
+  run_command "redact < /home/$user/docker-compose.yml"   "docker-compose.yml (secrets redacted)"     "$tmp"
+  local c
+  for c in $(CONTAINER_HOST="unix:///hostfs/run/user/${uid}/podman/podman.sock" timeout 5 podman --remote ps -a --format '{{.Names}}' 2>/dev/null); do
+    run_command "$host podman --remote logs --tail $LOG_LINES $c" "Container $c logs"               "$tmp"
   done
 }
+
+export -f redact
 
 
 # ======================================================================
-# Parallel runner
-#
-# functions split into two groups: ORDERED_FUNCS run in parallel via xargs, collect_user_services runs after (needs flags set, iterates dynamic /home/* data)
-# each writes to its own numbered temp file so output order stays deterministic regardless of finish order, then they're merged at the end
+# Main
 
-export output_file non_interactive
-
-# Ordered list – index determines merge order
+# order here is the order sections appear in the report
 ORDERED_FUNCS=(
+  collect_quick_checks
+  collect_versions
   collect_os_info
-  collect_opencli_info
-  collect_mysql_info
-  collect_docker_info
-  collect_openpanel_settings
-  collect_openadmin_settings
-  collect_mysql_information
   collect_services_status
+  collect_user_details
+  collect_users_overview
+  collect_logs
+  collect_network_info
+  collect_openpanel_settings
 )
 
-TMPDIR_REPORT=$(mktemp -d)
-export TMPDIR_REPORT
-
-# Export all collect_* functions and run_command so xargs subshells can see them
-export -f run_command \
-           collect_os_info \
-           collect_opencli_info \
-           collect_mysql_info \
-           collect_docker_info \
-           collect_openpanel_settings \
-           collect_openadmin_settings \
-           collect_mysql_information \
-           collect_services_status
-
-# Wrapper called by xargs: receives "<index> <func_name>"
-# shellcheck disable=SC2329 # invoked indirectly via $func in run_indexed / export -f + xargs
-run_indexed() {
-  local idx="$1"
-  local func="$2"
-  local tmpfile
-  tmpfile=$(printf "%s/%04d.txt" "$TMPDIR_REPORT" "$idx")
-  $func "$tmpfile"
-}
-export -f run_indexed
-
 main() {
-  # Build index:funcname pairs for xargs
-  local pairs=()
-  local i=0
-  for func in "${ORDERED_FUNCS[@]}"; do
-    pairs+=("$i $func")
-    (( i++ ))
-  done
-
   if [ "$non_interactive" = false ]; then
     echo "Collecting system information..."
   fi
 
-  # Run all collectors in parallel (up to nproc jobs at once)
-  printf '%s\n' "${pairs[@]}" | \
-    xargs -P "$(nproc)" -I '{}' bash -c 'run_indexed $@' _ {}
+  local tmpdir i=0 func
+  tmpdir=$(mktemp -d)
 
-  # Merge temp files in order into the final report
-  for tmpfile in $(find "$TMPDIR_REPORT" -maxdepth 1 -name "*.txt" 2>/dev/null | sort); do
-    cat "$tmpfile" >> "$output_file"
+  {
+    echo "OpenPanel system report"
+    echo "Generated: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+    echo "Command: opencli report $*"
+    echo
+  } >> "$output_file"
+
+  for func in "${ORDERED_FUNCS[@]}"; do
+    "$func" "$(printf '%s/%04d.txt' "$tmpdir" "$i")" &
+    (( i++ ))
   done
+  wait
 
-  rm -rf "$TMPDIR_REPORT"
-
-  # serial phase: iterates dynamic /home/* data, so it can't be pre-indexed into ORDERED_FUNCS like the parallel collectors above
-  collect_user_services "$output_file"
+  cat "$tmpdir"/*.txt >> "$output_file" 2>/dev/null
+  rm -rf "$tmpdir"
 
   upload_report
 }
 
 
 upload_report() {
-	if [ ! -f "$output_file" ]; then
+	if [ ! -s "$output_file" ]; then
 	  echo "Information not collected! report file does not exist: $output_file"
    	else
 	  if [ "$non_interactive" = false ]; then
@@ -270,9 +328,9 @@ upload_report() {
 # flock
 (
 flock -n 200 || { echo "Error: Another instance of the report script is already running. Exiting."; exit 1; }
-create_local_path
 parse_args "$@"
-main
-)200>/root/openpanel_install.lock
+create_local_path
+main "$@"
+)200>/tmp/opencli_report.lock
 
 exit 0

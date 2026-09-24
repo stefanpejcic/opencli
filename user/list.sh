@@ -7,7 +7,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 01.09.2026
+# Last Modified: 24.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -31,7 +31,7 @@
 ################################################################################
 
 print_usage() {
-    echo "Usage: opencli user-list [--json] [--total]"
+    echo "Usage: opencli user-list [--json] [--total] [--quota]"
     exit 1
 }
 
