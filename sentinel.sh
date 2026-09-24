@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 09.09.2026
+# Last Modified: 24.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -89,8 +89,33 @@ RAM_THRESHOLD=$(validate_number  "$(ini_get ram)"  85)
 DISK_THRESHOLD=$(validate_number "$(ini_get du)"   85)
 SWAP_THRESHOLD=$(validate_number "$(ini_get swap)" 40)
 
+readonly LOG_LOCK_FILE="${LOG_FILE}.lock"
+
 is_unread_message_present() { grep -qF "UNREAD $1" "$LOG_FILE"; }
-resolve_notification() { [[ -f "$LOG_FILE" ]] && sed -i "s/UNREAD $1 MESSAGE:/READ $1 MESSAGE:/" "$LOG_FILE"; }
+
+# marks UNREAD alerts with this title as READ once the issue is gone, --prefix matches titles with dynamic parts (ips, domains)
+resolve_notification() {
+  local match="UNREAD $1" exact=1
+  [[ "$2" == "--prefix" ]] && exact=0
+  grep -qF "$match" "$LOG_FILE" 2>/dev/null || return 0
+  local changed=0
+  {
+    flock -x 200
+    local tmp; tmp=$(mktemp /tmp/sentinel.notifications.XXXXXX) || return 0
+    # cat instead of mv so the log keeps its inode and permissions
+    awk -v m="$match" -v exact="$exact" '
+      {
+        pre = $1 " " $2 " "; rest = substr($0, length(pre) + 1)
+        if (substr(rest, 1, length(m)) == m && (!exact || substr(rest, length(m) + 1, 9) == " MESSAGE:")) {
+          $0 = pre "READ" substr(rest, 7); n++
+        }
+      } 1
+      END { exit !n }' "$LOG_FILE" > "$tmp" && cat "$tmp" > "$LOG_FILE" && changed=1
+    rm -f "$tmp"
+  } 200>"$LOG_LOCK_FILE"
+  (( changed )) && echo -e "\e[32m[✔]\e[0m Issue resolved, marked notification as read: $1"
+  return 0
+}
 
 readonly IP_CACHE_FILE="/tmp/public.ipv4"
 
@@ -203,7 +228,7 @@ write_notification() {
   fi
 
   # Save to OpenAdmin > Notifications
-  echo "$DISPLAY_TIME UNREAD $title MESSAGE: $message" >> "$LOG_FILE"
+  { flock -x 200; echo "$DISPLAY_TIME UNREAD $title MESSAGE: $message" >> "$LOG_FILE"; } 200>"$LOG_LOCK_FILE"
 
   # Trigger Email
   [[ "$EMAIL_ALERT" == "yes" ]] && email_notification "$title" "$message"
@@ -512,9 +537,11 @@ check_service_status() {
   local svc=$1 title=$2
   if systemctl is-active --quiet "$svc"; then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc is active."
+    resolve_notification "$title"
   else
     if [[ "$svc" == "admin" && -f /root/openadmin_is_disabled ]]; then
-      ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc disabled by Administrator."; return
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc disabled by Administrator."
+      resolve_notification "$title"; return
     fi
     local log; log=$(journalctl -n 5 -u "$svc" 2>/dev/null | sed ':a;N;$!ba;s/\n/\\n/g')
     if echo "$log" | grep -q "start-limit-hit"; then
@@ -523,7 +550,7 @@ check_service_status() {
       systemctl reset-failed "$svc"
       systemctl restart "$svc"
       # shellcheck disable=SC2015 # safe: the A-block's last command is always echo, which can't fail, so C never wrongly runs
-      systemctl is-active --quiet "$svc" && { ((FAIL--)); (( STATUS < 1 )) && STATUS=1; echo -e "\e[32m[✔]\e[0m $svc restarted successfully."; } || { write_notification "$title" "$log"; echo -e "\e[31m[✘]\e[0m Failed to restart $svc."; }
+      systemctl is-active --quiet "$svc" && { ((FAIL--)); (( STATUS < 1 )) && STATUS=1; echo -e "\e[32m[✔]\e[0m $svc restarted successfully."; resolve_notification "$title"; } || { write_notification "$title" "$log"; echo -e "\e[31m[✘]\e[0m Failed to restart $svc."; }
       return
     fi
     if echo "$log" | grep -q "Deactivated successfully"; then
@@ -562,6 +589,7 @@ _docker_check_after_restart() {
   _docker_ps_refresh
   if _docker_ps | grep -wq "$svc"; then
     ((WARN--)); echo -e "\e[32m[✔]\e[0m $svc restarted successfully."
+    resolve_notification "$title"
   else
     ((WARN--)); ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m $svc failed to restart."
@@ -577,6 +605,7 @@ docker_containers_status() {
       CADDY_IS_ACTIVE=true
       if _caddy_http_ok; then
         ((PASS++)); echo -e "\e[32m[✔]\e[0m caddy is active and responding."
+        resolve_notification "$title"
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m caddy running but unresponsive — restarting."
         podman restart caddy &>/dev/null
@@ -586,6 +615,7 @@ docker_containers_status() {
         _docker_ps_refresh
         if _caddy_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m caddy recovered."
+          resolve_notification "$title"
           write_notification "Caddy restarted and websites are up!" "$(_docker_log caddy)"
         else
           ((WARN--)); ((FAIL++)); STATUS=2
@@ -596,6 +626,7 @@ docker_containers_status() {
     elif [[ "$svc" == "openpanel" ]]; then
       if _openpanel_http_ok; then
         ((PASS++)); echo -e "\e[32m[✔]\e[0m openpanel is active and responding."
+        resolve_notification "$title"
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
@@ -607,6 +638,7 @@ docker_containers_status() {
         sleep 2
         if _openpanel_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m openpanel recovered."
+          resolve_notification "$title"
           write_notification "OpenPanel restarted and responding!" "$(_docker_log openpanel)"
         else
           ((WARN--)); ((FAIL++)); STATUS=2
@@ -616,6 +648,7 @@ docker_containers_status() {
       fi
     else
       ((PASS++)); echo -e "\e[32m[✔]\e[0m $svc container is active."
+      resolve_notification "$title"
     fi
     return
   fi
@@ -625,7 +658,7 @@ docker_containers_status() {
     openpanel)
       local users; users=$(opencli user-list --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
       if [[ -z "$users" || "$users" == "No users." ]]; then
-        ((WARN--)); echo "  - No users found; $svc not needed."
+        ((WARN--)); echo "  - No users found; $svc not needed."; resolve_notification "$title"
       else
         podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
         podman rm -f clamav &>/dev/null
@@ -642,11 +675,11 @@ docker_containers_status() {
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
-              echo "  - No DNS zones; bind9 not needed."
+              echo "  - No DNS zones; bind9 not needed."; resolve_notification "$title"
           fi
       else
           ((WARN--))
-          echo "  - DNS module not enabled; bind9 not starting."
+          echo "  - DNS module not enabled; bind9 not starting."; resolve_notification "$title"
       fi ;;
     phpmyadmin)
       enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
@@ -657,11 +690,11 @@ docker_containers_status() {
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
-              echo "  - No mysql/mariadb services yet; phpmyadmin not needed."
+              echo "  - No mysql/mariadb services yet; phpmyadmin not needed."; resolve_notification "$title"
           fi
       else
           ((WARN--))
-          echo "  - phpmyadmin module not enabled; phpmyadmin not starting."
+          echo "  - phpmyadmin module not enabled; phpmyadmin not starting."; resolve_notification "$title"
       fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
@@ -669,7 +702,7 @@ docker_containers_status() {
         cd /root && podman-compose up -d caddy &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       else
-        ((WARN--)); echo "  - No domains; caddy not needed."
+        ((WARN--)); echo "  - No domains; caddy not needed."; resolve_notification "$title"
       fi ;;
     *)
       podman restart "$svc" &>/dev/null
@@ -684,6 +717,7 @@ mysql_docker_containers_status() {
   if _docker_ps | grep -q "openpanel_mysql"; then
     if timeout 10 mariadb -Ne "SELECT 'PONG' AS PING;" 2>/dev/null | grep -q "PONG"; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m MariaDB container active and responding."
+      resolve_notification "$title"; resolve_notification "MariaDB service restarted!"
       return
     fi
 
@@ -705,6 +739,7 @@ mysql_docker_containers_status() {
     if (( mdb_ok )); then
       ((WARN--)); ((PASS++))
       echo "    MariaDB is back online."
+      resolve_notification "$title"
     else
       ((WARN--)); ((FAIL++)); STATUS=2
       echo "    Error: MariaDB still not responding!"
@@ -729,6 +764,7 @@ mysql_docker_containers_status() {
     if (( mdb_ok )); then
       ((FAIL--)); (( STATUS < 1 )) && STATUS=1
       echo "    MariaDB is back online."
+      resolve_notification "$title"
       write_notification "MariaDB restarted successfully!" "Sentinel restarted MariaDB on $HOSTNAME at $DISPLAY_TIME after the container was found not running. It is responding now."
     else
       echo "    Error: MariaDB still not responding!"
@@ -757,6 +793,7 @@ redis_docker_container_status() {
       if podman exec "$container" redis-cli PING 2>/dev/null | grep -q PONG; then
         rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
         ((PASS++)); echo -e "\e[32m[✔]\e[0m Redis container active and responding."
+        resolve_notification "$title"; resolve_notification "Redis service restarted!"; resolve_notification "Redis container stuck"
       else
         echo -e "\e[31m[✘]\e[0m Redis running but not responding — restarting."
         write_notification "Redis service restarted!" "Redis container running but not responding, attempting restart."
@@ -1007,11 +1044,11 @@ check_ssh_logins() {
 check_disk_usage() {
   local flag_tt=86400
   local title="Running out of Disk Space!"
-  if is_unread_message_present "$title"; then
-    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Unread DU notification. Skipping."; return
-  fi
   local pct; pct=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
   if (( pct > DISK_THRESHOLD )); then
+    if is_unread_message_present "$title"; then
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Unread DU notification. Skipping."; return
+    fi
     # Try cleanup if not done in last 24h
     if [ -f "$LOCK_FILE_FOR_DOCKER_PRUNE" ]; then
       local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_DOCKER_PRUNE") ))
@@ -1046,6 +1083,7 @@ check_disk_usage() {
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Disk ${pct}% < threshold ${DISK_THRESHOLD}%"
+    resolve_notification "$title"
   fi
 }
 
@@ -1060,24 +1098,26 @@ check_system_load() {
     write_notification "$title" "Load: $load | Crashlog: $REPORT"
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Load ${load} < threshold ${LOAD_THRESHOLD}."
+    resolve_notification "$title"
   fi
 }
 
 check_ram_usage() {
   local title="High Memory Usage!"
-  if is_unread_message_present "Used RAM"; then
-    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Unread RAM notification. Skipping."; return
-  fi
   local _ total used _rest
   read -r _ total used _rest < <(free -m | awk '/^Mem:/')
   local pct=$(( used * 100 / total ))
   if (( pct > RAM_THRESHOLD )); then
+    if is_unread_message_present "$title"; then
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Unread RAM notification. Skipping."; return
+    fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m RAM ${pct}% > threshold ${RAM_THRESHOLD}%"
     local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10 | sed ':a;N;$!ba;s/\n/\\n/g')
     write_notification "$title" "Used RAM: ${used}MB / ${total}MB (${pct}%) | $procs"
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m RAM ${pct}% < threshold ${RAM_THRESHOLD}%"
+    resolve_notification "$title"
   fi
 }
 
@@ -1100,6 +1140,7 @@ check_cpu_usage() {
     write_notification "$title" "CPU: ${pct}% | $procs"
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m CPU ${pct}% < threshold ${CPU_THRESHOLD}%"
+    resolve_notification "$title"
   fi
 }
 
@@ -1110,7 +1151,7 @@ check_https_traffic() {
   if [[ "$CADDY_IS_ACTIVE" != "true" ]]; then
     ((WARN++)); echo "[!] Skipping website traffic checks because Caddy is not running."; return
   fi
-  local ALERT=0
+  local ALERT=0 SYN_ALERT=0
   local ALL_CONNS
   ALL_CONNS=$(ss -tn '( sport = :80 or sport = :443 )' | tail -n +2)
 
@@ -1119,7 +1160,7 @@ check_https_traffic() {
     if (( COUNT >= 1000 )); then
       echo -e "\e[31m[✘]\e[0m Possible SYN flood on :$PORT — $COUNT in SYN_RECV"
       write_notification "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state"
-      ALERT=1
+      ALERT=1; SYN_ALERT=1
     fi
   done < <(awk '/SYN-RECV/{split($4,a,":"); print a[length(a)]}' <<< "$ALL_CONNS" | sort | uniq -c | awk '{print $1, $2}')
 
@@ -1179,7 +1220,10 @@ check_https_traffic() {
     else
       write_notification "High traffic from ${#HIGH_TRAFFIC_LINES[@]} IPs" "$NOTIF_BODY"
     fi
+  else
+    resolve_notification "High traffic from " --prefix
   fi
+  (( SYN_ALERT == 0 )) && resolve_notification "Possible SYN flood"
 
   # Total established
   local TOTAL_CONN
@@ -1188,6 +1232,8 @@ check_https_traffic() {
     echo -e "\e[31m[✘]\e[0m High total connections: $TOTAL_CONN"
     write_notification "High total connections" "$TOTAL_CONN total connections on ports 80/443"
     ALERT=1
+  else
+    resolve_notification "High total connections"
   fi
 
   if [[ $ALERT -eq 0 ]]; then
@@ -1216,6 +1262,7 @@ check_swap_usage() {
           read -r _ stotal sused _rest < <(free -m | awk '/^Swap:/')
           if (( stotal > 0 )); then
             ((WARN++))
+            resolve_notification "SWAP re-enable failed on $HOSTNAME"
             write_notification "SWAP re-enabled on $HOSTNAME" "Sentinel detected swap was off on $HOSTNAME at $DISPLAY_TIME and re-enabled it via swapon -a. Now: ${stotal}MB total."
             echo -e "\e[32m[✔]\e[0m SWAP successfully re-enabled (${stotal}MB total)."
           else
@@ -1231,17 +1278,21 @@ check_swap_usage() {
           return
         fi
       else
-        ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."; return
+        ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."
+        resolve_notification "SWAP re-enable failed on $HOSTNAME"; return
       fi
     else
-      ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."; return
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m No SWAP configured."
+      resolve_notification "SWAP re-enable failed on $HOSTNAME"; return
     fi
   fi
 
   local pct=$(( sused * 100 / stotal ))
   if (( pct <= SWAP_THRESHOLD )); then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m SWAP ${pct}% < threshold ${SWAP_THRESHOLD}%"
-    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"; return
+    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
+    resolve_notification "$title"; resolve_notification "SWAP high but cannot safely clear"; resolve_notification "URGENT: SWAP not cleared on $HOSTNAME"
+    return
   fi
 
   if [[ -f "$LOCK_FILE_FOR_SWAP_CLEANUP" ]]; then
@@ -1336,10 +1387,12 @@ check_if_panel_domain_and_ns_resolve_to_server() {
     local domain_ip; domain_ip=$(dig +short @"$GNS" "$FORCED_DOMAIN" 2>/dev/null)
     if [[ "$domain_ip" == "$SERVER_IP" ]]; then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m $FORCED_DOMAIN → $SERVER_IP"
+      resolve_notification "$FORCED_DOMAIN does not resolve to " --prefix
     else
       local ns_rec; ns_rec=$(dig +short @"$GNS" NS "$FORCED_DOMAIN" 2>/dev/null)
       if [[ "${ns_rec,,}" == *cloudflare* ]]; then
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m $FORCED_DOMAIN uses Cloudflare proxy — skipping IP check."
+        resolve_notification "$FORCED_DOMAIN does not resolve to " --prefix
       else
         ((FAIL++)); STATUS=2
         echo -e "\e[31m[✘]\e[0m $FORCED_DOMAIN resolves to $domain_ip, expected $SERVER_IP"
@@ -1367,6 +1420,7 @@ check_if_panel_domain_and_ns_resolve_to_server() {
     done
     if (( ${#failed[@]} == 0 )); then
       ((PASS++)); echo -e "\e[32m[✔]\e[0m All nameservers resolve to local IPs."
+      resolve_notification "Nameservers do not resolve to local IPs"
     else
       ((FAIL++)); STATUS=2
       printf '    %s\n' "${failed[@]}"
