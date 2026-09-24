@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php]
+# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 24.09.2026
@@ -40,6 +40,7 @@ readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly SKIP_VERSIONS_FILE="/etc/openpanel/upgrade/skip_versions"
 readonly KEEP_KERNELS=2
 readonly UPDATE_TIMEOUT=300
+readonly CONFIG_REPO_URL="https://github.com/stefanpejcic/openpanel-configuration/archive/refs/heads/main.tar.gz"
 
 # ---------------------- COLOR CODES ---------------------- #
 readonly RED='\033[0;31m'
@@ -89,6 +90,16 @@ Options:
     --compose           Update docker-compose.yml template in /etc/openpanel/docker/compose/1.0/
     --env               Update .env template in /etc/openpanel/docker/compose/1.0/
     --php               Update /etc/openpanel/php/ and add new PHP versions to the template and all users
+    --wp                Update WP-CLI (/etc/openpanel/wordpress/wp-cli.phar)
+    --ols               Update OpenLiteSpeed files in /etc/openpanel/openlitespeed/
+    --apache            Update Apache files in /etc/openpanel/apache/
+    --clamav            Update /etc/openpanel/clamav/ and recreate the clamav container with a new image if running
+    --phpmyadmin        Update /etc/openpanel/mysql/phpmyadmin/ and recreate the phpmyadmin container with a new image if running
+    --postgres          Update PostgreSQL files in /etc/openpanel/postgres/
+    --skeleton          Update new user skeleton files in /etc/openpanel/skeleton/
+    --ssh               Update SSH files in /etc/openpanel/ssh/
+    --varnish           Update Varnish files in /etc/openpanel/varnish/
+    --cron              Update /etc/openpanel/cron and /etc/cron.d/openpanel
     -h, --help          Show this help message
 
 Examples:
@@ -100,6 +111,8 @@ Examples:
     opencli update --system        # Update system packages and kernel
     opencli update --compose --env # Update both user templates
     opencli update --php           # Add new PHP versions to all users
+    opencli update --wp --cron     # Update WP-CLI and cron jobs
+    opencli update --phpmyadmin    # Update phpMyAdmin files and image
 
 Multiple options can be combined and run in the order given.
 EOF
@@ -1181,12 +1194,96 @@ check_update() {
 }
 
 
+# ---------------------- CONFIGURATION FILES FROM GITHUB ---------------------- #
+# downloads openpanel-configuration once per run and sets CONFIG_SRC to the extracted repo
+fetch_configuration_repo() {
+    [[ -n "${CONFIG_SRC:-}" && -d "$CONFIG_SRC" ]] && return 0
+    CONFIG_TMP=$(mktemp -d)
+    log_info "Downloading configuration files from github"
+    if ! wget --timeout=30 --tries=2 -q -O "$CONFIG_TMP/cfg.tar.gz" "$CONFIG_REPO_URL" || ! tar -xzf "$CONFIG_TMP/cfg.tar.gz" -C "$CONFIG_TMP"; then
+        log_error "Failed to download $CONFIG_REPO_URL"
+        rm -rf "$CONFIG_TMP"
+        CONFIG_TMP=""
+        return 1
+    fi
+    CONFIG_SRC=$(find "$CONFIG_TMP" -mindepth 1 -maxdepth 1 -type d | head -n1)
+}
+
+# overwrites /etc/openpanel/$1 (file or dir) with the copy from github, local-only files are kept
+update_config_path() {
+    local rel="$1" src dst
+    fetch_configuration_repo || return 1
+    src="$CONFIG_SRC/$rel"
+    dst="/etc/openpanel/$rel"
+    if [[ -d "$src" ]]; then
+        mkdir -p "$dst"
+        cp -rf "$src/." "$dst/"
+    elif [[ -f "$src" ]]; then
+        mkdir -p "$(dirname "$dst")"
+        cp -f "$src" "$dst"
+    else
+        log_error "$rel not found in the configuration repository"
+        return 1
+    fi
+    log_info "[✔] $dst updated"
+}
+
+# recreates a service from /root/docker-compose.yml with a freshly pulled image, only if it's already running
+refresh_running_container() {
+    local service="$1" image
+    if ! podman ps --format '{{.Names}}' | grep -qx "$service"; then
+        log_info "$service container is not running, skipping image update"
+        return 0
+    fi
+    image=$(podman inspect --format '{{.ImageName}}' "$service" 2>/dev/null)
+    cd /root || return 1
+    log_info "Removing $service container"
+    podman-compose down "$service" >/dev/null 2>&1
+    if [[ -n "$image" ]]; then
+        log_info "Deleting image $image"
+        podman rmi -f "$image" >/dev/null 2>&1
+    fi
+    log_info "Downloading new $service image"
+    podman-compose pull "$service" >/dev/null 2>&1
+    log_info "Starting $service container"
+    if podman-compose up -d "$service" >/dev/null 2>&1; then
+        log_info "[✔] $service container restarted with the new image"
+    else
+        log_error "Failed to start $service - check: cd /root && podman-compose up -d $service"
+        return 1
+    fi
+}
+
+update_wp_cli() {
+    update_config_path "wordpress/wp-cli.phar" || return 1
+    chmod 755 /etc/openpanel/wordpress/wp-cli.phar
+}
+
+update_clamav() {
+    update_config_path "clamav" || return 1
+    refresh_running_container clamav
+}
+
+update_phpmyadmin() {
+    update_config_path "mysql/phpmyadmin" || return 1
+    refresh_running_container phpmyadmin
+}
+
+update_cron() {
+    update_config_path "cron" || return 1
+    # same as the installer: root-owned 0600, cron picks up the change on its own
+    install -m 600 -o root -g root /etc/openpanel/cron /etc/cron.d/openpanel
+    command -v restorecon >/dev/null 2>&1 && restorecon /etc/cron.d/openpanel
+    log_info "[✔] /etc/cron.d/openpanel updated"
+}
+
+
 # ---------------------- RUNS CHECK OR STARTS UPDATE ---------------------- #
 main() {
     local modes=()
     for arg in "$@"; do
         case "$arg" in
-            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php)
+            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php|--wp|--ols|--apache|--clamav|--phpmyadmin|--postgres|--skeleton|--ssh|--varnish|--cron)
                 # skip duplicates so each mode runs once
                 [[ " ${modes[*]} " == *" ${arg#--} "* ]] || modes+=("${arg#--}") ;;
             beta)    BETA=true    ;;
@@ -1210,8 +1307,20 @@ main() {
             compose) update_compose_template docker-compose.yml ;;
             env) update_compose_template .env ;;
             php) update_php ;;
+            wp) update_wp_cli ;;
+            ols) update_config_path openlitespeed ;;
+            apache) update_config_path apache ;;
+            clamav) update_clamav ;;
+            phpmyadmin) update_phpmyadmin ;;
+            postgres) update_config_path postgres ;;
+            skeleton) update_config_path skeleton ;;
+            ssh) update_config_path ssh ;;
+            varnish) update_config_path varnish ;;
+            cron) update_cron ;;
         esac
     done
+
+    [[ -n "${CONFIG_TMP:-}" ]] && rm -rf "$CONFIG_TMP"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
