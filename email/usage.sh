@@ -30,9 +30,12 @@
 
 readonly CONTAINER=openadmin_mailserver
 readonly USERS_DIR="/etc/openpanel/openpanel/core/users"
+readonly QUOTA_NOTIFY_PERCENT=90
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/email.sh
 
 usage() {
     echo "Usage: opencli email-usage <USERNAME|--all>"
@@ -62,6 +65,36 @@ if [ $? -ne 0 ]; then
     echo "Error: failed to list email accounts from '$CONTAINER'."
     exit 1
 fi
+
+# emails the user (if they have notify_email_quota_limit on) about mailboxes at 90%+ of their quota, once until usage drops again
+notify_email_quota_limit() {
+    local username="$1" file="$2"
+    local over="" details="" email used quota pct flag
+
+    # lines look like: * user@example.com ( 950M / 1G ) [95%], unlimited quota shows as ~
+    while read -r email used quota pct; do
+        [[ "$quota" == "~" || ! "$pct" =~ ^[0-9]+$ ]] && continue
+        (( pct >= QUOTA_NOTIFY_PERCENT )) || continue
+        over+="$email"$'\n'
+        flag="/tmp/${username}_notify_email_quota_limit_${email}"
+        [[ -f "$flag" ]] && continue
+        details+="<b>${email}</b>: ${pct}% (${used} of ${quota})<br>"
+        touch "$flag"
+    done < <(sed -nE 's/^\* ([^ ]+) \( ([^ ]+) \/ ([^ ]+) \) \[([0-9]+)%\].*/\1 \2 \3 \4/p' "$file")
+
+    if [[ -n "$details" ]]; then
+        send_user_email "$username" "Email accounts on $username are almost full" \
+            "These email accounts on <b>$username</b> are using ${QUOTA_NOTIFY_PERCENT}% or more of their quota:<br><br>${details}<br>Once a mailbox is full it stops receiving new emails. Delete old emails or raise the mailbox quota." \
+            notify_email_quota_limit || true
+    fi
+
+    # mailboxes back under the limit (or deleted) get notified again the next time they cross it
+    for flag in "/tmp/${username}_notify_email_quota_limit_"*; do
+        [[ -f "$flag" ]] || continue
+        email="${flag#"/tmp/${username}_notify_email_quota_limit_"}"
+        grep -qxF "$email" <<< "$over" || rm -f "$flag"
+    done
+}
 
 refresh_user() {
     local username="$1"
@@ -95,6 +128,7 @@ refresh_user() {
     mv -f "$tmp" "$file"
 
     echo "Updated $file ($(grep -c '^\*' "$file") email accounts)"
+    notify_email_quota_limit "$username" "$file"
 }
 
 if [ "$1" == "--all" ]; then
