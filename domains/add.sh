@@ -959,7 +959,7 @@ run_parallel_async() {
 
 notify_sentinel() {
 	if ! $SKIP_NOTIFY; then
-	    nohup opencli sentinel --action=domains_create --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1 &
+	    nohup opencli sentinel --action=domains_add --title="Domain added" --message="Domain name: '$domain_name' has been added to OpenPanel user: '$user'." >/dev/null 2>&1 &
 	    disown
 	fi
 }
