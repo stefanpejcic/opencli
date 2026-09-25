@@ -5,7 +5,7 @@
 # Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 24.09.2026
+# Last Modified: 25.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -772,13 +772,19 @@ update_locales() {
     local updated=0
     local failed=0
 
+    # remote folders have region codes (sr-rs, pt-br) while local ones are just the language
+    local remote_locales
+    remote_locales=$(curl -s --max-time 15 "https://api.github.com/repos/${github_repo}/contents" | grep -oE '"name": *"[a-z]{2}-[a-z]{2}"' | grep -oE '[a-z]{2}-[a-z]{2}')
+
     for po_file in "$babel_translations"/*/LC_MESSAGES/messages.po; do
         [[ -f "$po_file" ]] || continue
 
         local two_letter
         two_letter=$(echo "$po_file" | awk -F'/' '{for(i=1;i<=NF;i++) if($i=="translations") print $(i+1)}')
 
-        local formatted_locale="${two_letter}-${two_letter}"
+        local formatted_locale
+        formatted_locale=$(grep -m1 "^${two_letter}-" <<< "$remote_locales")
+        [[ -n "$formatted_locale" ]] || formatted_locale="${two_letter}-${two_letter}"
         local url="https://raw.githubusercontent.com/${github_repo}/main/${formatted_locale}/messages.po"
 
         if wget --spider -q "$url" 2>/dev/null; then

@@ -34,6 +34,8 @@
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/notifications.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/email.sh
 
 # config
 readonly CONF_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
@@ -342,16 +344,20 @@ start_containers_for_socket() {
 
     local count=0
     local entry id state name
+    local oom result
     for entry in $dead; do
         id="${entry%%|*}"
         state="${entry##*|}"
-        name=$(CONTAINER_HOST="unix://$socket" timeout 10 podman inspect "$id" --format '{{.Name}}' 2>/dev/null || echo "$id")
+        IFS='|' read -r name oom < <(CONTAINER_HOST="unix://$socket" timeout 10 podman inspect "$id" --format '{{.Name}}|{{.State.OOMKilled}}' 2>/dev/null)
+        name="${name:-$id}"
         echo "$label: starting $name (was: $state)"
         if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
-            ((count++))
+            ((count++)); result="restarted"
         else
-            echo -e "\e[31m[✘]\e[0m $label: FAILED to start $name"
+            echo -e "\e[31m[✘]\e[0m $label: FAILED to start $name"; result="failed"
         fi
+        # per user list of what was down, emailed to the user by notify_users_of_failed_services
+        [[ "$label" != "root" ]] && { flock -x 201; printf '%s\t%s\t%s\t%s\n' "$label" "$name" "${oom:-false}" "$result" >> "$results_file.events"; } 201>>"$results_file.lock"
     done
     { flock -x 201; echo "${label}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
 }
@@ -513,7 +519,8 @@ restart_dead_user_containers() {
           (( count > 0 )) && RESTART_USER_LINES+=("${label}: ${count}")
       fi
   done < "$RESULTS_FILE"
-  rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock"
+  RESTART_EVENTS=$(cat "$RESULTS_FILE.events" 2>/dev/null)
+  rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock" "$RESULTS_FILE.events"
 
   local END_TIME; END_TIME=$(date +%s)
   RESTART_ELAPSED=$((END_TIME - START_TIME))
@@ -577,6 +584,36 @@ check_user_containers() {
   fi
   echo -e "\e[38;5;214m[!]\e[0m $summary_msg"
   write_info_notification service "Dead/required user containers started" "$summary_msg"
+  notify_users_of_failed_services
+}
+
+# emails each user (if they have notify_service_failed on) which of their services were down and restarted, at most once a day per user
+notify_users_of_failed_services() {
+  [[ -n "$RESTART_EVENTS" ]] || return
+  local today context username state services oom_note failed_note
+  today=$(date +%Y-%m-%d)
+  for context in $(cut -f1 <<< "$RESTART_EVENTS" | sort -u); do
+    [[ "$context" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+    username=$(mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT username FROM users WHERE server = '$context' LIMIT 1" 2>/dev/null)
+    [[ -n "$username" && "$username" != SUSPENDED_* ]] || continue
+    state="/etc/openpanel/openpanel/core/users/${username}/.service_failed_notified"
+    [[ "$(cat "$state" 2>/dev/null)" == "$today" ]] && continue
+
+    services="" oom_note="" failed_note=""
+    while IFS=$'\t' read -r _ name oom result; do
+      services+="- $name: "
+      [[ "$oom" == "true" ]] && { services+="ran out of memory, "; oom_note=1; }
+      [[ "$result" == "restarted" ]] && services+="restarted"$'\n' || { services+="could not be started"$'\n'; failed_note=1; }
+    done < <(awk -F'\t' -v c="$context" '$1 == c' <<< "$RESTART_EVENTS")
+
+    local tips="If a service keeps stopping, check its logs on the Containers page in OpenPanel."
+    [[ -n "$oom_note" ]] && tips+=" A service that ran out of memory needs a higher memory limit on the Containers page, or less memory use, for example fewer PHP workers or a smaller database cache."
+    [[ -n "$failed_note" ]] && tips+=" Services that could not be started are still down, contact your hosting provider if they don't come back."
+
+    send_user_email "$username" "Services restarted on account $username" \
+      "Some services on account $username had stopped, the server's automatic checks tried to start them again:"$'\n\n'"${services}"$'\n'"Checked: $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      notify_service_failed "" "" "" "$tips" && echo "$today" > "$state" && echo "$username: notified about restarted services."
+  done
 }
 
 email_daily_report() {

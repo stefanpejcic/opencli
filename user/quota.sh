@@ -311,7 +311,8 @@ blocks_to_gb() {
 notify_disk_limits() {
     command -v jq >/dev/null 2>&1 || return 0
 
-    local over username dp ip du dh iu ih flag details text
+    local over username dp ip du dh iu ih flag text usage up_name cur_disk up_disk cur_inodes up_inodes upgrade_plan upgrade_text
+    local -a raised
     over=$(users_over_quota)
 
     while read -r username dp ip du dh iu ih; do
@@ -320,20 +321,32 @@ notify_disk_limits() {
         flag="/tmp/${username}_notify_disk_limit"
         [[ -f "$flag" ]] && continue
 
-        details=""
         text=""
-        if (( dp >= DISK_NOTIFY_PERCENT )); then
-            details+="Disk usage: <b>${dp}%</b> ($(blocks_to_gb "$du") GB of $(blocks_to_gb "$dh") GB)<br>"
-            text+="disk ${dp}% ($(blocks_to_gb "$du") of $(blocks_to_gb "$dh") GB) "
-        fi
-        if (( ip >= INODES_NOTIFY_PERCENT )); then
-            details+="Inodes: <b>${ip}%</b> (${iu} of ${ih} files)<br>"
-            text+="inodes ${ip}% (${iu} of ${ih}) "
+        (( dp >= DISK_NOTIFY_PERCENT )) && text+="disk ${dp}% ($(blocks_to_gb "$du") of $(blocks_to_gb "$dh") GB) "
+        (( ip >= INODES_NOTIFY_PERCENT )) && text+="inodes ${ip}% (${iu} of ${ih}) "
+
+        # both are always sent so the user sees the whole picture, OpenAdmin marks the one over its limit
+        usage=$(jq -cn \
+            --arg du "$(blocks_to_gb "$du") GB" --arg dh "$(blocks_to_gb "$dh") GB" --argjson dp "$dp" --argjson dl "$DISK_NOTIFY_PERCENT" \
+            --arg iu "$iu" --arg ih "$ih files" --argjson ip "$ip" --argjson il "$INODES_NOTIFY_PERCENT" \
+            '[{title: "Disk space", used: $du, total: $dh, percent: $dp, limit: $dl},
+              {title: "Inodes (files and folders)", used: $iu, total: $ih, percent: $ip, limit: $il}]')
+
+        # offer the upsell plan only when it raises a limit that's actually running out
+        upgrade_plan="" upgrade_text="" raised=()
+        if IFS=$'\t' read -r up_name cur_disk up_disk cur_inodes up_inodes _ < <(user_upsell "$username"); then
+            (( dp >= DISK_NOTIFY_PERCENT )) && limit_raised "$cur_disk" "$up_disk" size && raised+=("$(plan_size_label "$up_disk") of disk space instead of $(plan_size_label "$cur_disk")")
+            (( ip >= INODES_NOTIFY_PERCENT )) && limit_raised "$cur_inodes" "$up_inodes" count && raised+=("$( [[ "$up_inodes" == 0 ]] && echo unlimited || echo "$up_inodes") inodes instead of $cur_inodes")
+            if (( ${#raised[@]} )); then
+                upgrade_plan="$up_name"
+                upgrade_text="The $up_name plan gives you $(printf '%s and ' "${raised[@]}" | sed 's/ and $//')."
+            fi
         fi
 
         send_user_email "$username" "Account $username is almost out of disk space" \
-            "Account <b>$username</b> is close to its hosting plan limit:<br><br>${details}<br>Once the limit is reached, websites and email can stop working. Delete files you no longer need or ask your provider for a bigger plan." \
-            notify_disk_limit || true
+            "Account $username is close to its hosting plan limit, checked $(date '+%Y-%m-%d %H:%M:%S %Z')."$'\n\n'"Once the limit is reached, websites and email can stop working, and new files, uploads and emails will fail." \
+            notify_disk_limit "$usage" "$upgrade_plan" "$upgrade_text" \
+            "To free up space, find the biggest folders on the Disk Usage and Inodes Explorer pages in OpenPanel, and delete old backups, logs and files you no longer need. If you need more space, ask your hosting provider for a bigger plan." || true
 
         nohup opencli sentinel --action=user_quota --title="User $username is close to the disk limit" \
             --message="OpenPanel user '$username' is close to the hosting plan limit: ${text% }." >/dev/null 2>&1 &

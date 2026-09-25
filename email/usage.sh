@@ -69,7 +69,8 @@ fi
 # emails the user (if they have notify_email_quota_limit on) about mailboxes at 90%+ of their quota, once until usage drops again
 notify_email_quota_limit() {
     local username="$1" file="$2"
-    local over="" details="" email used quota pct flag
+    local over="" usage="" email used quota pct flag up_name cur_quota up_quota upgrade_plan="" upgrade_text=""
+    command -v jq >/dev/null 2>&1 || return 0
 
     # lines look like: * user@example.com ( 950M / 1G ) [95%], unlimited quota shows as ~
     while read -r email used quota pct; do
@@ -78,14 +79,21 @@ notify_email_quota_limit() {
         over+="$email"$'\n'
         flag="/tmp/${username}_notify_email_quota_limit_${email}"
         [[ -f "$flag" ]] && continue
-        details+="<b>${email}</b>: ${pct}% (${used} of ${quota})<br>"
+        usage+=$(jq -cn --arg e "$email" --arg u "$used" --arg q "$quota" --argjson p "$pct" --argjson l "$QUOTA_NOTIFY_PERCENT" \
+            '{title: $e, used: $u, total: $q, percent: $p, limit: $l}')$'\n'
         touch "$flag"
     done < <(sed -nE 's/^\* ([^ ]+) \( ([^ ]+) \/ ([^ ]+) \) \[([0-9]+)%\].*/\1 \2 \3 \4/p' "$file")
 
-    if [[ -n "$details" ]]; then
+    if [[ -n "$usage" ]]; then
+        # offer the upsell plan only when it allows bigger mailboxes than the current plan
+        if IFS=$'\t' read -r up_name _ _ _ _ cur_quota up_quota _ < <(user_upsell "$username") && limit_raised "$cur_quota" "$up_quota" size; then
+            upgrade_plan="$up_name"
+            upgrade_text="The $up_name plan lets you set mailboxes up to $(plan_size_label "$up_quota") instead of $(plan_size_label "$cur_quota"). After upgrading, raise the quota on the Email Accounts page."
+        fi
         send_user_email "$username" "Email accounts on $username are almost full" \
-            "These email accounts on <b>$username</b> are using ${QUOTA_NOTIFY_PERCENT}% or more of their quota:<br><br>${details}<br>Once a mailbox is full it stops receiving new emails. Delete old emails or raise the mailbox quota." \
-            notify_email_quota_limit || true
+            "These email accounts on $username are using ${QUOTA_NOTIFY_PERCENT}% or more of their quota, checked $(date '+%Y-%m-%d %H:%M:%S %Z')."$'\n\n'"Once a mailbox is full, new emails sent to it are not delivered and bounce back to the sender." \
+            notify_email_quota_limit "$(jq -cs . <<< "$usage")" "$upgrade_plan" "$upgrade_text" \
+            "To free up space, delete old emails and empty the Trash and Spam folders in webmail, or raise the mailbox quota on the Email Accounts page in OpenPanel." || true
     fi
 
     # mailboxes back under the limit (or deleted) get notified again the next time they cross it

@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/ssl.sh
 # Description: Check SSL for domain, add custom certificate, view files.
-# Usage: opencli domains-ssl <DOMAIN_NAME> [status|info|logs|auto|custom] [path/to/fullchain.pem path/to/key.pem]
+# Usage: opencli domains-ssl <DOMAIN_NAME> [status|info|logs|auto|custom] [path/to/fullchain.pem path/to/key.pem] | opencli domains-ssl --notify
 # Author: Stefan Pejcic
 # Created: 22.03.2025
-# Last Modified: 21.08.2026
+# Last Modified: 25.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -48,7 +48,98 @@ usage() {
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}logs${RESET} [${YELLOW}1000${RESET}|${YELLOW}-f${RESET}]  - View caddy SSL-related logs for the domain."
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}custom${RESET} ${YELLOW}<cert_path>${RESET} ${YELLOW}<key_path>${RESET} - Switch to custom SSL for the domain."
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}auto${RESET}            - Switch back to AutoSSL for the domain."
+    echo -e "  opencli domains-ssl ${GREEN}--notify${RESET}                - Email users about SSL certificates that expire soon or fail to renew."
 }
+
+# emails users about AutoSSL certificates with 7 days or less left (renewal is failing, Caddy renews ~30 days before) and any certificate with 1 day or less left, once per certificate and alert
+notify_ssl_expiry() {
+    # shellcheck disable=SC1091
+    . /usr/local/opencli/lib/email.sh
+    local now acme_dir="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory"
+    now=$(date +%s)
+
+    # only domains that point to this server, a parked or externally hosted domain never gets AutoSSL here
+    local server_ips
+    server_ips="$(curl --silent --max-time 3 -4 "https://ip.openpanel.com" 2>/dev/null) $(hostname -I 2>/dev/null) $(cat /etc/openpanel/openpanel/core/users/*/ip.json 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+){3}')"
+
+    # latest TLS error per domain from the last day, so the email can say why renewal fails
+    local tls_errors
+    tls_errors=$(timeout 60 podman logs --since 24h caddy 2>&1 | jq -Rr 'fromjson? | select(.level == "error" and ((.logger // "") | test("tls|acme"))) | [(.identifier // .server_name // ""), (.error // .msg // "")] | @tsv' 2>/dev/null)
+
+    local rows
+    rows=$(mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT u.username, d.domain_url FROM domains d JOIN users u ON u.id = d.user_id WHERE u.username NOT LIKE 'SUSPENDED%' ORDER BY u.username" 2>/dev/null)
+
+    local username domain conf cert type end_date end_secs days level reason line
+    declare -A body tips_auto tips_custom pending
+    while IFS=$'\t' read -r username domain; do
+        [[ -n "$domain" ]] || continue
+        conf="/etc/openpanel/caddy/domains/${domain}.conf"
+        [[ -f "$conf" ]] || continue
+        if grep -q "fullchain.pem" "$conf"; then
+            type="custom"; cert="/etc/openpanel/caddy/ssl/custom/${domain}/fullchain.pem"
+        elif grep -q "on_demand" "$conf"; then
+            type="auto"; cert="${acme_dir}/${domain}/${domain}.crt"
+        else
+            continue
+        fi
+        [[ -f "$cert" ]] || continue
+
+        end_date=$(openssl x509 -enddate -noout -in "$cert" 2>/dev/null | cut -d= -f2)
+        end_secs=$(date -d "$end_date" +%s 2>/dev/null) || continue
+        days=$(( (end_secs - now) / 86400 ))
+
+        level=""
+        (( days <= 1 )) && level=1
+        [[ -z "$level" && "$type" == "auto" ]] && (( days <= 7 )) && level=7
+        [[ -n "$level" ]] || continue
+
+        dig +short A "$domain" 2>/dev/null | grep -E '^[0-9.]+$' | grep -qxFf <(tr ' ' '\n' <<< "$server_ips" | grep .) || continue
+
+        # same certificate and same or worse alert already sent
+        local state="/etc/openpanel/openpanel/core/users/${username}/.ssl_notified" sent
+        sent=$(awk -v d="$domain" -v e="$end_secs" '$1 == d && $2 == e { print $3 }' "$state" 2>/dev/null)
+        [[ -n "$sent" ]] && (( sent <= level )) && continue
+
+        if (( end_secs < now )); then
+            line="- ${domain}: the $( [[ "$type" == auto ]] && echo "AutoSSL" || echo "custom") certificate expired on $(date -u -d "@$end_secs" '+%Y-%m-%d %H:%M UTC')."
+        else
+            line="- ${domain}: the $( [[ "$type" == auto ]] && echo "AutoSSL" || echo "custom") certificate expires on $(date -u -d "@$end_secs" '+%Y-%m-%d %H:%M UTC') ($( (( days < 1 )) && echo "less than a day" || echo "${days} day(s)") left)."
+        fi
+        if [[ "$type" == "auto" ]]; then
+            line+=" It should have been renewed automatically, so renewal is failing."
+            reason=$(awk -F'\t' -v d="$domain" '$1 == d { r = $2 } END { print r }' <<< "$tls_errors" | cut -c1-300)
+            [[ -n "$reason" ]] && line+=" Last error: ${reason}"
+            tips_auto[$username]=1
+        else
+            tips_custom[$username]=1
+        fi
+        body[$username]+="${line}"$'\n'
+        # written to the state file only once the email is sent, so a failed send is retried next run
+        pending[$username]+="${domain} ${end_secs} ${level}"$'\n'
+    done <<< "$rows"
+
+    for username in "${!body[@]}"; do
+        local tips=""
+        [[ -n "${tips_auto[$username]}" ]] && tips+="For AutoSSL, make sure the domain's A and AAAA records point to this server, no CAA record blocks Let's Encrypt, and no proxy or firewall blocks /.well-known/acme-challenge/. "
+        [[ -n "${tips_custom[$username]}" ]] && tips+="For a custom certificate, upload a renewed one on the Domains > SSL Certificates page in OpenPanel, or switch the domain to AutoSSL to get free certificates that renew on their own."
+        if send_user_email "$username" "SSL certificate problem on account $username" \
+            "These SSL certificates on account $username need attention, without a valid certificate visitors see a security warning instead of the website:"$'\n\n'"${body[$username]}"$'\n'"Checked: $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+            notify_ssl_expiry "" "" "" "$tips"; then
+            local state="/etc/openpanel/openpanel/core/users/${username}/.ssl_notified"
+            # certificates that expired over 30 days ago are dropped, a replaced one never matches again
+            { awk -v n="$now" 'NF == 3 && $2 > n - 2592000' "$state" 2>/dev/null; printf '%s' "${pending[$username]}"; } | awk '{ key = $1 " " $2; if (!(key in lvl) || $3 < lvl[key]) lvl[key] = $3 } END { for (k in lvl) print k, lvl[k] }' > "${state}.tmp" && mv "${state}.tmp" "$state"
+            echo "$username: notified about $(grep -c . <<< "${body[$username]}") certificate(s)."
+        else
+            echo "$username: $(grep -c . <<< "${body[$username]}") certificate(s) need attention, no email sent (notifications off or no email address)."
+        fi
+    done
+    [[ ${#body[@]} -eq 0 ]] && echo "No SSL certificates need attention."
+}
+
+if [ "$1" == "--notify" ]; then
+    notify_ssl_expiry
+    exit 0
+fi
 
 if [ -z "$1" ]; then
     echo "ERROR: Domain name is required!"
