@@ -28,6 +28,7 @@ opencli email-quotas
 opencli email-ratelimit
 opencli email-server
 opencli email-setup
+opencli email-usage
 opencli email-webmail
 opencli error
 opencli faq

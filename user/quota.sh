@@ -5,7 +5,7 @@
 # Usage: opencli user-quota <username|--all>
 # Author: Stefan Pejcic
 # Created: 16.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 25.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,10 +32,15 @@ set -euo pipefail
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/redis.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/email.sh
 
 # ======================================================================
 # Constants and Variables
 readonly GB_TO_BLOCKS=1024000
+readonly QUOTA_REPORT_FILE="/etc/openpanel/openpanel/quota_report.json"
+readonly DISK_NOTIFY_PERCENT=85
+readonly INODES_NOTIFY_PERCENT=95
 declare -g mysql_database config_file
 
 
@@ -287,6 +292,67 @@ generate_report() {
     fi
 }
 
+# users at or above either threshold, one per line: username disk_pct inodes_pct disk_used disk_hard inodes_used inodes_hard
+users_over_quota() {
+    jq -r --argjson d "$DISK_NOTIFY_PERCENT" --argjson i "$INODES_NOTIFY_PERCENT" '
+        .users[]
+        | (if .disk_hard > 0 then (.disk_used * 100 / .disk_hard | floor) else 0 end) as $dp
+        | (if .inodes_hard > 0 then (.inodes_used * 100 / .inodes_hard | floor) else 0 end) as $ip
+        | select($dp >= $d or $ip >= $i)
+        | "\(.username) \($dp) \($ip) \(.disk_used) \(.disk_hard) \(.inodes_used) \(.inodes_hard)"
+    ' "$QUOTA_REPORT_FILE" 2>/dev/null || true
+}
+
+blocks_to_gb() {
+    awk -v b="$1" -v f="$GB_TO_BLOCKS" 'BEGIN { printf "%.2f", b / f }'
+}
+
+# emails the user (if they have notify_disk_limit on) and tells the admin via sentinel, once until usage drops again
+notify_disk_limits() {
+    command -v jq >/dev/null 2>&1 || return 0
+
+    local over username dp ip du dh iu ih flag details text
+    over=$(users_over_quota)
+
+    while read -r username dp ip du dh iu ih; do
+        [[ -n "$username" ]] || continue
+        # already notified while over the limit
+        flag="/tmp/${username}_notify_disk_limit"
+        [[ -f "$flag" ]] && continue
+
+        details=""
+        text=""
+        if (( dp >= DISK_NOTIFY_PERCENT )); then
+            details+="Disk usage: <b>${dp}%</b> ($(blocks_to_gb "$du") GB of $(blocks_to_gb "$dh") GB)<br>"
+            text+="disk ${dp}% ($(blocks_to_gb "$du") of $(blocks_to_gb "$dh") GB) "
+        fi
+        if (( ip >= INODES_NOTIFY_PERCENT )); then
+            details+="Inodes: <b>${ip}%</b> (${iu} of ${ih} files)<br>"
+            text+="inodes ${ip}% (${iu} of ${ih}) "
+        fi
+
+        send_user_email "$username" "Account $username is almost out of disk space" \
+            "Account <b>$username</b> is close to its hosting plan limit:<br><br>${details}<br>Once the limit is reached, websites and email can stop working. Delete files you no longer need or ask your provider for a bigger plan." \
+            notify_disk_limit || true
+
+        nohup opencli sentinel --action=user_quota --title="User $username is close to the disk limit" \
+            --message="OpenPanel user '$username' is close to the hosting plan limit: ${text% }." >/dev/null 2>&1 &
+        disown || true
+
+        touch "$flag"
+    done <<< "$over"
+
+    # users back under both thresholds get notified again the next time they cross one
+    for flag in /tmp/*_notify_disk_limit; do
+        [[ -f "$flag" ]] || continue
+        username=$(basename "$flag")
+        username="${username%_notify_disk_limit}"
+        if ! awk -v u="$username" '$1 == u { found = 1 } END { exit !found }' <<< "$over"; then
+            rm -f "$flag"
+        fi
+    done
+}
+
 # ======================================================================
 # Main
 main() {
@@ -295,6 +361,7 @@ main() {
     # report
     if [[ $# -eq 0 ]] || [[ "$1" != "--update" ]]; then
         generate_report
+        notify_disk_limits
         exit 0
     fi
 
@@ -324,6 +391,7 @@ main() {
 
     # 5. Update /etc/openpanel/openpanel/quota_report.json
     generate_report &>/dev/null
+    notify_disk_limits
 
     # 6. flush cache on OpenPanel UI
     redis_drop_key openpanel_cache_modules.dashboard.get_disk_and_inodes_for_user_memver openpanel_cache_modules.dashboard._load_quota_report_memver &>/dev/null
