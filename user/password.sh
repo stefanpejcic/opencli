@@ -51,6 +51,7 @@ fi
 # Helpers
 
 source /usr/local/opencli/lib/password_strength.sh
+source /usr/local/opencli/lib/weakpass.sh
 
 # guarantees at least one upper, lower, digit and punctuation char (plus 8 fully random chars) so this always scores top of the password_strength rubric, regardless of the admin-configured threshold
 generate_random_password() {
@@ -73,6 +74,7 @@ generate_and_hash_password() {
     fi
 
     require_password_strength "$new_password"
+    [ "$random_flag" = true ] || require_not_common_password "$new_password"
     hashed_password=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
 }
 

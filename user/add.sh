@@ -104,7 +104,6 @@ read_config_file() {
         [[ -z "$key" ]] && continue                  # skip blank lines
         case "$key" in
             key) ENTERPRISE="$value" ;;
-            weakpass) weakpass="$value" ;;
             email_plaintext_passwords) email_plaintext_passwords="$value" ;;
         esac
     done < "$PANEL_CONFIG_FILE"
@@ -135,6 +134,8 @@ log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 . "$DB_CONFIG_FILE"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/password_strength.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/weakpass.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
@@ -195,29 +196,10 @@ check_reseller_limits() {
 }
 
 validate_password_in_lists() {
-    # https://weakpass.com/wordlist
-    # https://github.com/steveklabnik/password-cracker/blob/master/dictionary.txt
-
-    [[ "$weakpass" == "no" ]] && return 0
-
+    # generated passwords are random, no point checking the literal word
+    [[ "$PASSWORD" == "generate" ]] && return 0
     log "Checking password against weak-password dictionary"
-
-    local dict="/tmp/weakpass_dictionary.txt"
-    local url="https://github.com/steveklabnik/password-cracker/raw/master/dictionary.txt"
-
-    if [[ ! -f "$dict" ]]; then
-        log "Downloading weak-password dictionary (first time only)"
-        wget -qO "$dict" "$url" || { echo "[!] Warning: Could not fetch dictionary; skipping check."; return 0; }
-    elif [[ $(find "$dict" -mtime +7 -print -quit 2>/dev/null) ]]; then
-        log "Refreshing weak-password dictionary (older than 7 days)"
-        wget -qO "$dict" "$url" || echo "[!] Warning: Update failed; using cached dictionary."
-    fi
-
-    local lower="${PASSWORD,,}"
-
-    if grep -qiF "^${lower}$" "$dict" 2>/dev/null; then
-        die "Password is a common dictionary word. Use a stronger password or disable the check with: opencli config update weakpass no"
-    fi
+    require_not_common_password "$PASSWORD"
 }
 
 validate_username() {
