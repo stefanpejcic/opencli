@@ -129,7 +129,7 @@ start_user_containers() {
     done < "$names_file"
 
     rm -f "$names_file"
-    $DEBUG && echo "Cleared $names_file"
+    if $DEBUG; then echo "Cleared $names_file"; fi
 }
 
 
