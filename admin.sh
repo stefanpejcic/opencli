@@ -216,6 +216,7 @@ delete_existing_users() {
 			rm -rf "$reseller_features"  > /dev/null 2>&1
 		
             sqlite3 $db_file_path "DELETE FROM user WHERE username='$username';"  
+            rm -f "/var/log/openpanel/admin/activity/${username}.log"
             echo "User '$username' deleted successfully."
 			nohup opencli sentinel --action=admin_delete --title="Administrator deleted" --message="Administrator account '$username' has been deleted." >/dev/null 2>&1 &
 			disown
@@ -505,6 +506,7 @@ update_username() {
             sqlite3 $db_file_path "UPDATE user SET username='$escaped_new_username' WHERE username='$escaped_old_username';"
             echo "User '$old_username' renamed to '$new_username'."
             sed -i "s/\b$old_username\b/$new_username/g" /var/log/openpanel/admin/login.log > /dev/null 2>&1
+            [ -f "/var/log/openpanel/admin/activity/${old_username}.log" ] && mv "/var/log/openpanel/admin/activity/${old_username}.log" "/var/log/openpanel/admin/activity/${new_username}.log"
 
             if [ "$user_role" = "reseller" ]; then
                 mv /etc/openpanel/features/"$old_username" /etc/openpanel/features/"$new_username" > /dev/null 2>&1

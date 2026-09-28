@@ -78,20 +78,27 @@ generate_and_hash_password() {
     hashed_password=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
 }
 
+# UPDATE on a missing user matches no rows and would still report success
+check_user_exists() {
+    if ! user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT id FROM users WHERE username='$(mysql_escape "$username")' LIMIT 1;"); then
+        echo "Error: Could not look up user '$username' in the database."
+        exit 1
+    fi
+    if ! [[ "$user_id" =~ ^[0-9]+$ ]]; then
+        echo "Error: User '$username' does not exist."
+        exit 1
+    fi
+}
+
 save_to_database() {
     # 1. update pass
     local escaped_hash
     escaped_hash=$(mysql_escape "$hashed_password")
     mysql_query="UPDATE users SET password='$escaped_hash' WHERE username='$(mysql_escape "$username")';"
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"; then
-        # 2. get user ID and terminate all active sessions
-        user_id_query="SELECT id FROM users WHERE username='$(mysql_escape "$username")' LIMIT 1;"
-        user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$user_id_query")
-    
-        if [[ "$user_id" =~ ^[0-9]+$ ]]; then
-            session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)
-            redis_drop_user_sessions "$user_id"
-        fi
+        # 2. terminate all active sessions
+        session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)
+        redis_drop_user_sessions "$user_id"
 
         # 3. send notification
         nohup opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed. $session_count session(s) terminated." >/dev/null 2>&1 &
@@ -107,6 +114,7 @@ save_to_database() {
 
 # ======================================================================
 # Main
-generate_and_hash_password
 source /usr/local/opencli/db.sh
+check_user_exists
+generate_and_hash_password
 save_to_database
