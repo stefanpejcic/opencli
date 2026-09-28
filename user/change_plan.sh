@@ -50,14 +50,17 @@ source /usr/local/opencli/lib/redis.sh
 source /usr/local/opencli/lib/podman.sh
 
 # For old plan: id, name, context
-IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT < <(
+IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT db_user_id < <(
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
-        SELECT u.plan_id, p.name, u.server
+        SELECT u.plan_id, p.name, u.server, u.id
         FROM users u
         JOIN plans p ON p.id = u.plan_id
         WHERE u.username = '$(mysql_escape "$USERNAME")'
         LIMIT 1"
 )
+
+# panel cache keys use the db username, suspended prefix included
+DB_USERNAME="$USERNAME"
 
 # if suspended, remove prefix
 USERNAME="${USERNAME##*_}"
@@ -167,10 +170,7 @@ change_plan_name_in_db() {
 
 drop_redis_cache() {
     # a plan change only affects the user's plan/feature-set lookups, so only drop those, not unrelated cached data for other users
-    redis_drop_memver \
-        "app.get_user_details_with_plan" \
-        "app.get_feature_set_on_plan" \
-        "app._load_user_features_cached"
+    redis_drop_user_cache "$db_user_id" "$DB_USERNAME"
 }
 
 

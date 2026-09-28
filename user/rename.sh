@@ -57,6 +57,8 @@ done
 
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 
 
 
@@ -181,6 +183,8 @@ rename_user_in_db() {
     mysql_query="UPDATE users SET username='$(mysql_escape "$NEW_USERNAME")' WHERE username='$(mysql_escape "$OLD_USERNAME")';"
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"; then
+		redis_drop_user_cache "$user_id" "$OLD_USERNAME" "$NEW_USERNAME"
+
 		# postfwd ratelimit rules use usernames
 		nohup bash -c "opencli email-ratelimit --delete-user=$OLD_USERNAME && opencli email-ratelimit --username=$NEW_USERNAME" >/dev/null 2>&1 &
 		disown

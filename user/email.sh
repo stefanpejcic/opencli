@@ -32,6 +32,8 @@
 set -euo pipefail
 
 source "/usr/local/opencli/db.sh"
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 
 
 # ======================================================================
@@ -75,6 +77,11 @@ update_user_email() {
     #3. Save
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" \
         -e "UPDATE users SET email = '$(mysql_escape "$new_email")' WHERE username = '$(mysql_escape "$username")';"
+
+    local user_id
+    user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
+        -e "SELECT id FROM users WHERE username = '$(mysql_escape "$username")';")
+    redis_drop_user_cache "$user_id" "$username"
 }
 
 show_usage() {

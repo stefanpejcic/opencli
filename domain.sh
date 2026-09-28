@@ -39,6 +39,8 @@ readonly DEFAULT_DOMAIN="example.net"
 
 # ======================================================================
 # Variables
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 DEBUG=false
 current_domain=""
 new_hostname=""
@@ -351,6 +353,7 @@ update_domain() {
     create_mv_file || return 1
 	update_container_hosts_entry "$new_hostname" || return 1
     update_redirects || return 1
+    redis_drop_key openpanel_cache_app.get_openpanel_domain
     restart_services "$@" || return 1
     configure_mailserver || return 1
     show_success_message

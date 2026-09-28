@@ -57,6 +57,8 @@ done
 source "/usr/local/opencli/db.sh"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
 
 
 # ======================================================================
@@ -135,9 +137,13 @@ rename_user_in_db() {
     local escaped_username
     escaped_username=$(mysql_escape "$USERNAME")
     local query="UPDATE users SET username='${escaped_username}' WHERE username LIKE 'SUSPENDED\\_%_${escaped_username}';"
+    local user_id suspended_username
+    read -r user_id suspended_username < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
+        -e "SELECT id, username FROM users WHERE username LIKE 'SUSPENDED\\_%_${escaped_username}' LIMIT 1;")
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' unsuspended successfully."
+        redis_drop_user_cache "$user_id" "$suspended_username" "$USERNAME"
     else
         echo "ERROR: Failed to unsuspend user '$USERNAME'."
         exit 1

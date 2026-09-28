@@ -28,6 +28,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 ENV_FILE="/root/.env"
 COMPOSE_DIR="/root"
 REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
@@ -106,6 +108,7 @@ update_port() {
     update_env
     update_redirects
     update_proxy_file
+    redis_drop_key openpanel_cache_app.get_openpanel_port
     # flock guards the in-place edit -- sentinel.sh and other opencli scripts also rewrite /root/docker-compose.yml, and an unlocked concurrent sed -i could interleave writes and corrupt it
     if [ "$new_port" == '443' ]; then
         flock /tmp/opencli.root_compose.lock sed -i "s#\${PORT}:2083/tcp#2083:2083/tcp#g" /root/docker-compose.yml

@@ -77,12 +77,16 @@ edit_docker_network() {
 
 drop_plan_cache() {
         # only invalidates what a plan edit can change -- never flush the whole cache, that would drop unrelated data (dashboard stats, sessions, etc.) for every user
-        redis_drop_memver \
-            "app.get_user_details_with_plan" \
-            "app.get_feature_set_on_plan" \
-            "app._load_user_features_cached" \
-            "modules.json.helpers.query_plan_details_by_id" \
-            "modules.json.helpers.query_plan_email_mailbox_limits"
+        redis_drop_key \
+            "openpanel_cache_get_feature_set_name_by_plan_id:${plan_id}" \
+            "openpanel_cache_load_features_for_plan_id:${plan_id}" \
+            "openpanel_cache_query_plan_email_mailbox_limits:${plan_id}"
+        # every user on the plan, and other plans that upsell to this one, cache its name/feature set
+        redis_drop_pattern \
+            "openpanel_cache_get_user_details_with_plan:*" \
+            "openpanel_cache_get_feature_set_on_plan:*" \
+            "openpanel_cache_load_user_features:*" \
+            "openpanel_cache_query_plan_details_by_id:*"
 }
 
 

@@ -1,20 +1,17 @@
 #!/bin/bash
 # ======================================================================
 # Shared Redis cache-invalidation helpers, sourced by scripts that mutate
-# data the OpenPanel UI (app.py / modules/*) has memoized in Redis.
+# data the OpenPanel UI (Go, internal/core/cache) has memoized in Redis.
 #
 # NEVER FLUSHALL or wildcard-DEL 'openpanel_cache_*' from a script. That
 # nukes every memoized function for every user in one shot, and FLUSHALL
 # additionally wipes login sessions and rate-limiter state that live in
-# the same Redis instance. Always target the specific memver key(s) for
-# the function(s) whose underlying data actually changed.
+# the same Redis instance. Always target the specific key(s) whose
+# underlying data actually changed.
 #
-# Flask-Caching's @cache.memoize keeps one version key per function (not
-# per set of arguments - so it can't be invalidated per-user/per-id),
-# named:
-#   openpanel_cache_<python.module.path>.<function_name>_memver
-# Deleting that key invalidates every cached result of that function on
-# its next read; it does not touch any other function's cache.
+# Keys are openpanel_cache_<key>, where <key> is the string passed to
+# cache.Memoize in the panel, usually "<func>:<username|id|context>",
+# e.g. openpanel_cache_get_user_details_with_plan:12
 #
 # This file only defines functions - it has no top-level logic/exit, so
 # it is safe to `source` from any script.
@@ -30,16 +27,30 @@ redis_cli() {
 # Deletes one or more exact keys. No-op if called with no args.
 redis_drop_key() {
     [ "$#" -eq 0 ] && return 0
-    redis_cli DEL "$@" >/dev/null 2>&1
+    redis_cli DEL "$@" >/dev/null 2>&1 || true
 }
 
-# invalidates one or more @cache.memoize'd functions by dropping their "_memver" key, e.g. redis_drop_memver "app.get_user_details_with_plan" "modules.json.helpers.query_plan_details_by_id"
-redis_drop_memver() {
-    [ "$#" -eq 0 ] && return 0
+# deletes the go panel's cache keys matching each pattern, e.g. redis_drop_pattern "openpanel_cache_load_user_features:john:*" - keep patterns targeted, never openpanel_cache_*
+redis_drop_pattern() {
+    local pattern key
+    for pattern in "$@"; do
+        redis_cli --scan --pattern "$pattern" 2>/dev/null | while IFS= read -r key; do
+            [ -n "$key" ] && redis_cli UNLINK "$key" >/dev/null 2>&1
+        done || true
+    done
+}
 
-    local func keys=()
-    for func in "$@"; do
-        keys+=( "openpanel_cache_${func}_memver" )
+# drops the go panel's long-lived per-user cache (plan, email, 2fa, feature set, context) - pass the db user id and every username it was cached under
+redis_drop_user_cache() {
+    local user_id="$1" u keys=()
+    shift
+    if [ -n "$user_id" ]; then
+        keys+=( "openpanel_cache_get_user_details_with_plan:${user_id}" "openpanel_cache_get_2fa_status_for_user:${user_id}" )
+    fi
+    for u in "$@"; do
+        [ -z "$u" ] && continue
+        keys+=( "openpanel_cache_get_feature_set_on_plan:${u}" "openpanel_cache_query_context_by_username:${u}" "openpanel_cache_get_uid:${u}" )
+        redis_drop_pattern "openpanel_cache_load_user_features:${u}:*"
     done
     redis_drop_key "${keys[@]}"
 }

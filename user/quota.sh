@@ -407,7 +407,8 @@ main() {
     notify_disk_limits
 
     # 6. flush cache on OpenPanel UI
-    redis_drop_key openpanel_cache_modules.dashboard.get_disk_and_inodes_for_user_memver openpanel_cache_modules.dashboard._load_quota_report_memver &>/dev/null
+    redis_drop_key openpanel_cache__load_quota_report &>/dev/null
+    redis_drop_pattern "openpanel_cache_get_disk_and_inodes_for_user:*" &>/dev/null
 
     exit $exit_code
 }

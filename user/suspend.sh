@@ -173,6 +173,7 @@ rename_user_in_db() {
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' suspended successfully."
+        redis_drop_user_cache "$user_id" "$USERNAME" "$new_username"
         # delete active sessions
         if [ -n "$user_id" ]; then
             session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)

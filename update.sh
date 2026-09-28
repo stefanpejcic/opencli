@@ -800,11 +800,7 @@ update_locales() {
     done
 
     if [[ $updated -gt 0 ]]; then
-        local compile_msg="Compiling updated .mo files"
-        # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
-        [[ "$no_log" == "--no-log" ]] && echo "$compile_msg" || log "$compile_msg"
-        podman exec openpanel sh -c "pybabel compile -f -d $babel_translations &>/dev/null"
-        redis_drop_key openpanel_cache_app.get_available_locales_memver &>/dev/null
+        redis_drop_key openpanel_cache_app.get_available_locales &>/dev/null
     fi
 
     local summary="Locales updated: $updated, failed: $failed"
@@ -943,6 +939,7 @@ run_update_immediately() {
             cd /root && podman-compose down openpanel && \
             podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
         fi
+        redis_drop_key openpanel_cache_app.get_openpanel_version &>/dev/null
 
         log "Cleaning up previous images"
         purge_previous_images
@@ -1001,6 +998,7 @@ update_openpanel() {
         fi
     fi
     podman-compose up -d openpanel --force-recreate --pull
+    redis_drop_key openpanel_cache_app.get_openpanel_version &>/dev/null
 }
 
 update_openadmin() {

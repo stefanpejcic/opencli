@@ -30,6 +30,8 @@
 ################################################################################
 
 config_file="/etc/openpanel/openpanel/conf/openpanel.config"
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 
 if [ "$#" -lt 2 ]; then
     echo "Usage: opencli config [get|update] <parameter_name> [new_value]"
@@ -74,6 +76,12 @@ update_config() {
         fi
         
         echo "Updated $param_name to $new_value"
+
+        # the panel caches these for hours, drop them so the change shows up right away
+        case "$param_name" in
+            temporary_links) redis_drop_key openpanel_cache_temporary_links_setting ;;
+            how_to_guides)   redis_drop_key openpanel_cache_how_to_links_for_dashboard_page ;;
+        esac
 
         # restart openpanel container
         if [[ ! "$param_name" =~ ^(email|autoupdate|autopatch|key|default_php_version|max_cpu|max_ram)$ ]]; then

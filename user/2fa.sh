@@ -48,9 +48,13 @@ action="$2"
 # ======================================================================
 # Main
 source /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 escaped_username=$(mysql_escape "$username")
 if [ "$action" == "disable" ]; then
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET twofa_enabled='0' WHERE username='$escaped_username';"
+    user_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT id FROM users WHERE username='$escaped_username';")
+    redis_drop_user_cache "$user_id" "$username"
     echo -e "Two-factor authentication for $username is now ${RED}DISABLED${RESET}."
 else
     twofa=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -se "SELECT twofa_enabled FROM users WHERE username='$escaped_username';")

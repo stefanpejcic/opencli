@@ -54,6 +54,8 @@ WEBMAIL_PORT="8080" # todo: 8080 should be disabled and instead allow domain pro
 # ENTERPRISE
 ENTERPRISE="/usr/local/opencli/lib/enterprise.sh"
 PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
+# shellcheck disable=SC1091
+source /usr/local/opencli/lib/redis.sh
 PROXY_FILE="/etc/openpanel/caddy/redirects.conf"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
@@ -167,6 +169,7 @@ while [[ "$#" -gt 0 ]]; do
             fi
             new_domain="$1"
             update_webmail_domain "$new_domain"
+            redis_drop_pattern "openpanel_cache_get_webmail_domain:*"
             ;;
         *)
             echo "Invalid option: $1"

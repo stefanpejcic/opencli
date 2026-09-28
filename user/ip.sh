@@ -168,7 +168,7 @@ edit_domain_files() {
 
 drop_redis_cache() {
     # an IP change only invalidates the cached IP lookup (used on dashboard, temporary links, ftp and emails), not the rest of the app's cache
-    redis_drop_memver "modules.json.helpers.get_cached_ip_for_user_or_public_ipv4"
+    redis_drop_key "openpanel_cache_get_cached_ip_for_user_or_public_ipv4:${USERNAME}"
 }
 
 create_ip_file() {
