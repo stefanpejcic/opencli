@@ -18,6 +18,7 @@ opencli domains-hsts
 opencli domains-ssl
 opencli domains-stats
 opencli domains-suspend
+opencli domains-test
 opencli domains-unsuspend
 opencli domains-update_ns
 opencli domains-user

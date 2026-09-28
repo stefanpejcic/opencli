@@ -154,7 +154,7 @@ _opencli_command_names() {
 _opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
 
 # commands whose next positional argument is a domain name
-_opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-suspend domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-vulnerability"
+_opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-suspend domains-test domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-vulnerability"
 
 # commands whose next positional argument is a plan name
 _opencli_plan_arg_commands="plan-usage plan-delete"
