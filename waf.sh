@@ -5,7 +5,7 @@
 # Usage: opencli waf <status|enable|disable|domain|tags|ids|update|stats|count> [options]
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 21.08.2026
+# Last Modified: 28.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
