@@ -193,6 +193,39 @@ get_count_from_file() {
     fi
 }
 
+# rule sets for stacks we don't run (IIS) or only rarely host (Java, Ruby)
+UNUSED_RULESETS=(
+    REQUEST-944-APPLICATION-ATTACK-JAVA
+    RESPONSE-952-DATA-LEAKAGES-JAVA
+    RESPONSE-954-DATA-LEAKAGES-IIS
+    RESPONSE-956-DATA-LEAKAGES-RUBY
+)
+
+disable_unused_rulesets() {
+    local dir="/etc/openpanel/caddy/coreruleset" name
+    [[ -d "$dir/rules" ]] || return 0
+    for name in "${UNUSED_RULESETS[@]}"; do
+        if [[ -f "$dir/rules/$name.conf" ]]; then
+            mv -f "$dir/rules/$name.conf" "$dir/rules/$name.conf.disabled"
+            echo "- Disabled ruleset $name"
+        fi
+        git -C "$dir" update-index --assume-unchanged "rules/$name.conf" 2>/dev/null
+    done
+}
+
+# git pull can bring back a ruleset the admin disabled, drop the original again so it stays off
+keep_disabled_rulesets() {
+    local f original
+    for f in /etc/openpanel/caddy/coreruleset/rules/*.conf.disabled; do
+        [[ -f "$f" ]] || continue
+        original="${f%.disabled}"
+        if [[ -f "$original" ]]; then
+            mv -f "$original" "$f"
+            echo "- Kept ruleset $(basename "$original") disabled"
+        fi
+    done
+}
+
 update_owasp_rules() {
   cd /etc/openpanel/caddy/coreruleset/ || { echo "Failed to enter modsec directory: /etc/openpanel/caddy/coreruleset/"; return 1; }
   
@@ -205,6 +238,7 @@ update_owasp_rules() {
   echo "Updating OWASP CRS.."
   
   if git pull --quiet; then
+    keep_disabled_rulesets
     echo "Update successful."
   else
     echo "Update failed."
@@ -226,6 +260,9 @@ enable_coraza_waf() {
 
     # avoid SecDefaultAction collision with coraza_rules.conf (which sets phase:3/4/5)
     sed -i -E 's/^(SecDefaultAction "phase:[345])/#\1/' /etc/openpanel/caddy/coreruleset/crs-setup.conf.example
+
+    echo "Disabling rulesets not used by the stack.."
+    disable_unused_rulesets
 
     # 2. enable module
     echo "Enabling WAF module.."
