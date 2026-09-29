@@ -77,7 +77,7 @@ USER_ID=$(mysql_q "SELECT id FROM users WHERE username = '$(mysql_escape "$USERN
 CONTEXT=$(mysql_q "SELECT server FROM users WHERE username = '$(mysql_escape "$USERNAME")';")
 [[ -z "$CONTEXT" ]] && { echo "[ERROR] Could not resolve context (server) for '$USERNAME'"; exit 1; }
 
-read -r PLAN_ID PLAN_NAME PLAN_FEATURE_SET < <(mysql_q "
+IFS=$'\t' read -r PLAN_ID PLAN_NAME PLAN_FEATURE_SET < <(mysql_q "
     SELECT p.id, p.name, p.feature_set
     FROM plans p JOIN users u ON p.id = u.plan_id
     WHERE u.id = $USER_ID;")
@@ -268,6 +268,17 @@ if [[ -n "$DOMAIN_IDS" ]]; then
     rm -f "$STAGE/db/sites.tsv"
 fi
 
+# per-user tables, ddl included since a fresh panel only creates them on first use
+for t in mcp_tokens user_passkeys; do
+    if mysql_q "SHOW TABLES LIKE '$t'" | grep -qx "$t"; then
+        mysql_q "SHOW CREATE TABLE $t" | cut -f2- | sed 's/^CREATE TABLE/CREATE TABLE IF NOT EXISTS/; s/\\n/\n/g' > "$STAGE/db/${t}.ddl"
+        echo ";" >> "$STAGE/db/${t}.ddl"
+        cols=$(mysql_q "SELECT GROUP_CONCAT(CONCAT('\`',column_name,'\`') ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='$mysql_database' AND table_name='$t' AND column_name<>'id';")
+        qcols=$(mysql_q "SELECT GROUP_CONCAT(CONCAT('QUOTE(\`',column_name,'\`)') ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='$mysql_database' AND table_name='$t' AND column_name<>'id';")
+        mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -r -e "SELECT CONCAT('INSERT INTO \`$t\` ($cols) VALUES (', CONCAT_WS(',', $qcols), ');') FROM $t WHERE user_id=$USER_ID;" > "$STAGE/db/${t}.rows.sql"
+    fi
+done
+
 # domains.list: domain <tab> docroot <tab> php_version — used by restore
 ALL_DOMAINS=$(opencli domains-user "$USERNAME" --docroot --php_version 2>/dev/null)
 if [[ "$ALL_DOMAINS" != *"No domains found for user"* && -n "$ALL_DOMAINS" ]]; then
@@ -288,6 +299,8 @@ awk -F: -v u="$CONTEXT" 'BEGIN{gid=""}
     $3==gid{print}
     $1==u{print}' /etc/group | sort -u > "$STAGE/system/group.user"
 grep "^${CONTEXT}:" /etc/shadow 2>/dev/null > "$STAGE/system/shadow.user" || true
+grep "^${CONTEXT}:" /etc/subuid 2>/dev/null > "$STAGE/system/subuid.user" || true
+grep "^${CONTEXT}:" /etc/subgid 2>/dev/null > "$STAGE/system/subgid.user" || true
 
 # --- feature set ---
 PER_USER_FEAT_FILE="/home/$CONTEXT/features.txt"
@@ -325,7 +338,14 @@ if [[ -f "$STAGE/db/domains.list" ]]; then
         [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$STAGE/caddy/suspended/" && log "${subprefix}├── Suspended"
         [[ -d "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain" "$STAGE/caddy/ssl/acme/" && log "${subprefix}├── Let's Encrypt SSL"
         [[ -d "/etc/openpanel/caddy/ssl/custom/$domain" ]] && cp -a "/etc/openpanel/caddy/ssl/custom/$domain" "$STAGE/caddy/ssl/custom/" && log "${subprefix}├── Custom SSL"
-        [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]] && cp -ra "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/" && log "${subprefix}├── DKIM"
+        if [[ -d "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" ]]; then
+            cp -ra "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/$domain" "$STAGE/emails/dkim/" && log "${subprefix}├── DKIM"
+            for table in KeyTable SigningTable TrustedHosts; do
+                [[ -f "/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table" ]] || continue
+                awk -v d="$domain" '{k=$1} k=="*@"d || k==d || k=="*."d || (length(k)>length(d) && substr(k, length(k)-length(d)-11)=="._domainkey."d)' \
+                    "/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table" >> "$STAGE/emails/dkim_$table"
+            done
+        fi
         [[ -f "/etc/openpanel/caddy/domains/$domain.conf" ]] && cp -a "/etc/openpanel/caddy/domains/$domain.conf" "$STAGE/caddy/domains/" && log "${subprefix}└── Caddyfile"
     done
 fi
@@ -338,7 +358,7 @@ fi
 
 # --- docker metadata ---
 if [[ -f "$(podman_compose_file "$CONTEXT")" ]]; then
-    containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+    containers=$(podman_user "$CONTEXT" ps --format "{{.Names}}" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
     echo "$CONTEXT: ${containers:-no containers}" > "$STAGE/docker/containers.txt" && log "Collected list of currently active containers for user"
 fi
 # rootless docker needed a per-user AppArmor profile for rootlesskit, podman doesn't use rootlesskit so this file never exists anymore, permanent no-op below (harmless: guarded by -f)
@@ -347,10 +367,21 @@ echo "${SYS_UID}" > "$STAGE/docker/uid.txt"
 
 # --- Emails ---
 if [[ -n "$MAIL_EXTERNAL_PATH" ]]; then
-    log "Archiving external mail store: $MAIL_EXTERNAL_PATH ..."
-    mkdir -p "$STAGE/mail_external"
-    tar -C "$(dirname "$MAIL_EXTERNAL_PATH")" --numeric-owner --acls --xattrs -cf "$STAGE/mail_external/mail.tar" "$(basename "$MAIL_EXTERNAL_PATH")" 2>>"$log_file" || warn "Failed to archive external mail store (non-fatal)."
-    echo "$MAIL_EXTERNAL_PATH" > "$STAGE/mail_external/path.txt"
+    # the store is shared by all accounts, one dir per domain
+    MAIL_STORE_DIR="${MAIL_EXTERNAL_PATH%/}"
+    MAIL_DIRS=()
+    for domain in "${BACKUP_DOMAINS[@]}"; do
+        [[ -d "$MAIL_STORE_DIR/$domain" ]] && MAIL_DIRS+=("$(basename "$MAIL_STORE_DIR")/$domain")
+    done
+    if [[ ${#MAIL_DIRS[@]} -gt 0 ]]; then
+        log "Archiving mailboxes from $MAIL_STORE_DIR for ${#MAIL_DIRS[@]} domain(s) ..."
+        mkdir -p "$STAGE/mail_external"
+        tar -C "$(dirname "$MAIL_STORE_DIR")" --numeric-owner --acls --xattrs -cf "$STAGE/mail_external/mail.tar" "${MAIL_DIRS[@]}" 2>>"$log_file" || warn "Failed to archive mailboxes (non-fatal)."
+        echo "$MAIL_EXTERNAL_PATH" > "$STAGE/mail_external/path.txt"
+        MAIL_EXTERNAL_SIZE=$(du -shc "${MAIL_DIRS[@]/#/$(dirname "$MAIL_STORE_DIR")/}" 2>/dev/null | tail -1 | cut -f1)
+    else
+        MAIL_EXTERNAL_PATH=""
+    fi
 fi
 
 
@@ -362,26 +393,28 @@ if [[ -s "$CORE_DIR/emails.yml" ]]; then
 
     mkdir -p "$STAGE/emails"
 
-    DOMAIN_PATTERN=$(printf '@%s\|' "$DOMAIN_LIST_STR" | sed 's/\\|$//')
-    REGEX_PATTERN=$(printf '/\\*@%s/|' "$DOMAIN_LIST_STR" | sed 's/|$//')
+    # one alternative per domain, anchored so example.com doesn't also grab blog.example.com
+    DOMAIN_ALT=$(printf '%s|' "${BACKUP_DOMAINS[@]//./\\.}" | sed 's/|$//')
+    DOMAIN_PATTERN="@(${DOMAIN_ALT})([|: ]|$)"
+    REGEX_PATTERN="@(${DOMAIN_ALT})/"
 
     : > "$STAGE/emails/postfix-accounts.cf"
-    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true &
+    [[ -f "$DMS_CONFIG/postfix-accounts.cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-accounts.cf" > "$STAGE/emails/postfix-accounts.cf" || true &
 
     : > "$STAGE/emails/postfix-regex.cf"
     [[ -f "$DMS_CONFIG/postfix-regex.cf" ]] && grep -E "$REGEX_PATTERN" "$DMS_CONFIG/postfix-regex.cf" > "$STAGE/emails/postfix-regex.cf" || true &
 
     : > "$STAGE/emails/dovecot-quotas.cf"
-    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf" || true &
+    [[ -f "$DMS_CONFIG/dovecot-quotas.cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/dovecot-quotas.cf" > "$STAGE/emails/dovecot-quotas.cf" || true &
 
     : > "$STAGE/emails/postfix-receive-access.cf"
-    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf" || true &
+    [[ -f "$DMS_CONFIG/postfix-receive-access.cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-receive-access.cf" > "$STAGE/emails/postfix-receive-access.cf" || true &
 
     : > "$STAGE/emails/postfix-send-access.cf"
-    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf" || true &
+    [[ -f "$DMS_CONFIG/postfix-send-access.cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-send-access.cf" > "$STAGE/emails/postfix-send-access.cf" || true &
 
     : > "$STAGE/emails/postfix-virtual.cf"
-    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf" || true &
+    [[ -f "$DMS_CONFIG/postfix-virtual.cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/postfix-virtual.cf" > "$STAGE/emails/postfix-virtual.cf" || true &
 
     : > "$STAGE/emails/postfwd.cf"
     if [[ -f "$POSTFWD_SRC" ]]; then
@@ -432,8 +465,8 @@ if command -v pigz &>/dev/null; then
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
         "--exclude=${CONTEXT}/sockets/*/*/*"
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
-        "--exclude=${CONTEXT}/docker-data/overlay-containers"
-        "--exclude=${CONTEXT}/docker-data/tmp"
+        "--exclude=${CONTEXT}/docker-data/[!v]*"
+        "--exclude=${CONTEXT}/docker-data/v[!o]*"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 
@@ -458,8 +491,8 @@ else
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
         "--exclude=${CONTEXT}/sockets/*/*/*"
         "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
-        "--exclude=${CONTEXT}/docker-data/overlay-containers"
-        "--exclude=${CONTEXT}/docker-data/tmp"
+        "--exclude=${CONTEXT}/docker-data/[!v]*"
+        "--exclude=${CONTEXT}/docker-data/v[!o]*"
         "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
     )
 

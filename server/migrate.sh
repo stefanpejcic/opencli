@@ -128,9 +128,21 @@ if [[ -z "$REMOTE_HOST" || -z "$REMOTE_USER" ]]; then
     exit 1
 fi
 
-RSYNC_OPTS="-az" #--progress
+# numeric ids + hardlinks/acls/xattrs so rootless podman volumes (subuid-owned files) survive the copy
+RSYNC_OPTS="-azHAX --numeric-ids" #--progress
 
 export SSHPASS="$REMOTE_PASS"
+
+# persistent log, openadmin's /tmp/server_migrate.log gets overwritten on every run
+start_time=$(date +%s)
+log_dir="/var/log/openpanel/admin/migrations"
+mkdir -p "$log_dir"
+log_file="$log_dir/${REMOTE_HOST}_$(date +'%Y-%m-%d_%H-%M-%S').log"
+exec > >(tee -a "$log_file") 2>&1
+echo "Migration started, log file: $log_file"
+# openadmin reads the pid from line 2 and SUCCESS:/FATAL ERROR: from the last line for the log list status
+echo "PID: $$"
+MIGRATE_ERRORS=()
 
 check_install_sshpass() {
 	# If a password is provided, use sshpass for rsync/scp
@@ -156,13 +168,19 @@ check_if_dest_has_space(){
     AVAILABLE_HOME_ON_DEST=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
         "df --output=avail $HOME_DIR | tail -n 1")
 
+    # empty means ssh itself failed, don't report that as a full disk
+    if [[ ! "$AVAILABLE_HOME_ON_DEST" =~ ^[0-9]+$ ]]; then
+        echo "FATAL ERROR: Could not connect to ${REMOTE_USER}@${REMOTE_HOST}. Check the SSH user, password and that SSH is reachable."
+        exit 1
+    fi
+
     AVAILABLE_HOME_ON_DEST_BYTES=$((AVAILABLE_HOME_ON_DEST * 1024)) #1K blocks
 
     if [[ $AVAILABLE_HOME_ON_DEST_BYTES -ge $USED_HOME_ON_SOURCE_BYTES ]]; then
         echo "There is enough disk space on destination server."
     else
-        echo "FATAL ERROR: Not enough disk space on destination."
         echo "Available: $AVAILABLE_HOME_ON_DEST_BYTES bytes - Needed: $USED_HOME_ON_SOURCE_BYTES bytes"
+        echo "FATAL ERROR: Not enough disk space on destination."
         exit 1
     fi
 }
@@ -193,6 +211,15 @@ get_server_ipv4(){
 }
 
 
+get_remote_ipv4() {
+    REMOTE_IP=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "curl --silent --max-time 3 -4 https://ip.openpanel.com || curl --silent --max-time 3 -4 https://ifconfig.me/ip || hostname -I | awk '{print \$1}'" < /dev/null)
+    if [[ ! "$REMOTE_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "[!] Could not detect the public IPv4 of ${REMOTE_HOST}, using ${REMOTE_HOST} as is."
+        REMOTE_IP="$REMOTE_HOST"
+    fi
+}
+
 get_users_count_on_destination() {
 
 	user_count_query="SELECT COUNT(*) FROM users"
@@ -200,12 +227,12 @@ get_users_count_on_destination() {
     # shellcheck disable=SC2154 # config_file and mysql_database are set by the sourced $DB_CONFIG_FILE
     if ! user_count=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
     "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN"); then
-            echo "[✘] ERROR: Unable to check users from remote server. Is OpenPanel installed?"
+            echo "FATAL ERROR: Unable to check users from remote server. Is OpenPanel installed?"
             exit 1
         fi
     
         if [ "$user_count" -gt 0 ]; then
-            echo "[✘] ERROR: Migration is possible only to a freshly installed OpenPanel with no existing users."
+            echo "FATAL ERROR: Migration is possible only to a freshly installed OpenPanel with no existing users."
             exit 1
         fi
 }
@@ -215,10 +242,13 @@ get_users_count_on_destination() {
 
 copy_user_accounts() {
     TMPDIR=$(mktemp -d)
-    awk -F: '$3 >= 1000 {print}' /etc/passwd > "$TMPDIR/passwd.users"
-    awk -F: '$3 >= 1000 {print}' /etc/group > "$TMPDIR/group.users"
-    grep -F -f <(cut -d: -f1 "$TMPDIR/passwd.users") /etc/shadow > "$TMPDIR/shadow.users"
-    "${RSYNC_CMD[@]}" "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
+    awk -F: '$3 >= 1000 && $3 < 65534 {print}' /etc/passwd > "$TMPDIR/passwd.users"
+    awk -F: '$3 >= 1000 && $3 < 65534 {print}' /etc/group > "$TMPDIR/group.users"
+    awk -F: 'NR==FNR {u[$1]; next} $1 in u' "$TMPDIR/passwd.users" /etc/shadow > "$TMPDIR/shadow.users"
+    # useradd hands out subuid ranges in creation order, keep the source ones so volume files keep their owners
+    awk -F: 'NR==FNR {u[$1]; next} $1 in u' "$TMPDIR/passwd.users" /etc/subuid > "$TMPDIR/subuid.users"
+    awk -F: 'NR==FNR {u[$1]; next} $1 in u' "$TMPDIR/passwd.users" /etc/subgid > "$TMPDIR/subgid.users"
+    "${RSYNC_CMD[@]}" "$TMPDIR/passwd.users" "$TMPDIR/group.users" "$TMPDIR/shadow.users" "$TMPDIR/subuid.users" "$TMPDIR/subgid.users" "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
     rm -rf "$TMPDIR" >/dev/null
 
 sshpass -e ssh -q -o LogLevel=ERROR -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" <<'EOF' >/dev/null 2>&1
@@ -247,7 +277,13 @@ cut -d: -f1,2 "$USER_SHADOW" | while IFS=: read -r user hash; do
     fi
 done
 
-rm -rf "$USER_PASSWD" "$USER_GROUP" "$USER_SHADOW"
+for f in subuid subgid; do
+    [ -s "/root/$f.users" ] || continue
+    cut -d: -f1 "/root/$f.users" | while read -r user; do sed -i "/^$user:/d" "/etc/$f"; done
+    cat "/root/$f.users" >> "/etc/$f"
+done
+
+rm -rf "$USER_PASSWD" "$USER_GROUP" "$USER_SHADOW" /root/subuid.users /root/subgid.users
 
 EOF
     
@@ -264,7 +300,7 @@ for userdir in /home/*; do
 
         if [ -f "$compose_file" ]; then
             echo "Checking podman context for user: $username"
-            containers=$(podman_user "$username" ps -a --format "{{.Names}}" 2>/dev/null)
+            containers=$(podman_user "$username" ps --format "{{.Names}}" 2>/dev/null)
 
             if [ -n "$containers" ]; then
                 containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
@@ -300,7 +336,7 @@ while IFS=: read -r username containers <&3; do
 
     echo "Starting containers for context: $username ($CURRENT/$TOTALCOUNT)..."
     sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "remote_uid=\$(stat -c '%u' /home/$username); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml up -d $containers"
+        "remote_uid=\$(stat -c '%u' /home/$username); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml down >/dev/null 2>&1; CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$username/docker-compose.yml up -d $containers"
 done
 
 # Close FD 3
@@ -322,19 +358,16 @@ setup_remote_podman_for_all_users() {
 	    SRC="/home/$USERNAME/.config/containers"
 	    if [[ -d "$SRC" ]]; then
 	        echo "Setting linger for: $USERNAME"
-		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 		    "loginctl enable-linger $USERNAME" \
-		    >/dev/null 2>&1 || echo "Failed to enable linger for $USERNAME"
+		    >/dev/null 2>&1 < /dev/null || echo "Failed to enable linger for $USERNAME"
 
 	        echo "Enabling rootless podman for: $USERNAME ($CURRENT/$TOTALCOUNT) ..."
 
-		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user daemon-reload'" \
-		    >/dev/null 2>&1 || echo "Failed to reload daemon for $USERNAME"
-
-		sshpass -e ssh -tt -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-		    "machinectl shell ${USERNAME}@ /bin/bash -c 'systemctl --user reset-failed podman.socket; systemctl --user enable --now podman.socket'" \
-		    >/dev/null 2>&1 || echo "Failed to enable podman.socket for $USERNAME"
+		# wait for user@uid before systemctl --user, enable-linger returns before it's up
+		sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+		    "uid=\$(id -u $USERNAME); for i in \$(seq 30); do systemctl is-active user@\$uid.service >/dev/null 2>&1 && break; sleep 1; done; systemctl --user -M $USERNAME@ daemon-reload; systemctl --user -M $USERNAME@ reset-failed podman.socket; systemctl --user -M $USERNAME@ enable --now podman.socket; systemctl --user -M $USERNAME@ is-active podman.socket" \
+		    >/dev/null 2>&1 < /dev/null || echo "Failed to enable podman.socket for $USERNAME"
 	    else
 	        echo "No .config/containers directory for $USERNAME, skipping."
 	    fi
@@ -348,8 +381,33 @@ setup_remote_podman_for_all_users() {
 
 restart_services_on_target() {
             echo "Restarting services on ${REMOTE_HOST} server ..."
-            sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-                "cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+            # same root services as on this server
+            ROOT_SERVICES=$(podman ps --filter label=io.podman.compose.project=root --format '{{ index .Labels "com.docker.compose.service" }}' 2>/dev/null | sort -u | tr '\n' ' ')
+            [[ -z "$ROOT_SERVICES" ]] && ROOT_SERVICES="openpanel_mysql openpanel_redis openpanel bind9 caddy openadmin_ftp"
+            # the synced compose file changes the config hash, podman-compose then downs the whole stack itself and
+            # openpanel's removal can leave a storage-only container behind that blocks the name, so down + clean up first
+            local restart_out
+            restart_out=$(sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -s 2>&1 <<EOF
+cd /root && podman-compose down >/dev/null 2>&1
+for d in /var/lib/containers/storage/overlay/*/merged; do
+    mountpoint -q "\$d" || [ -z "\$(ls -A "\$d" 2>/dev/null)" ] || rm -rf "\$d"
+done
+podman ps -a --external --format '{{.ID}} {{.Status}}' | awk '\$2=="Storage" {print \$1}' | xargs -r -n1 podman rm -f --storage >/dev/null 2>&1
+podman-compose up -d $ROOT_SERVICES >/dev/null 2>&1
+sleep 5
+podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
+podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+systemctl restart admin >/dev/null 2>&1
+for c in $ROOT_SERVICES; do
+    n=\$(podman ps -a --filter label=com.docker.compose.service=\$c --filter label=io.podman.compose.project=root --format '{{.Names}} {{.State}}' | head -1)
+    [[ "\$n" == *running* ]] || echo "[!] Service \$c is not running on destination: \${n:-missing}"
+done
+EOF
+)
+            [[ -n "$restart_out" ]] && echo "$restart_out"
+            while IFS= read -r line; do
+                [[ "$line" == "[!] "* ]] && MIGRATE_ERRORS+=("${line#\[!\] }")
+            done <<< "$restart_out"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             echo "Starting mailserver and webmail on ${REMOTE_HOST} server ..."
@@ -375,13 +433,21 @@ replace_ip_in_zones() {
 	    for ZONE_CONF in \"\$zones_dir\"/*.zone; do
 	        if [ -f \"\$ZONE_CONF\" ]; then
 	            domain=\$(basename \"\$ZONE_CONF\" .zone)
-	            sed -i \"s/$current_ip/$REMOTE_HOST/g\" \"\$ZONE_CONF\"
+	            sed -i \"s/$current_ip/$REMOTE_IP/g\" \"\$ZONE_CONF\"
 	            echo \"Updated DNS zone for domain \$domain - \$ZONE_CONF\"
 	        fi
 	    done
 	'"
 }
 
+
+# synced configs still bind to the source ip, sentinel then fails to recreate the stack on the new server
+replace_ip_in_configs() {
+    [[ -n "$current_ip" && "$current_ip" != "$REMOTE_IP" ]] || return 0
+    echo "Replacing $current_ip with $REMOTE_IP in stack and Caddy configuration ..."
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "for f in /root/docker-compose.yml /root/.env /etc/openpanel/caddy/Caddyfile /etc/openpanel/caddy/redirects.conf /etc/openpanel/openpanel/conf/openpanel.config; do [ -f \$f ] && sed -i 's/${current_ip//./\\.}/$REMOTE_IP/g' \$f; done" < /dev/null
+}
 
 # MAIN
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
@@ -391,6 +457,7 @@ DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 ssh-keygen -f '/root/.ssh/known_hosts' -R "$REMOTE_HOST" >/dev/null 2>&1
 check_install_sshpass
 get_server_ipv4
+get_remote_ipv4
 check_disk_used_on_source
 check_if_dest_has_space
 
@@ -406,15 +473,18 @@ fi
 
 if [[ $EXCLUDE_HOME -eq 0 ]]; then
     echo "Syncing files (/home directory) ..."
-    RSYNC_OUTPUT=$("${RSYNC_CMD[@]}" /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    # podman image/container state points at the source's shared image store layers and won't start on a new server, containers get recreated from volumes
+    RSYNC_OUTPUT=$("${RSYNC_CMD[@]}" --include='/*/docker-data/volumes/' --exclude='/*/docker-data/*' --exclude='/*/sockets/*/*.sock' --exclude='/*/sockets/*/*.pid' /home/ "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     echo "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
         echo "[OK] Files have been copied to the remote server."
 	echo ""
     else
+        MIGRATE_ERRORS+=("home directory rsync failed")
         echo "[ERROR] Rsync failed! Output:"
         echo "$RSYNC_OUTPUT"
+        echo "FATAL ERROR: Syncing /home to ${REMOTE_HOST} failed."
         exit 1
     fi
 fi
@@ -430,10 +500,6 @@ sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
 
 
 
-# set quotas
-echo "Restoring user quotas ..."
-sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-	"opencli user-quota --update --all"
 
 
 if [[ $EXCLUDE_LOGS -eq 0 ]]; then
@@ -450,8 +516,16 @@ if [[ $EXCLUDE_MAIL -eq 0 ]]; then
 
 	if [ -n "$key_value" ]; then
 	    if [ -d /usr/local/mail/openmail ]; then
-	        echo "Syncing /var/mail ..."
-	        "${RSYNC_CMD[@]}" /usr/local/mail/openmail "${REMOTE_USER}"@"${REMOTE_HOST}":/usr/local/mail/openmail
+	        echo "Syncing /usr/local/mail/openmail ..."
+	        "${RSYNC_CMD[@]}" /usr/local/mail/openmail/ "${REMOTE_USER}"@"${REMOTE_HOST}":/usr/local/mail/openmail/
+	        COMPOSE_START_MAIL=1
+	    fi
+
+	    STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null | cut -d'=' -f2- | xargs)
+	    if [[ "$STORE_EMAILS_IN" == /* && -d "$STORE_EMAILS_IN" ]]; then
+	        echo "Syncing mailboxes from ${STORE_EMAILS_IN%/}/ ..."
+	        sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p ${STORE_EMAILS_IN%/}"
+	        "${RSYNC_CMD[@]}" "${STORE_EMAILS_IN%/}/" "${REMOTE_USER}"@"${REMOTE_HOST}":"${STORE_EMAILS_IN%/}/"
 	        COMPOSE_START_MAIL=1
 	    fi
 	fi
@@ -476,19 +550,31 @@ fi
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
     echo "Syncing /etc/openpanel ..."
     "${RSYNC_CMD[@]}" /etc/openpanel/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/
+    replace_ip_in_configs
 
     echo "Syncing system cronjobs..."
     "${RSYNC_CMD[@]}" /etc/cron.d/openpanel "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/cron.d/
-    
 fi
 
 if [[ $EXCLUDE_MYSQL -eq 0 ]]; then
-    echo "Syncing root_mysql Docker volume ..."
-    if [[ -d "/var/lib/containers/storage/volumes/root_mysql/_data" ]]; then
-        "${RSYNC_CMD[@]}" /var/lib/containers/storage/volumes/root_mysql/_data/ "${REMOTE_USER}"@"${REMOTE_HOST}":/var/lib/containers/storage/volumes/root_mysql/_data/
+    # dump + import instead of rsyncing the live volume, copying innodb files under a running server gives a corrupt copy
+    echo "Exporting panel databases ..."
+    DUMP_FILE="/root/openpanel_migrate_dump.sql"
+    if podman exec openpanel_mysql sh -c 'mariadb-dump -uroot -p"$MYSQL_ROOT_PASSWORD" --all-databases --single-transaction --routines --events --triggers --flush-privileges' > "$DUMP_FILE" 2>/tmp/migrate_dump.err; then
+        "${RSYNC_CMD[@]}" "$DUMP_FILE" "${REMOTE_USER}"@"${REMOTE_HOST}":"$DUMP_FILE"
+        echo "Importing panel databases on ${REMOTE_HOST} ..."
+        if sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+            "podman exec -i openpanel_mysql sh -c 'mariadb -uroot -p\"\$MYSQL_ROOT_PASSWORD\"' < $DUMP_FILE; rc=\$?; rm -f $DUMP_FILE; exit \$rc"; then
+            echo "[OK] Panel databases imported."
+        else
+            MIGRATE_ERRORS+=("panel database import failed")
+            echo "[ERROR] Importing panel databases on destination failed."
+        fi
     else
-        echo "/var/lib/containers/storage/volumes/root_mysql/_data does not exist! Skipping."
+        MIGRATE_ERRORS+=("panel database export failed")
+        echo "[ERROR] Could not dump panel databases: $(cat /tmp/migrate_dump.err)"
     fi
+    rm -f "$DUMP_FILE" /tmp/migrate_dump.err
 fi
 
 if [[ $EXCLUDE_STACK -eq 0 ]]; then
@@ -496,6 +582,8 @@ if [[ $EXCLUDE_STACK -eq 0 ]]; then
     "${RSYNC_CMD[@]}" /root/docker-compose.yml "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
     "${RSYNC_CMD[@]}" /root/.env "${REMOTE_USER}"@"${REMOTE_HOST}":/root/
 fi
+
+replace_ip_in_configs
 
 if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
     if [[ -e /root/openpanel_run_after_update ]]; then
@@ -505,9 +593,59 @@ if [[ $EXCLUDE_POSTUPDATE -eq 0 ]]; then
 fi
 
 
+# quotas come from the plans in the panel db, so only after it's imported
+echo "Restoring user quotas ..."
+sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+	"opencli user-quota --update --all"
+
+
 store_running_containers_for_users        # export running contianers on source and copy to dest
 restore_running_containers_for_all_users  # start containers per context on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate users usage on dest
 
+# what got moved, for the log and the destination's notifications
+send_migration_summary() {
+    local q users user_count domain_count site_count mail_count ftp_count home_size elapsed skipped status title message
+    q() { mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "$1" 2>/dev/null; }
+    users=$(q "SELECT GROUP_CONCAT(username ORDER BY username SEPARATOR ', ') FROM users;")
+    user_count=$(q "SELECT COUNT(*) FROM users;")
+    domain_count=$(q "SELECT COUNT(*) FROM domains;")
+    site_count=$(q "SELECT COUNT(*) FROM sites;")
+    mail_count=$(grep -c '|' /usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf 2>/dev/null || echo 0)
+    ftp_count=$(cat /etc/openpanel/ftp/users/*/users.list 2>/dev/null | grep -c '|')
+    home_size=$(du -sh /home 2>/dev/null | cut -f1)
+    elapsed=$(( $(date +%s) - start_time ))
+
+    skipped=()
+    [[ $EXCLUDE_USERS -eq 1 ]] && skipped+=("system users")
+    [[ $EXCLUDE_HOME -eq 1 ]] && skipped+=("home directories")
+    [[ $EXCLUDE_CONTEXTS -eq 1 ]] && skipped+=("podman contexts")
+    [[ $EXCLUDE_LOGS -eq 1 ]] && skipped+=("logs")
+    [[ $EXCLUDE_MAIL -eq 1 ]] && skipped+=("mail")
+    [[ $EXCLUDE_CSF -eq 1 ]] && skipped+=("csf")
+    [[ $EXCLUDE_BIND -eq 1 ]] && skipped+=("dns zones")
+    [[ $EXCLUDE_OPENPANEL -eq 1 ]] && skipped+=("/etc/openpanel")
+    [[ $EXCLUDE_MYSQL -eq 1 ]] && skipped+=("panel database")
+    [[ $EXCLUDE_STACK -eq 1 ]] && skipped+=("docker stack")
+    [[ $EXCLUDE_POSTUPDATE -eq 1 ]] && skipped+=("post-update script")
+
+    status="completed"
+    [[ ${#MIGRATE_ERRORS[@]} -gt 0 ]] && status="completed with ${#MIGRATE_ERRORS[@]} error(s)"
+    title="Server migrated from $current_ip"
+    message="Migration from $current_ip $status in $((elapsed / 60))m $((elapsed % 60))s. Users ($user_count): ${users:-none}. Domains: ${domain_count:-0}. Websites: ${site_count:-0}. Email accounts: $mail_count. FTP accounts: $ftp_count. Home directories: $home_size."
+    [[ ${#skipped[@]} -gt 0 ]] && message+=" Skipped: $(IFS=,; echo "${skipped[*]}" | sed 's/,/, /g')."
+    [[ ${#MIGRATE_ERRORS[@]} -gt 0 ]] && message+=" Errors: $(printf '%s; ' "${MIGRATE_ERRORS[@]}" | sed 's/; $//')."
+
+    echo ""
+    echo "$message"
+    echo "Log file: $log_file"
+
+    # quoted for the remote shell, the message has spaces and parentheses
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
+        "nohup opencli sentinel --action=user_transfer --title=$(printf '%q' "$title") --message=$(printf '%q' "$message") >/dev/null 2>&1 &" < /dev/null
+}
+
+send_migration_summary
 echo "[OK] Sync complete"
+echo "SUCCESS: Migration to ${REMOTE_HOST} completed."

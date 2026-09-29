@@ -91,7 +91,8 @@ if [[ -z "$REMOTE_HOST" || -z "$USERNAME" ]]; then
     exit 1
 fi
 
-RSYNC_OPTS="-az" #--progress
+# numeric ids + hardlinks/acls/xattrs so rootless podman storage (subuid-owned files) survives the copy
+RSYNC_OPTS="-azHAX --numeric-ids" #--progress
 
 export SSHPASS="$REMOTE_PASS"
 
@@ -110,9 +111,33 @@ log() {
 }
 
 
+# remote output goes to the log too, the openadmin transfer runs in the background so stdout is lost
+logpipe() {
+    while IFS= read -r line; do log "  $line"; done
+}
+
 log_paths_are() {
     log "Log file: $log_file"
     log "PID: $pid"
+}
+
+# what got moved, shown on the destination under the user_transfer notification
+notify_destination() {
+    local domain_list domains sites mails ftps containers elapsed title message
+    domain_list=$(opencli domains-user "$USERNAME" 2>/dev/null | grep -v "No domains found" | awk 'NF {print $1}')
+    domains=$(grep -c . <<< "$domain_list")
+    sites=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT COUNT(*) FROM sites s JOIN domains d ON s.domain_id=d.domain_id JOIN users u ON d.user_id=u.id WHERE u.username='$USERNAME';" 2>/dev/null)
+    mails=0
+    if [[ -n "$domain_list" && -f /usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf ]]; then
+        mails=$(grep -cE "@($(sed 's/\./\\./g' <<< "$domain_list" | paste -sd'|'))\|" /usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf)
+    fi
+    ftps=$(grep -c '|' "/etc/openpanel/ftp/users/$CONTEXT/users.list" 2>/dev/null)
+    containers=$(cut -d: -f2 /tmp/docker_containers_names_${USERNAME}.txt 2>/dev/null | xargs | wc -w)
+    elapsed=$(( $(date +%s) - start_time ))
+    title="User $USERNAME transferred from ${current_ip:-another server}"
+    message="Account $USERNAME was transferred from ${current_ip:-another server} in $((elapsed / 60))m $((elapsed % 60))s. Domains: ${domains:-0}. Websites: ${sites:-0}. Email accounts: ${mails:-0}. FTP accounts: ${ftps:-0}. Containers started: ${containers:-0}."
+    [[ "$LIVE_TRANSFER" == true ]] && message+=" Live transfer: the account was suspended on the source server and DNS points here."
+    "${SSH_CMD[@]}" "nohup opencli sentinel --action=user_transfer --title=$(printf '%q' "$title") --message=$(printf '%q' "$message") >/dev/null 2>&1 &" < /dev/null
 }
 
 success_message() {
@@ -239,19 +264,22 @@ copy_user_account() {
         $1 == user {gid=$4}
         $3 == gid {print}
         $1 == user {print}' /etc/group > "$TMPDIR/group.user"
-    grep -F -w "^$CONTEXT:" /etc/shadow > "$TMPDIR/shadow.user"
+    grep "^$CONTEXT:" /etc/shadow > "$TMPDIR/shadow.user"
+    grep "^$CONTEXT:" /etc/subuid > "$TMPDIR/subuid.user" 2>/dev/null
+    grep "^$CONTEXT:" /etc/subgid > "$TMPDIR/subgid.user" 2>/dev/null
 
     # Send files to remote
-    "${RSYNC_CMD[@]}" "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" "${REMOTE_USER}@${REMOTE_HOST}:/root/"
+    # per-account dir on the destination, bulk transfers run two of these at once
+    "${RSYNC_CMD[@]}" "$TMPDIR/passwd.user" "$TMPDIR/group.user" "$TMPDIR/shadow.user" "$TMPDIR/subuid.user" "$TMPDIR/subgid.user" "${REMOTE_USER}@${REMOTE_HOST}:/root/transfer_${CONTEXT}/"
     rm -rf "$TMPDIR" >/dev/null
 
     # Remote command (heredoc WITHOUT quotes so we interpolate CONTEXT)
     "${SSH_CMD[@]}" <<EOF
 export CONTEXT="$CONTEXT"
 
-USER_PASSWD="/root/passwd.user"
-USER_GROUP="/root/group.user"
-USER_SHADOW="/root/shadow.user"
+USER_PASSWD="/root/transfer_$CONTEXT/passwd.user"
+USER_GROUP="/root/transfer_$CONTEXT/group.user"
+USER_SHADOW="/root/transfer_$CONTEXT/shadow.user"
 UID_MAP_FILE="/root/\${CONTEXT}_uid_map.txt"
 
 user_exists() {
@@ -312,8 +340,23 @@ cut -d: -f1,2 "\$USER_SHADOW" | while IFS=: read -r user hash; do
     fi
 done
 
+# keep the source subuid/subgid range so files in the rootless podman storage keep the right owners
+for f in subuid subgid; do
+    src_line=\$(head -n1 "/root/transfer_$CONTEXT/\$f.user" 2>/dev/null)
+    [[ -z "\$src_line" ]] && continue
+    IFS=: read -r _ start count <<< "\$src_line"
+    end=\$((start + count - 1))
+    overlap=\$(awk -F: -v u="\$CONTEXT" -v s="\$start" -v e="\$end" '\$1!=u && \$2<=e && (\$2+\$3-1)>=s {print \$1}' /etc/\$f)
+    if [[ -n "\$overlap" ]]; then
+        echo "[!] \$f range \$start:\$count for \$CONTEXT is taken by \$overlap on this server, keeping the one useradd assigned"
+    else
+        sed -i "/^\$CONTEXT:/d" /etc/\$f
+        echo "\$CONTEXT:\$start:\$count" >> /etc/\$f
+    fi
+done
+
 # remove temp files
-rm -f "\$USER_PASSWD" "\$USER_GROUP" "\$USER_SHADOW"
+rm -rf "/root/transfer_$CONTEXT"
 EOF
 
     # Fetch the UID map file locally and remove it from the remote side
@@ -324,13 +367,13 @@ EOF
 
 
 store_running_containers_for_user() {
-output_file="/tmp/docker_containers_names.txt"
+output_file="/tmp/docker_containers_names_${USERNAME}.txt"
 : > "$output_file"  # clear the file
 
 compose_file="$(podman_compose_file "$CONTEXT")"
 if [ -f "$compose_file" ]; then
     log "Checking podman context ...."
-    containers=$(podman_user "$CONTEXT" ps -a --format "{{.Names}}" 2>/dev/null)
+    containers=$(podman_user "$CONTEXT" ps --format "{{.Names}}" 2>/dev/null)
     if [ -n "$containers" ]; then
         containers_single_line=$(echo "$containers" | tr '\n' ' ' | sed 's/ $//')
         echo "$CONTEXT: $containers_single_line" >> "$output_file"
@@ -363,7 +406,7 @@ copy_feature_set() {
 
 
 restore_running_containers_for_user() {
-output_file="/tmp/docker_containers_names.txt"
+output_file="/tmp/docker_containers_names_${USERNAME}.txt"
 
 # Open the file on FD 3 to avoid stdin conflicts
 exec 3<"$output_file"
@@ -377,7 +420,7 @@ while IFS=: read -r ctx containers <&3; do
     fi
 
     log "Starting containers inside podman context on remote server ..."
-    "${SSH_CMD[@]}" "remote_uid=\$(stat -c '%u' /home/$ctx); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1 && CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
+    "${SSH_CMD[@]}" "remote_uid=\$(stat -c '%u' /home/$ctx); CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml down >/dev/null 2>&1; CONTAINER_HOST=unix:///hostfs/run/user/\${remote_uid}/podman/podman.sock podman-compose -f /home/$ctx/docker-compose.yml up -d $containers >/dev/null 2>&1"
 done
 
 # Close FD 3
@@ -401,7 +444,7 @@ if [[ -z "\$USERNAME" ]]; then
   exit 1
 fi
 
-cd "/tmp/user_import/" || { echo "[ERROR] Directory /tmp/user_import/ not found"; exit 1; }
+cd "/tmp/user_import_${USERNAME}/" || { echo "[ERROR] Directory /tmp/user_import_${USERNAME}/ not found"; exit 1; }
 
 # Fix trailing commas in SQL
 for f in plan_\${USERNAME}_autoinc.sql user_\${USERNAME}_autoinc.sql domains_\${USERNAME}_autoinc.sql sites_\${USERNAME}_autoinc.sql; do
@@ -415,11 +458,25 @@ EXISTING_PLAN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_da
 
 if [[ -n "\$EXISTING_PLAN_ID" ]]; then
   echo "Plan already exists (ID: \$EXISTING_PLAN_ID)"
+  SRC_FEATURE_SET=\$(grep -oP "'[^']*'(?=, '[^']*', [0-9]+\)?[,;]?\s*$)" "plan_\${USERNAME}_autoinc.sql" | tail -1 | tr -d "'")
+  DST_FEATURE_SET=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s -e "SELECT feature_set FROM plans WHERE id = \$EXISTING_PLAN_ID;")
+  [[ -n "\$SRC_FEATURE_SET" && "\$SRC_FEATURE_SET" != "\$DST_FEATURE_SET" ]] && echo "[!] Warning: plan '\$PLAN_NAME' on this server uses feature set '\$DST_FEATURE_SET', on the source it was '\$SRC_FEATURE_SET'"
 else
   echo "Importing new plan..."
   (echo "USE \\\`\$mysql_database\\\`;" && cat "plan_\${USERNAME}_autoinc.sql") | mariadb --defaults-extra-file="\$CONFIG_FILE"
   EXISTING_PLAN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
     -e "SELECT id FROM plans WHERE name = '\$PLAN_NAME' LIMIT 1;")
+fi
+
+# --force: drop the existing account rows first, otherwise the insert hits the unique username
+if [[ "$FORCE" -eq 1 ]]; then
+  OLD_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s -e "SELECT id FROM users WHERE username = '\$USERNAME';")
+  if [[ -n "\$OLD_ID" ]]; then
+    echo "Removing existing rows for \$USERNAME (--force)"
+    for stmt in "DELETE FROM sites WHERE domain_id IN (SELECT domain_id FROM domains WHERE user_id=\$OLD_ID)" "DELETE FROM domains WHERE user_id=\$OLD_ID" "DELETE FROM mcp_tokens WHERE user_id=\$OLD_ID" "DELETE FROM user_passkeys WHERE user_id=\$OLD_ID" "DELETE FROM users WHERE id=\$OLD_ID"; do
+      mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "\$stmt" 2>/dev/null
+    done
+  fi
 fi
 
 sed -E "s/,[[:space:]]*[0-9]+\);$/,\$EXISTING_PLAN_ID);/" "user_\${USERNAME}_autoinc.sql" > tmp_user.sql
@@ -437,34 +494,16 @@ if [[ -z "\$USER_ID" ]]; then
   exit 1
 fi
 
+for t in mcp_tokens user_passkeys; do
+  [[ -s "\${t}.ddl" ]] || continue
+  mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" < "\${t}.ddl"
+  [[ -s "\${t}.rows.sql" ]] || continue
+  mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "DROP TABLE IF EXISTS _import_\${t}; CREATE TABLE _import_\${t} LIKE \${t};"
+  sed "s/INSERT INTO \\\`\${t}\\\`/INSERT INTO \\\`_import_\${t}\\\`/" "\${t}.rows.sql" | mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database"
+  COLS=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -N -s -e "SELECT GROUP_CONCAT(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='\$mysql_database' AND table_name='\$t' AND column_name NOT IN ('id','user_id');")
+  mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "INSERT IGNORE INTO \${t} (user_id,\$COLS) SELECT \$USER_ID,\$COLS FROM _import_\${t}; DROP TABLE _import_\${t};" && echo "Imported \$(grep -c '^INSERT' "\${t}.rows.sql") row(s) into \$t"
+done
 
-if [[ -f "sites_\${USERNAME}_autoinc.sql" ]]; then
-  echo "Importing sites..."
-  tail -n +2 "sites_\${USERNAME}_autoinc.sql" | sed "s/),/)\n/g" | while read -r line; do
-    clean_line=\$(echo "\$line" | sed "s/[()']//g" | sed 's/,$//')
-    SITE_NAME=\$(echo "\$clean_line" | cut -d',' -f1)
-    DOMAIN_URL=\$(echo "\$clean_line" | cut -d',' -f2)
-    ADMIN_EMAIL=\$(echo "\$clean_line" | cut -d',' -f3)
-    VERSION=\$(echo "\$clean_line" | cut -d',' -f4)
-    TYPE=\$(echo "\$clean_line" | cut -d',' -f6)
-    PORTS=\$(echo "\$clean_line" | cut -d',' -f7)
-    PATH=\$(echo "\$clean_line" | cut -d',' -f8)
-
-    DOMAIN_ID=\$(mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -N -s \
-      -e "SELECT domain_id FROM domains WHERE domain_url = '\$DOMAIN_URL' AND user_id = \$USER_ID LIMIT 1;")
-
-    if [[ -n "\$DOMAIN_ID" ]]; then
-      mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$mysql_database" -e "
-        INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path)
-        VALUES ('\$SITE_NAME', \$DOMAIN_ID, '\$ADMIN_EMAIL', '\$VERSION', '\$TYPE', \$PORTS, '\$PATH');"
-      echo "Site imported: \$SITE_NAME"
-    else
-      echo "[ERROR] Domain not found for site: \$DOMAIN_URL"
-    fi
-  done
-else
-  echo "No sites found to import."
-fi
 
 EOF
 }
@@ -528,36 +567,61 @@ BEGIN {
 END { print ";" }
 ' "$TMP_DIR/user.tsv" > "$TMP_DIR/user_${USERNAME}_autoinc.sql"
 
-### EXPORT SITES (if any domains exist)
-DOMAIN_IDS=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
-  -e "SELECT domain_id FROM domains WHERE user_id = $USER_ID;")
+### EXPORT SITES as tsv, domain_url included so the destination can resolve its own domain_id
+: > "$TMP_DIR/sites_${USERNAME}.tsv"
+mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "
+  SELECT s.site_name, d.domain_url, s.admin_email, s.version, s.type, s.ports, s.path, s.container
+  FROM sites s JOIN domains d ON s.domain_id = d.domain_id
+  WHERE d.user_id = $USER_ID;" > "$TMP_DIR/sites_${USERNAME}.tsv"
 
-if [[ -z "$DOMAIN_IDS" ]]; then
-  :
+# per-user tables the panel only creates on first use, ship the ddl too so a fresh destination has them
+for t in mcp_tokens user_passkeys; do
+  if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SHOW TABLES LIKE '$t'" | grep -qx "$t"; then
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SHOW CREATE TABLE $t" | cut -f2- | sed 's/^CREATE TABLE/CREATE TABLE IF NOT EXISTS/; s/\\n/\n/g' > "$TMP_DIR/${t}.ddl"
+    echo ";" >> "$TMP_DIR/${t}.ddl"
+    # plain sql instead of mysqldump, the host client config has options mysqldump rejects
+    cols=$(mariadb --defaults-extra-file="$config_file" -N -s -e "SELECT GROUP_CONCAT(CONCAT('\`',column_name,'\`') ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='$mysql_database' AND table_name='$t' AND column_name<>'id';")
+    qcols=$(mariadb --defaults-extra-file="$config_file" -N -s -e "SELECT GROUP_CONCAT(CONCAT('QUOTE(\`',column_name,'\`)') ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='$mysql_database' AND table_name='$t' AND column_name<>'id';")
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -r -e "SELECT CONCAT('INSERT INTO \`$t\` ($cols) VALUES (', CONCAT_WS(',', $qcols), ');') FROM $t WHERE user_id=$USER_ID;" > "$TMP_DIR/${t}.rows.sql"
+  fi
+done
+
+"${SSH_CMD[@]}" "mkdir -p /tmp/user_import_${USERNAME}/"
+"${RSYNC_CMD[@]}" "$TMP_DIR"/*.ddl "$TMP_DIR"/*.rows.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import_${USERNAME}/ 2>/dev/null
+"${RSYNC_CMD[@]}" "$TMP_DIR"/plan_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import_${USERNAME}/
+"${RSYNC_CMD[@]}" "$TMP_DIR"/user_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import_${USERNAME}/
+[[ -s "$TMP_DIR/sites_${USERNAME}.tsv" ]] && "${RSYNC_CMD[@]}" "$TMP_DIR/sites_${USERNAME}.tsv" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/user_import_${USERNAME}/"
+rm -rf "$TMP_DIR"
+}
+
+# runs after domains are added on the destination, since sites point at the new domain_id
+import_sites() {
+  "${SSH_CMD[@]}" bash -s <<EOF
+CONFIG_FILE="/etc/my.cnf"
+DB="$mysql_database"
+USERNAME="$USERNAME"
+SITES="/tmp/user_import_\${USERNAME}/sites_\${USERNAME}.tsv"
+q() { mariadb --defaults-extra-file="\$CONFIG_FILE" -D "\$DB" -N -s -e "\$1"; }
+esc() { printf '%s' "\$1" | sed "s/'/''/g"; }
+val() { [[ "\$1" == "NULL" || -z "\$1" ]] && echo NULL || echo "'\$(esc "\$1")'"; }
+
+if [[ ! -s "\$SITES" ]]; then
+  echo "No sites found to import."
 else
-  DOMAIN_ID_LIST=$(echo "$DOMAIN_IDS" | paste -sd "," -)
-	mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "
-	  SELECT site_name, domain_id, admin_email, version, created_date, type, ports, path
-	  FROM sites WHERE domain_id IN ($DOMAIN_ID_LIST);" > "$TMP_DIR/sites.tsv"
-	
-
-  awk '
-  BEGIN {
-    FS="\t";
-    print "INSERT INTO sites (site_name, domain_id, admin_email, version, created_date, type, ports, path) VALUES"
-  }
-  {
-    printf "('\''%s'\'', %s, '\''%s'\'', '\''%s'\'', '\''%s'\'', '\''%s'\'', %s, '\''%s'\''),\n",
-    $1, $2, $3, $4, $5, $6, $7, $8
-  }
-  END { print ";" }
-  ' "$TMP_DIR/sites.tsv" > "$TMP_DIR/sites_${USERNAME}_autoinc.sql"
+  USER_ID=\$(q "SELECT id FROM users WHERE username = '\$USERNAME';")
+  while IFS=\$'\t' read -r site_name domain_url admin_email version type ports site_path container; do
+    [[ -z "\$site_name" ]] && continue
+    DOMAIN_ID=\$(q "SELECT domain_id FROM domains WHERE domain_url = '\$(esc "\$domain_url")' AND user_id = \$USER_ID LIMIT 1;")
+    if [[ -z "\$DOMAIN_ID" ]]; then
+      echo "[ERROR] Domain not found for site: \$domain_url"
+      continue
+    fi
+    [[ "\$ports" =~ ^[0-9]+\$ ]] || ports=NULL
+    q "INSERT INTO sites (site_name, domain_id, admin_email, version, type, ports, path, container) VALUES (\$(val "\$site_name"), \$DOMAIN_ID, \$(val "\$admin_email"), \$(val "\$version"), \$(val "\$type"), \$ports, \$(val "\$site_path"), \$(val "\$container"));" && echo "Site imported: \$site_name"
+  done < "\$SITES"
 fi
-
-"${RSYNC_CMD[@]}" "$TMP_DIR"/plan_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
-"${RSYNC_CMD[@]}" "$TMP_DIR"/user_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
-[[ -f "sites_${USERNAME}_autoinc.sql" ]] && "${RSYNC_CMD[@]}" "$TMP_DIR"/sites_"${USERNAME}"_autoinc.sql "${REMOTE_USER}"@"${REMOTE_HOST}":/tmp/user_import/
-
+rm -rf "/tmp/user_import_\${USERNAME}/"
+EOF
 }
 
 sync_local_dns_zone() {
@@ -630,7 +694,7 @@ update_zone_file() {
 
 rsync_files_for_user() {
     log "Syncing files for user $USERNAME (context: $CONTEXT) ..."
-    RSYNC_OUTPUT=$("${RSYNC_CMD[@]}" /home/"$CONTEXT" "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
+    RSYNC_OUTPUT=$("${RSYNC_CMD[@]}" --include="/$CONTEXT/docker-data/volumes/" --exclude="/$CONTEXT/docker-data/*" --exclude="/$CONTEXT/sockets/*/*.sock" --exclude="/$CONTEXT/sockets/*/*.pid" /home/"$CONTEXT" "${REMOTE_USER}@${REMOTE_HOST}:/home/" 2>&1)
     RSYNC_EXIT=$?
     log "$RSYNC_OUTPUT"
     if [[ $RSYNC_EXIT -eq 0 ]]; then
@@ -671,13 +735,13 @@ rsync_files_for_user() {
 if [[ "$ALL_DOMAINS" == *"No domains found for user '$USERNAME'"* ]]; then
         log "No domains found for user $USERNAME. Skipping."
 else	
-    while IFS=$'\t ' read -r domain docroot php_version; do
-    whoowns_output=$("${SSH_CMD[@]}" "opencli domains-whoowns $domain")
+    while IFS=$'\t ' read -r -u 3 domain docroot php_version; do
+    whoowns_output=$("${SSH_CMD[@]}" "opencli domains-whoowns $domain" < /dev/null)
     owner=$(echo "$whoowns_output" | awk -F "Owner of '$domain': " '{print $2}')
     
     if [ -z "$owner" ]; then
 	    # add domain on remote
-	    if ! "${SSH_CMD[@]}" "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns"; then
+	    if ! "${SSH_CMD[@]}" "opencli domains-add $domain $USERNAME --docroot $docroot --php_version $php_version --skip_caddy --skip_vhost --skip_containers --skip_dns" < /dev/null >> "$log_file" 2>&1; then
 	       log "[✘] ERROR: Failed to import domain $domain"
 		   exit 1
 	    fi
@@ -714,7 +778,7 @@ else
 		    "${SSH_CMD[@]}" "sed -i 's/$current_ip/$REMOTE_HOST/g' /etc/bind/zones/$domain.zone"
       
 		    "${SSH_CMD[@]}" <<EOF > /dev/null 2>&1
-grep -q "$domain" /etc/bind/named.conf.local || \
+grep -qF "zone \"$domain\"" /etc/bind/named.conf.local || \
 echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
 EOF
 
@@ -739,12 +803,19 @@ EOF
 	if [[ -d "$DKIM_DIR" ]]; then
 	    "${SSH_CMD[@]}" "mkdir -p /usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/"
 	    "${RSYNC_CMD[@]}" "$DKIM_DIR" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/"
+	    # keys alone aren't used until the domain is listed in the opendkim tables
+	    for table in KeyTable SigningTable TrustedHosts; do
+	        local_table="/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table"
+	        [[ -f "$local_table" ]] || continue
+	        awk -v d="$domain" '{k=$1} k=="*@"d || k==d || k=="*."d || (length(k)>length(d) && substr(k, length(k)-length(d)-11)=="._domainkey."d)' "$local_table" | while IFS= read -r line; do
+	            "${SSH_CMD[@]}" "touch /usr/local/mail/openmail/docker-data/dms/config/opendkim/$table; grep -qxF '$line' /usr/local/mail/openmail/docker-data/dms/config/opendkim/$table || echo '$line' >> /usr/local/mail/openmail/docker-data/dms/config/opendkim/$table" < /dev/null
+	        done
+	    done
 	fi
 
- done <<< "$ALL_DOMAINS"
+ done 3<<< "$ALL_DOMAINS"
 
- podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
- cd /root && podman-compose up -d bind9  >/dev/null 2>&1
+ "${SSH_CMD[@]}" "cd /root && podman-compose up -d bind9 >/dev/null 2>&1; podman exec openpanel_dns rndc reconfig >/dev/null 2>&1"
 
  if [[ "$LIVE_TRANSFER" == true ]]; then
    podman exec caddy caddy reload >/dev/null 2>&1
@@ -771,8 +842,12 @@ setup_remote_podman() {
         "${SSH_CMD[@]}" "loginctl enable-linger $CONTEXT" \
             >/dev/null 2>&1 || log "Failed to enable linger for $CONTEXT"
 
-        "${SSH_CMD[@]}" "machinectl shell ${CONTEXT}@ /bin/bash -c 'systemctl --user daemon-reload; systemctl --user reset-failed podman.socket; systemctl --user enable --now podman.socket'" \
-            >/dev/null 2>&1 || log "Failed to enable podman.socket for $CONTEXT"
+        # wait for user@uid before systemctl --user, enable-linger returns before it's up
+        "${SSH_CMD[@]}" "for i in \$(seq 30); do systemctl is-active user@${REMOTE_UID}.service >/dev/null 2>&1 && break; sleep 1; done; systemctl --user -M ${CONTEXT}@ daemon-reload; systemctl --user -M ${CONTEXT}@ reset-failed podman.socket; systemctl --user -M ${CONTEXT}@ enable --now podman.socket" \
+            >/dev/null 2>&1
+        if ! "${SSH_CMD[@]}" "systemctl --user -M ${CONTEXT}@ is-active podman.socket" >/dev/null 2>&1; then
+            log "[!] Warning: podman.socket is not active for $CONTEXT on destination, containers may not start"
+        fi
     else
         log "No .config/containers directory for $CONTEXT on source!"
         exit 1
@@ -781,7 +856,7 @@ setup_remote_podman() {
 
 restart_services_on_target() {
         log "Reloading services on ${REMOTE_HOST} server ..."
-	"${SSH_CMD[@]}" "cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1 && systemctl restart admin >/dev/null 2>&1"
+	"${SSH_CMD[@]}" "cd /root && podman-compose up -d openpanel bind9 caddy >/dev/null 2>&1; podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1; systemctl restart admin >/dev/null 2>&1"
 
 	if [[ $COMPOSE_START_MAIL -eq 1 ]]; then
             log "Reloading mailserver and webmail on ${REMOTE_HOST} server ..."
@@ -818,7 +893,8 @@ restore_ftp_for_user() {
     #    Passwords are already SHA-512 hashed in users.list, so no re-hashing.
     #    GID is re-derived from /home/$CONTEXT on the remote in case the UID was
     #    remapped during copy_user_account / rsync_files_for_user.
-    if ! "${SSH_CMD[@]}" bash -s <<EOF
+    local FTP_OUT; FTP_OUT=$(mktemp)
+    if "${SSH_CMD[@]}" bash -s > "$FTP_OUT" 2>&1 <<EOF
 set -e
 context="$CONTEXT"
 
@@ -880,12 +956,17 @@ while IFS='|' read -r username hashed_pass directory uid gid; do
 
     echo "[FTP] restored \$username -> \$directory"
 done < "\$USERS_LIST"
+exit 0
 EOF
     then
+        logpipe < "$FTP_OUT"
         log "FTP accounts restored for context $CONTEXT."
     else
-        log "[!] Warning: FTP restore reported an error for context $CONTEXT"
+        local ftp_rc=$?
+        logpipe < "$FTP_OUT"
+        log "[!] Warning: FTP restore reported an error for context $CONTEXT (exit $ftp_rc)"
     fi
+    rm -f "$FTP_OUT"
 }
 
 
@@ -916,11 +997,17 @@ fi
 resolve_context   # sets $CONTEXT from users.server
 
 export_mysql
-import_mysql
+import_mysql 2>&1 | logpipe
+if [[ "$(check_username_exists)" -lt 1 ]]; then
+    log "[✘] ERROR: User $USERNAME was not created in the destination panel database, aborting."
+    exit 1
+fi
 copy_feature_set
 copy_user_account "$CONTEXT"
 get_remote_nameservers
 rsync_files_for_user
+log "Importing sites ..."
+import_sites 2>&1 | logpipe
 setup_remote_podman # enable rootless podman.socket on dest
 restore_ftp_for_user # recreate ftp sub-accounts in remote container
 "${SSH_CMD[@]}" "systemctl daemon-reload" 
@@ -945,14 +1032,16 @@ if [ -n "$key_value" ]; then
     fi
 
     if [[ -n "$DOMAIN_LIST_STR" ]]; then
-        DOMAIN_PATTERN=$(printf '@%s\|' "$DOMAIN_LIST_STR" | sed 's/\\|$//')
-        REGEX_PATTERN=$(printf '/\\*@%s/|' "$DOMAIN_LIST_STR" | sed 's/|$//')
+        # one alternative per domain, anchored so example.com doesn't also grab blog.example.com
+        read -ra MAIL_DOMAINS <<< "$DOMAIN_LIST_STR"
+        DOMAIN_PATTERN="@($(printf '%s|' "${MAIL_DOMAINS[@]//./\\.}" | sed 's/|$//'))([|: ]|$)"
+        REGEX_PATTERN="@($(printf '%s|' "${MAIL_DOMAINS[@]//./\\.}" | sed 's/|$//'))/"
 
         TMP_MAIL_DIR=$(mktemp -d)
 
         for cf in postfix-accounts.cf postfix-virtual.cf dovecot-quotas.cf postfix-receive-access.cf postfix-send-access.cf; do
             : > "$TMP_MAIL_DIR/$cf"
-            [[ -f "$DMS_CONFIG/$cf" ]] && grep "$DOMAIN_PATTERN" "$DMS_CONFIG/$cf" > "$TMP_MAIL_DIR/$cf" || true
+            [[ -f "$DMS_CONFIG/$cf" ]] && grep -E "$DOMAIN_PATTERN" "$DMS_CONFIG/$cf" > "$TMP_MAIL_DIR/$cf" || true
         done
 
         : > "$TMP_MAIL_DIR/postfix-regex.cf"
@@ -976,41 +1065,56 @@ if [ -n "$key_value" ]; then
             done < "$POSTFWD_SRC" > "$TMP_MAIL_DIR/postfwd.cf"
         fi
 
-        "${SSH_CMD[@]}" "mkdir -p $DMS_CONFIG /usr/local/mail/openmail/postfwd/"
-        for cf in postfix-accounts.cf postfix-virtual.cf dovecot-quotas.cf postfix-receive-access.cf postfix-send-access.cf postfix-regex.cf; do
-            [[ -s "$TMP_MAIL_DIR/$cf" ]] && \
-                "${RSYNC_CMD[@]}" "$TMP_MAIL_DIR/$cf" "${REMOTE_USER}@${REMOTE_HOST}:${DMS_CONFIG}/$cf" && \
-                log "Synced $cf"
-        done
-        [[ -s "$TMP_MAIL_DIR/postfwd.cf" ]] && \
-            "${RSYNC_CMD[@]}" "$TMP_MAIL_DIR/postfwd.cf" "${REMOTE_USER}@${REMOTE_HOST}:/usr/local/mail/openmail/postfwd/postfwd.cf" && \
-            log "Synced postfwd.cf"
-
+        # merge into the destination files instead of overwriting them, other accounts already live there
+        "${SSH_CMD[@]}" "mkdir -p $DMS_CONFIG /usr/local/mail/openmail/postfwd/ /tmp/mail_import_${USERNAME}/"
+        "${RSYNC_CMD[@]}" "$TMP_MAIL_DIR/" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/mail_import_${USERNAME}/"
+        "${SSH_CMD[@]}" bash -s <<EOF
+cd /tmp/mail_import_${USERNAME} || exit 0
+for cf in postfix-accounts.cf postfix-virtual.cf dovecot-quotas.cf postfix-receive-access.cf postfix-send-access.cf postfix-regex.cf; do
+    [[ -s "\$cf" ]] || continue
+    dst="$DMS_CONFIG/\$cf"
+    touch "\$dst"
+    added=0
+    while IFS= read -r line; do
+        [[ -z "\$line" ]] && continue
+        key="\${line%%[|: ]*}"
+        if ! awk -v k="\$key" 'index(\$0,k)==1 && substr(\$0,length(k)+1,1) ~ /[|: ]/ {f=1} END{exit !f}' "\$dst"; then echo "\$line" >> "\$dst"; added=\$((added+1)); fi
+    done < "\$cf"
+    echo "Merged \$cf: \$added line(s) added"
+done
+if [[ -s postfwd.cf ]]; then
+    touch /usr/local/mail/openmail/postfwd/postfwd.cf
+    while IFS= read -r id_line; do
+        IFS= read -r action_line
+        grep -qxF "\$id_line" /usr/local/mail/openmail/postfwd/postfwd.cf || printf '%s\n%s\n' "\$id_line" "\$action_line" >> /usr/local/mail/openmail/postfwd/postfwd.cf
+    done < postfwd.cf
+    echo "Merged postfwd.cf"
+fi
+rm -rf /tmp/mail_import_${USERNAME}
+EOF
         rm -rf "$TMP_MAIL_DIR"
+        COMPOSE_START_MAIL=1
     fi
 
     # Physical maildir sync
     STORE_EMAILS_IN=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null | cut -d'=' -f2- | xargs)
-    if [[ "$STORE_EMAILS_IN" == /* && -d "$STORE_EMAILS_IN" ]]; then
-        LOCAL_MAIL_PATH="$STORE_EMAILS_IN"
-    else
-        LOCAL_MAIL_PATH="/home/$CONTEXT/mail/"
-    fi
-
     REMOTE_STORE_EMAILS_IN=$("${SSH_CMD[@]}" "grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null | cut -d'=' -f2- | xargs" 2>/dev/null)
-    if [[ "$REMOTE_STORE_EMAILS_IN" == /* ]]; then
-        REMOTE_MAIL_PATH="$REMOTE_STORE_EMAILS_IN"
-    else
-        REMOTE_MAIL_PATH="/home/$CONTEXT/mail/"
-    fi
 
-    if [[ -d "$LOCAL_MAIL_PATH" ]]; then
-        log "Syncing maildir from $LOCAL_MAIL_PATH → $REMOTE_MAIL_PATH ..."
-        "${SSH_CMD[@]}" "mkdir -p $REMOTE_MAIL_PATH"
-        "${RSYNC_CMD[@]}" "$LOCAL_MAIL_PATH" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_MAIL_PATH}"
-        COMPOSE_START_MAIL=1
+    if [[ "$STORE_EMAILS_IN" == /* && -d "$STORE_EMAILS_IN" ]]; then
+        # shared store keeps one dir per domain, only copy this user's domains
+        [[ "$REMOTE_STORE_EMAILS_IN" == /* ]] || REMOTE_STORE_EMAILS_IN="$STORE_EMAILS_IN"
+        for domain in $DOMAIN_LIST_STR; do
+            if [[ -d "${STORE_EMAILS_IN%/}/$domain" ]]; then
+                log "Syncing maildir ${STORE_EMAILS_IN%/}/$domain → ${REMOTE_STORE_EMAILS_IN%/}/$domain ..."
+                "${SSH_CMD[@]}" "mkdir -p ${REMOTE_STORE_EMAILS_IN%/}"
+                "${RSYNC_CMD[@]}" "${STORE_EMAILS_IN%/}/$domain" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_STORE_EMAILS_IN%/}/"
+                COMPOSE_START_MAIL=1
+            fi
+        done
+    elif [[ -d "/home/$CONTEXT/mail/" ]]; then
+        log "Maildir is inside /home/$CONTEXT/mail/, already synced with the home directory."
     else
-        log "[!] No maildir found at $LOCAL_MAIL_PATH, skipping."
+        log "[!] No maildir found for $USERNAME, skipping."
     fi
 fi
 
@@ -1025,5 +1129,6 @@ fi
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
+notify_destination                        # summary in the destination's notifications
 success_message
 exit 0

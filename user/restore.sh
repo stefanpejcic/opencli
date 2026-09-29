@@ -234,6 +234,58 @@ restore_system_user() {
     [[ -f "$SH" ]] && while IFS=: read -r user hash _; do
         [[ "$user" == "$ORIG_CONTEXT" && -n "$hash" ]] && usermod -p "$hash" "$CONTEXT" 2>/dev/null || true
     done < "$SH"
+
+    restore_subid_range subuid SRC_SUBUID DST_SUBUID
+    restore_subid_range subgid SRC_SUBGID DST_SUBGID
+}
+
+# volume files are owned by ids from the source subuid/subgid range, reuse it when nobody else has it
+restore_subid_range() {
+    local f="$1" src_var="$2" dst_var="$3" line start count end overlap
+    line=$(head -n1 "$WORK/system/$f.user" 2>/dev/null)
+    [[ -z "$line" ]] && return
+    IFS=: read -r _ start count <<< "$line"
+    printf -v "$src_var" '%s:%s' "$start" "$count"
+    if ! grep -q "^${CONTEXT}:${start}:${count}$" "/etc/$f"; then
+        end=$((start + count - 1))
+        overlap=$(awk -F: -v u="$CONTEXT" -v s="$start" -v e="$end" '$1!=u && $2<=e && ($2+$3-1)>=s {print $1}' "/etc/$f")
+        if [[ -z "$overlap" && "$SYSTEM_USER_STATUS" != "already existed" ]]; then
+            sed -i "/^${CONTEXT}:/d" "/etc/$f"
+            echo "${CONTEXT}:${start}:${count}" >> "/etc/$f"
+        else
+            warn "$f range $start:$count is not free here, file owners in the home directory will be remapped."
+        fi
+    fi
+    printf -v "$dst_var" '%s' "$(awk -F: -v u="$CONTEXT" '$1==u {print $2":"$3; exit}' "/etc/$f")"
+}
+
+# maps owners from the source uid/gid and subuid/subgid ranges to the ones on this server
+remap_ids() {
+    local path="$1"
+    [[ -e "$path" ]] || return 0
+    local new_uid new_gid
+    new_uid=$(id -u "$CONTEXT" 2>/dev/null); new_gid=$(id -g "$CONTEXT" 2>/dev/null)
+    [[ -z "$new_uid" ]] && return 0
+    if [[ "${SOURCE_UID}" == "$new_uid" && "${SOURCE_GID:-$SOURCE_UID}" == "$new_gid" && "${SRC_SUBUID}" == "${DST_SUBUID}" && "${SRC_SUBGID}" == "${DST_SUBGID}" ]]; then
+        return 0
+    fi
+    log "Remapping file owners in $path ..."
+    SRC_UID="$SOURCE_UID" SRC_GID="${SOURCE_GID:-$SOURCE_UID}" NEW_UID="$new_uid" NEW_GID="$new_gid" \
+    SRC_SUBUID="$SRC_SUBUID" DST_SUBUID="$DST_SUBUID" SRC_SUBGID="$SRC_SUBGID" DST_SUBGID="$DST_SUBGID" \
+    perl -MFile::Find -e '
+        my ($su,$sc) = split /:/, ($ENV{SRC_SUBUID} || "0:0"); my ($du) = split /:/, ($ENV{DST_SUBUID} || "0:0");
+        my ($sg,$gc) = split /:/, ($ENV{SRC_SUBGID} || "0:0"); my ($dg) = split /:/, ($ENV{DST_SUBGID} || "0:0");
+        sub mu { my $u = shift; return $ENV{NEW_UID} if $u == $ENV{SRC_UID}; return $u - $su + $du if $sc && $du && $u >= $su && $u < $su + $sc; return $u }
+        sub mg { my $g = shift; return $ENV{NEW_GID} if $g == $ENV{SRC_GID}; return $g - $sg + $dg if $gc && $dg && $g >= $sg && $g < $sg + $gc; return $g }
+        find({ no_chdir => 1, wanted => sub {
+            my @st = lstat($_) or return;
+            my ($u, $g) = (mu($st[4]), mg($st[5]));
+            if ($u != $st[4] || $g != $st[5]) {
+                my $mode = $st[2] & 07777;
+                if (-l $_) { system("chown", "-h", "$u:$g", $_) } else { chown($u, $g, $_); chmod($mode, $_) if $mode & 06000 }
+            }
+        }}, $ARGV[0]);
+    ' "$path" 2>>"$log_file" || warn "Remapping owners in $path failed."
 }
 restore_system_user
 
@@ -261,6 +313,12 @@ restore_home() {
         warn "Cannot determine home directory size — disk space check skipped."
     fi
 
+    if [[ "$SYSTEM_USER_STATUS" == "already existed" && -f "$(podman_compose_file "$CONTEXT")" ]]; then
+        log "Stopping existing containers for $CONTEXT ..."
+        podman_compose_user "$CONTEXT" -f "$(podman_compose_file "$CONTEXT")" down >/dev/null 2>&1 || true
+        systemctl --user -M "${CONTEXT}@" stop podman.socket podman.service >/dev/null 2>&1 || true
+    fi
+
     log "Restoring /home/$CONTEXT ..."
     # Pipe through rename transform: homedir → CONTEXT
     tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs -xf - 2>>"$log_file" || die "Failed to restore home directory."
@@ -269,19 +327,13 @@ restore_home() {
     rm -f /home/"$CONTEXT"/sockets/*/*.sock /home/"$CONTEXT"/sockets/*/*.pid
     
     # MARIADB ERROR: Bad magic header in tc log
-    # shellcheck disable=SC2140 # correct path-building with two separate quoted var substitutions, not a stray-quote typo
-    rm -f /home/"$CONTEXT"/volumes/"${CONTEXT}_mysql_data"/_data/tc.log
+    rm -f "/home/$CONTEXT/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
 
+    # older backups carry podman state that points at the source server's image layers, containers get recreated from the volumes instead
+    find "/home/$CONTEXT/docker-data" -mindepth 1 -maxdepth 1 ! -name volumes -exec rm -rf {} + 2>/dev/null
 
     local gid; gid=$(id -g "$CONTEXT" 2>/dev/null)
-    if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" ]]; then
-        log "UID changed ($SOURCE_UID → $REMAPPED_UID); chowning /home/$CONTEXT ..."
-        chown -R "${REMAPPED_UID}:${gid:-$REMAPPED_UID}" "/home/$CONTEXT"
-    else
-        log "UID not changed ($gid); chowning /home/$CONTEXT/docker-data/volumes/ ..."
-        chown -R "${gid}:${gid}" "/home/$CONTEXT/docker-data/volumes/" &
-        chown -R "${gid}:${gid}" "/home/$CONTEXT/sockets" &
-    fi
+    remap_ids "/home/$CONTEXT"
 
 if [[ -f "$WORK/mail_external/path.txt" && -f "$WORK/mail_external/mail.tar" ]]; then
         local mp; mp=$(cat "$WORK/mail_external/path.txt")
@@ -289,10 +341,9 @@ if [[ -f "$WORK/mail_external/path.txt" && -f "$WORK/mail_external/mail.tar" ]];
         mkdir -p "$mp"
         local mail_list="$WORK/mail_external/.extracted.list"
         tar -C "$mp" --numeric-owner --acls --xattrs --strip-components=1 -xvf "$WORK/mail_external/mail.tar" >"$mail_list" 2>>"$log_file" || warn "External mail restore failed."
-        local mail_uid; mail_uid=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
-        if [[ -n "$mail_uid" && -s "$mail_list" ]]; then
-            awk -F/ '{print $1}' "$mail_list" | sort -u | while read -r d; do
-                [[ -n "$d" && -e "$mp/$d" ]] && { nohup chown -R "${mail_uid}:${gid:-$mail_uid}" "$mp/$d" >>"$log_file" 2>&1 & disown; }
+        if [[ -s "$mail_list" ]]; then
+            awk -F/ 'NF>1 {print $2}' "$mail_list" | sort -u | while read -r d; do
+                [[ -n "$d" && -e "$mp/$d" ]] && remap_ids "$mp/$d"
             done
         fi
     fi
@@ -338,7 +389,8 @@ restore_database() {
             if [[ -n "$old_id" ]]; then
                 mysql_q "DELETE FROM sites WHERE domain_id IN (SELECT domain_id FROM domains WHERE user_id=$old_id);"
                 mysql_q "DELETE FROM domains WHERE user_id=$old_id;"
-                mysql_q "DELETE FROM mcp_tokens WHERE user_id=$old_id;"
+                mysql_q "DELETE FROM mcp_tokens WHERE user_id=$old_id;" 2>/dev/null
+                mysql_q "DELETE FROM user_passkeys WHERE user_id=$old_id;" 2>/dev/null
                 mysql_q "DELETE FROM users WHERE id=$old_id;"
             fi
         fi
@@ -349,6 +401,18 @@ restore_database() {
     USER_ID=$(mysql_q "SELECT id FROM users WHERE username='$USERNAME';")
     [[ -z "$USER_ID" ]] && die "Failed to import user row for '$USERNAME'."
     log "User row ready (ID: $USER_ID)."
+
+    # mcp tokens / passkeys, the tables only exist once the panel used them so create them first
+    local t cols
+    for t in mcp_tokens user_passkeys; do
+        [[ -s "$WORK/db/${t}.ddl" ]] || continue
+        mysql_run -D "$mysql_database" < "$WORK/db/${t}.ddl"
+        [[ -s "$WORK/db/${t}.rows.sql" ]] || continue
+        mysql_q "DROP TABLE IF EXISTS _import_${t}; CREATE TABLE _import_${t} LIKE ${t};"
+        sed "s/INSERT INTO \`${t}\`/INSERT INTO \`_import_${t}\`/" "$WORK/db/${t}.rows.sql" | mysql_run -D "$mysql_database"
+        cols=$(mysql_q "SELECT GROUP_CONCAT(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='$mysql_database' AND table_name='$t' AND column_name NOT IN ('id','user_id');")
+        mysql_q "INSERT IGNORE INTO ${t} (user_id,$cols) SELECT $USER_ID,$cols FROM _import_${t}; DROP TABLE _import_${t};" && log "Restored $(grep -c '^INSERT' "$WORK/db/${t}.rows.sql") row(s) into $t."
+    done
 
 }
 restore_database
@@ -406,7 +470,7 @@ restore_domains() {
         DOMAINS_ADDED=$((DOMAINS_ADDED+1))
 
         [[ -f "$WORK/caddy/domains/$domain.conf" ]] && cp -a "$WORK/caddy/domains/$domain.conf" /etc/openpanel/caddy/domains/
-        [[ -f "$WORK/caddy/domlogs/$domain" ]]      && cp -a "$WORK/caddy/domlogs/$domain" /var/log/caddy/domlogs/
+        [[ -f "$WORK/caddy/domlogs/$domain.log" ]]  && { mkdir -p "/var/log/caddy/domlogs/$domain"; cp -a "$WORK/caddy/domlogs/$domain.log" "/var/log/caddy/domlogs/$domain/access.log"; }
         [[ -f "$WORK/caddy/waf/$domain.log" ]]      && cp -a "$WORK/caddy/waf/$domain.log" /var/log/caddy/coraza_waf/
         [[ -d "$WORK/caddy/ssl/acme/$domain" ]]     && cp -a "$WORK/caddy/ssl/acme/$domain" /etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/
         [[ -d "$WORK/caddy/ssl/custom/$domain" ]]   && cp -a "$WORK/caddy/ssl/custom/$domain" /etc/openpanel/caddy/ssl/custom/
@@ -443,7 +507,9 @@ restore_domains() {
                 warn "Site '$sname' — could not resolve destination domain_id, skipped."
                 continue
             fi
-            mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path,container) VALUES ('$sname',$did,'$email','$ver','$typ',$ports,'$path','$container');" || true
+            local v; for v in email ver typ path container; do [[ "${!v}" == "NULL" || -z "${!v}" ]] && printf -v "$v" 'NULL' || printf -v "$v" "'%s'" "${!v}"; done
+            [[ "$ports" =~ ^[0-9]+$ ]] || ports=NULL
+            mysql_q "INSERT INTO sites (site_name,domain_id,admin_email,version,type,ports,path,container) VALUES ('$sname',$did,$email,$ver,$typ,$ports,$path,$container);" || true
         done
     fi
 }
@@ -499,6 +565,14 @@ restore_email() {
         local DKIM_DIR="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys"
         mkdir -p "$DKIM_DIR"
         cp -a "$EMAILS_DIR/dkim/." "$DKIM_DIR/"
+        local table line
+        for table in KeyTable SigningTable TrustedHosts; do
+            [[ -s "$EMAILS_DIR/dkim_$table" ]] || continue
+            touch "/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table"
+            while IFS= read -r line; do
+                grep -qxF "$line" "/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table" || echo "$line" >> "/usr/local/mail/openmail/docker-data/dms/config/opendkim/$table"
+            done < "$EMAILS_DIR/dkim_$table"
+        done
         log "DKIM keys restored."
     fi
 
@@ -588,15 +662,6 @@ restore_docker() {
     if [[ -d "/home/$CONTEXT/.config/containers" ]]; then
         local uid_now; uid_now=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
         if [[ -n "$uid_now" ]]; then
-            # docker-data/db.sql bakes in the source server's UID (paths, cgroup slices) - stale on UID remap, so wipe it and let podman reinit fresh (images/volume data untouched).
-            if [[ -n "$REMAPPED_UID" && -n "$SOURCE_UID" && "$REMAPPED_UID" != "$SOURCE_UID" && -f "/home/$CONTEXT/docker-data/db.sql" ]]; then
-                warn "UID remapped ($SOURCE_UID → $REMAPPED_UID) — resetting stale podman container/pod state (images and volume data are preserved)."
-                rm -f "/home/$CONTEXT/docker-data/db.sql"
-                rm -rf "/home/$CONTEXT/docker-data/libpod"
-                mkdir -p "/home/$CONTEXT/docker-data/libpod"
-                chown -R "${uid_now}:${uid_now}" "/home/$CONTEXT/docker-data/libpod"
-            fi
-
             # context resolution is dynamic based on /home/$CONTEXT's owner uid, nothing to register anymore, just make sure the user's rootless podman.socket is enabled and running (mirrors user/add.sh)
             loginctl enable-linger "$CONTEXT" >/dev/null 2>&1 || true
 
@@ -630,7 +695,8 @@ restore_docker() {
             ctx_compose_file="$(podman_compose_file "$ctx")"
             log "Starting $count container(s) for $ctx ..."
             podman_compose_user "$ctx" -f "$ctx_compose_file" down >/dev/null 2>&1 || true
-            podman_compose_user "$ctx" -f "$ctx_compose_file" up -d "$containers" >/dev/null 2>&1 || true
+            # shellcheck disable=SC2086 # one arg per service
+            podman_compose_user "$ctx" -f "$ctx_compose_file" up -d $containers >/dev/null 2>&1 || true
         fi
     fi
 }
