@@ -5,7 +5,7 @@
 # Usage: opencli websites-scan <USERNAME|-all>
 # Author: Stefan Pejcic
 # Created: 23.10.2024
-# Last Modified: 21.08.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -70,6 +70,22 @@ check_site_already_exists_in_db() {
 }
 
 
+# localhost works when every php container mounts the mysql socket and every php.ini points php at it, older users have neither
+mysql_socket_ready() {
+    local home="/home/$current_username" ini
+    [[ -f "$home/docker-compose.yml" ]] || return 1
+    awk '
+        /^  [A-Za-z0-9_.-]+:$/ { if (php && !mounted) bad=1; name=$1; sub(":", "", name); php=(name ~ /^php-fpm-/ || name == "openlitespeed"); if (php) seen=1; mounted=0; next }
+        php && /^[[:space:]]*- \.\/sockets\/mysqld:\/var\/run\/mysqld[[:space:]]*$/ { mounted=1 }
+        END { if (php && !mounted) bad=1; exit !(seen && !bad) }
+    ' "$home/docker-compose.yml" || return 1
+    compgen -G "$home/php.ini/*.ini" >/dev/null || return 1
+    for ini in "$home"/php.ini/*.ini; do
+        grep -Eq '^[[:space:]]*mysqli\.default_socket[[:space:]]*=[[:space:]]*"?/var/run/mysqld/mysqld\.sock"?[[:space:]]*$' "$ini" || return 1
+        grep -Eq '^[[:space:]]*pdo_mysql\.default_socket[[:space:]]*=[[:space:]]*"?/var/run/mysqld/mysqld\.sock"?[[:space:]]*$' "$ini" || return 1
+    done
+}
+
 get_mariadb_or_mysql_for_user() {
     mysql_type=$(grep '^MYSQL_TYPE=' /home/"$current_username"/.env | cut -d '=' -f2 | tr -d '"')
 
@@ -77,6 +93,8 @@ get_mariadb_or_mysql_for_user() {
         mysql_type="localhost"
     fi
 
+    db_host="$mysql_type"
+    mysql_socket_ready && db_host="localhost"
 }
 
 
@@ -270,10 +288,10 @@ while IFS= read -r -d '' config_file_path; do
 
     echo "- Parsing file: $inside_container_path"
     sed -i -E \
-    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost['\"]/\1'$mysql_type'/" \
-    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost:3306['\"]/\1'$mysql_type'/" \
-    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1['\"]/\1'$mysql_type'/" \
-    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1:3306['\"]/\1'$mysql_type'/" \
+    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost['\"]/\1'$db_host'/" \
+    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]localhost:3306['\"]/\1'$db_host'/" \
+    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1['\"]/\1'$db_host'/" \
+    -e "s/(define\([[:space:]]*['\"]DB_HOST['\"],[[:space:]]*)['\"]127\.0\.0\.1:3306['\"]/\1'$db_host'/" \
     "$config_file_path"
     
     # get sitename and domain

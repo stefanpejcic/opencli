@@ -5,7 +5,7 @@
 # Usage: opencli plan-apply <PLAN_ID> <USERNAME>... [--all] [--cpu] [--ram] [--dsk] [--net] [--email] [--debug]
 # Author: Petar Ćurić, Stefan Pejčić
 # Created: 17.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -136,6 +136,9 @@ Delegate=yes
 EOF
         systemctl daemon-reload
         systemctl restart user@"$user_id".service
+        # restarting user@ takes the podman socket down with it, bring it back
+        for _ in $(seq 1 30); do systemctl is-active "user@${user_id}.service" >/dev/null 2>&1 && break; sleep 1; done
+        systemctl --user -M "${username}@" enable --now podman.socket >/dev/null 2>&1
         fi
     fi
 

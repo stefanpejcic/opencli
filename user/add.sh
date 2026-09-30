@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 03.09.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -385,23 +385,29 @@ EOF
 
     fix_pasta_selinux
 
+	# write the slice override before user@ starts, otherwise plan-apply restarts user@ later and kills the fresh podman socket and containers
+	if [[ ! -f "/etc/systemd/system/user-${USER_ID}.slice.d/override.conf" ]]; then
+	    mkdir -p "/etc/systemd/system/user-${USER_ID}.slice.d/"
+	    printf '[Slice]\nDelegate=yes\n' > "/etc/systemd/system/user-${USER_ID}.slice.d/override.conf"
+	    systemctl daemon-reload >/dev/null 2>&1
+	fi
+
 	loginctl enable-linger "$USERNAME" >/dev/null 2>&1
 	local w=0
 	while (( w < 30 )); do
 	    systemctl is-active "user@${USER_ID}.service" >/dev/null 2>&1 && break
 	    sleep 1; ((w++))
 	done
-	
-    machinectl shell "${USERNAME}@" /bin/bash -c "
-        systemctl --user daemon-reload >/dev/null 2>&1
-        systemctl --user reset-failed podman.socket >/dev/null 2>&1
-        systemctl --user enable --now podman.socket >/dev/null 2>&1
-    " 2>/dev/null || true
-	
+
+	# machinectl shell -c silently did nothing here, so the socket never got enabled and died on the next user@ restart or reboot
+	systemctl --user -M "${USERNAME}@" daemon-reload >/dev/null 2>&1
+	systemctl --user -M "${USERNAME}@" reset-failed podman.socket >/dev/null 2>&1
+	systemctl --user -M "${USERNAME}@" enable --now podman.socket >/dev/null 2>&1
+
 	# confirm it actually took, retry once if not
 	if ! systemctl --user -M "${USERNAME}@" is-active podman.socket >/dev/null 2>&1; then
 	    sleep 2
-	    systemctl --user -M "${USERNAME}@" start podman.socket >/dev/null 2>&1
+	    systemctl --user -M "${USERNAME}@" enable --now podman.socket >/dev/null 2>&1
 	fi
 }
 
