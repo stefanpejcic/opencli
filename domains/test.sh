@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/test.sh
 # Description: Test a website speed through every layer (DNS, Caddy/WAF, Varnish, webserver, PHP, database), check limits and settings, and show the biggest issue with a fix.
-# Usage: opencli domains-test <DOMAIN_NAME>[/SUBFOLDER] [RUNS]
+# Usage: opencli domains-test <DOMAIN_NAME>[/SUBFOLDER] [RUNS] [--load <N|auto>]
 # Author: Stefan Pejcic
 # Created: 28.09.2026
-# Last Modified: 28.09.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -40,9 +40,27 @@ if command -v apt-get &> /dev/null; then require_command dig dnsutils; else requ
 
 set -u
 
+# --load can go anywhere, the rest stays positional
+LOAD=""
+POSITIONAL=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --load) LOAD="${2:-}"; shift; [ $# -gt 0 ] && shift ;;
+        --load=*) LOAD="${1#*=}"; shift ;;
+        *) POSITIONAL+=("$1"); shift ;;
+    esac
+done
+set -- "${POSITIONAL[@]}"
+
 if [ -z "${1:-}" ]; then
-    echo "Usage: opencli domains-test <DOMAIN_NAME>[/SUBFOLDER] [RUNS]"
+    echo "Usage: opencli domains-test <DOMAIN_NAME>[/SUBFOLDER] [RUNS] [--load <N|auto>]"
     echo "Example: opencli domains-test example.com"
+    echo "         opencli domains-test example.com --load auto   # raise concurrency until the site breaks"
+    echo "         opencli domains-test example.com --load 100    # 100 concurrent connections"
+    exit 1
+fi
+if [ -n "$LOAD" ] && [ "$LOAD" != auto ] && ! [[ "$LOAD" =~ ^[1-9][0-9]*$ && "$LOAD" -le 5000 ]]; then
+    echo "--load must be auto or a number of concurrent connections (1-5000)"
     exit 1
 fi
 SITE="${1,,}"
@@ -105,12 +123,15 @@ if [ "$WAF_ON" = yes ]; then
     grep -qE '^[[:space:]]*SecResponseBodyAccess[[:space:]]+On' "$CADDY_CONF" && { BODY_ACCESS=on; BODY_SOURCE=domain; }
 fi
 
-echo "${B}Site${N}         $SITE  (user $OWNER, $WEB_SERVER, ${PHP_CONTAINER:-no php container found}, $DB_CONTAINER)"
-echo "${B}Docroot${N}      $DOCROOT"
-echo "${B}Varnish${N}      container: $(is_running varnish && echo running || echo stopped), domain: ${VARNISH_DOMAIN:-?}"
-echo "${B}WAF${N}          $WAF_ON$([ "$WAF_ON" = yes ] && echo ", response body inspection: $BODY_ACCESS")"
-echo "${B}Runs${N}         1 warm-up + $RUNS measured per test, median time to first byte (local tests without connect/TLS setup)"
-echo
+
+if [ -z "$LOAD" ]; then
+    echo "${B}Site${N}         $SITE  (user $OWNER, $WEB_SERVER, ${PHP_CONTAINER:-no php container found}, $DB_CONTAINER)"
+    echo "${B}Docroot${N}      $DOCROOT"
+    echo "${B}Varnish${N}      container: $(is_running varnish && echo running || echo stopped), domain: ${VARNISH_DOMAIN:-?}"
+    echo "${B}WAF${N}          $WAF_ON$([ "$WAF_ON" = yes ] && echo ", response body inspection: $BODY_ACCESS")"
+    echo "${B}Runs${N}         1 warm-up + $RUNS measured per test, median time to first byte (local tests without connect/TLS setup)"
+    echo
+fi
 
 # ======================================================================
 # helpers
@@ -158,6 +179,216 @@ gt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a > b) }'; }
 sub_ms() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.0f", a - b }'; }
 
 in_container() { podman_ctx "$CONTEXT" exec "$@"; }
+
+# ======================================================================
+# --load: stress the site locally until it breaks, skips caddy and dns so their limits don't count
+
+if [ -n "$LOAD" ]; then
+    if [ "$VIA_VARNISH" = yes ]; then
+        LOAD_TARGET="Varnish (127.0.0.1:$HTTP_PORT)"
+        LOAD_ARGS=(--connect-to "$DOMAIN:80:127.0.0.1:$HTTP_PORT" -H "X-Forwarded-Proto: https")
+        LOAD_URL="http://$DOMAIN$URLPATH"
+    else
+        LOAD_TARGET="$WEB_SERVER (127.0.0.1:$HTTPS_PORT)"
+        LOAD_ARGS=(--connect-to "$DOMAIN:443:127.0.0.1:$HTTPS_PORT")
+        LOAD_URL="https://$DOMAIN$URLPATH"
+    fi
+
+    LOAD_SERVICES=()
+    [ "$VIA_VARNISH" = yes ] && LOAD_SERVICES+=(varnish)
+    LOAD_SERVICES+=("$WEB_SERVER")
+    [ "$LITESPEED" = no ] && [ -n "$PHP_CONTAINER" ] && LOAD_SERVICES+=("$PHP_CONTAINER")
+    LOAD_SERVICES+=("$DB_CONTAINER")
+
+    echo "${B}Load test${N}    $SITE  (user $OWNER, $WEB_SERVER, ${PHP_CONTAINER:-no php}, $DB_CONTAINER)"
+    echo "${B}Target${N}       $LOAD_TARGET, local so caddy, the WAF and DNS are skipped"
+    [ "$VIA_VARNISH" = yes ] && echo "${B}Note${N}         the page comes from the Varnish cache, PHP is only hit on cache misses"
+    echo "${B}Mode${N}         $([ "$LOAD" = auto ] && echo "auto, doubling concurrent connections until errors or response times collapse" || echo "$LOAD concurrent connections")"
+    echo
+
+    TMPD=$(mktemp -d); trap 'rm -rf "$TMPD"' EXIT
+    LOAD_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    # whole test stops after a minute, whatever step it's on
+    LOAD_BUDGET=60
+    LOAD_DEADLINE=$(( $(date +%s) + LOAD_BUDGET ))
+    TIMED_OUT=no; LOAD_TOTAL=0; LOAD_OK=0
+
+    # throttled_usec memory.current memory.max oom_kills pids.current pids.max pids_max_hits
+    cg_snap() {
+        in_container "$1" sh -c 'c=/sys/fs/cgroup; echo "$(awk "/^throttled_usec/{print \$2}" $c/cpu.stat 2>/dev/null || echo 0) $(cat $c/memory.current 2>/dev/null || echo 0) $(cat $c/memory.max 2>/dev/null || echo max) $(awk "/^oom_kill /{print \$2}" $c/memory.events 2>/dev/null || echo 0) $(cat $c/pids.current 2>/dev/null || echo 0) $(cat $c/pids.max 2>/dev/null || echo max) $(awk "/^max /{print \$2}" $c/pids.events 2>/dev/null || echo 0)"' 2>/dev/null
+    }
+    declare -A SNAP0 SNAP1 THROTTLE_TOTAL MEM_PEAK OOM_TOTAL PIDS_HITS PIDS_PEAK
+    for sv in "${LOAD_SERVICES[@]}"; do is_running "$sv" && SNAP0[$sv]=$(cg_snap "$sv"); THROTTLE_TOTAL[$sv]=0; MEM_PEAK[$sv]=0; OOM_TOTAL[$sv]=0; PIDS_HITS[$sv]=0; PIDS_PEAK[$sv]=0; done
+
+    # c concurrent connections, n requests; curl's --parallel caps at a few hundred, so big runs are split over several curls
+    load_step() {
+        local c=$1 n=$2 procs p conc reqs t0 t1 i left
+        left=$(( LOAD_DEADLINE - $(date +%s) )); [ "$left" -lt 1 ] && left=1
+        procs=$(( (c + 199) / 200 ))
+        rm -f "$TMPD"/out.*
+        t0=$(date +%s%N)
+        for p in $(seq 1 "$procs"); do
+            conc=$(( c / procs + (p <= c % procs ? 1 : 0) ))
+            reqs=$(( n * conc / c )); [ "$reqs" -lt "$conc" ] && reqs=$conc
+            : > "$TMPD/urls.$p"
+            for i in $(seq 1 "$reqs"); do printf 'url = "%s"\noutput = "/dev/null"\n' "$LOAD_URL" >> "$TMPD/urls.$p"; done
+            timeout "$left" curl -sk --http1.1 -Z --parallel-immediate --parallel-max "$conc" --max-time 30 -A "OpenPanel load test" \
+                "${LOAD_ARGS[@]}" -K "$TMPD/urls.$p" -w '%{http_code} %{time_total}\n' > "$TMPD/out.$p" 2>/dev/null &
+        done
+        wait
+        t1=$(date +%s%N)
+        # total ok err rps p50 p95 p99 codes (sorted with sort, mawk has no asort)
+        cat "$TMPD"/out.* > "$TMPD/all"
+        awk '$1 ~ /^[23]/ { print $2 * 1000 }' "$TMPD/all" | sort -n > "$TMPD/ok"
+        local total ok err rps cs
+        total=$(wc -l < "$TMPD/all"); ok=$(wc -l < "$TMPD/ok"); err=$(( total - ok ))
+        rps=$(awk -v n="$ok" -v w="$(( t1 - t0 ))" 'BEGIN { printf "%.1f", n / (w / 1e9) }')
+        pct() { [ "$ok" -gt 0 ] || { echo 0; return; }; local k; k=$(awk -v n="$ok" -v p="$1" 'BEGIN { k = int(n * p); if (k < 1) k = 1; print k }'); sed -n "${k}p" "$TMPD/ok" | awk '{ printf "%.0f", $1 }'; }
+        cs=$(awk '$1 !~ /^[23]/ { c[$1 == "000" ? "timeout/refused" : $1]++ } END { for (k in c) printf "%s%sx%d", (n++ ? "," : ""), k, c[k] }' "$TMPD/all")
+        echo "$total $ok $err $rps $(pct 0.50) $(pct 0.95) $(pct 0.99) ${cs:--}"
+    }
+
+    # after each step: how much each container got throttled, memory, oom kills and process limit hits
+    collect_step() {
+        local sv a b
+        for sv in "${LOAD_SERVICES[@]}"; do
+            is_running "$sv" || continue
+            SNAP1[$sv]=$(cg_snap "$sv")
+            read -r a0 m0 mx0 o0 pc0 pm0 ph0 <<<"${SNAP0[$sv]:-0 0 max 0 0 max 0}"
+            read -r a1 m1 mx1 o1 pc1 pm1 ph1 <<<"${SNAP1[$sv]:-0 0 max 0 0 max 0}"
+            [[ "$a1" =~ ^[0-9]+$ && "$a0" =~ ^[0-9]+$ ]] && THROTTLE_TOTAL[$sv]=$(( ${THROTTLE_TOTAL[$sv]} + (a1 - a0) / 1000 ))
+            [[ "$m1" =~ ^[0-9]+$ && "$mx1" =~ ^[0-9]+$ ]] && { pct=$(( m1 * 100 / mx1 )); [ "$pct" -gt "${MEM_PEAK[$sv]}" ] && MEM_PEAK[$sv]=$pct; }
+            [[ "$o1" =~ ^[0-9]+$ && "$o0" =~ ^[0-9]+$ ]] && OOM_TOTAL[$sv]=$(( ${OOM_TOTAL[$sv]} + o1 - o0 ))
+            [[ "$ph1" =~ ^[0-9]+$ && "$ph0" =~ ^[0-9]+$ ]] && PIDS_HITS[$sv]=$(( ${PIDS_HITS[$sv]} + ph1 - ph0 ))
+            [[ "$pc1" =~ ^[0-9]+$ ]] && [ "$pc1" -gt "${PIDS_PEAK[$sv]}" ] && PIDS_PEAK[$sv]=$pc1
+            SNAP0[$sv]="${SNAP1[$sv]}"
+        done
+    }
+    step_throttle() { local sv out=""; for sv in "${LOAD_SERVICES[@]}"; do [ -n "${STEP_T[$sv]:-}" ] && [ "${STEP_T[$sv]}" -gt 50 ] && out="$out $sv"; done; echo "${out# }"; }
+
+    if [ "$LOAD" = auto ]; then
+        LADDER=(1 2 4 8 16 32 64 128 256 512 1024 2048)
+    else
+        LADDER=("$LOAD")
+    fi
+
+    printf "  %-6s %-8s %-7s %-9s %-9s %-9s %-9s %s\n" "conns" "requests" "errors" "req/s" "p50 ms" "p95 ms" "p99 ms" "throttled"
+    BEST_RPS=0; BEST_C=0; GOOD_C=0; GOOD_RPS=0; GOOD_P95=0; BASE_P95=""; BROKE_C=""; BROKE_WHY=""; SATURATED_C=""; PREV_RPS=0
+    declare -A STEP_T
+    for c in "${LADDER[@]}"; do
+        # enough requests for about 5 seconds at the last rate, at least 4 per connection
+        n=$(awk -v c="$c" -v r="$PREV_RPS" 'BEGIN { n = r * 5; if (n < c * 4) n = c * 4; if (n < 20) n = 20; if (n > c * 40) n = c * 40; if (n > 30000) n = 30000; printf "%d", n }')
+        declare -A BEFORE_T=(); for sv in "${LOAD_SERVICES[@]}"; do BEFORE_T[$sv]=${THROTTLE_TOTAL[$sv]:-0}; done
+        read -r total ok err rps p50 p95 p99 codes <<<"$(load_step "$c" "$n")"
+        LOAD_TOTAL=$(( LOAD_TOTAL + total )); LOAD_OK=$(( LOAD_OK + ok ))
+        # the time limit cut this step short, requests still in flight were dropped rather than counted as errors
+        [ "$(date +%s)" -ge "$LOAD_DEADLINE" ] && TIMED_OUT=yes
+        collect_step
+        for sv in "${LOAD_SERVICES[@]}"; do STEP_T[$sv]=$(( ${THROTTLE_TOTAL[$sv]:-0} - ${BEFORE_T[$sv]:-0} )); done
+        errpct=$(awk -v e="$err" -v t="$total" 'BEGIN { printf "%.1f", t ? e * 100 / t : 100 }')
+        ecolor=""; gt "$errpct" 0 && ecolor="$Y"; gt "$errpct" 5 && ecolor="$R"
+        printf "  %-6s %-8s ${ecolor}%-7s${N} %-9s %-9s %-9s %-9s %s\n" "$c" "$total" "${errpct}%" "$rps" "$p50" "$p95" "$p99" "$(step_throttle)"
+        [ "$err" -gt 0 ] && echo "         errors: $codes"
+        [ "$TIMED_OUT" = yes ] && echo "         ${Y}cut short by the ${LOAD_BUDGET}s time limit${N}"
+
+        [ -z "$BASE_P95" ] && [ "$ok" -gt 0 ] && BASE_P95="$p95"
+        if gt "$errpct" 5; then
+            BROKE_C=$c; BROKE_WHY="${errpct}% of requests failed ($codes)"; break
+        fi
+        if [ -n "$BASE_P95" ] && gt "$p95" "$(awk -v b="$BASE_P95" 'BEGIN { v = b * 10; if (v < 3000) v = 3000; print v }')"; then
+            BROKE_C=$c; BROKE_WHY="response times collapsed, p95 went from ${BASE_P95} ms to ${p95} ms"; break
+        fi
+        [ "$ok" -gt 0 ] && { GOOD_C=$c; GOOD_RPS=$rps; GOOD_P95=$p95; }
+        gt "$rps" "$BEST_RPS" && { BEST_RPS=$rps; BEST_C=$c; }
+        [ "$TIMED_OUT" = yes ] && break
+        [ -z "$SATURATED_C" ] && gt "$PREV_RPS" 0 && ! gt "$rps" "$(awk -v r="$PREV_RPS" 'BEGIN { print r * 1.1 }')" && SATURATED_C=$c
+        PREV_RPS=$rps
+    done
+
+    # which limit got hit
+    LIMITS=()   # "text|fix"
+    for sv in "${LOAD_SERVICES[@]}"; do
+        is_running "$sv" || { LIMITS+=("$sv stopped running during the test.|Check it with: podman logs $sv (as user $CONTEXT), a crash under load usually means its memory limit is too low."); continue; }
+        prefix=$(echo "$sv" | tr 'a-z.-' 'A-Z__')
+        cpu_limit=$(env_val "${prefix}_CPU"); ram_limit=$(env_val "${prefix}_RAM"); pids_limit=$(env_val "${prefix}_PIDS")
+        [ "${THROTTLE_TOTAL[$sv]}" -gt 200 ] && LIMITS+=("$sv hit its CPU limit (${cpu_limit:-?} CPU) and was paused for ${THROTTLE_TOTAL[$sv]} ms.|Raise ${prefix}_CPU in $ENV_FILE (now ${cpu_limit:-?}) and recreate the container, or raise the CPU in the hosting plan.")
+        [ "${MEM_PEAK[$sv]}" -ge 90 ] && LIMITS+=("$sv used ${MEM_PEAK[$sv]}% of its memory limit (${ram_limit:-?}).|Raise ${prefix}_RAM in $ENV_FILE (now ${ram_limit:-?}) and recreate the container.")
+        [ "${OOM_TOTAL[$sv]}" -gt 0 ] && LIMITS+=("$sv was killed ${OOM_TOTAL[$sv]} times for running out of memory (${ram_limit:-?}).|Raise ${prefix}_RAM in $ENV_FILE (now ${ram_limit:-?}) and recreate the container.")
+        [ "${PIDS_HITS[$sv]}" -gt 0 ] && LIMITS+=("$sv reached its process limit (${pids_limit:-?}, ${PIDS_HITS[$sv]} forks refused).|Raise ${prefix}_PIDS in $ENV_FILE (now ${pids_limit:-?}) and recreate the container.")
+    done
+    SINCE_LOGS() { podman_ctx "$CONTEXT" logs --since "$LOAD_START" "$1" 2>&1; }
+    if [ "$LITESPEED" = no ] && [ -n "$PHP_CONTAINER" ] && is_running "$PHP_CONTAINER"; then
+        mc=$(SINCE_LOGS "$PHP_CONTAINER" | grep -c "max_children")
+        maxch=$(in_container "$PHP_CONTAINER" sh -c 'grep -h "^pm.max_children" /usr/local/etc/php-fpm.d/*.conf 2>/dev/null | tail -1' 2>/dev/null | awk -F= '{gsub(/ /,"",$2); print $2}')
+        [ "$mc" -gt 0 ] && LIMITS+=("$PHP_CONTAINER ran out of PHP workers (pm.max_children = ${maxch:-?}), requests queued.|pm.max_children is tuned from the container memory, raise $(echo "$PHP_CONTAINER" | tr 'a-z.-' 'A-Z__')_RAM in $ENV_FILE and recreate $PHP_CONTAINER, or turn on the page cache so fewer requests reach PHP.")
+    fi
+    case "$WEB_SERVER" in
+        nginx|openresty)
+            wc_hits=$(SINCE_LOGS "$WEB_SERVER" | grep -c "worker_connections are not enough")
+            wc=$(grep -oE 'worker_connections[[:space:]]+[0-9]+' "/home/$CONTEXT/$WEB_SERVER.conf" 2>/dev/null | awk '{print $2}')
+            [ "$wc_hits" -gt 0 ] && LIMITS+=("$WEB_SERVER ran out of connections (worker_connections ${wc:-?}).|Raise worker_connections in /home/$CONTEXT/$WEB_SERVER.conf and restart $WEB_SERVER.")
+            ;;
+        apache)
+            mrw_hits=$(SINCE_LOGS apache | grep -c "MaxRequestWorkers")
+            mrw=$(grep -oE '^[[:space:]]*MaxRequestWorkers[[:space:]]+[0-9]+' "/home/$CONTEXT/httpd.conf" 2>/dev/null | awk '{print $2}' | head -1)
+            [ "$mrw_hits" -gt 0 ] && LIMITS+=("apache reached MaxRequestWorkers (${mrw:-?}), new connections had to wait.|Raise MaxRequestWorkers (and ServerLimit/ThreadsPerChild to match) in /home/$CONTEXT/httpd.conf and restart apache.")
+            ;;
+    esac
+    if is_running "$DB_CONTAINER"; then
+        read -r db_max db_used <<<"$(in_container "$DB_CONTAINER" sh -c 'c=$(command -v mariadb || command -v mysql); $c -uroot ${MYSQL_ROOT_PASSWORD:+-p"$MYSQL_ROOT_PASSWORD"} -N -e "SELECT @@max_connections, VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME = \"MAX_USED_CONNECTIONS\"" 2>/dev/null' 2>/dev/null)"
+        [[ "${db_max:-}" =~ ^[0-9]+$ && "${db_used:-}" =~ ^[0-9]+$ ]] && [ "$db_used" -ge "$db_max" ] && LIMITS+=("$DB_CONTAINER ran out of connections (max_connections $db_max).|Raise max_connections in /home/$CONTEXT/custom.cnf and restart $DB_CONTAINER.")
+    fi
+
+    # requests left in the queues keep the site busy after the test, see how long until a single visit is answered again
+    RECOVERY=""
+    rec_t0=$(date +%s)
+    while [ $(( $(date +%s) - rec_t0 )) -lt 60 ]; do
+        code=$(curl -sk --http1.1 -o /dev/null --max-time 5 -w '%{http_code}' "${LOAD_ARGS[@]}" "$LOAD_URL")
+        [[ "$code" =~ ^[23] ]] && { RECOVERY=$(( $(date +%s) - rec_t0 )); break; }
+        sleep 1
+    done
+
+    echo
+    echo "${B}======================================================================${N}"
+    echo "${B}Load test result for $SITE${N}"
+    echo "${B}======================================================================${N}"
+    if [ "$GOOD_C" -gt 0 ]; then
+        echo "${G}Handled:${N}   $GOOD_C concurrent connections at $GOOD_RPS req/s (p95 $GOOD_P95 ms, under 5% errors)"
+    else
+        echo "${R}Handled:${N}   not even 1 connection without errors"
+    fi
+    [ "$BEST_C" -gt 0 ] && echo "${B}Peak:${N}      $BEST_RPS req/s at $BEST_C concurrent connections"
+    if [ -z "$RECOVERY" ]; then
+        echo "${R}Recovery:${N}  still not answering 60s after the test, requests queued during the test are still being processed"
+    elif [ "$RECOVERY" -gt 2 ]; then
+        echo "${Y}Recovery:${N}  the site answered normally again ${RECOVERY}s after the test"
+    fi
+    [ -n "$SATURATED_C" ] && echo "${B}Saturated:${N} from $SATURATED_C connections on throughput stopped growing, more connections only queue up"
+    if [ -n "$BROKE_C" ]; then
+        echo "${R}Broke at:${N}  $BROKE_C concurrent connections, $BROKE_WHY"
+    elif [ "$TIMED_OUT" = yes ]; then
+        echo "${Y}Time limit:${N} stopped after ${LOAD_BUDGET}s at $c concurrent connections without breaking, $LOAD_OK of $LOAD_TOTAL requests answered in that minute"
+    elif [ "$LOAD" = auto ]; then
+        echo "${G}Did not break${N} up to ${LADDER[-1]} concurrent connections"
+    fi
+    echo
+    if [ ${#LIMITS[@]} -gt 0 ]; then
+        echo "${B}Limits reached:${N}"
+        i=0
+        for l in "${LIMITS[@]}"; do
+            i=$((i + 1))
+            echo "  ${Y}$i.${N} ${l%%|*}"
+            echo "     Fix: ${l#*|}"
+        done
+    else
+        LOAD1=$(cut -d' ' -f1 /proc/loadavg)
+        echo "${B}No container limit was hit.${N}"
+        echo "  The bottleneck is outside the site's containers: the server CPU (load $LOAD1 on $(nproc) cores, the load generator runs on this server too) or the application itself."
+        [ "$VIA_VARNISH" = no ] && [ "$LITESPEED" = no ] && echo "  Turning on the page cache (Varnish) usually raises the number of visitors a site can handle the most."
+    fi
+    echo
+    exit 0
+fi
 
 # ======================================================================
 # temporary test files
