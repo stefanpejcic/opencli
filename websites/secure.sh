@@ -125,7 +125,7 @@ helper_to_empty_rules() {
 }
 
 helper_list_active_rules() {
-  awk '/# modsecurity/{flag=1; next} flag && /^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+$/{print $2}'
+  awk '/^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+[[:space:]]*$/{print $2}' "$domain_file"
 }
 
 # delete all rules
