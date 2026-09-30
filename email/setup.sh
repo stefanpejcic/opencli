@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 21.08.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -252,12 +252,65 @@ run_setup_command() {
 }
 
 
+# drops a setup guide straight into the new mailbox with doveadm, nothing goes out over smtp
+send_welcome_message() {
+    local email="$1" mailbox_domain="${1#*@}" template="/etc/openpanel/openpanel/custom_code/welcome.html" mail_host webmail_url body i uid
+    [[ -f "$template" ]] || return 1
+
+    # wait for dovecot to pick up the account with the right uid, otherwise the mailbox gets created as the wrong owner
+    for i in $(seq 1 45); do
+        uid=$(podman exec "$CONTAINER" doveadm user -f uid "$email" 2>/dev/null) || uid=""
+        [[ -n "$uid" && ( -z "$OP_UID" || "$uid" == "$OP_UID" ) ]] && break
+        sleep 2
+    done
+    [[ -n "$uid" ]] || return 1
+
+    # same host and ports as /emails/info in the panel
+    local imap_port=143 smtp_port=587 security="STARTTLS"
+    mail_host=$(opencli domain 2>/dev/null)
+    if [[ -f "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${mail_host}/${mail_host}.crt" || -f "/etc/openpanel/caddy/ssl/custom/${mail_host}/${mail_host}.crt" ]]; then
+        imap_port=993 smtp_port=465 security="SSL/TLS"
+    fi
+    webmail_url=$(awk '/^redir @webmail/ {print $3; exit}' /etc/openpanel/caddy/redirects.conf 2>/dev/null)
+    [[ -n "$webmail_url" ]] || webmail_url="http://${mail_host}:8080/"
+
+    body=$(<"$template")
+    body=${body//\{\{EMAIL\}\}/$email}
+    body=${body//\{\{DOMAIN\}\}/$mailbox_domain}
+    body=${body//\{\{MAIL_HOST\}\}/$mail_host}
+    body=${body//\{\{WEBMAIL_URL\}\}/$webmail_url}
+    body=${body//\{\{IMAP_PORT\}\}/$imap_port}
+    body=${body//\{\{SMTP_PORT\}\}/$smtp_port}
+    body=${body//\{\{SECURITY\}\}/$security}
+
+    {
+        printf 'From: Mail Setup <postmaster@%s>\r\n' "$mailbox_domain"
+        printf 'To: <%s>\r\n' "$email"
+        printf 'Subject: Set up %s on your devices\r\n' "$email"
+        printf 'Date: %s\r\n' "$(date -R)"
+        printf 'Message-ID: <welcome.%s.%s@%s>\r\n' "$(date +%s)" "$RANDOM" "$mailbox_domain"
+        printf 'MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n'
+        printf '%s\r\n' "$body"
+    } | podman exec -i "$CONTAINER" doveadm save -u "$email"
+}
+
+
 # ======================================================================
 # Run setup command
 validate_first
+
+# --send-welcome is ours, keep it away from the mailserver's setup and keep the other args in place
+SEND_WELCOME=false
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == "--send-welcome" ]]; then SEND_WELCOME=true; else args+=("$arg"); fi
+done
+set -- "${args[@]}"
+
 command=("$@")
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
 run_setup_command "${command[@]}"
+setup_rc=$?
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
     if is_valid_email "$3"; then
@@ -273,4 +326,10 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
             reload_emails_data_file_for_user
         fi
     fi
+fi
+
+if [[ "$SEND_WELCOME" == true && "$1" == "email" && "$2" == "add" && "$setup_rc" -eq 0 ]] && is_valid_email "$3" && podman_is_running "$CONTAINER"; then
+    # panel treats any stdout as failure, so this runs detached and silent
+    send_welcome_message "$3" </dev/null >/dev/null 2>&1 &
+    disown
 fi
