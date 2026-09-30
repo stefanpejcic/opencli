@@ -55,6 +55,7 @@ readonly LOCK_FILE_FOR_DOCKER_PRUNE="/tmp/sentinel.docker"
 readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
+readonly STARTUP_STAGGER=2  # seconds between user starts on boot
 
 [ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
@@ -446,8 +447,20 @@ start_containers_for_user() {
     start_conditional_containers_for_user "$user" "$user_sock" "$results_file"
 }
 
+# on boot blocks while IO pressure or load is high so user starts don't pile up, gives up after 60s
+wait_for_io_to_settle() {
+  local cores="$1" waited=0 io load
+  while (( waited < 60 )); do
+    io=$(awk '/^some/{split($2,a,"="); print int(a[2])}' /proc/pressure/io 2>/dev/null)
+    load=$(awk '{print int($1)}' /proc/loadavg)
+    (( ${io:-0} < 40 && load < cores * 2 )) && return
+    sleep 2; ((waited += 2))
+  done
+}
+
 # loops root then every non-suspended user starting/recovering dead containers, sets RESTART_ROOT_COUNT/RESTART_USER_TOTAL/RESTART_USER_LINES[]/RESTART_ELAPSED for the caller to build a summary from
 restart_dead_user_containers() {
+  local mode="$1"
   local START_TIME; START_TIME=$(date +%s)
   local RESULTS_FILE; RESULTS_FILE=$(mktemp /tmp/sentinel.container_restart_results.XXXXXX)
 
@@ -485,13 +498,26 @@ restart_dead_user_containers() {
       done
   fi
 
-  # if <=3 users run sequentially, else in parallel batches of cores x 2
+  # if <=3 users run sequentially, on boot use a staged start queue, else in parallel batches of cores x 2
   local NUM_USERS=${#USERS_TO_PROCESS[@]}
 
   if [ "$NUM_USERS" -le 3 ]; then
       for user in "${USERS_TO_PROCESS[@]}"; do
           start_containers_for_user "$user" "$RESULTS_FILE"
       done
+  elif [[ "$mode" == "staged" ]]; then
+      local CORES max_jobs n=0
+      CORES=$(nproc)
+      max_jobs=$(( CORES / 2 )); (( max_jobs < 2 )) && max_jobs=2; (( max_jobs > 8 )) && max_jobs=8
+      echo "$NUM_USERS users to start, staged (max $max_jobs at a time, ${STARTUP_STAGGER}s apart, waiting on high IO/load)"
+      for user in "${USERS_TO_PROCESS[@]}"; do
+          while (( $(jobs -rp | wc -l) >= max_jobs )); do wait -n; done
+          wait_for_io_to_settle "$CORES"
+          ((n++)); echo "[$n/$NUM_USERS] $user: starting containers"
+          start_containers_for_user "$user" "$RESULTS_FILE" &
+          sleep "$STARTUP_STAGGER"
+      done
+      wait
   else
       local CORES PARALLEL_JOBS
       CORES=$(nproc)
@@ -532,7 +558,8 @@ perform_startup_actions() {
   IP=$(hostname -I | awk '{print $1}')
   sed -i -E 's#^( *- *")([0-9.]+:)?(53:53/(tcp|udp)")#\1'"$IP"':\3#' /root/docker-compose.yml
 
-  restart_dead_user_containers
+  touch "$LOCK_FILE_FOR_USER_CONTAINERS"  # so a cron run during the staged start doesn't sweep all users at once
+  restart_dead_user_containers staged
   touch "$LOCK_FILE_FOR_USER_CONTAINERS"  # starts the hourly window from reboot, so the next cron tick doesn't re-sweep immediately
 
   local summary_msg="Started ${RESTART_ROOT_COUNT} container(s) for root and ${RESTART_USER_TOTAL} container(s) across ${#RESTART_USER_LINES[@]} user(s) in ${RESTART_ELAPSED}s."
