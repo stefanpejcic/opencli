@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
+# Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 25.09.2026
@@ -41,6 +41,9 @@ readonly CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly SKIP_VERSIONS_FILE="/etc/openpanel/upgrade/skip_versions"
 readonly KEEP_KERNELS=2
 readonly UPDATE_TIMEOUT=300
+readonly OPENPANEL_RESTART_FLAG="/root/openpanel_restart_needed"
+readonly OPENADMIN_RESTART_FLAG="/root/openadmin_restart_needed"
+NO_RESTART=false
 readonly CONFIG_REPO_URL="https://github.com/stefanpejcic/openpanel-configuration/archive/refs/heads/main.tar.gz"
 
 # ---------------------- COLOR CODES ---------------------- #
@@ -81,6 +84,7 @@ Usage: opencli update [OPTION]...
 Options:
     --check             Check if update is available
     --force             Force update even when autopatch/autoupdate is disabled
+    --no-restart        Don't restart OpenPanel/OpenAdmin after the update, flag them as needing a restart instead
     (no argument)       Update if autopatch/autoupdate is enabled
     --admin             Update OpenAdmin UI only
     --panel             Update OpenPanel UI only
@@ -107,6 +111,7 @@ Examples:
     opencli update                 # Update if auto-update is enabled
     opencli update --check         # Check for available updates
     opencli update --force         # Force update regardless of settings
+    opencli update --force --no-restart # Update, restart services manually later
     opencli update --panel beta    # Update OpenPanel UI to the nightly-release
     opencli update --translations  # Update translation files and restart OpenPanel UI
     opencli update --system        # Update system packages and kernel
@@ -934,10 +939,15 @@ run_update_immediately() {
             sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
         fi
 
-        log "Restarting OpenPanel service"
-        if [[ -f /root/docker-compose.yml ]] || [[ -f /root/compose.yml ]]; then
-            cd /root && podman-compose down openpanel && \
-            podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
+        if [[ "$NO_RESTART" == "true" ]]; then
+            log "[!] Skipping OpenPanel restart, restart the 'openpanel' container to apply the new version"
+            echo "Restart needed for OpenPanel service." > "$OPENPANEL_RESTART_FLAG"
+        else
+            log "Restarting OpenPanel service"
+            if [[ -f /root/docker-compose.yml ]] || [[ -f /root/compose.yml ]]; then
+                cd /root && podman-compose down openpanel && \
+                podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
+            fi
         fi
         redis_drop_key openpanel_cache_app.get_openpanel_version &>/dev/null
 
@@ -1020,7 +1030,24 @@ update_openadmin() {
         url="https://github.com/stefanpejcic/openadmin/releases/download/$remote_version/$admin_binary"
         target_log="${log_file:-/dev/null}"
 
-        if curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
+        if ! curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
+            echo "No release asset found: $url" >&2
+            exit 1
+        elif [[ "$NO_RESTART" == "true" ]]; then
+            # mv over the running binary is safe, the old one keeps running until restarted
+            if curl -sSL "$url" -o "/usr/local/admin/${admin_binary}.new" \
+                && chmod +x "/usr/local/admin/${admin_binary}.new" \
+                && mv -f "/usr/local/admin/${admin_binary}.new" "/usr/local/admin/$admin_binary"; then
+                [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
+                echo "Restart needed" > "$OPENADMIN_RESTART_FLAG"
+                # shellcheck disable=SC2015
+                [[ "$1" == "--no-log" ]] && echo "[!] OpenAdmin updated, restart the 'admin' service to apply it" || log "[!] OpenAdmin updated, restart the 'admin' service to apply it"
+            else
+                rm -f "/usr/local/admin/${admin_binary}.new"
+                log_error "Failed to download $url, kept the previous OpenAdmin binary"
+            fi
+            return
+        else
 			systemd-run --collect --unit="openadmin-selfupdate-$$" --no-block bash -c '
 			    admin_binary="'"$admin_binary"'"
 			    url="'"$url"'"
@@ -1053,9 +1080,6 @@ update_openadmin() {
 			        fi
 			    fi
 			'
-        else
-            echo "No release asset found: $url" >&2
-            exit 1
         fi
 
         echo "[✔] OpenAdmin update triggered (applying in background)" || log "[✔] OpenAdmin update triggered (applying in background)"
@@ -1268,6 +1292,7 @@ main() {
                 # skip duplicates so each mode runs once
                 [[ " ${modes[*]} " == *" ${arg#--} "* ]] || modes+=("${arg#--}") ;;
             beta)    BETA=true    ;;
+            --no-restart) NO_RESTART=true ;;
             -h|--help) usage ;;
             *) log_error "[!] Unknown argument: $arg"; usage ;;
         esac
