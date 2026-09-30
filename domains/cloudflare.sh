@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: domains/cloudflare.sh
-# Description: Enable/disable Cloudflare-only access to domains.
-# Usage: opencli domains-cloudflare <enable|disable> <DOMAIN_NAME|--all> [-y]
+# Description: Enable/disable/check Cloudflare-only access to domains.
+# Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
 # Last Modified: 30.09.2026
@@ -47,11 +47,12 @@ TARGET="${2:-}"
 AUTO_YES="${3:-}"
 
 # Usage
-if [[ "$ACTION" != "enable" && "$ACTION" != "disable" && -n "$ACTION" ]]; then
+if [[ "$ACTION" != "enable" && "$ACTION" != "disable" && "$ACTION" != "status" && -n "$ACTION" ]]; then
     echo "Usage:"
     echo "  opencli domains-cloudflare"
     echo "  opencli domains-cloudflare enable <domain|--all> [-y]"
     echo "  opencli domains-cloudflare disable <domain|--all> [-y]"
+    echo "  opencli domains-cloudflare status [domain|--all]"
     exit 1
 fi
 
@@ -67,6 +68,11 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
         echo "Usage: opencli domains-cloudflare $ACTION <domain|--all> [-y]"
         exit 1
     fi
+fi
+
+# Default TARGET for status action if left empty
+if [[ "$ACTION" == "status" && -z "$TARGET" ]]; then
+    TARGET="--all"
 fi
 
 # Helpers
@@ -93,6 +99,15 @@ remove_config() {
     local file="$1"
     sed -i '/^[[:space:]]*import[[:space:]]\+cloudflare-only[[:space:]]*$/d' "$file"
     echo "Disabled: $file"
+}
+
+check_domain_status() {
+    local file="$1"
+    if grep -qEs '^[[:space:]]*import[[:space:]]+cloudflare-only([[:space:]]|$)' "$file"; then
+        return 0 # Enabled
+    else
+        return 1 # Disabled
+    fi
 }
 
 reload_caddy() {
@@ -172,7 +187,52 @@ update_cloudflare_template() {
     echo "Updated: $OUTPUT"
 }
 
-# enable / disable
+# STATUS ACTION
+if [[ "$ACTION" == "status" ]]; then
+    if [[ "$TARGET" == "--all" ]]; then
+        shopt -s nullglob
+        DOMAIN_FILES=("${DOMAIN_DIR}"/*.conf)
+
+        if (( ${#DOMAIN_FILES[@]} == 0 )); then
+            echo "No existing domain configs found."
+            exit 0
+        fi
+
+        enabled_count=0
+        disabled_count=0
+
+        echo "Cloudflare-only status for all domains:"
+        echo "----------------------------------------"
+        for FILE in "${DOMAIN_FILES[@]}"; do
+            domain_name=$(basename "$FILE" .conf)
+            if check_domain_status "$FILE"; then
+                echo -e "  $domain_name: ${GREEN}ENABLED${NC}"
+                ((enabled_count++))
+            else
+                echo -e "  $domain_name: ${RED}DISABLED${NC}"
+                ((disabled_count++))
+            fi
+        done
+        echo "----------------------------------------"
+        echo "Summary: $enabled_count enabled, $disabled_count disabled out of ${#DOMAIN_FILES[@]} domain(s)."
+        exit 0
+    else
+        DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
+        if [[ ! -f "$DOMAIN_FILE" ]]; then
+            echo "ERROR: Domain config not found: $DOMAIN_FILE"
+            exit 1
+        fi
+
+        if check_domain_status "$DOMAIN_FILE"; then
+            echo -e "Cloudflare-only mode for $TARGET is ${GREEN}ENABLED${NC}."
+        else
+            echo -e "Cloudflare-only mode for $TARGET is ${RED}DISABLED${NC}."
+        fi
+        exit 0
+    fi
+fi
+
+# ENABLE / DISABLE
 if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
 
     # --all
@@ -256,7 +316,6 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
     fi
 fi
 
-# check if used
 if [[ "$ACTION" == "" ]]; then
     USED_COUNT=$(grep -lEs '^[[:space:]]*import[[:space:]]+cloudflare-only([[:space:]]|$)' "$DOMAIN_DIR"/*.conf 2>/dev/null | wc -l || true)
 
