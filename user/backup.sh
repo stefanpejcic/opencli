@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: user/backup.sh
 # Description: Creates a full account .tar.gz backup of a single OpenPanel user account.
-# Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet]
+# Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet] [--no-throttle]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 30.09.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -41,6 +41,7 @@ BACKUP_FORMAT_VERSION="2"
 USERNAME=""
 CUSTOM_OUTPUT=""
 QUIET=0
+THROTTLE=1
 
 # Runtime tracking — populated during the backup, printed in summary
 WARNINGS=()
@@ -56,11 +57,19 @@ while [[ $# -gt 0 ]]; do
         --account)  USERNAME="$2"; shift 2 ;;
         --output)   CUSTOM_OUTPUT="$2"; shift 2 ;;
         --quiet)    QUIET=1; shift ;;
+        --no-throttle) THROTTLE=0; shift ;;
         *) echo "[ERROR] Unknown option: $1"; exit 1 ;;
     esac
 done
 
-[[ -z "$USERNAME" ]] && { echo "Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet]"; exit 1; }
+[[ -z "$USERNAME" ]] && { echo "Usage: opencli user-backup --account <USER> [--output <DIR>] [--quiet] [--no-throttle]"; exit 1; }
+
+# run the heavy tar/compress steps at low cpu and io priority so live sites stay responsive
+LOWPRIO=()
+if [[ $THROTTLE -eq 1 ]]; then
+    LOWPRIO=(nice -n19)
+    command -v ionice &>/dev/null && LOWPRIO+=(ionice -c2 -n7)
+fi
 
 # DB connection  (provides $config_file and $mysql_database)
 DB_CONFIG_FILE="/usr/local/opencli/db.sh"
@@ -376,7 +385,7 @@ if [[ -n "$MAIL_EXTERNAL_PATH" ]]; then
     if [[ ${#MAIL_DIRS[@]} -gt 0 ]]; then
         log "Archiving mailboxes from $MAIL_STORE_DIR for ${#MAIL_DIRS[@]} domain(s) ..."
         mkdir -p "$STAGE/mail_external"
-        tar -C "$(dirname "$MAIL_STORE_DIR")" --numeric-owner --acls --xattrs -cf "$STAGE/mail_external/mail.tar" "${MAIL_DIRS[@]}" 2>>"$log_file" || warn "Failed to archive mailboxes (non-fatal)."
+        "${LOWPRIO[@]}" tar -C "$(dirname "$MAIL_STORE_DIR")" --numeric-owner --acls --xattrs -cf "$STAGE/mail_external/mail.tar" "${MAIL_DIRS[@]}" 2>>"$log_file" || warn "Failed to archive mailboxes (non-fatal)."
         echo "$MAIL_EXTERNAL_PATH" > "$STAGE/mail_external/path.txt"
         MAIL_EXTERNAL_SIZE=$(du -shc "${MAIL_DIRS[@]/#/$(dirname "$MAIL_STORE_DIR")/}" 2>/dev/null | tail -1 | cut -f1)
     else
@@ -480,7 +489,7 @@ if command -v pigz &>/dev/null; then
     [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
 
     mkdir -p "$DEST_DIR"
-    tar "${TAR_ARGS[@]}" 2>>"$log_file" | pigz > "$ARCHIVE"
+    "${LOWPRIO[@]}" tar "${TAR_ARGS[@]}" 2>>"$log_file" | "${LOWPRIO[@]}" pigz > "$ARCHIVE"
     tar_rc=${PIPESTATUS[0]}
     [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
     [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1) — archive created, verify integrity."
@@ -506,14 +515,14 @@ else
     [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
 
     mkdir -p "$DEST_DIR"
-    tar "${TAR_ARGS[@]}" 2>>"$log_file"
+    "${LOWPRIO[@]}" tar "${TAR_ARGS[@]}" 2>>"$log_file"
     tar_rc=$?
     [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
     [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1)."
 fi
 
 # verify archive integrity
-gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHIVE"
+"${LOWPRIO[@]}" gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHIVE"
 
 # Permissions + ownership
 chmod 640 "$ARCHIVE"
