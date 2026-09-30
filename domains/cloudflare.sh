@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/cloudflare.sh
 # Description: Enable/disable Cloudflare-only access to domains.
-# Usage: opencli domains-cloudflare <enable|disable> <DOMAIN_NAME|--all>
+# Usage: opencli domains-cloudflare <enable|disable> <DOMAIN_NAME|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
 # Last Modified: 30.09.2026
@@ -30,6 +30,12 @@
 
 set -euo pipefail
 
+# ANSI color codes
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+NC='\033[0m'
+
+# Conf
 TEMPLATE_DIR="/etc/openpanel/caddy/templates"
 OUTPUT="${TEMPLATE_DIR}/cloudflare.only"
 DOMAIN_DIR="/etc/openpanel/caddy/domains"
@@ -38,37 +44,35 @@ TMP="${OUTPUT}.tmp"
 
 ACTION="${1:-}"
 TARGET="${2:-}"
+AUTO_YES="${3:-}"
 
+# Usage
 if [[ "$ACTION" != "enable" && "$ACTION" != "disable" && -n "$ACTION" ]]; then
     echo "Usage:"
     echo "  opencli domains-cloudflare"
-    echo "  opencli domains-cloudflare enable <domain|--all>"
-    echo "  opencli domains-cloudflare disable <domain|--all>"
+    echo "  opencli domains-cloudflare enable <domain|--all> [-y]"
+    echo "  opencli domains-cloudflare disable <domain|--all> [-y]"
     exit 1
 fi
 
 if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
     if [[ -z "$TARGET" ]]; then
         echo "ERROR: Target is required."
-        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all>"
+        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all> [-y]"
         exit 1
     fi
 
     if [[ "$TARGET" != "--all" && "$TARGET" == -* ]]; then
         echo "ERROR: Invalid target: $TARGET"
-        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all>"
+        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all> [-y]"
         exit 1
     fi
 fi
 
-# ----------------------------------------------------------------------
-# Config helpers
-# ----------------------------------------------------------------------
-
+# Helpers
 patch_config() {
     local file="$1"
 
-    # Remove existing import first to prevent duplicates.
     sed -i '/^[[:space:]]*import[[:space:]]\+cloudflare-only[[:space:]]*$/d' "$file"
 
     awk '
@@ -97,7 +101,7 @@ reload_caddy() {
     if reload_output=$(podman exec caddy caddy reload --config /etc/caddy/Caddyfile 2>&1); then
         echo "SUCCESS: Caddy reloaded successfully."
     else
-        echo "ERROR: Failed to reload Caddy."
+        echo "WARNING: Failed to reload Caddy."
         if [[ -n "$reload_output" ]]; then
             echo "$reload_output"
         fi
@@ -105,14 +109,29 @@ reload_caddy() {
     fi
 }
 
-# ----------------------------------------------------------------------
-# ENABLE / DISABLE
-# ----------------------------------------------------------------------
-
+# enable / disable
 if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
 
     # --all
     if [[ "$TARGET" == "--all" ]]; then
+
+        if [[ "$AUTO_YES" != "-y" ]]; then
+            if [[ "$ACTION" == "enable" ]]; then
+                echo -e "WARNING: This will ${GREEN}ENABLE${NC} Cloudflare-only mode globally (for all current & new domains)."
+                echo "Ensure all domains are proxied via Cloudflare, or they will return a 403 error."
+            else
+                echo -e "WARNING: This will ${RED}DISABLE${NC} Cloudflare-only mode globally ((for all current & new domains)."
+                echo "Direct server traffic will be permitted for all domains."
+            fi
+
+            read -t 15 -p "Proceed? (y/N) [15s]: " CONFIRM || true
+            echo ""
+
+            if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+                echo "Operation cancelled or timed out."
+                exit 1
+            fi
+        fi
 
         shopt -s nullglob
         DOMAIN_FILES=("$DOMAIN_DIR"/*.conf)
