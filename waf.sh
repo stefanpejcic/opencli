@@ -252,10 +252,7 @@ enable_coraza_waf() {
 
     # 1. download rules
     echo "Downloading Coraza rules.."
-    wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/corazawaf/coraza/v3/dev/coraza.conf-recommended -O /etc/openpanel/caddy/coraza_rules.conf
-    sed -i -e '/^SecRequestBodyJsonDepthLimit/ s/^/#/' -e '/^SecRxPreFilter/ s/^/#/' /etc/openpanel/caddy/coraza_rules.conf
-    # buffering every html response for the leak checks adds ~230ms per page
-    sed -i 's/^SecResponseBodyAccess On/SecResponseBodyAccess Off/' /etc/openpanel/caddy/coraza_rules.conf
+    wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/coraza_rules.conf -O /etc/openpanel/caddy/coraza_rules.conf
 
     echo "Downloading OWASP CRS.."
     git clone https://github.com/coreruleset/coreruleset /etc/openpanel/caddy/coreruleset/
