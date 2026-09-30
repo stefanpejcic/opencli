@@ -96,9 +96,18 @@ remove_config() {
 }
 
 reload_caddy() {
+    local mode="${1:-reload}"
     echo "Reloading Caddy to apply the setting..."
     local reload_output
-    if reload_output=$(podman exec caddy caddy reload --config /etc/caddy/Caddyfile 2>&1); then
+    local cmd
+
+    if [[ "$mode" == "restart" ]]; then
+        cmd="podman restart caddy"
+    else
+        cmd="podman exec caddy caddy reload --config /etc/caddy/Caddyfile"
+    fi
+
+    if reload_output=$(eval "$cmd" 2>&1); then
         echo "SUCCESS: Caddy reloaded successfully."
     else
         echo "WARNING: Failed to reload Caddy."
@@ -107,6 +116,60 @@ reload_caddy() {
         fi
         return 1
     fi
+}
+
+update_cloudflare_template() {
+    echo "Updating list of Cloudflare IP ranges..."
+
+    CF_IPV4_RAW=$(curl -fsSL https://www.cloudflare.com/ips-v4)
+    CF_IPV6_RAW=$(curl -fsSL https://www.cloudflare.com/ips-v6)
+
+    if [[ -z "$CF_IPV4_RAW" || -z "$CF_IPV6_RAW" ]]; then
+        echo "ERROR: Failed to retrieve Cloudflare IP ranges."
+        exit 1
+    fi
+
+    mapfile -t CF_IPV4 < <(echo "$CF_IPV4_RAW" | sed '/^[[:space:]]*$/d')
+    mapfile -t CF_IPV6 < <(echo "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
+
+    echo "Retrieved ${#CF_IPV4[@]} IPv4 Cloudflare ranges:"
+    for ip in "${CF_IPV4[@]}"; do
+        echo "  $ip"
+    done
+
+    echo "Retrieved ${#CF_IPV6[@]} IPv6 Cloudflare ranges:"
+    for ip in "${CF_IPV6[@]}"; do
+        echo "  $ip"
+    done
+
+    IPS=$(printf '%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
+
+    {
+        echo '(cloudflare-only) {'
+        echo '    @not_cloudflare {'
+        echo '        not remote_ip \'
+
+        mapfile -t IP_LIST <<< "$IPS"
+
+        last=$(( ${#IP_LIST[@]} - 1 ))
+
+        for i in "${!IP_LIST[@]}"; do
+            if (( i == last )); then
+                printf '            %s\n' "${IP_LIST[$i]}"
+            else
+                printf '            %s \\\n' "${IP_LIST[$i]}"
+            fi
+        done
+
+        echo '    }'
+        echo
+        echo '    respond @not_cloudflare "Access allowed only through Cloudflare" 403'
+        echo '}'
+    } > "$TMP"
+
+    mv "$TMP" "$OUTPUT"
+
+    echo "Updated: $OUTPUT"
 }
 
 # enable / disable
@@ -120,7 +183,7 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
                 echo -e "WARNING: This will ${GREEN}ENABLE${NC} Cloudflare-only mode globally (for all current & new domains)."
                 echo "Ensure all domains are proxied via Cloudflare, or they will return a 403 error."
             else
-                echo -e "WARNING: This will ${RED}DISABLE${NC} Cloudflare-only mode globally ((for all current & new domains)."
+                echo -e "WARNING: This will ${RED}DISABLE${NC} Cloudflare-only mode globally (for all current & new domains)."
                 echo "Direct server traffic will be permitted for all domains."
             fi
 
@@ -134,7 +197,7 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
         fi
 
         shopt -s nullglob
-        DOMAIN_FILES=("$DOMAIN_DIR"/*.conf)
+        DOMAIN_FILES=("${DOMAIN_DIR}"/*.conf)
 
         if (( ${#DOMAIN_FILES[@]} > 0 )); then
             for FILE in "${DOMAIN_FILES[@]}"; do
@@ -157,18 +220,13 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
 
         if [[ "$ACTION" == "enable" ]]; then
             patch_config "$DOMAIN_TEMPLATE"
-        else
-            remove_config "$DOMAIN_TEMPLATE"
+            update_cloudflare_template
         fi
 
-        if [[ "$ACTION" == "disable" ]]; then
-            rm -f "$OUTPUT"
-            echo "Removed: $OUTPUT"
-            reload_caddy
-            exit 0
-        fi
+        reload_caddy restart
+        exit 0
 
-    # domain
+    # single domain
     else
 
         DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
@@ -179,17 +237,21 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
         fi
 
         if [[ "$ACTION" == "enable" ]]; then
+            if [[ ! -f "$OUTPUT" ]]; then
+                echo "Cloudflare-only template missing. Generating it before enabling..."
+                update_cloudflare_template
+            fi
             patch_config "$DOMAIN_FILE"
+            reload_caddy reload
+            exit 0
         else
             remove_config "$DOMAIN_FILE"
-        fi
-
-        if [[ "$ACTION" == "disable" ]]; then
-            if ! grep -RqsE '^[[:space:]]*import[[:space:]]+cloudflare-only([[:space:]]|$)' "$DOMAIN_DIR"/*.conf 2>/dev/null
-            then
+            if ! grep -RqsE '^[[:space:]]*import[[:space:]]+cloudflare-only([[:space:]]|$)' "$DOMAIN_DIR"/*.conf 2>/dev/null; then
                 rm -f "$OUTPUT"
                 echo "Removed: $OUTPUT"
             fi
+            reload_caddy reload
+            exit 0
         fi
     fi
 fi
@@ -203,60 +265,7 @@ if [[ "$ACTION" == "" ]]; then
         exit 0
     else
         echo "Cloudflare-only setting is used by $USED_COUNT domains."
+        update_cloudflare_template
+        #reload_caddy reload
     fi
 fi
-
-# download
-echo "Updating list of Cloudflare IP ranges..."
-
-CF_IPV4_RAW=$(curl -fsSL https://www.cloudflare.com/ips-v4)
-CF_IPV6_RAW=$(curl -fsSL https://www.cloudflare.com/ips-v6)
-
-if [[ -z "$CF_IPV4_RAW" || -z "$CF_IPV6_RAW" ]]; then
-    echo "ERROR: Failed to retrieve Cloudflare IP ranges."
-    exit 1
-fi
-
-mapfile -t CF_IPV4 < <(echo "$CF_IPV4_RAW" | sed '/^[[:space:]]*$/d')
-mapfile -t CF_IPV6 < <(echo "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
-
-echo "Retrieved ${#CF_IPV4[@]} IPv4 Cloudflare ranges:"
-for ip in "${CF_IPV4[@]}"; do
-    echo "  $ip"
-done
-
-echo "Retrieved ${#CF_IPV6[@]} IPv6 Cloudflare ranges:"
-for ip in "${CF_IPV6[@]}"; do
-    echo "  $ip"
-done
-
-IPS=$(printf '%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
-
-{
-    echo '(cloudflare-only) {'
-    echo '    @not_cloudflare {'
-    echo '        not remote_ip \'
-
-    mapfile -t IP_LIST <<< "$IPS"
-
-    last=$(( ${#IP_LIST[@]} - 1 ))
-
-    for i in "${!IP_LIST[@]}"; do
-        if (( i == last )); then
-            printf '            %s\n' "${IP_LIST[$i]}"
-        else
-            printf '            %s \\\n' "${IP_LIST[$i]}"
-        fi
-    done
-
-    echo '    }'
-    echo
-    echo '    respond @not_cloudflare "Access allowed only through Cloudflare" 403'
-    echo '}'
-} > "$TMP"
-
-mv "$TMP" "$OUTPUT"
-
-echo "Created: $OUTPUT"
-
-reload_caddy
