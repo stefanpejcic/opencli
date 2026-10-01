@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/cloudflare.sh
 # Description: Enable/disable/check Cloudflare-only access to domains.
-# Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME|--all> [-y]
+# Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME [DOMAIN_NAME...]|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
-# Last Modified: 30.09.2026
+# Last Modified: 01.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -43,15 +43,26 @@ DOMAIN_TEMPLATE="${TEMPLATE_DIR}/domain.conf"
 TMP="${OUTPUT}.tmp"
 
 ACTION="${1:-}"
-TARGET="${2:-}"
-AUTO_YES="${3:-}"
+shift || true
+
+# everything after the action is a domain, --all, or -y
+TARGETS=()
+AUTO_YES=""
+for arg in "$@"; do
+    if [[ "$arg" == "-y" ]]; then
+        AUTO_YES="-y"
+    else
+        TARGETS+=("$arg")
+    fi
+done
+TARGET="${TARGETS[0]:-}"
 
 # Usage
 if [[ "$ACTION" != "enable" && "$ACTION" != "disable" && "$ACTION" != "status" && -n "$ACTION" ]]; then
     echo "Usage:"
     echo "  opencli domains-cloudflare"
-    echo "  opencli domains-cloudflare enable <domain|--all> [-y]"
-    echo "  opencli domains-cloudflare disable <domain|--all> [-y]"
+    echo "  opencli domains-cloudflare enable <domain [domain...]|--all> [-y]"
+    echo "  opencli domains-cloudflare disable <domain [domain...]|--all> [-y]"
     echo "  opencli domains-cloudflare status [domain|--all]"
     exit 1
 fi
@@ -59,15 +70,21 @@ fi
 if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
     if [[ -z "$TARGET" ]]; then
         echo "ERROR: Target is required."
-        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all> [-y]"
+        echo "Usage: opencli domains-cloudflare $ACTION <domain [domain...]|--all> [-y]"
         exit 1
     fi
 
-    if [[ "$TARGET" != "--all" && "$TARGET" == -* ]]; then
-        echo "ERROR: Invalid target: $TARGET"
-        echo "Usage: opencli domains-cloudflare $ACTION <domain|--all> [-y]"
-        exit 1
-    fi
+    for t in "${TARGETS[@]}"; do
+        if [[ "$t" == "--all" && ${#TARGETS[@]} -gt 1 ]]; then
+            echo "ERROR: --all can't be combined with domain names."
+            exit 1
+        fi
+        if [[ "$t" != "--all" && "$t" == -* ]]; then
+            echo "ERROR: Invalid target: $t"
+            echo "Usage: opencli domains-cloudflare $ACTION <domain [domain...]|--all> [-y]"
+            exit 1
+        fi
+    done
 fi
 
 # Default TARGET for status action if left empty
@@ -290,30 +307,46 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
         reload_caddy restart
         exit 0
 
-    # single domain
+    # one or more domains, caddy is reloaded once at the end
     else
 
-        DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
+        failed=0
+        changed=0
+        template_checked=0
 
-        if [[ ! -f "$DOMAIN_FILE" ]]; then
-            echo "ERROR: Domain config not found: $DOMAIN_FILE"
-            exit 1
-        fi
+        for TARGET in "${TARGETS[@]}"; do
+            DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
 
-        if [[ "$ACTION" == "enable" ]]; then
-            if [[ ! -f "$OUTPUT" ]]; then
-                echo "Cloudflare-only template missing. Generating it before enabling..."
-                update_cloudflare_template
+            if [[ ! -f "$DOMAIN_FILE" ]]; then
+                echo "ERROR: Domain config not found: $DOMAIN_FILE"
+                failed=1
+                continue
             fi
-            patch_config "$DOMAIN_FILE"
-            reload_caddy reload
-            exit 0
-        else
-            remove_config "$DOMAIN_FILE"
-            # keep cloudflare.only, the Caddyfile imports it unconditionally
-            reload_caddy reload
-            exit 0
+
+            if [[ "$ACTION" == "enable" ]]; then
+                if (( template_checked == 0 )); then
+                    template_checked=1
+                    if [[ ! -f "$OUTPUT" ]]; then
+                        echo "Cloudflare-only template missing. Generating it before enabling..."
+                        update_cloudflare_template
+                    # old snippets used a plain respond that never blocked
+                    elif ! grep -q 'route @not_cloudflare' "$OUTPUT"; then
+                        echo "Cloudflare-only template is outdated. Regenerating it before enabling..."
+                        update_cloudflare_template
+                    fi
+                fi
+                patch_config "$DOMAIN_FILE"
+            else
+                # keep cloudflare.only, the Caddyfile imports it unconditionally
+                remove_config "$DOMAIN_FILE"
+            fi
+            changed=1
+        done
+
+        if (( changed == 1 )); then
+            reload_caddy reload || failed=1
         fi
+        exit "$failed"
     fi
 fi
 

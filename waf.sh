@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: waf.sh
 # Description: Manage CorazaWAF
-# Usage: opencli waf <status|enable|disable|domain|tags|ids|update|stats|count> [options]
+# Usage: opencli waf <status|enable|disable|domain|plugins|tags|ids|update|stats|count> [options]
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 28.09.2026
+# Last Modified: 01.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -45,9 +45,12 @@ usage() {
     echo "  domain                                       Check if CorazaWAF is enabled for a domain."
     echo "  domain DOMAIN_NAME enable                    Enable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME disable                   Disable CorazaWAF for a domain."
+    echo "  domain DOMAIN_NAME plugins                   Show protection level and app profiles (CRS plugins) for a domain."
+    echo "  plugins                                      List installed CRS plugins and how many domains use each."
+    echo "  plugins install                              Download missing CRS plugins."
     echo "  tags                                         Display all tags from enabled sets."
     echo "  ids                                          Display all rule IDs from enabled sets."
-    echo "  update                                       Update OWASP CRS."
+    echo "  update                                       Update OWASP CRS and CRS plugins."
     echo "  update log                                   Show OWASP CRS update history (git log)."
     echo "  stats <country|agent|hourly|ip|request|path> Display top requests by country, ip, path, etc."
     echo "  count                                         Display total number of audit log records."
@@ -59,6 +62,9 @@ usage() {
     echo "  opencli waf domain pcx3.com"
     echo "  opencli waf domain pcx3.com enable"
     echo "  opencli waf domain pcx3.com disable"
+    echo "  opencli waf domain pcx3.com plugins"
+    echo "  opencli waf plugins"
+    echo "  opencli waf plugins install"
     echo "  opencli waf stats ip"
     echo "  opencli waf stats hourly"
     exit 1
@@ -226,6 +232,86 @@ keep_disabled_rulesets() {
     done
 }
 
+# official CRS rule exclusion plugins users can turn on per domain as app profiles in OpenPanel
+CRS_PLUGINS_DIR="/etc/openpanel/caddy/coreruleset-plugins"
+CRS_PLUGINS=(wordpress drupal nextcloud dokuwiki phpbb xenforo phpmyadmin)
+
+install_crs_plugins() {
+    local name dir failed=0
+    mkdir -p "$CRS_PLUGINS_DIR"
+    for name in "${CRS_PLUGINS[@]}"; do
+        dir="$CRS_PLUGINS_DIR/${name}-rule-exclusions-plugin"
+        [[ -f "$dir/plugins/${name}-rule-exclusions-before.conf" ]] && continue
+        rm -rf "$dir"
+        if git clone --quiet --depth 1 "https://github.com/coreruleset/${name}-rule-exclusions-plugin" "$dir"; then
+            echo "- Installed plugin ${name}-rule-exclusions"
+        else
+            echo "- Failed to download plugin ${name}-rule-exclusions"
+            failed=1
+        fi
+    done
+    return $failed
+}
+
+update_crs_plugins() {
+    local dir
+    install_crs_plugins
+    for dir in "$CRS_PLUGINS_DIR"/*-rule-exclusions-plugin; do
+        [[ -d "$dir/.git" ]] || continue
+        if git -C "$dir" pull --quiet; then
+            echo "- Updated plugin $(basename "$dir" -plugin)"
+        else
+            echo "- Failed to update plugin $(basename "$dir" -plugin)"
+        fi
+    done
+}
+
+list_crs_plugins() {
+    local name dir count
+    printf "%-14s %-10s %s\n" "PLUGIN" "STATUS" "DOMAINS"
+    for name in "${CRS_PLUGINS[@]}"; do
+        dir="$CRS_PLUGINS_DIR/${name}-rule-exclusions-plugin"
+        count=$(grep -l "/${name}-rule-exclusions-plugin/plugins/" /etc/openpanel/caddy/domains/*.conf 2>/dev/null | wc -l)
+        if [[ -f "$dir/plugins/${name}-rule-exclusions-before.conf" ]]; then
+            printf "%-14s %-10s %s\n" "$name" "installed" "$count"
+        else
+            printf "%-14s %-10s %s\n" "$name" "missing" "$count"
+        fi
+    done
+}
+
+list_domain_plugins() {
+    local domain="$1"
+    local file="/etc/openpanel/caddy/domains/${domain}.conf"
+    local plugins
+
+    if [[ ! -f "$file" ]]; then
+        echo "Domain not found!"
+        exit 1
+    fi
+
+    # level SecAction written by OpenPanel > WAF, no line means the CRS default
+    local level_line level="standard"
+    level_line=$(grep -m1 'id:10100,' "$file")
+    if [[ -n "$level_line" ]]; then
+        case "$(grep -oP 'blocking_paranoia_level=\K[0-9]+' <<< "$level_line")/$(grep -oP 'inbound_anomaly_score_threshold=\K[0-9]+' <<< "$level_line")" in
+            1/10) level="compatibility" ;;
+            1/5) level="standard" ;;
+            2/5) level="strict" ;;
+            *) level="custom" ;;
+        esac
+    fi
+    echo "Protection level for domain $domain: $level"
+
+    plugins=$(grep -oP '/\K[a-z0-9]+(?=-rule-exclusions-plugin/plugins/)' "$file" | sort -u)
+    if [[ -z "$plugins" ]]; then
+        echo "No app profiles active for domain $domain"
+    else
+        echo "App profiles active for domain $domain:"
+        echo "$plugins" | sed 's/^/ - /'
+    fi
+}
+
 update_owasp_rules() {
   cd /etc/openpanel/caddy/coreruleset/ || { echo "Failed to enter modsec directory: /etc/openpanel/caddy/coreruleset/"; return 1; }
   
@@ -244,6 +330,10 @@ update_owasp_rules() {
     echo "Update failed."
     return 1
   fi
+
+  echo "Updating CRS plugins.."
+  update_crs_plugins
+  reload_caddy_now
 }
 
 
@@ -262,6 +352,9 @@ enable_coraza_waf() {
 
     echo "Disabling rulesets not used by the stack.."
     disable_unused_rulesets
+
+    echo "Downloading CRS plugins for app profiles.."
+    install_crs_plugins
 
     # 2. enable module
     echo "Enabling WAF module.."
@@ -352,6 +445,9 @@ case "$1" in
                 enable|disable)
                     set_coraza_waf_for_domain "$2" "$3"
                     ;;
+            plugins)
+                list_domain_plugins "$2"
+                ;;
             "")
                 check_domain "$2"
                 ;;
@@ -384,6 +480,20 @@ case "$1" in
             esac
         fi      
         ;;        
+    "plugins")
+        case "$2" in
+            install)
+                install_crs_plugins
+                ;;
+            "")
+                list_crs_plugins
+                ;;
+            *)
+                echo "Invalid action, available: opencli waf plugins and opencli waf plugins install"
+                exit 1
+                ;;
+        esac
+        ;;
     "stats")
         get_stats_from_file "$2"
         ;;
