@@ -45,6 +45,7 @@ usage() {
     echo "  domain                                       Check if CorazaWAF is enabled for a domain."
     echo "  domain DOMAIN_NAME enable                    Enable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME disable                   Disable CorazaWAF for a domain."
+    echo "  domain DOMAIN_NAME monitor                   Monitor only: log attacks for a domain without blocking them."
     echo "  domain DOMAIN_NAME plugins                   Show protection level and app profiles (CRS plugins) for a domain."
     echo "  plugins                                      List installed CRS plugins and how many domains use each."
     echo "  plugins install                              Download missing CRS plugins."
@@ -62,6 +63,7 @@ usage() {
     echo "  opencli waf domain pcx3.com"
     echo "  opencli waf domain pcx3.com enable"
     echo "  opencli waf domain pcx3.com disable"
+    echo "  opencli waf domain pcx3.com monitor"
     echo "  opencli waf domain pcx3.com plugins"
     echo "  opencli waf plugins"
     echo "  opencli waf plugins install"
@@ -83,6 +85,8 @@ check_domain() {
         echo "SecRuleEngine is set to On for domain $domain"
     elif grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+Off' "$file"; then
         echo "SecRuleEngine is set to Off for domain $domain"
+    elif grep -iq '^[[:space:]]*SecRuleEngine[[:space:]]\+DetectionOnly' "$file"; then
+        echo "SecRuleEngine is set to DetectionOnly (monitor only) for domain $domain"
     else
         echo "SecRuleEngine is not set for domain $domain"
     fi
@@ -122,7 +126,7 @@ reload_caddy_now() {
 
 set_coraza_waf_for_domain() {
     local domain="$1"
-    local action="$2"   # "enable" or "disable"
+    local action="$2"   # "enable", "disable" or "monitor"
     local file="/etc/openpanel/caddy/domains/${domain}.conf"
     local value
 
@@ -134,8 +138,9 @@ set_coraza_waf_for_domain() {
     case "$action" in
         enable) value="On" ;;
         disable) value="Off" ;;
+        monitor) value="DetectionOnly" ;;
         *)
-            echo "Invalid action: $action. Use 'enable' or 'disable'."
+            echo "Invalid action: $action. Use 'enable', 'disable' or 'monitor'."
             exit 1
             ;;
     esac
@@ -147,7 +152,9 @@ set_coraza_waf_for_domain() {
         echo "Failed setting SecRuleEngine $value - please contact Administrator."
         exit 1
     fi
-    nohup opencli sentinel --action=waf_domain --title="WAF $action for domain" --message="CorazaWAF has been ${action}d for domain '$domain'." >/dev/null 2>&1 &
+    local done_text="${action}d"
+    [[ "$action" == "monitor" ]] && done_text="set to monitor only"
+    nohup opencli sentinel --action=waf_domain --title="WAF $action for domain" --message="CorazaWAF has been ${done_text} for domain '$domain'." >/dev/null 2>&1 &
     disown
 }
 
@@ -386,7 +393,7 @@ disable_coraza_waf() {
     # 1. check if used and ask for confirmation
     echo "Checking if CorazaWAF is used by any user domains.."
     local conf_files
-    conf_files=$(grep -rl "SecRuleEngine On" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
+    conf_files=$(grep -rlE "SecRuleEngine (On|DetectionOnly)" /etc/openpanel/caddy/domains/*.conf 2>/dev/null)
 
     if [[ -n "$conf_files" ]]; then
         echo "WARNING: WAF is still active on some domains:"
@@ -416,7 +423,7 @@ disable_coraza_waf() {
     sed -i 's/\b,waf\b//g; s/\bwaf,//g; s/\bwaf\b//g' /etc/openpanel/openpanel/conf/openpanel.config
 
     # 3. disable WAF for ALL user domains
-    sed -i 's/SecRuleEngine On/SecRuleEngine Off/g' /etc/openpanel/caddy/domains/*.conf
+    sed -i -E 's/SecRuleEngine (On|DetectionOnly)/SecRuleEngine Off/g' /etc/openpanel/caddy/domains/*.conf
 
     # 4. reload caddy to apply
     reload_caddy_now
@@ -442,7 +449,7 @@ case "$1" in
             usage
         fi
         case "$3" in
-                enable|disable)
+                enable|disable|monitor)
                     set_coraza_waf_for_domain "$2" "$3"
                     ;;
             plugins)
