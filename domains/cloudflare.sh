@@ -160,6 +160,7 @@ update_cloudflare_template() {
     IPS=$(printf '%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
 
     {
+        echo '# opencli domains-cloudflare'
         echo '(cloudflare-only) {'
         echo '    @not_cloudflare {'
         echo '        not remote_ip \'
