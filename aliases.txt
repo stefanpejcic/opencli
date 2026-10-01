@@ -11,6 +11,7 @@ opencli docker-logs
 opencli domain
 opencli domains-add
 opencli domains-all
+opencli domains-cloudflare
 opencli domains-delete
 opencli domains-dns
 opencli domains-dnssec
