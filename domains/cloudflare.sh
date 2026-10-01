@@ -179,7 +179,10 @@ update_cloudflare_template() {
 
         echo '    }'
         echo
-        echo '    respond @not_cloudflare "Access allowed only through Cloudflare" 403'
+        # own route so it runs before the domain's route/reverse_proxy, plain respond is ordered after it
+        echo '    route @not_cloudflare {'
+        echo '        respond "Access allowed only through Cloudflare" 403'
+        echo '    }'
         echo '}'
     } > "$TMP"
 
@@ -307,10 +310,7 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
             exit 0
         else
             remove_config "$DOMAIN_FILE"
-            if ! grep -RqsE '^[[:space:]]*import[[:space:]]+cloudflare-only([[:space:]]|$)' "$DOMAIN_DIR"/*.conf 2>/dev/null; then
-                rm -f "$OUTPUT"
-                echo "Removed: $OUTPUT"
-            fi
+            # keep cloudflare.only, the Caddyfile imports it unconditionally
             reload_caddy reload
             exit 0
         fi
