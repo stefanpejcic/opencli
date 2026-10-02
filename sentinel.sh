@@ -56,6 +56,9 @@ readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 readonly STARTUP_STAGGER=2  # seconds between user starts on boot
+readonly RUN_TIMEOUT=900  # whole run gets killed after this, so a hung podman can't hold the run lock forever
+readonly TASK_TIMEOUT=600  # each parallel check gets killed after this
+readonly RUN_TIMEOUT_TITLE="Sentinel checks timed out!"
 
 [ ! -f "$INI_FILE" ] && { echo "Error: OpenAdmin notifications settings file not found: $INI_FILE"; exit 1; }
 [ ! -f "$CONF_FILE" ] && { echo "Error: OpenPanel main configuration file not found: $CONF_FILE"; exit 1; }
@@ -181,10 +184,11 @@ webhook_notification() {
   local title=$1 message=$2
   notifications_paused && return
   [[ -z "$WEBHOOK_URL" ]] && return
-  local clean_msg; clean_msg=$(printf '%s' "$message" | sed 's/"/\\"/g')
-  clean_msg="${clean_msg//$'\n'/\\n}"
-  local payload="{\"text\": \"*${title}*\n${clean_msg}\", \"username\": \"OpenAdmin-$HOSTNAME\", \"content\": \"**${title}**\n${clean_msg}\"}"
-  curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 1 "$WEBHOOK_URL" >/dev/null 2>&1
+  # text is for Slack, content for Discord which rejects more than 2000 chars
+  local payload
+  payload=$(jq -nc --arg t "$title" --arg m "$message" --arg u "OpenAdmin-$HOSTNAME" \
+    '{text: "*\($t)*\n\($m)", username: $u, content: ("**\($t)**\n\($m)" | if length > 2000 then .[:1997] + "..." else . end)}')
+  curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 5 "$WEBHOOK_URL" >/dev/null 2>&1
 }
 
 email_notification() {
@@ -250,11 +254,11 @@ write_action_notification() {
   send_notification info "$title" "$message"
 }
 
-# for things sentinel already fixed on its own: kept on the Notifications page as history, no email/webhook
+# for things sentinel already fixed on its own: kept on the Notifications page as history, no email/webhook, repeats within 24h bump one entry
 write_info_notification() {
   local category="$1" title="$2" message="$3"
   title_snoozed "$title" && return
-  notification_add no read info "$category" sentinel "$title" "$message"
+  notification_add info read info "$category" sentinel "$title" "$message"
 }
 
 # queued during a full run, sent right away for --startup and --action
@@ -577,11 +581,11 @@ perform_startup_actions() {
 }
 
 remove_dependent_openpanel() {
-  podman inspect openpanel &>/dev/null || return
+  timeout 30 podman inspect openpanel &>/dev/null || return
   echo "  - Removing openpanel first (has a dependency on this container)"
-  podman kill openpanel &>/dev/null
-  podman container cleanup openpanel &>/dev/null
-  podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
+  timeout 30 podman kill openpanel &>/dev/null
+  timeout 30 podman container cleanup openpanel &>/dev/null
+  timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
 }
 
 check_user_containers() {
@@ -698,9 +702,9 @@ check_service_status() {
 
 # Cache docker ps once per run — called 6+ times otherwise
 DOCKER_PS_CACHE=""
-_docker_ps_refresh() { DOCKER_PS_CACHE=$(podman ps --format "{{.Names}}" 2>/dev/null); }
+_docker_ps_refresh() { DOCKER_PS_CACHE=$(timeout 20 podman ps --format "{{.Names}}" 2>/dev/null); }
 _docker_ps() { echo "$DOCKER_PS_CACHE"; }
-_docker_log() { podman logs --tail 10 "$1" 2>&1; }
+_docker_log() { timeout 10 podman logs --tail 10 "$1" 2>&1; }
 
 _openpanel_http_ok() {
   local code
@@ -742,9 +746,9 @@ docker_containers_status() {
         resolve_notification "$title"
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m caddy running but unresponsive — restarting."
-        podman restart caddy &>/dev/null
-        podman rm -f caddy &>/dev/null; podman rm -f --storage caddy &>/dev/null
-        cd /root && podman-compose up -d caddy &>/dev/null
+        timeout 30 podman restart caddy &>/dev/null
+        timeout 30 podman rm -f caddy &>/dev/null; timeout 30 podman rm -f --storage caddy &>/dev/null
+        cd /root && timeout 120 podman-compose up -d caddy &>/dev/null
         sleep 2
         _docker_ps_refresh
         if _caddy_http_ok; then
@@ -763,10 +767,10 @@ docker_containers_status() {
         resolve_notification "$title"
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
-        podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
-        podman rm -f clamav &>/dev/null
-        podman rm -f phpmyadmin &>/dev/null
-        cd /root && podman-compose up -d openpanel &>/dev/null
+        timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
+        timeout 30 podman rm -f clamav &>/dev/null
+        timeout 30 podman rm -f phpmyadmin &>/dev/null
+        cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
         sleep 2
         _docker_ps_refresh
         sleep 2
@@ -790,22 +794,22 @@ docker_containers_status() {
   ((WARN++))
   case "$svc" in
     openpanel)
-      local users; users=$(opencli user-list --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
+      local users; users=$(timeout 15 opencli user-list --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
       if [[ -z "$users" || "$users" == "No users." ]]; then
         ((WARN--)); echo "  - No users found; $svc not needed."; resolve_notification "$title"
       else
-        podman rm -f openpanel &>/dev/null; podman rm -f --storage openpanel &>/dev/null
-        podman rm -f clamav &>/dev/null
-        podman rm -f phpmyadmin &>/dev/null
-        cd /root && podman-compose up -d openpanel &>/dev/null
+        timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
+        timeout 30 podman rm -f clamav &>/dev/null
+        timeout 30 podman rm -f phpmyadmin &>/dev/null
+        cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       fi ;;
     openpanel_dns)
       enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
       if [[ "$enabled_modules_line" == *"dns"* ]]; then
           if ls /etc/bind/zones/*.zone &>/dev/null; then
-              podman rm -f bind9 &>/dev/null; podman rm -f --storage bind9 &>/dev/null
-              cd /root && podman-compose up -d bind9 &>/dev/null
+              timeout 30 podman rm -f bind9 &>/dev/null; timeout 30 podman rm -f --storage bind9 &>/dev/null
+              cd /root && timeout 120 podman-compose up -d bind9 &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -819,8 +823,8 @@ docker_containers_status() {
       enabled_modules_line=$(grep '^enabled_modules=' "$CONF_FILE")
       if [[ "$enabled_modules_line" == *"phpmyadmin"* ]]; then
           if ls /home/*/sockets/mysqld/mysqld.sock &>/dev/null; then
-              podman rm -f phpmyadmin &>/dev/null; podman rm -f --storage phpmyadmin &>/dev/null
-              cd /root && podman-compose up -d phpmyadmin &>/dev/null
+              timeout 30 podman rm -f phpmyadmin &>/dev/null; timeout 30 podman rm -f --storage phpmyadmin &>/dev/null
+              cd /root && timeout 120 podman-compose up -d phpmyadmin &>/dev/null
               _docker_check_after_restart "$svc" "$title"
           else
               ((WARN--))
@@ -832,14 +836,14 @@ docker_containers_status() {
       fi ;;
     caddy)
       if ls /etc/openpanel/caddy/domains &>/dev/null; then
-        podman rm -f caddy &>/dev/null; podman rm -f --storage caddy &>/dev/null
-        cd /root && podman-compose up -d caddy &>/dev/null
+        timeout 30 podman rm -f caddy &>/dev/null; timeout 30 podman rm -f --storage caddy &>/dev/null
+        cd /root && timeout 120 podman-compose up -d caddy &>/dev/null
         _docker_check_after_restart "$svc" "$title"
       else
         ((WARN--)); echo "  - No domains; caddy not needed."; resolve_notification "$title"
       fi ;;
     *)
-      podman restart "$svc" &>/dev/null
+      timeout 30 podman restart "$svc" &>/dev/null
       _docker_check_after_restart "$svc" "$title" ;;
   esac
 }
@@ -858,8 +862,8 @@ mysql_docker_containers_status() {
     ((WARN++))
     echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
     remove_dependent_openpanel
-    podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
-    cd /root && podman-compose up -d openpanel_mysql &>/dev/null
+    timeout 30 podman rm -f openpanel_mysql &>/dev/null; timeout 30 podman rm -f --storage openpanel_mysql &>/dev/null
+    cd /root && timeout 120 podman-compose up -d openpanel_mysql &>/dev/null
 
     mdb_ok=0
     for mdb_tries in 1 2 3 4 5 6; do
@@ -884,8 +888,8 @@ mysql_docker_containers_status() {
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m MariaDB container not running — restarting."
     remove_dependent_openpanel
-    podman rm -f openpanel_mysql &>/dev/null; podman rm -f --storage openpanel_mysql &>/dev/null
-    cd /root && podman-compose up -d openpanel_mysql &>/dev/null
+    timeout 30 podman rm -f openpanel_mysql &>/dev/null; timeout 30 podman rm -f --storage openpanel_mysql &>/dev/null
+    cd /root && timeout 120 podman-compose up -d openpanel_mysql &>/dev/null
 
     mdb_ok=0
     for mdb_tries in 1 2 3 4 5 6; do
@@ -911,20 +915,20 @@ redis_docker_container_status() {
   local title="Redis service not active!"
   local container="openpanel_redis"
 
-  if ! podman inspect "$container" &>/dev/null; then
+  if ! timeout 30 podman inspect "$container" &>/dev/null; then
     ((WARN++))
     echo -e "\e[31m[✘]\e[0m Redis container not found — starting."
-    cd /root && podman-compose up -d openpanel_redis &>/dev/null
+    cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
     sleep 2
     _docker_check_after_restart "$container" "$title" "did not exist"
     return
   fi
 
-  local state; state=$(podman inspect "$container" --format '{{.State.Status}}' 2>/dev/null)
+  local state; state=$(timeout 30 podman inspect "$container" --format '{{.State.Status}}' 2>/dev/null)
 
   case "$state" in
     running)
-      if podman exec "$container" redis-cli PING 2>/dev/null | grep -q PONG; then
+      if timeout 30 podman exec "$container" redis-cli PING 2>/dev/null | grep -q PONG; then
         rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
         ((PASS++)); echo -e "\e[32m[✔]\e[0m Redis container active and responding."
         resolve_notification "$title"; resolve_notification "Redis service restarted!"; resolve_notification "Redis container stuck"
@@ -932,8 +936,8 @@ redis_docker_container_status() {
         ((WARN++))
         echo -e "\e[31m[✘]\e[0m Redis running but not responding — restarting."
         remove_dependent_openpanel
-        podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
-        cd /root && podman-compose up -d openpanel_redis &>/dev/null
+        timeout 30 podman rm -f "$container" &>/dev/null; timeout 30 podman rm -f --storage "$container" &>/dev/null
+        cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
         _docker_check_after_restart "$container" "$title" "was running but not responding to PING"
       fi
       ;;
@@ -941,7 +945,7 @@ redis_docker_container_status() {
       rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
       ((WARN++))
       echo -e "\e[38;5;214m[!]\e[0m Redis container is $state — restarting."
-      cd /root && podman-compose up -d openpanel_redis &>/dev/null
+      cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
       _docker_check_after_restart "$container" "$title" "had stopped (state: $state)"
       ;;
     *)
@@ -972,9 +976,9 @@ redis_docker_container_status() {
       echo -e "\e[31m[✘]\e[0m Redis container stuck in '$state' for ${stuck_age}s — forcing removal and recreation."
       rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
       remove_dependent_openpanel
-      podman kill "$container" &>/dev/null
-      podman rm -f "$container" &>/dev/null; podman rm -f --storage "$container" &>/dev/null
-      cd /root && podman-compose up -d openpanel_redis &>/dev/null
+      timeout 30 podman kill "$container" &>/dev/null
+      timeout 30 podman rm -f "$container" &>/dev/null; timeout 30 podman rm -f --storage "$container" &>/dev/null
+      cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
       sleep 2
       _docker_check_after_restart "$container" "$title" "was stuck in state '$state' for ${stuck_age}s"
       ;;
@@ -1005,27 +1009,21 @@ check_oom_logs() {
     ((WARN++)); echo "[!] OOM errors check disabled."; return
   fi
 
-  local NOW EPOCH_LAST DIFF
-
+  local NOW SINCE
   NOW=$(date +%s)
-  if [[ -f "$LOCK_FILE_FOR_OOM_CHECK" ]]; then
-    EPOCH_LAST=$(cat "$LOCK_FILE_FOR_OOM_CHECK" 2>/dev/null)
-    DIFF=$((NOW - EPOCH_LAST))
-    [[ "$DIFF" -lt 86400 ]] && return
-  fi
+  SINCE=$(cat "$LOCK_FILE_FOR_OOM_CHECK" 2>/dev/null)
+  # first run or after reboot (watermark is in /tmp) covers the last hour, so old kills aren't reported again
+  [[ "$SINCE" =~ ^[0-9]+$ ]] || SINCE=$(( NOW - 3600 ))
+  (( NOW - SINCE < 3600 )) && return
 
+  # kernel ring buffer through journald, syslog files are missing on journald-only systems and use a different date format
+  local KERNEL_LOG
+  if ! KERNEL_LOG=$(timeout 30 journalctl -k --since "@$SINCE" --until "@$NOW" -o short-iso --no-pager 2>/dev/null); then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Could not read kernel log with journalctl, skipping OOM check."; return
+  fi
   echo "$NOW" > "$LOCK_FILE_FOR_OOM_CHECK"
 
-  local TODAY LOG
-  TODAY=$(date +%Y-%m-%d)
-  if [[ -f /var/log/syslog ]]; then
-    LOG="/var/log/syslog"
-  elif [[ -f /var/log/messages ]]; then
-    LOG="/var/log/messages"
-  else
-    return
-  fi
-
+  local SINCE_TIME; SINCE_TIME=$(date -d "@$SINCE" '+%Y-%m-%d %H:%M')
   local SYSTEM_COUNT=0
   local USER_COUNT=0
   local -a SYSTEM_LINES=() USER_LINES=()
@@ -1044,7 +1042,7 @@ check_oom_logs() {
         USER_LINES+=("$user"$'\t'"$line")
     fi
 
-  done < <(grep "Memory cgroup out of memory: Killed process" "$LOG" | grep "^$TODAY")
+  done < <(grep -E "(Memory cgroup out of memory|Out of memory): Killed process" <<< "$KERNEL_LOG")
 
   if [[ "$SYSTEM_COUNT" -eq 0 && "$USER_COUNT" -eq 0 ]]; then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m No OOM errors detected."; return
@@ -1057,20 +1055,20 @@ check_oom_logs() {
   [[ "$SYSTEM_COUNT" -gt 0 ]] && title_parts+=("System: $SYSTEM_COUNT")
   [[ "$USER_COUNT" -gt 0 ]] && title_parts+=("User: $USER_COUNT")
 
-  title="OOM Alert - $TODAY - $(IFS=' | '; echo "${title_parts[*]}")"
+  title="OOM Alert - $(date '+%Y-%m-%d %H:%M') - $(IFS=' | '; echo "${title_parts[*]}")"
   message=""
 
   if [[ "$SYSTEM_COUNT" -gt 0 ]]; then
-    message+="$SYSTEM_COUNT system service(s) killed by OOM today."$'\n'
-    echo -e "\e[31m[✘]\e[0m $SYSTEM_COUNT system service(s) killed by OOM in the last 24 hours"
+    message+="$SYSTEM_COUNT system service(s) killed by OOM since $SINCE_TIME."$'\n'
+    echo -e "\e[31m[✘]\e[0m $SYSTEM_COUNT system service(s) killed by OOM since $SINCE_TIME"
   fi
 
   if [[ "$USER_COUNT" -gt 0 ]]; then
-    message+="$USER_COUNT user process(es) killed by OOM today."
-    echo -e "\e[31m[✘]\e[0m $USER_COUNT user process(es) killed by OOM in the last 24 hours"
+    message+="$USER_COUNT user process(es) killed by OOM since $SINCE_TIME."
+    echo -e "\e[31m[✘]\e[0m $USER_COUNT user process(es) killed by OOM since $SINCE_TIME"
   fi
 
-  message+=$'\n'"Check with: grep 'Killed process' $LOG"
+  message+=$'\n'"Check with: journalctl -k --since '$SINCE_TIME' | grep 'Killed process'"
 
   local details
   details=$(jq -nc --arg sys "$(printf '%s\n' "${SYSTEM_LINES[@]}")" --arg usr "$(printf '%s\n' "${USER_LINES[@]}")" '
@@ -1337,7 +1335,7 @@ check_https_traffic() {
         while read -r f; do
           # shellcheck disable=SC2016 # intentional: $1/$2 are this subshell's own positional args (bound below), not outer vars
           if timeout 1s bash -c '
-            tail -n 200 "$1" | grep -q "$2"
+            tail -n 200 "$1" | grep -qwF -- "$2"
           ' _ "$f" "$IP"; then
             echo "$f"
           fi
@@ -1680,9 +1678,17 @@ if [[ -n "$action" ]]; then
 fi
 
 if [ "${FLOCKED}" != "1" ]; then
-  exec env FLOCKED=1 flock -n /root/sentinel_run.lock "$0" "$@"
-  echo "Error: Another instance is already running."
-  exit 1
+  # -o so containers started during the run don't inherit the lock and keep holding it
+  env FLOCKED=1 flock -n -o -E 75 /root/sentinel_run.lock timeout -k 30 "$RUN_TIMEOUT" "$0" "$@"
+  rc=$?
+  case $rc in
+    75) echo "Error: Another instance is already running."; exit 1 ;;
+    124|137)
+      echo -e "\e[31m[✘]\e[0m Sentinel did not finish in ${RUN_TIMEOUT}s and was stopped."
+      write_notification critical system "$RUN_TIMEOUT_TITLE" "Sentinel did not finish its checks in $((RUN_TIMEOUT / 60)) minutes and was stopped, usually because a podman command hung. Until this is fixed, services are not monitored or restarted. Check with: timeout 10 podman ps and systemctl status podman.socket" ;;
+    *) resolve_notification "$RUN_TIMEOUT_TITLE" ;;
+  esac
+  exit $rc
 fi
 hr
 echo "  Sentinel - OpenPanel server health monitor"
@@ -1736,7 +1742,23 @@ for _task in "${_parallel_tasks[@]}"; do
   _pids[$_task]=$!
 done
 
+# kills a pid and everything under it
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1"); do kill_tree "$child"; done
+  kill -9 "$1" 2>/dev/null
+}
+
+_deadline=$(( $(date +%s) + TASK_TIMEOUT ))
+_timed_out=()
 for _task in "${_parallel_tasks[@]}"; do
+  while kill -0 "${_pids[$_task]}" 2>/dev/null && (( $(date +%s) < _deadline )); do sleep 1; done
+  if kill -0 "${_pids[$_task]}" 2>/dev/null; then
+    kill_tree "${_pids[$_task]}"
+    _timed_out+=("$_task")
+    echo "__COUNTERS__ 2 0 0 1" >> "${_outfiles[$_task]}"
+    echo -e "\e[31m[✘]\e[0m $_task did not finish in ${TASK_TIMEOUT}s and was stopped." >> "${_outfiles[$_task]}"
+  fi
   wait "${_pids[$_task]}" 2>/dev/null
   _out="${_outfiles[$_task]}"
   [[ -f "$_out" ]] || continue
@@ -1752,6 +1774,12 @@ for _task in "${_parallel_tasks[@]}"; do
   (( FAIL   += _f ))
   rm -f "$_out"
 done
+
+if (( ${#_timed_out[@]} > 0 )); then
+  write_notification warning system "Sentinel checks did not finish" "These checks did not finish in $((TASK_TIMEOUT / 60)) minutes and were stopped: ${_timed_out[*]}. Usually a podman command hung. Check with: timeout 10 podman ps"
+else
+  resolve_notification "Sentinel checks did not finish"
+fi
 
 flush_notification_queue
 write_snapshot

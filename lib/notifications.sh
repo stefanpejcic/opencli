@@ -70,6 +70,7 @@ _notifications_update() {
 
 # unread entry with this title first reported within NOTIFICATIONS_REPEAT_AFTER
 _NOTIF_RECENT_UNREAD='.status == "unread" and .title == $t and .time >= $since'
+_NOTIF_RECENT_INFO='.severity == "info" and .title == $t and .time >= $since'
 _notifications_since() { date -d "@$(( $(date +%s) - NOTIFICATIONS_REPEAT_AFTER ))" '+%Y-%m-%d %H:%M:%S'; }
 
 notification_is_unread() {
@@ -78,8 +79,9 @@ notification_is_unread() {
 }
 
 # adds an entry, or with dedup=yes bumps count/last_seen of a recent unread entry with the same title
+# dedup=info does the same for recent info entries of any status and also swaps in the latest message
 # returns 0 when a new entry was added, 1 when an existing one was bumped
-# usage: notification_add <dedup yes|no> <status> <severity> <category> <source> <title> <message> [details json]
+# usage: notification_add <dedup yes|info|no> <status> <severity> <category> <source> <title> <message> [details json]
 notification_add() {
   local dedup="$1" status="$2" severity="$3" category="$4" source="$5" title="$6" message="$7" details="${8:-null}"
   local now; now=$(date '+%Y-%m-%d %H:%M:%S')
@@ -91,6 +93,8 @@ notification_add() {
     flock -x 200
     if [[ "$dedup" == "yes" ]] && (( $(_notifications_count "$_NOTIF_RECENT_UNREAD" --arg t "$title" --arg since "$since") > 0 )); then
       _notifications_update "$_NOTIF_RECENT_UNREAD" '.count = ((.count // 1) + 1) | .last_seen = $now' --arg t "$title" --arg since "$since" --arg now "$now"
+    elif [[ "$dedup" == "info" ]] && (( $(_notifications_count "$_NOTIF_RECENT_INFO" --arg t "$title" --arg since "$since") > 0 )); then
+      _notifications_update "$_NOTIF_RECENT_INFO" '.count = ((.count // 1) + 1) | .last_seen = $now | .message = $message' --arg t "$title" --arg since "$since" --arg now "$now" --arg message "$message"
     else
       jq -nc --arg id "$id" --arg now "$now" --arg status "$status" --arg severity "$severity" --arg category "$category" \
         --arg source "$source" --arg title "$title" --arg message "$message" --argjson details "$details" \
