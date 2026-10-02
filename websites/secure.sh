@@ -6,7 +6,7 @@
 #        opencli websites-secure --list-available-rules
 # Author: Stefan Pejcic
 # Created: 13.03.2026
-# Last Modified: 21.08.2026
+# Last Modified: 02.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -125,7 +125,8 @@ helper_to_empty_rules() {
 }
 
 helper_list_active_rules() {
-  awk '/^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+[[:space:]]*$/{print $2}' "$domain_file"
+  # imports are repeated in each site block, so print each rule once
+  awk '/^[[:space:]]*import[[:space:]]+wp_manager_[a-z0-9_]+[[:space:]]*$/ && !seen[$2]++ {print $2}' "$domain_file"
 }
 
 # delete all rules
