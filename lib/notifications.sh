@@ -5,7 +5,7 @@
 # Usage: . /usr/local/opencli/lib/notifications.sh
 # Author: Stefan Pejcic
 # Created: 24.09.2026
-# Last Modified: 24.09.2026
+# Last Modified: 02.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -38,6 +38,8 @@
 
 NOTIFICATIONS_LOG="/var/log/openpanel/admin/notifications.log"
 NOTIFICATIONS_LOCK="${NOTIFICATIONS_LOG}.lock"
+# unread entries older than this stop deduping, so a long-ignored alert gets reported again
+NOTIFICATIONS_REPEAT_AFTER=86400
 
 require_command jq
 
@@ -66,12 +68,16 @@ _notifications_update() {
   rm -f "$tmp"
 }
 
+# unread entry with this title first reported within NOTIFICATIONS_REPEAT_AFTER
+_NOTIF_RECENT_UNREAD='.status == "unread" and .title == $t and .time >= $since'
+_notifications_since() { date -d "@$(( $(date +%s) - NOTIFICATIONS_REPEAT_AFTER ))" '+%Y-%m-%d %H:%M:%S'; }
+
 notification_is_unread() {
   _notifications_init
-  (( $(_notifications_count '.status == "unread" and .title == $t' --arg t "$1") > 0 ))
+  (( $(_notifications_count "$_NOTIF_RECENT_UNREAD" --arg t "$1" --arg since "$(_notifications_since)") > 0 ))
 }
 
-# adds an entry, or with dedup=yes bumps count/last_seen of an unread entry with the same title
+# adds an entry, or with dedup=yes bumps count/last_seen of a recent unread entry with the same title
 # returns 0 when a new entry was added, 1 when an existing one was bumped
 # usage: notification_add <dedup yes|no> <status> <severity> <category> <source> <title> <message> [details json]
 notification_add() {
@@ -80,11 +86,11 @@ notification_add() {
   local id; id="$(date +%s)$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')"
   jq -e . >/dev/null 2>&1 <<< "$details" || details=null
   _notifications_init
-  local added=0
+  local added=0 since; since=$(_notifications_since)
   {
     flock -x 200
-    if [[ "$dedup" == "yes" ]] && (( $(_notifications_count '.status == "unread" and .title == $t' --arg t "$title") > 0 )); then
-      _notifications_update '.status == "unread" and .title == $t' '.count = ((.count // 1) + 1) | .last_seen = $now' --arg t "$title" --arg now "$now"
+    if [[ "$dedup" == "yes" ]] && (( $(_notifications_count "$_NOTIF_RECENT_UNREAD" --arg t "$title" --arg since "$since") > 0 )); then
+      _notifications_update "$_NOTIF_RECENT_UNREAD" '.count = ((.count // 1) + 1) | .last_seen = $now' --arg t "$title" --arg since "$since" --arg now "$now"
     else
       jq -nc --arg id "$id" --arg now "$now" --arg status "$status" --arg severity "$severity" --arg category "$category" \
         --arg source "$source" --arg title "$title" --arg message "$message" --argjson details "$details" \
