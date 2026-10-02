@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: domains/ssl.sh
 # Description: Check SSL for domain, add custom certificate, view files.
-# Usage: opencli domains-ssl <DOMAIN_NAME> [status|info|logs|auto|custom] [path/to/fullchain.pem path/to/key.pem] | opencli domains-ssl --notify
+# Usage: opencli domains-ssl <DOMAIN_NAME> [status|info|logs|auto|selfsigned|custom] [path/to/fullchain.pem path/to/key.pem] | opencli domains-ssl --notify
 # Author: Stefan Pejcic
 # Created: 22.03.2025
-# Last Modified: 25.09.2026
+# Last Modified: 01.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -48,6 +48,7 @@ usage() {
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}logs${RESET} [${YELLOW}1000${RESET}|${YELLOW}-f${RESET}]  - View caddy SSL-related logs for the domain."
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}custom${RESET} ${YELLOW}<cert_path>${RESET} ${YELLOW}<key_path>${RESET} - Switch to custom SSL for the domain."
     echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}auto${RESET}            - Switch back to AutoSSL for the domain."
+    echo -e "  opencli domains-ssl <DOMAIN> ${GREEN}selfsigned${RESET}      - AutoSSL with a self-signed fallback until the domain points to this server."
     echo -e "  opencli domains-ssl ${GREEN}--notify${RESET}                - Email users about SSL certificates that expire soon or fail to renew."
 }
 
@@ -253,6 +254,41 @@ tls $domain_tls_dir/fullchain.pem $domain_tls_dir/key.pem
 
 
 
+# replaces the domain's tls block (custom paths, plain on_demand or with fallback issuers) with the given lines, keeping its indentation
+set_tls_block() {
+	local body="$1" tmp
+	tmp=$(mktemp) || return 1
+	awk -v body="$body" '
+		function block(line,   ind, n, i, rows) {
+			ind = line; sub(/[^ \t].*$/, "", ind)
+			print ind "tls {"
+			n = split(body, rows, "\n")
+			for (i = 1; i <= n; i++) print ind "  " rows[i]
+			print ind "}"
+		}
+		!done && /^[ \t]*tls[ \t]+\/[^ \t]*fullchain\.pem[ \t]+\/[^ \t]*key\.pem[ \t]*$/ { block($0); done = 1; next }
+		!done && /^[ \t]*tls[ \t]*\{[ \t]*$/ { block($0); skip = 1; next }
+		skip { if ($0 ~ /^[ \t]*\}[ \t]*$/) { skip = 0; done = 1 } next }
+		{ print }
+		END { if (!done) exit 1 }
+	' "$CONFIG_FILE" > "$tmp" || { rm -f "$tmp"; echo "No tls block found in $CONFIG_FILE"; return 1; }
+	cat "$tmp" > "$CONFIG_FILE"
+	rm -f "$tmp"
+}
+
+# makes Caddy request the certificate now, so the first visitor doesn't wait on it, through the host since DNS may not point here yet
+trigger_certificate() {
+	local host_ip
+	host_ip=$(getent hosts host.containers.internal 2>/dev/null | awk '{print $1; exit}')
+	host_ip=${host_ip:-127.0.0.1}
+	sleep 2
+	for _ in 1 2 3; do
+		curl -sk -o /dev/null --max-time 20 --resolve "$DOMAIN:443:$host_ip" "https://$DOMAIN/" && return 0
+		sleep 2
+	done
+	return 1
+}
+
 cat_certificate_files() {
     	if grep -q "fullchain.pem" "$CONFIG_FILE" && grep -q "key.pem" "$CONFIG_FILE"; then
 	 		# custom ssl
@@ -262,6 +298,11 @@ cat_certificate_files() {
 	 		# letsencrypt
     		local cert="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.crt"
           	local key="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$DOMAIN/$DOMAIN.key"
+			# no Let's Encrypt certificate yet, show the self-signed one from Caddy's local CA if there is one
+			if [ ! -f "$cert" ]; then
+				cert="/etc/openpanel/caddy/ssl/local/$DOMAIN/$DOMAIN.crt"
+				key="/etc/openpanel/caddy/ssl/local/$DOMAIN/$DOMAIN.key"
+			fi
 			[ -f "$cert" ] && cat "$cert"
 			[ -f "$key" ] && cat "$key"
     	fi    
@@ -329,6 +370,8 @@ show_examples() {
 	echo -e "  opencli domains-ssl ${YELLOW}$DOMAIN${RESET} ${GREEN}info${RESET}"
 	echo "- Set AutoSSL for the domain (default):"
 	echo -e "  opencli domains-ssl ${YELLOW}$DOMAIN${RESET} ${GREEN}auto${RESET}"
+	echo "- Use a self-signed certificate until the domain points to this server, then Let's Encrypt:"
+	echo -e "  opencli domains-ssl ${YELLOW}$DOMAIN${RESET} ${GREEN}selfsigned${RESET}"
 	echo "- Add custom certificate for the domain:"
 	echo -e "  opencli domains-ssl ${YELLOW}$DOMAIN${RESET} ${GREEN}custom${RESET} ${RED}/var/www/html/fullchain.pem /var/www/html/key.pem${RESET}"
 	echo "- View SSL-related lines for the domain from Caddy logs:"
@@ -339,6 +382,8 @@ show_examples() {
 check_custom_ssl_or_auto() {   
 	if grep -q "fullchain.pem" "$CONFIG_FILE"; then
 	    echo "Custom SSL"
+	elif grep -q "issuer internal" "$CONFIG_FILE"; then
+	    echo "AutoSSL with self-signed fallback"
 	elif grep -q "on_demand" "$CONFIG_FILE"; then
 	    echo "AutoSSL"
 	else
@@ -360,8 +405,8 @@ if [ -n "$2" ]; then
     	exit 0
     elif [ "$2" == "auto" ]; then
 
-		# 1. replace custom ssl paths with on_demand
-        sed -i -E "s|tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem|  tls {\n    on_demand\n  }|g" "$CONFIG_FILE"
+		# 1. replace custom ssl paths or the self-signed fallback with plain on_demand
+		set_tls_block "on_demand" || exit 1
 
 		# 2. reload caddy
 	    nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &
@@ -373,6 +418,21 @@ if [ -n "$2" ]; then
 
         echo "Updated $DOMAIN to use AutoSSL."
         exit 0
+    elif [ "$2" == "selfsigned" ]; then
+
+		# 1. Let's Encrypt first, Caddy's local CA when that fails, every renewal tries Let's Encrypt again
+		set_tls_block $'on_demand\nissuer acme\nissuer internal' || exit 1
+
+		# 2. reload caddy and get the first certificate
+		podman exec caddy sh -c "caddy validate --config /etc/caddy/Caddyfile && caddy reload --config /etc/caddy/Caddyfile" > /dev/null 2>&1
+		trigger_certificate
+
+		# 3. notify
+		nohup opencli sentinel --action=domains_ssl --title="Self-signed SSL fallback set for domain" --message="AutoSSL with a self-signed fallback is set for domain name: '$DOMAIN' owned by OpenPanel user '$user'." >/dev/null 2>&1 &
+		disown
+
+		echo "Updated $DOMAIN to use a self-signed certificate until Let's Encrypt can issue one."
+		exit 0
     elif [ "$2" == "custom" ] && [ -n "$3" ] && [ -n "$4" ]; then       
         check_and_use_tls "$3" "$4"
         exit 0

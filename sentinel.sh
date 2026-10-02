@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 24.09.2026
+# Last Modified: 02.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -1451,15 +1451,19 @@ check_swap_usage() {
   local pct=$(( sused * 100 / stotal ))
   if (( pct <= SWAP_THRESHOLD )); then
     ((PASS++)); echo -e "\e[32m[✔]\e[0m SWAP ${pct}% < threshold ${SWAP_THRESHOLD}%"
-    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
     resolve_notification "$title"; resolve_notification "SWAP high but cannot safely clear"; resolve_notification "URGENT: SWAP not cleared on $HOSTNAME"
     return
   fi
 
+  # lock holds the time of the last clear, if swap filled up again since then clearing won't help so just alert once a day
   if [[ -f "$LOCK_FILE_FOR_SWAP_CLEANUP" ]]; then
-    local age=$(( $(date +%s) - $(date -r "$LOCK_FILE_FOR_SWAP_CLEANUP" +%s) ))
+    local cleared_at age
+    cleared_at=$(date -r "$LOCK_FILE_FOR_SWAP_CLEANUP" +%s)
+    age=$(( $(date +%s) - cleared_at ))
     if (( age <= 86400 )); then
-      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m SWAP cleanup already in progress. Skipping."; return
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m SWAP ${pct}% > threshold ${SWAP_THRESHOLD}%, already cleared $(format_duration "$age") ago. Skipping."
+      write_notification warning resources "$title" "SWAP on $HOSTNAME is at ${pct}% (${sused}MB/${stotal}MB) again, it was cleared at $(date -d "@$cleared_at" '+%Y-%m-%d %H:%M:%S') and filled back up. Sentinel won't clear it again for 24h, the server likely needs more RAM. Check with: free -m and top -o %MEM"
+      return
     fi
     rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
   fi
@@ -1481,7 +1485,6 @@ check_swap_usage() {
   read -r _ stotal2 sused2 _rest < <(free -m | awk '/^Swap:/')
   local pct2=$(( stotal2 > 0 ? sused2*100/stotal2 : 0 ))
   if (( pct2 < SWAP_THRESHOLD )); then
-    rm -f "$LOCK_FILE_FOR_SWAP_CLEANUP"
     resolve_notification "$title"
     write_info_notification resources "SWAP cleared — now ${pct2}%" "Sentinel cleared SWAP on $HOSTNAME at $DISPLAY_TIME. Was ${sused}MB/${stotal}MB (${pct}%), now ${sused2}MB/${stotal2}MB (${pct2}%)."
     echo -e "\e[32m[✔]\e[0m SWAP cleared successfully. Now: ${pct2}%"
