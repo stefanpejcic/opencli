@@ -5,7 +5,7 @@
 # Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 25.09.2026
+# Last Modified: 02.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -43,6 +43,8 @@ readonly KEEP_KERNELS=2
 readonly UPDATE_TIMEOUT=300
 readonly OPENPANEL_RESTART_FLAG="/root/openpanel_restart_needed"
 readonly OPENADMIN_RESTART_FLAG="/root/openadmin_restart_needed"
+readonly UPDATE_LOCK="/var/lock/openpanel_update.lock"
+readonly UPDATE_MAX_RUNTIME=1800 # update gets killed and its lock counts as stale after 30min
 NO_RESTART=false
 readonly CONFIG_REPO_URL="https://github.com/stefanpejcic/openpanel-configuration/archive/refs/heads/main.tar.gz"
 
@@ -1139,6 +1141,36 @@ update_opencli() {
 	[[ "$1" == "--no-log" ]] && podman restart openpanel &>/dev/null 2>&1
 }
 
+# runs the update in a child that doesn't inherit the lock fd, otherwise conmon of containers it starts keeps the lock forever
+run_update_locked() {
+    local from="$1" to="$2" age pids rc=0
+    if [[ -f "$UPDATE_LOCK" ]]; then
+        age=$(( $(date +%s) - $(stat -c %Y "$UPDATE_LOCK") ))
+        if (( age > UPDATE_MAX_RUNTIME )); then
+            log_warn "Removing stale update lock from $(( age / 60 )) minutes ago"
+            rm -f "$UPDATE_LOCK"
+        fi
+    fi
+
+    OPENPANEL_UPDATE_FROM="$from" OPENPANEL_UPDATE_TO="$to" OPENPANEL_UPDATE_NO_RESTART="$NO_RESTART" \
+        flock -n -o -E 75 "$UPDATE_LOCK" timeout --foreground -k 60 "$UPDATE_MAX_RUNTIME" bash "$0" || rc=$?
+
+    case $rc in
+        75)
+            echo "[✘] Error: Update process is already running."
+            pids=$(fuser "$UPDATE_LOCK" 2>/dev/null | xargs)
+            [[ -n "$pids" ]] && echo "Lock $UPDATE_LOCK is held by PID: $pids"
+            echo "Please wait for it to complete before retrying."
+            ;;
+        124|137)
+            log_error "Update did not finish within $(( UPDATE_MAX_RUNTIME / 60 )) minutes and was stopped"
+            notification_delete_title "OpenPanel update started"
+            write_notification critical "OpenPanel update failed!" "Update to version $to did not finish within $(( UPDATE_MAX_RUNTIME / 60 )) minutes and was stopped." "/var/log/openpanel/updates/"
+            ;;
+    esac
+    return $rc
+}
+
 # Main update check and execution
 check_update() {
     local force_update=false
@@ -1188,11 +1220,8 @@ check_update() {
             log_info "Update available and will be automatically installed"
         fi
 
-    (
-      flock -n 200 || { echo "[✘] Error: Update process is already running."; echo "Please wait for it to complete before retrying."; exit 1; }
-      run_update_immediately "$remote_version"
-    ) 200>/var/lock/openpanel_update.lock
-        
+        run_update_locked "$local_version" "$remote_version"
+
     else
         log_info "[✔] No update needed"
     fi
@@ -1330,6 +1359,14 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # re-entered by run_update_locked while it holds the lock
+    if [[ -n "${OPENPANEL_UPDATE_TO:-}" ]]; then
+        touch "$UPDATE_LOCK" # lock age counts from the start of this update
+        NO_RESTART="${OPENPANEL_UPDATE_NO_RESTART:-false}"
+        local_version="$OPENPANEL_UPDATE_FROM"
+        run_update_immediately "$OPENPANEL_UPDATE_TO"
+        exit $?
+    fi
     main "$@"
 fi
 

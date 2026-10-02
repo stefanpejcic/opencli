@@ -1689,7 +1689,8 @@ echo "  Sentinel - OpenPanel server health monitor"
 hr
 
 # an update restarts containers on purpose, so don't alert on it or recreate them mid-update
-if ! flock -n /var/lock/openpanel_update.lock true 2>/dev/null; then
+# locks older than 30min are stale, update.sh deletes those too
+if [[ -n $(find /var/lock/openpanel_update.lock -mmin -30 2>/dev/null) ]] && ! flock -n /var/lock/openpanel_update.lock true 2>/dev/null; then
   echo -e "\e[38;5;214m[!]\e[0m OpenPanel update in progress, skipping checks until it finishes."
   hr
   exit 0
