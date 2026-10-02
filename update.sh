@@ -1364,7 +1364,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         touch "$UPDATE_LOCK" # lock age counts from the start of this update
         NO_RESTART="${OPENPANEL_UPDATE_NO_RESTART:-false}"
         local_version="$OPENPANEL_UPDATE_FROM"
-        run_update_immediately "$OPENPANEL_UPDATE_TO"
+        update_to="$OPENPANEL_UPDATE_TO"
+        # unset so nested opencli update calls (like --check) don't re-enter this branch
+        unset OPENPANEL_UPDATE_FROM OPENPANEL_UPDATE_TO OPENPANEL_UPDATE_NO_RESTART
+        run_update_immediately "$update_to"
         exit $?
     fi
     main "$@"
