@@ -386,6 +386,13 @@ install_mailserver(){
 
 	# add all domains
 	process_all_domains_and_start
+
+	# Apply CSF port changes after all mailserver networks have been created.
+	# csfpost.sh restores Podman networking and permits the new bridges.
+	if command -v csf >/dev/null 2>&1; then
+		section "RELOADING FIREWALL"
+		run csf -r
+	fi
 }
 
 
