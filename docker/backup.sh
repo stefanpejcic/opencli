@@ -49,38 +49,29 @@ DOCKER_PROXY_WAIT_SECS=15
 
 ensure_docker_proxy_running() {
     local context="$1"
-    local proxy_state
 
-    proxy_state=$(podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | awk 'NR==2{print $NF}')
-
-    if [[ "$proxy_state" == "running" ]] || [[ "$proxy_state" == "Up" ]]; then
+    if podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | grep -qE '\bUp\b|\brunning\b'; then
         return 0
     fi
 
-    log "docker-proxy not running for context: $context (state: '${proxy_state:-unknown}') — starting it"
-
+    log "docker-proxy not running for context: $context — starting it"
     local start_output start_exit
     start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
     start_exit=$?
     echo "$start_output" | tee -a "$LOG_FILE"
-
-    if [ $start_exit -ne 0 ]; then
-        log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
-        return 1
-    fi
+    [ $start_exit -ne 0 ] && { log "ERROR: failed to start docker-proxy for $context (exit $start_exit)"; return 1; }
 
     local waited=0
     while (( waited < DOCKER_PROXY_WAIT_SECS )); do
-        proxy_state=$(podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | awk 'NR==2{print $NF}')
-        if [[ "$proxy_state" == "running" ]] || [[ "$proxy_state" == "Up" ]]; then
+        if podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | grep -qE '\bUp\b|\brunning\b'; then
             log "docker-proxy is up for context: $context (after ${waited}s)"
             return 0
         fi
         sleep 1
-        ((waited++))
+        waited=$((waited + 1))
     done
 
-    log "ERROR: docker-proxy did not reach running state for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
+    log "ERROR: docker-proxy not running for $context within ${DOCKER_PROXY_WAIT_SECS}s"
     return 1
 }
 
