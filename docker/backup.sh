@@ -53,38 +53,47 @@ is_proxy_running() {
     [[ "$(podman_ctx "$context" inspect -f '{{.State.Running}}' docker-proxy 2>/dev/null)" == "true" ]]
 }
 
-ensure_docker_proxy_running() {
+is_proxy_ready() {
     local context="$1"
+    podman_ctx "$context" exec docker-proxy sh -c 'nc -z 127.0.0.1 2375' >/dev/null 2>&1
+}
 
-    if is_proxy_running "$context"; then
-        return 0
-    fi
-
-    log "docker-proxy not running for context: $context — starting it"
-
-    local start_output start_exit
-    start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
-    start_exit=$?
-    echo "$start_output" | tee -a "$LOG_FILE"
-
-    if [ $start_exit -ne 0 ]; then
-        log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
-        return 1
-    fi
-
+wait_for_proxy_ready() {
+    local context="$1"
     local waited=0
     while (( waited < DOCKER_PROXY_WAIT_SECS )); do
-        if is_proxy_running "$context"; then
-            log "docker-proxy is up for context: $context (after ${waited}s)"
+        if is_proxy_running "$context" && is_proxy_ready "$context"; then
+            log "docker-proxy is ready for context: $context (after ${waited}s)"
+            sleep "$DOCKER_PROXY_SETTLE_SECS"
             return 0
         fi
         sleep 1
         waited=$((waited + 1))
     done
 
-    log "ERROR: docker-proxy did not reach running state for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
+    log "ERROR: docker-proxy not ready for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
     podman_ctx "$context" logs --tail 20 docker-proxy 2>&1 | tee -a "$LOG_FILE"
     return 1
+}
+
+ensure_docker_proxy_running() {
+    local context="$1"
+
+    if ! is_proxy_running "$context"; then
+        log "docker-proxy not running for context: $context — starting it"
+
+        local start_output start_exit
+        start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
+        start_exit=$?
+        echo "$start_output" | tee -a "$LOG_FILE"
+
+        if [ $start_exit -ne 0 ]; then
+            log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
+            return 1
+        fi
+    fi
+
+    wait_for_proxy_ready "$context"
 }
 
 run_for_user() {
