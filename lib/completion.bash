@@ -160,7 +160,7 @@ _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-
 _opencli_plan_arg_commands="plan-usage plan-delete"
 
 # commands whose next positional argument is a username or the literal --all
-_opencli_username_or_all_arg_commands="docker-collect_stats user-quota"
+_opencli_username_or_all_arg_commands="docker-collect_stats user-quota user-report"
 
 # commands whose next positional argument is an FTP sub-account username
 _opencli_ftp_username_arg_commands="ftp-delete ftp-password ftp-path"
@@ -407,6 +407,16 @@ _opencli_completions() {
             COMPREPLY=( $(compgen -W "$(_opencli_usernames) -all" -- "$cur") )
             return 0
         fi
+    fi
+
+    # opencli user-report <username|--all> [--section <name,...>] [--json], flags in any order after the user
+    if [[ "$cmd" == "user-report" && $COMP_CWORD -ge 3 ]]; then
+        if [[ "$prev" == "--section" ]]; then
+            COMPREPLY=( $(compgen -W "info account containers processes files backups domains dns ssl waf webserver php websites databases cache emails crons stats security activity" -- "$cur") )
+        else
+            COMPREPLY=( $(compgen -W "--section --json" -- "$cur") )
+        fi
+        return 0
     fi
 
     # second positional argument: some commands pair a domain/username with a username

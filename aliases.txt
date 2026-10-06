@@ -78,6 +78,7 @@ opencli user-loginlog
 opencli user-password
 opencli user-quota
 opencli user-rename
+opencli user-report
 opencli user-restore
 opencli user-suspend
 opencli user-transfer
