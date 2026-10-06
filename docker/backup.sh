@@ -47,23 +47,34 @@ fi
 # https://github.com/stefanpejcic/OpenPanel/discussions/1146#discussioncomment-18528896
 DOCKER_PROXY_WAIT_SECS=15
 
+
+is_proxy_running() {
+    local context="$1"
+    [[ "$(podman_ctx "$context" inspect -f '{{.State.Running}}' docker-proxy 2>/dev/null)" == "true" ]]
+}
+
 ensure_docker_proxy_running() {
     local context="$1"
 
-    if podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | grep -qE '\bUp\b|\brunning\b'; then
+    if is_proxy_running "$context"; then
         return 0
     fi
 
     log "docker-proxy not running for context: $context — starting it"
+
     local start_output start_exit
     start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
     start_exit=$?
     echo "$start_output" | tee -a "$LOG_FILE"
-    [ $start_exit -ne 0 ] && { log "ERROR: failed to start docker-proxy for $context (exit $start_exit)"; return 1; }
+
+    if [ $start_exit -ne 0 ]; then
+        log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
+        return 1
+    fi
 
     local waited=0
     while (( waited < DOCKER_PROXY_WAIT_SECS )); do
-        if podman_compose_ctx "$context" ps docker-proxy 2>/dev/null | grep -qE '\bUp\b|\brunning\b'; then
+        if is_proxy_running "$context"; then
             log "docker-proxy is up for context: $context (after ${waited}s)"
             return 0
         fi
@@ -71,7 +82,8 @@ ensure_docker_proxy_running() {
         waited=$((waited + 1))
     done
 
-    log "ERROR: docker-proxy not running for $context within ${DOCKER_PROXY_WAIT_SECS}s"
+    log "ERROR: docker-proxy did not reach running state for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
+    podman_ctx "$context" logs --tail 20 docker-proxy 2>&1 | tee -a "$LOG_FILE"
     return 1
 }
 
