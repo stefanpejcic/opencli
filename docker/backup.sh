@@ -5,7 +5,7 @@
 # Usage: opencli docker-backup
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 21.09.2026
+# Last Modified: 07.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -38,14 +38,12 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "$LOG_FILE"
 }
 
-# https://github.com/stefanpejcic/OpenPanel/discussions/1146
-COMPOSE_RUN_FLAGS=(--rm --entrypoint backup)
-if podman-compose run --help 2>&1 | grep -q -- '--remove-orphans'; then
-    COMPOSE_RUN_FLAGS=(--remove-orphans "${COMPOSE_RUN_FLAGS[@]}")
-fi
+# --no-deps since we start docker-proxy ourselves, otherwise podman-compose run can tear down the whole stack (mariadb included)
+COMPOSE_RUN_FLAGS=(--rm --no-deps --entrypoint backup)
 
 # https://github.com/stefanpejcic/OpenPanel/discussions/1146#discussioncomment-18528896
 DOCKER_PROXY_WAIT_SECS=15
+DOCKER_PROXY_SETTLE_SECS=2
 
 
 is_proxy_running() {
