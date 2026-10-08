@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 02.10.2026
+# Last Modified: 08.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -56,6 +56,7 @@ readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 readonly STARTUP_STAGGER=2  # seconds between user starts on boot
+readonly MYSQL_IDLE_GRACE=7200  # mysql of an account this old with no databases gets stopped
 readonly RUN_TIMEOUT=900  # whole run gets killed after this, so a hung podman can't hold the run lock forever
 readonly TASK_TIMEOUT=600  # each parallel check gets killed after this
 readonly RUN_TIMEOUT_TITLE="Sentinel checks timed out!"
@@ -331,6 +332,7 @@ start_containers_for_socket() {
     local socket="$1"
     local label="$2"
     local results_file="$3"
+    local skip=" ${4:-} "
 
     if [ ! -S "$socket" ]; then
         echo "no socket at $socket for $label, skipping"
@@ -355,6 +357,8 @@ start_containers_for_socket() {
         state="${entry##*|}"
         IFS='|' read -r name oom < <(CONTAINER_HOST="unix://$socket" timeout 10 podman inspect "$id" --format '{{.Name}}|{{.State.OOMKilled}}' 2>/dev/null)
         name="${name:-$id}"
+        # containers sentinel stops on purpose, start_conditional_containers_for_user handles those
+        [[ "$skip" == *" $name "* ]] && continue
         echo "$label: starting $name (was: $state)"
         if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
             ((count++)); result="restarted"
@@ -367,66 +371,92 @@ start_containers_for_socket() {
     { flock -x 201; echo "${label}:${count}" >> "$results_file"; } 201>>"$results_file.lock"
 }
 
+# seconds since <user>'s account was created, from /home birth time or the panel's registered_date where the filesystem doesn't keep one
+account_age() {
+    local born
+    born=$(stat -c %W "/home/$1" 2>/dev/null)
+    if [[ "$born" =~ ^[0-9]+$ ]] && (( born > 0 )); then
+        echo $(( $(date +%s) - born ))
+    else
+        timeout 10 mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT UNIX_TIMESTAMP() - UNIX_TIMESTAMP(registered_date) FROM users WHERE server = '$1' LIMIT 1" 2>/dev/null
+    fi
+}
 
-# starts per-user containers a currently-enabled feature needs but that podman never saw "die" -- e.g. one never created because the feature was off at provisioning time needs a plain podman-compose up, not a restart
+# reads the datadir on disk instead of asking mysql, so it costs the user nothing and works while it's stopped, each database is a folder there
+user_has_mysql_databases() {
+    local datadir="/home/$1/docker-data/volumes/${1}_mysql_data/_data" d name restricted
+    [[ -d "$datadir" ]] || return 1
+    restricted=$(grep -m1 '^mysql_restricted_databases=' /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null | cut -d= -f2- | tr -d "\"'")
+    restricted=" ${restricted:-information_schema performance_schema mysql phpmyadmin sys mariadb.sys} "
+    for d in "$datadir"/*/; do
+        [[ -d "$d" ]] || continue
+        name=$(basename "$d")
+        [[ "$name" == \#* || "$restricted" == *" $name "* ]] && continue
+        return 0
+    done
+    return 1
+}
+
+# works out which on-demand containers <user> needs right now, sets NEEDED_CONTAINERS and UNNEEDED_CONTAINERS
+plan_conditional_containers() {
+    local user="$1" home="/home/$1"
+    local cron_needed=0 backup_needed=0
+    NEEDED_CONTAINERS=() UNNEEDED_CONTAINERS=()
+
+    # disabled jobs are fully commented out in crons.ini, so only count active [job-*] blocks
+    grep -qE '^[[:space:]]*\[job-' "$home/crons.ini" 2>/dev/null && cron_needed=1
+
+    # backup if backup.env has any active remote backup config
+    [[ -f "$home/backup.env" ]] && grep -qE '^(WEBDAV_URL|AWS_S3_BUCKET_NAME|SSH_HOST_NAME|AZURE_STORAGE_ACCOUNT_NAME|DROPBOX_REMOTE_PATH)=' "$home/backup.env" && backup_needed=1
+
+    # https://github.com/stefanpejcic/OpenPanel/issues/1132
+    # docker-proxy goes first when starting and last when stopping, cron and backup talk to podman through it
+    (( cron_needed || backup_needed )) && NEEDED_CONTAINERS+=(docker-proxy)
+    if (( cron_needed )); then NEEDED_CONTAINERS+=(cron); else UNNEEDED_CONTAINERS+=(cron); fi
+    if (( backup_needed )); then NEEDED_CONTAINERS+=(backup); else UNNEEDED_CONTAINERS+=(backup); fi
+    (( cron_needed || backup_needed )) || UNNEEDED_CONTAINERS+=(docker-proxy)
+
+    local mtype
+    mtype=$(grep -m1 '^MYSQL_TYPE=' "$home/.env" 2>/dev/null | cut -d= -f2- | tr -d "\"' ")
+    [[ "$mtype" == mysql || "$mtype" == mariadb ]] || return
+
+    # both share the mysql_data volume, so the type the account isn't on must never run
+    [[ "$mtype" == mariadb ]] && UNNEEDED_CONTAINERS+=(mysql) || UNNEEDED_CONTAINERS+=(mariadb)
+
+    # no databases means nothing to serve, new accounts get 2h to create their first one before it's stopped
+    local age idle=0
+    age=$(account_age "$user")
+    [[ -n "$age" ]] && (( age > MYSQL_IDLE_GRACE )) && idle=1
+
+    if user_has_mysql_databases "$user"; then
+        NEEDED_CONTAINERS+=("$mtype")
+    elif (( idle )); then
+        UNNEEDED_CONTAINERS+=("$mtype")
+    fi
+}
+
+# starts containers a feature needs but that podman never saw "die" (e.g. never created because the feature was off at provisioning time) and stops the ones nothing uses anymore
 start_conditional_containers_for_user() {
     local user="$1"
     local user_sock="$2"
     local results_file="$3"
     local home="/home/$user"
+    local svc
 
-    local -a needed=()
+    for svc in "${UNNEEDED_CONTAINERS[@]}"; do
+        CONTAINER_HOST="unix://$user_sock" podman_is_running "$svc" || continue
+        # docker-backup starts docker-proxy itself and runs backup as a one-off container, don't pull it out from under that
+        if [[ "$svc" == docker-proxy ]] && [[ -n "$(CONTAINER_HOST="unix://$user_sock" timeout 10 podman ps --filter name=backup --format '{{.Names}}' 2>/dev/null)" ]]; then
+            continue
+        fi
+        echo "$user: stopping $svc (not needed)"
+        CONTAINER_HOST="unix://$user_sock" timeout 60 podman stop -t 30 "$svc" &>/dev/null || echo -e "\e[31m[✘]\e[0m $user: FAILED to stop $svc"
+    done
 
-    # cron if crons.ini has any content
-    if [[ -f "$home/crons.ini" && -n "$(tr -d '[:space:]' < "$home/crons.ini" 2>/dev/null)" ]]; then
-        needed+=("docker-proxy" "cron")
-    fi
+    (( ${#NEEDED_CONTAINERS[@]} == 0 )) && return
 
-    # backup if backup.env for any active remote backup config
-    if [[ -f "$home/backup.env" ]] && grep -qE '^(WEBDAV_URL|AWS_S3_BUCKET_NAME|SSH_HOST_NAME|AZURE_STORAGE_ACCOUNT_NAME|DROPBOX_REMOTE_PATH)=' "$home/backup.env"; then
-      needed+=("docker-proxy" "backup")
-    fi
-
-    # dedupe while preserving order
-    if (( ${#needed[@]} )); then
-        local -A seen=()
-        local -a deduped=()
-        for svc in "${needed[@]}"; do
-            [[ -n "${seen[$svc]}" ]] && continue
-            seen[$svc]=1
-            deduped+=("$svc")
-        done
-        needed=("${deduped[@]}")
-    fi
-
-    # https://github.com/stefanpejcic/OpenPanel/issues/1132
-    local cron_needed=0 backup_needed=0
-    [[ " ${needed[*]} " == *" cron "* ]] && cron_needed=1
-    [[ " ${needed[*]} " == *" backup "* ]] && backup_needed=1
-
-    local stopped=0
-
-    if (( ! cron_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "cron"; then
-        echo "$user: stopping cron (no longer needed)"
-        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "cron" &>/dev/null && ((stopped++))
-    fi
-
-    if (( ! backup_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "backup"; then
-        echo "$user: stopping backup (no longer needed)"
-        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "backup" &>/dev/null && ((stopped++))
-    fi
-
-    if (( ! cron_needed && ! backup_needed )) && CONTAINER_HOST="unix://$user_sock" podman_is_running "docker-proxy"; then
-        echo "$user: stopping docker-proxy (no longer needed)"
-        CONTAINER_HOST="unix://$user_sock" timeout 20 podman stop "docker-proxy" &>/dev/null && ((stopped++))
-    fi
-
-    (( stopped > 0 )) && { flock -x 201; echo "${user}:-${stopped}" >> "$results_file"; } 201>>"$results_file.lock"
-
-    (( ${#needed[@]} == 0 )) && return
-
-    local count=0 svc
-    for svc in "${needed[@]}"; do
+    local count=0
+    for svc in "${NEEDED_CONTAINERS[@]}"; do
         CONTAINER_HOST="unix://$user_sock" podman_is_running "$svc" && continue
         echo "$user: starting required container $svc"
         if CONTAINER_HOST="unix://$user_sock" podman_ensure_running "$svc" "$home" "$svc" 20; then
@@ -447,7 +477,9 @@ start_containers_for_user() {
     uid=$(id -u "$user")
     local user_sock="/run/user/$uid/podman/podman.sock"
     [ -S "$user_sock" ] || { echo -e "\e[38;5;214m[!]\e[0m $user: no active podman socket at $user_sock, skipping"; return; }
-    start_containers_for_socket "$user_sock" "$user" "$results_file"    
+    local -a NEEDED_CONTAINERS UNNEEDED_CONTAINERS
+    plan_conditional_containers "$user"
+    start_containers_for_socket "$user_sock" "$user" "$results_file" "${UNNEEDED_CONTAINERS[*]}"
     start_conditional_containers_for_user "$user" "$user_sock" "$results_file"
 }
 
@@ -532,6 +564,8 @@ restart_dead_user_containers() {
       export -f start_conditional_containers_for_user
       export -f podman_is_running
       export -f podman_ensure_running
+      export -f plan_conditional_containers account_age user_has_mysql_databases
+      export MYSQL_IDLE_GRACE
       printf '%s\n' "${USERS_TO_PROCESS[@]}" | xargs -I{} -P "$PARALLEL_JOBS" bash -c 'start_containers_for_user "$@"' _ {} "$RESULTS_FILE"
   fi
 
@@ -540,15 +574,22 @@ restart_dead_user_containers() {
   RESTART_USER_TOTAL=0
   RESTART_USER_LINES=()
   local label count
+  local -A per_user=()
+  local -a user_order=()
   while IFS=: read -r label count; do
       [[ -z "$label" ]] && continue
       if [[ "$label" == "root" ]]; then
           RESTART_ROOT_COUNT=$count
       else
           (( RESTART_USER_TOTAL += count ))
-          (( count > 0 )) && RESTART_USER_LINES+=("${label}: ${count}")
+          [[ -z "${per_user[$label]+x}" ]] && user_order+=("$label")
+          (( per_user[$label] += count ))
       fi
   done < "$RESULTS_FILE"
+  # a user can have a line from the sweep and one from the required containers, so sum them
+  for label in "${user_order[@]}"; do
+      (( per_user[$label] > 0 )) && RESTART_USER_LINES+=("${label}: ${per_user[$label]}")
+  done
   RESTART_EVENTS=$(cat "$RESULTS_FILE.events" 2>/dev/null)
   rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock" "$RESULTS_FILE.events"
 
