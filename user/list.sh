@@ -7,7 +7,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 24.09.2026
+# Last Modified: 08.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -154,6 +154,63 @@ get_quota_for_user() {
 
 require_command jq
 
+# colors only when printing to a terminal, so piped output stays plain
+use_color=false
+[ -t 1 ] && [ -z "${NO_COLOR:-}" ] && use_color=true
+RED=$'\033[31m'
+ORANGE=$'\033[38;5;208m'
+GREEN=$'\033[32m'
+NC=$'\033[0m'
+
+# red at 90%+ of the limit, orange at 80%+
+color_by_pct() {
+    local text="$1" pct="${2%%.*}"
+    [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
+    if [ "$use_color" = true ]; then
+        if [ "$pct" -ge 90 ]; then
+            text="${RED}${text}${NC}"
+        elif [ "$pct" -ge 80 ]; then
+            text="${ORANGE}${text}${NC}"
+        fi
+    fi
+    printf '%s' "$text"
+}
+
+# like column -t but ignores color codes when measuring width, and keeps empty cells
+print_table() {
+    shopt -s extglob
+    local -a widths=() cells=()
+    local row s cell plain i last
+    split_row() {
+        s="$1"; cells=()
+        while [[ "$s" == *$'\t'* ]]; do
+            cells+=("${s%%$'\t'*}")
+            s="${s#*$'\t'}"
+        done
+        cells+=("$s")
+    }
+    for row in "$@"; do
+        split_row "$row"
+        for i in "${!cells[@]}"; do
+            plain="${cells[$i]//$'\033'\[*([0-9;])m/}"
+            (( ${#plain} > ${widths[$i]:-0} )) && widths[$i]=${#plain}
+        done
+    done
+    for row in "$@"; do
+        split_row "$row"
+        last=$(( ${#cells[@]} - 1 ))
+        for i in "${!cells[@]}"; do
+            cell="${cells[$i]}"
+            if [ "$i" -eq "$last" ]; then
+                printf '%s\n' "$cell"
+            else
+                plain="${cell//$'\033'\[*([0-9;])m/}"
+                printf '%s%*s' "$cell" $(( widths[$i] - ${#plain} + 2 )) ""
+            fi
+        done
+    done
+}
+
 # queries users+plans (plus a separate per-user domain count, since joining "domains" directly would multiply the user row per domain), then augments each row with the live/on-disk info documented above
 print_users() {
     local rows
@@ -188,7 +245,7 @@ print_users() {
     server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 
     local -a json_objects=()
-    local table_header="USERNAME\tEMAIL\tSTATUS\tONLINE\t2FA\tIP ADDRESS\tPLAN\tDOMAINS\tRAM (used/allocated)\tCPU (used/allocated)\tDISK (used/allocated)\tINODES (used/allocated)\tNOTES"
+    local table_header=$'USERNAME\tEMAIL\tSTATUS\tONLINE\t2FA\tIP ADDRESS\tPLAN\tDOMAINS\tRAM (used/allocated)\tCPU (used/allocated)\tDISK (used/allocated)\tINODES (used/allocated)\tNOTES'
     local -a table_rows=()
 
     while IFS=$'\t' read -r username email owner context registered_date twofa plan_name cpu ram domains_count; do
@@ -318,21 +375,38 @@ print_users() {
             )")
         else
             local status_label="Active"
-            [ "$suspended" = true ] && status_label="Suspended"
+            if [ "$suspended" = true ]; then
+                status_label="Suspended"
+                [ "$use_color" = true ] && status_label="${RED}Suspended${NC}"
+            fi
             local online_label="No"
-            [ "$online" = true ] && online_label="Yes"
+            if [ "$online" = true ]; then
+                online_label="Yes"
+                [ "$use_color" = true ] && online_label="${GREEN}●${NC} Yes"
+            fi
             local notes_display="${notes//$'\n'/ }"
-            table_rows+=("$plain\t$email\t$status_label\t$online_label\t$twofa_label\t$ip_label\t$plan_name\t${domains_count:-0}\t$ram_used/$ram_alloc\t$cpu_used/$cpu_alloc\t$disk_used/$disk_hard\t$inodes_used/$inodes_hard\t$notes_display")
+
+            # unlimited allocations stay at 0% so they never get colored
+            local ram_pct=0 cpu_alloc_pct=0 disk_pct=0 inodes_pct=0
+            [ "$ram_alloc" != "Unlimited" ] && ram_pct="$mem_pct"
+            [ "$cpu_alloc" != "Unlimited" ] && cpu_alloc_pct="$cpu_pct"
+            [ "${disk_hard_kb%%.*}" -gt 0 ] 2>/dev/null && disk_pct=$(( ${disk_used_kb%%.*} * 100 / ${disk_hard_kb%%.*} ))
+            [ "${inodes_hard_n%%.*}" -gt 0 ] 2>/dev/null && inodes_pct=$(( ${inodes_used_n%%.*} * 100 / ${inodes_hard_n%%.*} ))
+
+            local ram_cell cpu_cell disk_cell inodes_cell
+            ram_cell=$(color_by_pct "$ram_used/$ram_alloc" "$ram_pct")
+            cpu_cell=$(color_by_pct "$cpu_used/$cpu_alloc" "$cpu_alloc_pct")
+            disk_cell=$(color_by_pct "$disk_used/$disk_hard" "$disk_pct")
+            inodes_cell=$(color_by_pct "$inodes_used/$inodes_hard" "$inodes_pct")
+
+            table_rows+=("$plain"$'\t'"$email"$'\t'"$status_label"$'\t'"$online_label"$'\t'"$twofa_label"$'\t'"$ip_label"$'\t'"$plan_name"$'\t'"${domains_count:-0}"$'\t'"$ram_cell"$'\t'"$cpu_cell"$'\t'"$disk_cell"$'\t'"$inodes_cell"$'\t'"$notes_display")
         fi
     done <<< "$rows"
 
     if [ "$json_output" = true ]; then
         printf '%s\n' "${json_objects[@]}" | jq -s '{data: ., metadata: {result: "ok"}}'
     else
-        {
-            printf '%b\n' "$table_header"
-            printf '%b\n' "${table_rows[@]}"
-        } | column -t -s $'\t'
+        print_table "$table_header" "${table_rows[@]}"
     fi
 }
 
