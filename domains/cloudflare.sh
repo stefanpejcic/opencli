@@ -174,11 +174,18 @@ update_cloudflare_template() {
         echo "  $ip"
     done
 
-    IPS=$(printf '%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" | sed '/^[[:space:]]*$/d')
+    # screenshots and temporary links services fetch sites from the api.openpanel.com box
+    OP_IPS=$(getent ahosts api.openpanel.com 2>/dev/null | awk '{print $1}' | sort -u)
+    [[ -z "$OP_IPS" ]] && OP_IPS="185.119.90.100"
+    echo "Allowing OpenPanel API IPs:"
+    echo "$OP_IPS" | sed 's/^/  /'
+
+    IPS=$(printf '%s\n%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" "$OP_IPS" | sed '/^[[:space:]]*$/d')
 
     {
         echo '# opencli domains-cloudflare'
         echo '(cloudflare-only) {'
+        echo '    # cloudflare ranges + openpanel api (screenshots, temporary links)'
         echo '    @not_cloudflare {'
         echo '        not remote_ip \'
 
@@ -330,7 +337,8 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
                         echo "Cloudflare-only template missing. Generating it before enabling..."
                         update_cloudflare_template
                     # old snippets used a plain respond that never blocked
-                    elif ! grep -q 'route @not_cloudflare' "$OUTPUT"; then
+                    # or lack the openpanel api ip so screenshots and temporary links got 403
+                    elif ! grep -q 'route @not_cloudflare' "$OUTPUT" || ! grep -q 'openpanel api' "$OUTPUT"; then
                         echo "Cloudflare-only template is outdated. Regenerating it before enabling..."
                         update_cloudflare_template
                     fi
