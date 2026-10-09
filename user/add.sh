@@ -77,23 +77,28 @@ cleanup() {
 }
 
 hard_cleanup() {
-	[[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1; }
+    [[ -n "$USERNAME" ]] || { echo "ERROR: USERNAME is empty"; return 1; }
+    local uid
+    uid="$(id -u "$USERNAME" 2>/dev/null)" || return 0
+    [[ "$uid" =~ ^[0-9]+$ ]] || return 1
 
-	# kill processes
-    killall -u "${USERNAME}" -9 >/dev/null 2>&1 || true
+    # stop the manager properly so linger doesn't respawn it
+    loginctl disable-linger "$USERNAME" >/dev/null 2>&1
+    systemctl stop "user@${uid}.service" >/dev/null 2>&1
+    loginctl terminate-user "$USERNAME" >/dev/null 2>&1
+    pkill -9 -U "$uid" >/dev/null 2>&1 || true
+    sleep 1
 
-	# delete user on master
     if command -v deluser >/dev/null 2>&1; then
-        deluser --remove-home "$USERNAME" # Debian
-    elif command -v userdel >/dev/null 2>&1; then
-        userdel -r "$USERNAME"            # RHEL
+        deluser --remove-home "$USERNAME"
     else
-        echo "ERROR: Neither deluser nor userdel found"
+        userdel -r "$USERNAME"
     fi
 
-	# delete openpanel and podman files
-    rm -rf /etc/openpanel/openpanel/core/users/"$USERNAME" > /dev/null 2>&1
-	rm -rf /run/user/$(id -u $USERNAME)/ > /dev/null 2>&1
+    rm -rf "/etc/openpanel/openpanel/core/users/${USERNAME}"
+    rm -rf "/run/user/${uid}"                           # uid captured BEFORE delete, never empty
+    rm -rf "/etc/systemd/system/user-${uid}.slice.d"
+    systemctl daemon-reload >/dev/null 2>&1
 }
 
 trap cleanup EXIT
