@@ -203,9 +203,8 @@ EOF
 
     # Bandwidth (Port Speed)
     if ! $partial || $donet; then
-        [ -d "/home/$context" ] && cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
-
-        # bandwidth shaping used to nsenter into rootless dockerd's netns and apply tc there -- no podman equivalent exists yet (same issue as docker/collect_stats.sh), needs a fresh design so it's stripped for now
+        #[ -d "/home/$context" ] && cd "/home/$context" && podman_compose_user "${username}" up --no-start --pull never 2>/dev/null
+        # bandwidth shaping used to nsenter into rootless dockerd's netns and apply tc there -- no podman equivalent exists yet
         echo "- Bandwidth:[WARN]   Bandwidth limiting is not implemented yet under podman."
     fi
 done
