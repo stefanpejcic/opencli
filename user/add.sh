@@ -270,7 +270,7 @@ autostart_services() {
     [[ -f "$AUTOSTART_FILE" ]] || { echo "[!] Warning: $AUTOSTART_FILE not found; skipping image pull."; return 1; }
 
     local autostart
-    mapfile -t autostart < <(grep -v '^\s*#' "$AUTOSTART_FILE" | grep -v '^\s*$')
+	mapfile -t autostart < <(tr -d '\r' < "$AUTOSTART_FILE" | grep -v '^\s*#' | grep -v '^\s*$')
 
     local images=()
     local ols_ws=false
