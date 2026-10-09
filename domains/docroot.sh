@@ -110,7 +110,8 @@ make_folder() {
   newnew_docroot="/home/${context}/docker-data/volumes/${context}_html_data/_data/${folder_name}"
   log "Creating document root directory $new_docroot"
   mkdir -p "$newnew_docroot"
-  chown "$user:$user" "$newnew_docroot"
+  uid=$(stat -c '%u' "/home/$user")
+  chown "$uid:$uid" "$newnew_docroot"
 }
 
 get_webserver_for_user(){
