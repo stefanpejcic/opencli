@@ -370,6 +370,10 @@ install_mailserver(){
 		fi
 	done
 
+	# https://github.com/stefanpejcic/OpenPanel/discussions/1186
+	mkdir -p /usr/local/mail/openmail/docker-data/dms/config/
+	mv /usr/local/mail/openmail/dovecot.cf /usr/local/mail/openmail/docker-data/dms/config/dovecot.cf 
+	
 	set_ssl_for_mailserver
 	run mkdir -p /etc/openpanel/email/snappymail
 	ln -sf "$MAILSERVER_ENV" /usr/local/mail/openmail/.env
