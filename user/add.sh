@@ -719,14 +719,16 @@ configure_environment
 ########################################################################
 # 6. validate podman service is started for user (socket exists), compose command and context are working
 test_podman_service
-autostart_services
 
 ########################################################################
 # 8. save and notify
 save_user_to_database
 
 # needs to run AFTER saving user to database
-nohup opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1 &
+opencli plan-apply "$PLAN_ID" "$USERNAME" >/dev/null 2>&1
+
+# apply limits first, then start containers
+autostart_services
 
 # this needs to run AFTER plan-apply to show updated du info
 nohup opencli user-quota >/dev/null 2>&1 &
