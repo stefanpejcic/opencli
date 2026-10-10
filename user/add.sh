@@ -286,7 +286,7 @@ autostart_services() {
         [[ "$svc" == php-fpm-* || "$svc" == varnish ]] && continue        # only current default php version and varnish if enabled
         images+=("$svc")
     done
-    [[ ${#images[@]} -eq 0 ]] && { echo "[!] Warning: No autostart services match user config."; return 1; }
+    [[ ${#images[@]} -eq 0 ]] && return 1;
 	log "Starting services in background: ${images[*]}"
 	# a fresh subshell doesn't inherit lib/podman.sh's functions, so the socket is inlined directly
 	local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
