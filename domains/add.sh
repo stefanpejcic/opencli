@@ -889,6 +889,12 @@ create_mail_mountpoint() {
         volume_to_add="      - $domain_dir:/var/mail/$domain_name/"
     fi
 
+	# volume dir must belong to the user, else rootless podman can't create the mail_data volume (backup container fails)
+	# -h: chown the symlinks themselves, never the mail store they point to
+	local mail_uid
+	mail_uid=$(stat -c '%u' "/home/$context" 2>/dev/null) || true
+	[[ -n "$mail_uid" ]] && chown -R -h "$mail_uid:$mail_uid" "/home/$context/docker-data/volumes/${context}_mail_data" 2>/dev/null || true
+
     if grep -qF "$volume_to_add" "$compose_file"; then
         return
     fi
