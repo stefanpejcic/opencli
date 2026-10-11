@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: backup.sh
 # Description: Generates a backup for all users.
-# Usage: opencli docker-backup
+# Usage: opencli docker-backup [--parallel=N]
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 07.10.2026
+# Last Modified: 11.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -33,9 +33,21 @@ readonly LOG_FILE="/var/log/openpanel/admin/docker-backup.log"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 
+# number of users backed up at the same time (each user has its own podman context)
+# default: one backup per 4 CPU cores (gzip + upload per backup), at least 1, at most the number of users
+PARALLEL=""
+for arg in "$@"; do
+    case "$arg" in
+        --parallel=*) PARALLEL="${arg#*=}" ;;
+        *) echo "Usage: opencli docker-backup [--parallel=N]"; exit 1 ;;
+    esac
+done
+[[ -z "$PARALLEL" || "$PARALLEL" =~ ^[1-9][0-9]*$ ]] || { echo "--parallel must be a positive number"; exit 1; }
+
+# parallel workers write to their own file (USER_LOG_FILE), appended to LOG_FILE when the user is done
 log() {
     local message="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
 }
 
 # --no-deps since we start docker-proxy ourselves, otherwise podman-compose run can tear down the whole stack (mariadb included)
@@ -70,7 +82,7 @@ wait_for_proxy_ready() {
     done
 
     log "ERROR: docker-proxy not ready for context: $context within ${DOCKER_PROXY_WAIT_SECS}s"
-    podman_ctx "$context" logs --tail 20 docker-proxy 2>&1 | tee -a "$LOG_FILE"
+    podman_ctx "$context" logs --tail 20 docker-proxy 2>&1 | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
     return 1
 }
 
@@ -83,7 +95,7 @@ ensure_docker_proxy_running() {
         local start_output start_exit
         start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
         start_exit=$?
-        echo "$start_output" | tee -a "$LOG_FILE"
+        echo "$start_output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
 
         if [ $start_exit -ne 0 ]; then
             log "ERROR: failed to start docker-proxy for context: $context | exit code: $start_exit"
@@ -118,7 +130,7 @@ run_for_user() {
     duration=$((end_user_time - start_user_time))
 
     log "--- backup container output for user: $username ---"
-    echo "$backup_output" | tee -a "$LOG_FILE"
+    echo "$backup_output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
     log "--- end of backup container output for user: $username ---"
 
     local down_output down_exit
@@ -126,7 +138,7 @@ run_for_user() {
     down_exit=$?
     if [ $down_exit -ne 0 ]; then
         log "WARNING: failed to bring down backup service for user: $username (context: $context) | exit code: $down_exit"
-        echo "$down_output" | tee -a "$LOG_FILE"
+        echo "$down_output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
     fi
 
     if [ $backup_exit -ne 0 ]; then
@@ -177,17 +189,52 @@ process_all_users() {
     
     user_count=$(echo "$users" | wc -w)
     log "Found $user_count active users to process"
+
+    if [[ -z "$PARALLEL" ]]; then
+        PARALLEL=$(( $(nproc) / 4 ))
+        (( PARALLEL < 1 )) && PARALLEL=1
+    fi
+    (( PARALLEL > user_count )) && PARALLEL=$user_count
     
-    for user in $users; do
-        log "Processing user: $user ($current_index/$user_count)"
-        
-        if ! process_user "$user"; then
-            failed_users+=("$user")
-        fi
-        
-        log "------------------------------"
-        ((current_index++))
-    done
+    if (( PARALLEL <= 1 )); then
+        for user in $users; do
+            log "Processing user: $user ($current_index/$user_count)"
+
+            if ! process_user "$user"; then
+                failed_users+=("$user")
+            fi
+
+            log "------------------------------"
+            ((current_index++))
+        done
+    else
+        log "Running up to $PARALLEL user backups in parallel"
+        local tmpdir pid
+        tmpdir=$(mktemp -d)
+        declare -A pid_user=()
+
+        # wait for one worker, append its log in one piece, record failure
+        reap_one() {
+            local done_pid status
+            wait -n -p done_pid "${!pid_user[@]}"
+            status=$?
+            local u="${pid_user[$done_pid]}"
+            cat "$tmpdir/$u.log" >> "$LOG_FILE"
+            echo "$(date '+%Y-%m-%d %H:%M:%S') : ------------------------------" >> "$LOG_FILE"
+            (( status != 0 )) && failed_users+=("$u")
+            unset "pid_user[$done_pid]"
+        }
+
+        for user in $users; do
+            while (( ${#pid_user[@]} >= PARALLEL )); do reap_one; done
+            log "Processing user: $user ($current_index/$user_count)"
+            ( USER_LOG_FILE="$tmpdir/$user.log" process_user "$user" ) >/dev/null 2>&1 &
+            pid_user[$!]="$user"
+            ((current_index++))
+        done
+        while (( ${#pid_user[@]} > 0 )); do reap_one; done
+        rm -rf "$tmpdir"
+    fi
 
     end_time=$(date +%s)
     total_duration=$((end_time - start_time))
