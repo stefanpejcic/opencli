@@ -275,6 +275,7 @@ create_dns_zone_for_domain(){
 	ns2=$(get_config_value 'ns2')
 	ns3=$(get_config_value 'ns3')
 	rpemail=$(get_config_value 'email')
+	rpemail="${rpemail%%,*}" # SOA takes one address, email can be a comma list
 	
 	ns1=${ns1:-ns1.openpanel.org}
 	ns2=${ns2:-ns2.openpanel.org}

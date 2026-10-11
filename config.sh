@@ -118,9 +118,11 @@ case "$command" in
         
         case "$param_name" in
             email)
-                # email also needs the CSF conf updated
-                if [[ "$new_value" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-                    sed -i "s/LF_ALERT_TO = \"\"/LF_ALERT_TO = \"$new_value\"/" /etc/csf/csf.conf
+                # email also needs the CSF conf updated, CSF takes one address so use the first one from a comma list
+                first_email="${new_value%%,*}"
+                first_email="${first_email//[[:space:]]/}"
+                if [[ "$first_email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+                    sed -i "s/LF_ALERT_TO = \"\"/LF_ALERT_TO = \"$first_email\"/" /etc/csf/csf.conf
                 fi
                 ;;
         esac
