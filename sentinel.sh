@@ -72,6 +72,8 @@ ini_get()  { awk -F= "/^${1}=/{print \$2; exit}" "$INI_FILE"  2>/dev/null; }
 
 validate_yes_no() { [[ "$1" == "yes" || "$1" == "no" ]] && echo "$1" || echo "yes"; }
 validate_number() { [[ "$1" =~ ^([1-9][0-9]?|100)$ ]] && echo "$1" || echo "$2"; }
+# connection limits go past 100 so they can't use validate_number
+validate_count()  { [[ "$1" =~ ^[1-9][0-9]{0,6}$ ]] && echo "$1" || echo "$2"; }
 
 EMAIL=$(conf_get email)
 EMAIL_ALERT=$([[ -n "$EMAIL" ]] && echo "yes" || echo "no")
@@ -86,8 +88,8 @@ SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,podman,mysql,csf,panel
 
 LIMIT=$(validate_yes_no "$(ini_get limit)")
 ATTACK=$(validate_yes_no "$(ini_get attack)")
-MAX_TOTAL_CONN=$(validate_number "$(ini_get max_total_conn)"   5000)
-MAX_CONN_PER_IP=$(validate_number "$(ini_get max_conn_per_ip)" 500)
+MAX_TOTAL_CONN=$(validate_count "$(ini_get max_total_conn)"   5000)
+MAX_CONN_PER_IP=$(validate_count "$(ini_get max_conn_per_ip)" 500)
 
 LOAD_THRESHOLD=$(validate_number "$(ini_get load)" 20)
 CPU_THRESHOLD=$(validate_number  "$(ini_get cpu)"  90)
@@ -189,7 +191,12 @@ webhook_notification() {
   local payload
   payload=$(jq -nc --arg t "$title" --arg m "$message" --arg u "OpenAdmin-$HOSTNAME" \
     '{text: "*\($t)*\n\($m)", username: $u, content: ("**\($t)**\n\($m)" | if length > 2000 then .[:1997] + "..." else . end)}')
-  curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 5 "$WEBHOOK_URL" >/dev/null 2>&1
+  # webhook_url can hold several URLs separated by spaces
+  local url urls
+  read -ra urls <<< "$WEBHOOK_URL"
+  for url in "${urls[@]}"; do
+    curl -X POST -H "Content-Type: application/json" -d "$payload" --max-time 5 "$url" >/dev/null 2>&1
+  done
 }
 
 email_notification() {
@@ -1660,18 +1667,27 @@ write_snapshot() {
   local dt=$(( t2 - t1 ))
   (( dt > 0 )) && cpu_pct=$(( 100 * (dt - (c2[4]-c1[4])) / dt ))
 
-  local total_conn=0
-  total_conn=$(ss -tn '( sport = :80 or sport = :443 )' 2>/dev/null | grep -c ESTAB || true)
+  # web_conn_ip is the busiest IP on one port, counted the same way as the per-IP traffic check
+  local web_estab total_conn=0 web_conn_ip=0
+  web_estab=$(ss -tn '( sport = :80 or sport = :443 )' 2>/dev/null | awk '$1=="ESTAB"')
+  if [[ -n "$web_estab" ]]; then
+    total_conn=$(wc -l <<< "$web_estab")
+    web_conn_ip=$(awk '{
+      n = split($4, a, ":"); port = a[n]
+      peer = $5; sub(/:[0-9]+$/, "", peer); gsub(/[][]/, "", peer)
+      c[port " " peer]++
+    } END { m = 0; for (k in c) if (c[k] > m) m = c[k]; print m }' <<< "$web_estab")
+  fi
 
   local json
   printf -v json \
-    '{"ts":"%s","load":{"1m":"%s","5m":"%s","15m":"%s"},"cpu_pct":%d,"mem":{"total_mb":%d,"used_mb":%d,"pct":%d},"swap":{"total_mb":%d,"used_mb":%d,"pct":%d},"disk_pct":%d,"web_conn":%d,"status":%d,"pass":%d,"warn":%d,"fail":%d}' \
+    '{"ts":"%s","load":{"1m":"%s","5m":"%s","15m":"%s"},"cpu_pct":%d,"mem":{"total_mb":%d,"used_mb":%d,"pct":%d},"swap":{"total_mb":%d,"used_mb":%d,"pct":%d},"disk_pct":%d,"web_conn":%d,"web_conn_ip":%d,"status":%d,"pass":%d,"warn":%d,"fail":%d}' \
     "$DISPLAY_TIME" "$load_1m" "$load_5m" "$load_15m" \
     "$cpu_pct" \
     "$mem_total" "$mem_used" "$mem_pct" \
     "$swap_total" "$swap_used" "$swap_pct" \
     "$disk_pct" \
-    "$total_conn" \
+    "$total_conn" "$web_conn_ip" \
     "$STATUS" "$PASS" "$WARN" "$FAIL"
 
   local utc_json

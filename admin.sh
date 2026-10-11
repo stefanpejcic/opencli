@@ -105,6 +105,7 @@ usage() {
     echo "  opencli admin notifications update du 99"
     echo "  opencli admin notifications update swap 95"
     echo "  opencli admin notifications update webhook_url https://discord.com/api/webhooks/XXXX/YYYYYYY"
+    echo "  opencli admin notifications update webhook_url \"https://discord.com/api/webhooks/XXXX/YYYYYYY https://hooks.slack.com/services/XXX\""
     exit 1
 }
 
@@ -244,7 +245,10 @@ update_config() {
     new_value="$2"
 
     if grep -q "^$param_name=" "$notifications_file"; then
-		sed -i "s|^$param_name=.*|$param_name=$new_value|" "$notifications_file"
+		# escape sed specials so & or | in a webhook URL don't mangle the value
+		local escaped_value
+		escaped_value=$(printf '%s' "$new_value" | sed -e 's/[\\&|]/\\&/g')
+		sed -i "s|^$param_name=.*|$param_name=$escaped_value|" "$notifications_file"
         echo "Updated $param_name to $new_value"
         
     else
