@@ -416,6 +416,9 @@ plan_conditional_containers() {
     # backup if backup.env has any active remote backup config
     [[ -f "$home/backup.env" ]] && grep -qE '^(WEBDAV_URL|AWS_S3_BUCKET_NAME|SSH_HOST_NAME|AZURE_STORAGE_ACCOUNT_NAME|DROPBOX_REMOTE_PATH)=' "$home/backup.env" && backup_needed=1
 
+    # admin managed backups run centrally via opencli docker-backup, the user's own backup daemon would only double them
+    [[ -f "/etc/openpanel/openpanel/core/users/$user/admin.backups" ]] && backup_needed=0
+
     # https://github.com/stefanpejcic/OpenPanel/issues/1132
     # docker-proxy goes first when starting and last when stopping, cron and backup talk to podman through it
     (( cron_needed || backup_needed )) && NEEDED_CONTAINERS+=(docker-proxy)
