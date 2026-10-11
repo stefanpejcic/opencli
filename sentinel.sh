@@ -453,8 +453,15 @@ start_conditional_containers_for_user() {
     local home="/home/$user"
     local svc
 
+    # central opencli docker-backup in progress, it starts docker-proxy before its one-off backup container exists
+    local central_backup=0
+    pgrep -f '/usr/local/opencli/docker/[b]ackup\.sh' >/dev/null && central_backup=1
+
     for svc in "${UNNEEDED_CONTAINERS[@]}"; do
         CONTAINER_HOST="unix://$user_sock" podman_is_running "$svc" || continue
+        if (( central_backup )) && [[ "$svc" == docker-proxy || "$svc" == backup ]]; then
+            continue
+        fi
         # docker-backup starts docker-proxy itself and runs backup as a one-off container, don't pull it out from under that
         if [[ "$svc" == docker-proxy ]] && [[ -n "$(CONTAINER_HOST="unix://$user_sock" timeout 10 podman ps --filter name=backup --format '{{.Names}}' 2>/dev/null)" ]]; then
             continue
