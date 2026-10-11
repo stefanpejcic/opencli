@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: backup.sh
 # Description: Generates a backup for all users.
-# Usage: opencli docker-backup [--parallel=N]
+# Usage: opencli docker-backup [--parallel=N]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic
 # Created: 22.07.2025
 # Last Modified: 11.10.2026
@@ -106,14 +106,18 @@ ensure_docker_proxy_running() {
     wait_for_proxy_ready "$context"
 }
 
-run_for_user() {
-    local username="$1"
+# podman context (users.server) of a user, defaults to the username
+get_context() {
+    local username="$1" ctx
     source /usr/local/opencli/db.sh
     username_query="SELECT server FROM users WHERE username = '$(mysql_escape "$username")'"
-    context=$(mariadb -D "$mysql_database" -e "$username_query" -sN)
-    if [ -z "$context" ]; then
-        context=$username
-    fi
+    ctx=$(mariadb -D "$mysql_database" -e "$username_query" -sN)
+    echo "${ctx:-$username}"
+}
+
+run_for_user() {
+    local username="$1"
+    context=$(get_context "$username")
 
     cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
 
@@ -187,6 +191,24 @@ process_all_users() {
         return 1
     fi
     
+    # users can be excluded with /home/<context>/backup.off
+    local user ctx kept=() skipped_users=()
+    for user in $users; do
+        ctx=$(get_context "$user")
+        if [[ -e "/home/$ctx/backup.off" ]]; then
+            skipped_users+=("$user")
+            log "Skipping user: $user (/home/$ctx/backup.off exists)"
+        else
+            kept+=("$user")
+        fi
+    done
+    users="${kept[*]}"
+    (( ${#skipped_users[@]} )) && log "Skipped ${#skipped_users[@]} users with backup.off: ${skipped_users[*]}"
+    if (( ${#kept[@]} == 0 )); then
+        log "No users to back up (all have backup.off)"
+        return 0
+    fi
+
     user_count=$(echo "$users" | wc -w)
     log "Found $user_count active users to process"
 
