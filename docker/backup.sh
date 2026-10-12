@@ -5,7 +5,7 @@
 # Usage: opencli docker-backup [--parallel=N]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 11.10.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -151,6 +151,21 @@ run_for_user() {
     fi
 
     log "Backup completed for user: $username (context: $context) | Time taken: ${duration}s"
+    reindex_user "$username" "$context"
+}
+
+# rebuild the user's /backups/list index so the new backup shows up without a manual reindex
+reindex_user() {
+    local username="$1" context="$2" reindex_output
+    if ! podman container exists openpanel || [[ "$(podman inspect -f '{{.State.Running}}' openpanel 2>/dev/null)" != "true" ]]; then
+        log "WARNING: openpanel container is not running, skipped backups reindex for user: $username"
+        return 0
+    fi
+    if reindex_output=$(podman exec openpanel /openpanel backups-reindex "$context" 2>&1); then
+        log "Backups reindexed for user: $username"
+    else
+        log "WARNING: backups reindex failed for user: $username | $reindex_output"
+    fi
 }
 
 process_user() {
