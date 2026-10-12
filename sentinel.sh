@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: sentinel.sh
 # Description: Check system services, traffic and resource usage, and log/send custom notifications on request.
-# Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg>]
+# Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 08.10.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -249,7 +249,7 @@ write_notification() {
 
 # user actions logged by other opencli commands via --action, only if the admin enabled that action
 write_action_notification() {
-  local action="$1" title="$2" message="$3"
+  local action="$1" title="$2" message="$3" severity="${4:-info}" details="$5" merge_key="$6" no_send="$7"
   title_snoozed "$title" && { echo "[!] This alert is snoozed: $title"; return; }
   [[ -n "$RUN_ACTION_LOCKED" ]] && return
   export RUN_ACTION_LOCKED=1
@@ -258,8 +258,13 @@ write_action_notification() {
   if [[ "$ACTION" == "no" ]]; then
     echo "[!] Notifications are disabled for action: $action"; return
   fi
-  notification_add no unread info action "$action" "$title" "$message" "$(jq -nc --arg a "$action" '{action: $a}')"
-  send_notification info "$title" "$message"
+  jq -e 'type == "object"' >/dev/null 2>&1 <<< "$details" || details='{}'
+  details=$(jq -c --arg a "$action" '. + {action: $a}' <<< "$details")
+  # same merge key value as an earlier entry means it's an update to that one, e.g. a scan that finished
+  if [[ -z "$merge_key" ]] || ! notification_merge "$merge_key" "$severity" "$title" "$message" "$details"; then
+    notification_add no unread "$severity" action "$action" "$title" "$message" "$details"
+  fi
+  [[ -n "$no_send" ]] || send_notification "$severity" "$title" "$message"
 }
 
 # for things sentinel already fixed on its own: kept on the Notifications page as history, no email/webhook, repeats within 24h bump one entry
@@ -1736,11 +1741,16 @@ for arg in "$@"; do
     --action=*) action="${arg#*=}" ;;
     --message=*) message="${arg#*=}" ;;
     --title=*) title="${arg#*=}";;
+    --severity=*) severity="${arg#*=}" ;;
+    --details=*) details="${arg#*=}" ;;
+    --merge-key=*) merge_key="${arg#*=}" ;;
+    --no-send) no_send=1 ;;
   esac
 done
 
 if [[ -n "$action" ]]; then
-  write_action_notification "$action" "$title" "$message"
+  [[ "$severity" =~ ^(info|warning|critical)$ ]] || severity=info
+  write_action_notification "$action" "$title" "$message" "$severity" "$details" "$merge_key" "$no_send"
   exit 0
 fi
 

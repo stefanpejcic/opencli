@@ -106,6 +106,29 @@ notification_add() {
   (( added ))
 }
 
+# rewrites the entry whose details.<key> matches the new details, so a later event updates the earlier one instead of stacking
+# returns 1 when there was nothing to merge into
+# usage: notification_merge <key> <severity> <title> <message> <details json>
+notification_merge() {
+  local key="$1" severity="$2" title="$3" message="$4" details="$5"
+  jq -e . >/dev/null 2>&1 <<< "$details" || return 1
+  local value; value=$(jq -r --arg k "$key" '.[$k] // empty' <<< "$details")
+  [[ -n "$value" ]] || return 1
+  _notifications_init
+  local now; now=$(date '+%Y-%m-%d %H:%M:%S')
+  local cond='(.details | type) == "object" and .details[$k] == $v'
+  local merged=0
+  {
+    flock -x 200
+    if (( $(_notifications_count "$cond" --arg k "$key" --arg v "$value") > 0 )); then
+      _notifications_update "$cond" '.title = $t | .message = $m | .severity = $s | .status = "unread" | .last_seen = $now | .details = (.details + $d)' \
+        --arg k "$key" --arg v "$value" --arg t "$title" --arg m "$message" --arg s "$severity" --arg now "$now" --argjson d "$details"
+      merged=1
+    fi
+  } 200>"$NOTIFICATIONS_LOCK"
+  (( merged ))
+}
+
 # marks unread entries with this title as read and resolved, --prefix matches titles with dynamic parts
 # prints the time the oldest of them was first seen, returns 1 if nothing matched
 notification_resolve() {

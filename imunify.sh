@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
-# Last Modified: 21.08.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -60,13 +60,137 @@ EOF
   chmod +x "$PANEL_INFO_SH"
 }
 
+IAV_HOOK="/etc/sysconfig/imunify360/iav_hook.sh"
+IAV_SPOOL="/var/spool/openpanel-imunify"
+IAV_UNIT="openpanel-imunify-notify"
+
+# imunify runs the hook as _imunify which can't use opencli, so it spools the event and a root path unit picks it up
+configure_av_hook() {
+  mkdir -p "$IAV_SPOOL/tmp" "$IAV_SPOOL/new"
+  chown -R _imunify:root "$IAV_SPOOL"
+  chmod -R 0700 "$IAV_SPOOL"
+
+  cat > "$IAV_HOOK" <<EOT
+#!/bin/bash
+tmp=\$(mktemp "$IAV_SPOOL/tmp/XXXXXX") || exit 1
+cat > "\$tmp" && mv "\$tmp" "$IAV_SPOOL/new/\${tmp##*/}.json"
+EOT
+  chmod 0755 "$IAV_HOOK"
+
+  cat > "/etc/systemd/system/$IAV_UNIT.path" <<EOT
+[Unit]
+Description=Pass ImunifyAV scan events to OpenPanel Sentinel
+
+[Path]
+DirectoryNotEmpty=$IAV_SPOOL/new
+
+[Install]
+WantedBy=multi-user.target
+EOT
+
+  cat > "/etc/systemd/system/$IAV_UNIT.service" <<EOT
+[Unit]
+Description=Pass ImunifyAV scan events to OpenPanel Sentinel
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/opencli imunify notify
+EOT
+
+  systemctl daemon-reload
+  systemctl enable --now "$IAV_UNIT.path"
+
+  local rule
+  # finished already carries the malicious files, so malware found would only duplicate it
+  for rule in USER_SCAN_MALWARE_FOUND CUSTOM_SCAN_MALWARE_FOUND; do
+    imunify-antivirus notifications-config update "{\"rules\": {\"$rule\": {\"SCRIPT\": {\"enabled\": false}}}}"
+  done
+  for rule in USER_SCAN_STARTED CUSTOM_SCAN_STARTED USER_SCAN_FINISHED CUSTOM_SCAN_FINISHED; do
+    imunify-antivirus notifications-config update "{\"rules\": {\"$rule\": {\"SCRIPT\": {\"scripts\": [\"$IAV_HOOK\"], \"enabled\": true}}}}"
+  done
+}
+
+# 75 -> 1m 15s
+human_duration() {
+  local s="$1"
+  if (( s < 60 )); then echo "${s}s"
+  elif (( s < 3600 )); then echo "$((s / 60))m $((s % 60))s"
+  else echo "$((s / 3600))h $((s % 3600 / 60))m"
+  fi
+}
+
+# opencli imunify notify
+notify_av() {
+  local files=("$IAV_SPOOL"/new/*)
+  [[ -f "${files[0]}" ]] || return 0
+
+  # one event per scan, a finished one wins over started in case both landed in the same batch
+  local events
+  events=$(jq -sc 'map(select(.scan_id)) | group_by(.scan_id)[]
+    | (map(select(.event_id | endswith("SCAN_FINISHED"))) | first) // (map(select(.event_id | endswith("SCAN_STARTED"))) | first) // empty' "${files[@]}" 2>/dev/null)
+  rm -f "${files[@]}"
+
+  local ev event scan_id path user kind started completed files_count malicious error
+  local title message severity details no_send duration list
+  while IFS= read -r ev; do
+    [[ -n "$ev" ]] || continue
+    event=$(jq -r '.event_id' <<< "$ev")
+    scan_id=$(jq -r '.scan_id' <<< "$ev")
+    path=$(jq -r '.path // ""' <<< "$ev")
+    started=$(jq -r '.started // 0 | floor' <<< "$ev")
+    completed=$(jq -r '.completed // 0 | floor' <<< "$ev")
+    files_count=$(jq -r '.total_resources // 0' <<< "$ev")
+    malicious=$(jq -r '.total_malicious // 0' <<< "$ev")
+    error=$(jq -r '.error // ""' <<< "$ev")
+
+    user=""
+    [[ "$path" =~ ^/home/([^/]+) ]] && user="${BASH_REMATCH[1]}"
+    kind="Malware scan"
+    [[ "$event" == CUSTOM_* ]] && kind="Custom malware scan"
+
+    severity=info
+    no_send=""
+    if [[ "$event" == *SCAN_STARTED ]]; then
+      title="ImunifyAV scan running${user:+: $user}"
+      message="$kind ($path) started at $(date -d "@$started" '+%H:%M:%S'). This notification will be updated when the scan finishes."
+      # only shown in the panel, email and webhook wait for the result
+      no_send="--no-send"
+    else
+      duration=$(human_duration $(( completed > started ? completed - started : 0 )))
+      if [[ -n "$error" ]]; then
+        severity=warning
+        title="ImunifyAV scan failed${user:+: $user}"
+        message="$kind ($path) stopped after $duration with error: $error"
+      elif (( malicious > 0 )); then
+        severity=warning
+        title="ImunifyAV found $malicious malicious file$( (( malicious > 1 )) && echo s)${user:+: $user}"
+        list=$(jq -r '.malicious_files // [] | .[:5] | join(", ")' <<< "$ev")
+        (( malicious > 5 )) && list+=" and $((malicious - 5)) more"
+        message="$kind ($path) checked $files_count files in $duration and found: $list. Review them in OpenAdmin > ImunifyAV."
+      else
+        title="ImunifyAV scan clean${user:+: $user}"
+        message="$kind ($path) checked $files_count files in $duration, no malware found."
+      fi
+    fi
+
+    details=$(jq -c --arg user "$user" --arg d "${duration:-}" '{scan_id, path, user: $user, files: .total_resources, malicious: .total_malicious,
+      duration: $d, malicious_files: ((.malicious_files // [])[:20]), state: (if (.event_id | endswith("STARTED")) then "running" else "finished" end)}' <<< "$ev")
+    opencli sentinel --action=imunify_scan --title="$title" --message="$message" --severity="$severity" --details="$details" --merge-key=scan_id $no_send
+    duration=""
+  done <<< "$events"
+}
+
+remove_av_hook() {
+  systemctl disable --now "$IAV_UNIT.path" 2>/dev/null
+  rm -f "/etc/systemd/system/$IAV_UNIT.path" "/etc/systemd/system/$IAV_UNIT.service"
+  systemctl daemon-reload
+  rm -rf "$IAV_SPOOL"
+}
+
 configure_av_limits_and_email() {
 
   echo "Configuring ImunifyAV notifications to use 'OpenAdmin > Settings > Notifications'..."
-  wget --timeout=5 --tries=3 --inet4-only -O /etc/sysconfig/imunify360/iav_hook.sh https://gist.githubusercontent.com/stefanpejcic/2318eae67c6833bb313eae7476aaa22f/raw/04bb0b6b4af7ff4515d17abaed891c50ff4f36d4/imav_email.sh
-  chmod +x /etc/sysconfig/imunify360/iav_hook.sh
-  imunify-antivirus notifications-config update '{"rules": {"USER_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/etc/sysconfig/imunify360/iav_hook.sh"], "enabled": true}}}}'
-  imunify-antivirus notifications-config update '{"rules": {"CUSTOM_SCAN_MALWARE_FOUND": {"SCRIPT": {"scripts": ["/etc/sysconfig/imunify360/iav_hook.sh"], "enabled": true}}}}'
+  configure_av_hook
 
 
   # https://docs.imunifyav.com/config_file_description/
@@ -85,9 +209,8 @@ configure_av_limits_and_email() {
   imunify-antivirus config update '{"RESOURCE_MANAGEMENT": {"ram_limit": 500}}'
   
   # cron
-  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"day_of_month": 1}}'
-  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"hour": 3}}'
-  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"interval": "none"}}'
+  # full scan on the 1st of every month at 3am
+  imunify-antivirus config update '{"MALWARE_SCAN_SCHEDULE": {"interval": "month", "day_of_month": 1, "hour": 3}}'
   imunify-antivirus config update '{"PERMISSIONS": {"allow_malware_scan": true}}'
 
   # exclude paths!
@@ -253,6 +376,7 @@ NEW_SERVICE='    {
 # ======================================================================
 # opencli imunify uninstall
 uninstall_av() {
+  remove_av_hook
   echo "Removing files and directories..."
   rm -rf /etc/sysconfig/imunify360/
   rm -f /etc/pam.d/imunify360-deny
@@ -352,6 +476,10 @@ case "$1" in
         ;;
     update)
         update_av
+        exit 0
+        ;;
+    notify)
+        notify_av
         exit 0
         ;;
     *)
