@@ -5,7 +5,7 @@
 # Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME [DOMAIN_NAME...]|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
-# Last Modified: 01.10.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -180,12 +180,20 @@ update_cloudflare_template() {
     echo "Allowing OpenPanel API IPs:"
     echo "$OP_IPS" | sed 's/^/  /'
 
-    IPS=$(printf '%s\n%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" "$OP_IPS" | sed '/^[[:space:]]*$/d')
+    # server's own ips so wp-cron, loopback and other local requests to its sites still work
+    SERVER_IPS=$( { curl --silent --max-time 3 -4 "https://ip.openpanel.com" 2>/dev/null || curl --silent --max-time 3 -4 "https://ifconfig.me/ip" 2>/dev/null; echo; hostname -I 2>/dev/null | tr ' ' '\n'; } \
+        | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[0-9a-fA-F:]*:[0-9a-fA-F:]+$' | grep -v '^fe80' | sort -u || true)
+    if [[ -n "$SERVER_IPS" ]]; then
+        echo "Allowing server IPs:"
+        echo "$SERVER_IPS" | sed 's/^/  /'
+    fi
+
+    IPS=$(printf '%s\n%s\n%s\n%s\n' "$CF_IPV4_RAW" "$CF_IPV6_RAW" "$OP_IPS" "$SERVER_IPS" | sed '/^[[:space:]]*$/d' | awk '!seen[$0]++')
 
     {
         echo '# opencli domains-cloudflare'
         echo '(cloudflare-only) {'
-        echo '    # cloudflare ranges + openpanel api (screenshots, temporary links)'
+        echo '    # cloudflare ranges + openpanel api (screenshots, temporary links) + server ip'
         echo '    @not_cloudflare {'
         echo '        not remote_ip \'
 
@@ -337,8 +345,8 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
                         echo "Cloudflare-only template missing. Generating it before enabling..."
                         update_cloudflare_template
                     # old snippets used a plain respond that never blocked
-                    # or lack the openpanel api ip so screenshots and temporary links got 403
-                    elif ! grep -q 'route @not_cloudflare' "$OUTPUT" || ! grep -q 'openpanel api' "$OUTPUT"; then
+                    # or lack the openpanel api ip so screenshots and temporary links got 403, or the server ip
+                    elif ! grep -q 'route @not_cloudflare' "$OUTPUT" || ! grep -q 'openpanel api' "$OUTPUT" || ! grep -q 'server ip' "$OUTPUT"; then
                         echo "Cloudflare-only template is outdated. Regenerating it before enabling..."
                         update_cloudflare_template
                     fi
