@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -100,8 +100,12 @@ save_to_database() {
         session_count=$(redis_cli --scan --pattern "session:$user_id:*" | wc -l)
         redis_drop_user_sessions "$user_id"
 
-        # 3. send notification
-        nohup opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed. $session_count session(s) terminated." >/dev/null 2>&1 &
+        # 3. revoke MCP tokens, API JWTs stop working on their own since they're tied to the old password
+        mcp_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT COUNT(*) FROM mcp_tokens WHERE user_id=$user_id; DELETE FROM mcp_tokens WHERE user_id=$user_id;" 2>/dev/null | head -n1)
+        [[ "$mcp_count" =~ ^[0-9]+$ ]] || mcp_count=0
+
+        # 4. send notification
+        nohup opencli sentinel --action=user_password --title="User account password changed" --message="Password for user account '$username' has been changed. $session_count session(s) terminated, $mcp_count MCP token(s) revoked." >/dev/null 2>&1 &
         disown
         echo "Successfully changed password for user $username$([ "$random_flag" = true ] && echo ", new random generated password is: $new_password")"
     else

@@ -5,7 +5,7 @@
 # Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--exclude-* options]
 # Author: Stefan Pejcic
 # Created: 26.06.2025
-# Last Modified: 21.08.2026
+# Last Modified: 12.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -220,6 +220,18 @@ get_remote_ipv4() {
     fi
 }
 
+# every remote step would hit this server instead, so --force doesn't skip this one
+refuse_migrating_to_self() {
+    local local_ips
+    local_ips=" $current_ip $(hostname -I 2>/dev/null) "
+    if [[ "$REMOTE_HOST" == "localhost" || "$REMOTE_HOST" =~ ^127\. || "$REMOTE_HOST" == "::1" \
+        || "$REMOTE_HOST" == "$(hostname)" || "$REMOTE_HOST" == "$(hostname -f 2>/dev/null)" \
+        || "$local_ips" == *" $REMOTE_HOST "* || "$local_ips" == *" $REMOTE_IP "* ]]; then
+        echo "FATAL ERROR: ${REMOTE_HOST} is this server. Set the IP of the destination server."
+        exit 1
+    fi
+}
+
 get_users_count_on_destination() {
 
 	user_count_query="SELECT COUNT(*) FROM users"
@@ -425,19 +437,23 @@ refresh_quotas() {
                 "opencli user-quota >/dev/null 2>&1"
 }
 
-  
+
+# whole ip only, a plain s/1.2.3.4/ also hits 11.2.3.45 and 1x2x3x4
+ip_sed_expr() {
+    printf 's/(^|[^0-9.])%s\\b/\\1%s/g' "${current_ip//./\\.}" "$REMOTE_IP"
+}
+
 replace_ip_in_zones() {
-	sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -c "'
-	    zones_dir=\"/etc/bind/zones\"
-	
-	    for ZONE_CONF in \"\$zones_dir\"/*.zone; do
-	        if [ -f \"\$ZONE_CONF\" ]; then
-	            domain=\$(basename \"\$ZONE_CONF\" .zone)
-	            sed -i \"s/$current_ip/$REMOTE_IP/g\" \"\$ZONE_CONF\"
-	            echo \"Updated DNS zone for domain \$domain - \$ZONE_CONF\"
-	        fi
-	    done
-	'"
+    [[ -n "$current_ip" && "$current_ip" != "$REMOTE_IP" ]] || return 0
+    sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" bash -s <<EOF
+for ZONE_CONF in /etc/bind/zones/*.zone; do
+    if [ -f "\$ZONE_CONF" ]; then
+        domain=\$(basename "\$ZONE_CONF" .zone)
+        sed -E -i $(printf '%q' "$(ip_sed_expr)") "\$ZONE_CONF"
+        echo "Updated DNS zone for domain \$domain - \$ZONE_CONF"
+    fi
+done
+EOF
 }
 
 
@@ -446,7 +462,7 @@ replace_ip_in_configs() {
     [[ -n "$current_ip" && "$current_ip" != "$REMOTE_IP" ]] || return 0
     echo "Replacing $current_ip with $REMOTE_IP in stack and Caddy configuration ..."
     sshpass -e ssh -o StrictHostKeyChecking=no "${REMOTE_USER}@${REMOTE_HOST}" \
-        "for f in /root/docker-compose.yml /root/.env /etc/openpanel/caddy/Caddyfile /etc/openpanel/caddy/redirects.conf /etc/openpanel/openpanel/conf/openpanel.config; do [ -f \$f ] && sed -i 's/${current_ip//./\\.}/$REMOTE_IP/g' \$f; done" < /dev/null
+        "for f in /root/docker-compose.yml /root/.env /etc/openpanel/caddy/Caddyfile /etc/openpanel/caddy/redirects.conf /etc/openpanel/openpanel/conf/openpanel.config; do [ -f \$f ] && sed -E -i $(printf '%q' "$(ip_sed_expr)") \$f; done" < /dev/null
 }
 
 # MAIN
@@ -458,6 +474,7 @@ ssh-keygen -f '/root/.ssh/known_hosts' -R "$REMOTE_HOST" >/dev/null 2>&1
 check_install_sshpass
 get_server_ipv4
 get_remote_ipv4
+refuse_migrating_to_self
 check_disk_used_on_source
 check_if_dest_has_space
 
