@@ -56,6 +56,13 @@ run_wp_cli() {
 	podman_ctx "$context" exec "php-fpm-$default_php_version" sh -c "php -d memory_limit=-1 -d open_basedir=none -d disable_functions= -d display_errors=0 -d error_log=/dev/null /usr/local/bin/wp --allow-root --path=${path} ${command}"
 }
 
+# prints the installed wordpress version, or nothing when wp-cli fails or prints something that isn't a version
+wp_core_version() {
+    local v
+    v=$(run_wp_cli "$current_username" "$1" "core version 2>/dev/null" | tr -d '\r' | tail -n 1 | tr -d '[:space:]')
+    [[ "$v" =~ ^[0-9]+(\.[0-9]+)+([-.A-Za-z0-9]*)?$ ]] && echo "$v"
+}
+
 check_site_already_exists_in_db() {
     local site_name="$1"
 
@@ -308,6 +315,11 @@ while IFS= read -r -d '' config_file_path; do
 
     if check_site_already_exists_in_db "$site_name"; then
     	echo "  Site $site_name already exists in the SiteManager - Skipping"
+        # sites added before or by the installer can carry "latest" or an old version, refresh it while we're here
+        detected_version=$(wp_core_version "$(dirname "$inside_container_path")")
+        if [[ -n "$detected_version" ]]; then
+            echo "UPDATE sites SET version = '$(mysql_escape "$detected_version")' WHERE site_name = '$(mysql_escape "$site_name")' AND type = 'wordpress' AND (version IS NULL OR version <> '$(mysql_escape "$detected_version")');" | mysql
+        fi
         existing_installations+=("- $site_name - domain: $domain_name, config: ${inside_container_path%/wp-config.php}")
         ((existing_count++))   	
         continue
@@ -331,7 +343,7 @@ while IFS= read -r -d '' config_file_path; do
         echo "  WARNING: Invalid admin email: $admin_email"
     fi
 
-    version=$(run_wp_cli "$current_username" "$(dirname "$inside_container_path")" "core version 2>/dev/null")
+    version=$(wp_core_version "$(dirname "$inside_container_path")")
     
     echo "Adding website $site_name to Site Manager"
     echo "INSERT INTO sites (site_name, domain_id, admin_email, version, type) VALUES ('$(mysql_escape "$site_name")', '$(mysql_escape "$domain_id")', '$(mysql_escape "$admin_email")', '$(mysql_escape "$version")', 'wordpress');" | mysql
