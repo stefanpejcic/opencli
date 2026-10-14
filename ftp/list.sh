@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 10.09.2024
-# Last Modified: 21.08.2026
+# Last Modified: 14.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -43,6 +43,19 @@ for arg in "$@"; do
 done
 set -- "${ARGS[@]}"
 
+# used KB from the quota.usage file the FTP container writes for accounts that have a quota
+used_kb() {
+    awk -F'|' -v user="$2" '$1 == user { print $2 }' "$1/quota.usage" 2>/dev/null
+}
+
+quota_text() {
+    if [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ]; then
+        echo "${1}M"
+    else
+        echo "unlimited"
+    fi
+}
+
 json_escape() {
     local s="$1"
     s="${s//\\/\\\\}"
@@ -59,16 +72,17 @@ if [ -z "$1" ]; then
             if [ -d "$context" ]; then
                 user_dir_name=$(basename "$context")
                 users_file="${context}/users.list"
+                users_dir="$context"
                 if [ ! -f "$users_file" ]; then
                     continue
                 fi
-                while IFS='|' read -r username password directory uid gid; do
+                while IFS='|' read -r username password directory uid gid quota; do
                     [ -z "$username" ] && continue
                     if [ "$first" -eq 0 ]; then
                         json_out+=","
                     fi
                     first=0
-                    json_out+="{\"openpanel_user\":\"$(json_escape "$user_dir_name")\",\"username\":\"$(json_escape "$username")\",\"password\":\"$(json_escape "$password")\",\"directory\":\"$(json_escape "$directory")\",\"uid\":\"$(json_escape "$uid")\",\"gid\":\"$(json_escape "$gid")\"}"
+                    json_out+="{\"openpanel_user\":\"$(json_escape "$user_dir_name")\",\"username\":\"$(json_escape "$username")\",\"password\":\"$(json_escape "$password")\",\"directory\":\"$(json_escape "$directory")\",\"uid\":\"$(json_escape "$uid")\",\"gid\":\"$(json_escape "$gid")\",\"quota_mb\":\"$(json_escape "${quota:-0}")\",\"used_kb\":\"$(json_escape "$(used_kb "$users_dir" "$username")")\"}"
                 done < "$users_file"
             fi
         done
@@ -79,12 +93,13 @@ if [ -z "$1" ]; then
             if [ -d "$context" ]; then
                 user_dir_name=$(basename "$context")
                 users_file="${context}/users.list"
+                users_dir="$context"
                 if [ ! -f "$users_file" ]; then
                     continue
                 fi
                 echo "FTP sub-users for '$user_dir_name':"
-                while IFS='|' read -r username password directory uid gid; do
-                    echo "$username | $directory"
+                while IFS='|' read -r username password directory uid gid quota; do
+                    echo "$username | $directory | $(quota_text "$quota")"
                 done < "$users_file"
                 echo
             fi
@@ -95,6 +110,7 @@ else
     context="$1"
     user_dir_name="$context"
     users_file="/etc/openpanel/ftp/users/${context}/users.list"
+    users_dir="/etc/openpanel/ftp/users/${context}"
     if [ ! -f "$users_file" ]; then
         if [ "$JSON_OUTPUT" -eq 1 ]; then
             echo "[]"
@@ -107,20 +123,20 @@ else
     if [ "$JSON_OUTPUT" -eq 1 ]; then
         json_out="["
         first=1
-        while IFS='|' read -r username password directory uid gid; do
+        while IFS='|' read -r username password directory uid gid quota; do
             [ -z "$username" ] && continue
             if [ "$first" -eq 0 ]; then
                 json_out+=","
             fi
             first=0
-            json_out+="{\"openpanel_user\":\"$(json_escape "$user_dir_name")\",\"username\":\"$(json_escape "$username")\",\"password\":\"$(json_escape "$password")\",\"directory\":\"$(json_escape "$directory")\",\"uid\":\"$(json_escape "$uid")\",\"gid\":\"$(json_escape "$gid")\"}"
+            json_out+="{\"openpanel_user\":\"$(json_escape "$user_dir_name")\",\"username\":\"$(json_escape "$username")\",\"password\":\"$(json_escape "$password")\",\"directory\":\"$(json_escape "$directory")\",\"uid\":\"$(json_escape "$uid")\",\"gid\":\"$(json_escape "$gid")\",\"quota_mb\":\"$(json_escape "${quota:-0}")\",\"used_kb\":\"$(json_escape "$(used_kb "$users_dir" "$username")")\"}"
         done < "$users_file"
         json_out+="]"
         echo "$json_out"
     else
         echo "FTP sub-users for '$context':"
-        while IFS='|' read -r username password directory uid gid; do
-            echo "$username | $directory"
+        while IFS='|' read -r username password directory uid gid quota; do
+            echo "$username | $directory | $(quota_text "$quota")"
         done < "$users_file"
     fi
 fi

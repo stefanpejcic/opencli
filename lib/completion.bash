@@ -163,7 +163,7 @@ _opencli_plan_arg_commands="plan-usage plan-delete"
 _opencli_username_or_all_arg_commands="docker-collect_stats user-quota user-report"
 
 # commands whose next positional argument is an FTP sub-account username
-_opencli_ftp_username_arg_commands="ftp-delete ftp-password ftp-path"
+_opencli_ftp_username_arg_commands="ftp-delete ftp-password ftp-path ftp-quota"
 
 _opencli_completions() {
     local cur prev cmd
@@ -514,7 +514,8 @@ _opencli_completions() {
 
     # opencli ftp-password <ftp_username> <new_password> <openpanel_username>
     # opencli ftp-path <ftp_username> <path> <openpanel_username>
-    if [[ ( "$cmd" == "ftp-password" || "$cmd" == "ftp-path" ) && $COMP_CWORD -eq 4 ]]; then
+    # opencli ftp-quota <ftp_username> <quota> <openpanel_username>
+    if [[ ( "$cmd" == "ftp-password" || "$cmd" == "ftp-path" || "$cmd" == "ftp-quota" ) && $COMP_CWORD -eq 4 ]]; then
         COMPREPLY=( $(compgen -W "$(_opencli_usernames)" -- "$cur") )
         return 0
     fi

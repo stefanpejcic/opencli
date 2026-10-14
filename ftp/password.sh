@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
-# Last Modified: 21.08.2026
+# Last Modified: 14.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -91,9 +91,9 @@ print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
 
     if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
 # Update users.list with new hashed password
-awk -F'|' -v user="$username" -v newpass="$HASHED_PASS" '
+awk -F'|' -v OFS='|' -v user="$username" -v newpass="$HASHED_PASS" '
     $1 == user { $2 = newpass }
-    { print $1 "|" $2 "|" $3 "|" $4 "|" $5 }
+    { print }
 ' /etc/openpanel/ftp/users/"$context"/users.list > /tmp/"$context".ftp_users.list.tmp && \
 mv /tmp/"$context".ftp_users.list.tmp /etc/openpanel/ftp/users/"$context"/users.list
 

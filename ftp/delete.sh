@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
-# Last Modified: 21.08.2026
+# Last Modified: 14.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -77,6 +77,8 @@ touch /etc/openpanel/ftp/users/"${context}"/users.list
 
 if podman exec openadmin_ftp sh -c "deluser $username"; then
     sed -i "/^$username|/d" /etc/openpanel/ftp/users/"${context}"/users.list
+    # clears a leftover upload block in case the same username is added again
+    podman exec openadmin_ftp /bin/start_vsftpd.sh --check-quotas >/dev/null 2>&1
     nohup opencli sentinel --action=ftp_delete --title="FTP account deleted" --message="FTP account '$username' has been deleted." >/dev/null 2>&1 &
     disown
     echo "Success: FTP user '$username' deleted successfully."

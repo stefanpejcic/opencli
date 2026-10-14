@@ -5,7 +5,7 @@
 # Usage: /usr/local/opencli/ftp/users.sh (internal helper, not exposed as an opencli subcommand)
 # Author: Stefan Pejcic
 # Created: 10.09.2024
-# Last Modified: 21.08.2026
+# Last Modified: 14.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -34,9 +34,10 @@ for dir in /etc/openpanel/ftp/users/*; do
     file="$dir/users.list"
     user=$(basename "$dir")
     if [[ -f "$file" ]]; then
-        while IFS= read -r line; do
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" ]] && continue
             modified_line="${line//\/var\/www\/html\//\/home\/${user}\/docker-data\/volumes\/${user}_html_data\/_data\/}"
-            USERS+="$modified_line"
+            USERS+="$modified_line "
         done < "$file"
     fi
 done

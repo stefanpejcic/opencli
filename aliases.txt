@@ -43,6 +43,7 @@ opencli ftp-list
 opencli ftp-logs
 opencli ftp-password
 opencli ftp-path
+opencli ftp-quota
 opencli imunify
 opencli license
 opencli locale

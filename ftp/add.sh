@@ -2,11 +2,11 @@
 ################################################################################
 # Script Name: ftp/add.sh
 # Description: Create FTP sub-user for openpanel user.
-# Usage: opencli ftp-add <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME> [--debug]
+# Usage: opencli ftp-add <NEW_USERNAME> <NEW_PASSWORD> <FOLDER> <OPENPANEL_USERNAME> [--quota=<MB>] [--debug]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
-# Last Modified: 21.08.2026
+# Last Modified: 14.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -29,8 +29,8 @@
 # THE SOFTWARE.
 ################################################################################
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    echo "Usage: opencli ftp-add <new_username> <new_password> '<directory>' <openpanel_username> [--debug]"
+if [ "$#" -lt 4 ] || [ "$#" -gt 6 ]; then
+    echo "Usage: opencli ftp-add <new_username> <new_password> '<directory>' <openpanel_username> [--quota=<MB>] [--debug]"
     exit 1
 fi
 
@@ -39,6 +39,7 @@ password="$2"
 directory="$3"
 openpanel_username="$4"
 DEBUG=false
+QUOTA=""
 
 source /usr/local/opencli/lib/password_strength.sh
 # shellcheck disable=SC1091
@@ -49,6 +50,7 @@ source /usr/local/opencli/lib/podman.sh
 for arg in "$@"; do
     case $arg in
         --debug) DEBUG=true ;;
+        --quota=*) QUOTA="${arg#--quota=}" ;;
         *) ;;
     esac
 done
@@ -118,6 +120,10 @@ print('\$6\$' + salt.hex() + '\$' + h)
 
         echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${context}/users.list"
 
+        if [ -n "$QUOTA" ]; then
+            opencli ftp-quota "$username" "$QUOTA" "$openpanel_username" | sed 's/^Success: /    /'
+        fi
+
         nohup opencli sentinel --action=ftp_create --title="FTP account created" --message="New FTP account has been created for OpenPanel user: '$openpanel_username'. Directory: $directory | UID: $USER_UID | GID: $USER_GID" >/dev/null 2>&1 &
         disown
 
@@ -159,6 +165,11 @@ validate_data() {
 
 	if [[ ! "$openpanel_username" =~ ^[a-z0-9_-]+$ ]]; then
 	    echo "ERROR: Invalid OpenPanel username."
+	    exit 1
+	fi
+
+	if [ -n "$QUOTA" ] && ! [[ "${QUOTA^^}" =~ ^([0-9]+[MG]?|UNLIMITED)$ ]]; then
+	    echo "ERROR: Invalid quota '$QUOTA'. Use a number of MB (500), a value with a unit (500M, 2G), or 'unlimited'."
 	    exit 1
 	fi
 
