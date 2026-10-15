@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 12.10.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -1089,22 +1089,53 @@ check_oom_logs() {
   local SINCE_TIME; SINCE_TIME=$(date -d "@$SINCE" '+%Y-%m-%d %H:%M')
   local SYSTEM_COUNT=0
   local USER_COUNT=0
-  local -a SYSTEM_LINES=() USER_LINES=()
+  local -a SYSTEM_LINES=() USER_LINES=() SUMMARY=()
+  local -A OWNER=() CTR=() CTR_NAME=()
+  local line pid uid owner user name rss when why id ctr sock
+
+  # rootless podman kills report a subuid as UID, the real owner is in the cgroup path of the oom-kill line
+  while read -r line; do
+    pid=$(sed -n 's/.*,pid=\([0-9]\+\).*/\1/p' <<< "$line")
+    owner=$(sed -n 's/.*task_memcg=[^,]*user-\([0-9]\+\)\.slice.*/\1/p' <<< "$line")
+    [[ -n "$pid" && -n "$owner" ]] && OWNER[$pid]=$owner
+    id=$(sed -n 's/.*task_memcg=[^,]*libpod-\([0-9a-f]\{12,\}\)\.scope.*/\1/p' <<< "$line")
+    [[ -n "$pid" && -n "$id" ]] && CTR[$pid]=$id
+  done < <(grep 'oom-kill:' <<< "$KERNEL_LOG")
 
   while read -r line; do
-    uid=$(echo "$line" | sed -n 's/.*UID:\([0-9]\+\).*/\1/p')
-    [[ -z "$uid" ]] && continue
+    [[ "$line" =~ Killed\ process\ ([0-9]+)\ \((.*)\).*anon-rss:([0-9]+)kB.*UID:([0-9]+) ]] || continue
+    pid=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]} rss=$(( BASH_REMATCH[3] / 1024 )) uid=${BASH_REMATCH[4]}
+    owner=${OWNER[$pid]:-$uid}
+    when=$(date -d "${line%% *}" '+%Y-%m-%d %H:%M' 2>/dev/null)
+    [[ "$line" == *"Memory cgroup out of memory"* ]] && why="container memory limit" || why="server out of memory"
 
-    if [[ "$uid" -eq 0 ]]; then
-        ((SYSTEM_COUNT++))
-        SYSTEM_LINES+=("$line")
-    elif [[ "$uid" -ge 1002 ]]; then
-        ((USER_COUNT++))
-        user=$(getent passwd "$uid" | cut -d: -f1)
-        [[ -z "$user" ]] && continue
-        USER_LINES+=("$user"$'\t'"$line")
+    # container name from the owner's podman, short id if the container is gone by now
+    ctr=""
+    id=${CTR[$pid]}
+    if [[ -n "$id" ]]; then
+      if [[ -z "${CTR_NAME[$id]}" ]]; then
+        sock="/run/user/${OWNER[$pid]}/podman/podman.sock"
+        if [[ -z "${OWNER[$pid]}" ]]; then
+          CTR_NAME[$id]=$(timeout 10 podman inspect --format '{{.Name}}' "$id" 2>/dev/null)
+        elif [[ -S "$sock" ]]; then
+          CTR_NAME[$id]=$(CONTAINER_HOST="unix://$sock" timeout 10 podman inspect --format '{{.Name}}' "$id" 2>/dev/null)
+        fi
+        [[ -n "${CTR_NAME[$id]}" ]] || CTR_NAME[$id]=${id:0:12}
+      fi
+      ctr=", container ${CTR_NAME[$id]}"
     fi
 
+    user=""
+    (( owner >= 1002 )) && user=$(getent passwd "$owner" | cut -d: -f1)
+    if [[ -n "$user" ]]; then
+        ((USER_COUNT++))
+        USER_LINES+=("$user"$'\t'"$line")
+        SUMMARY+=("- user $user: $name (pid $pid$ctr, ${rss} MB) at $when, $why")
+    else
+        ((SYSTEM_COUNT++))
+        SYSTEM_LINES+=("$line")
+        SUMMARY+=("- system: $name (pid $pid$ctr, UID $uid, ${rss} MB) at $when, $why")
+    fi
   done < <(grep -E "(Memory cgroup out of memory|Out of memory): Killed process" <<< "$KERNEL_LOG")
 
   if [[ "$SYSTEM_COUNT" -eq 0 && "$USER_COUNT" -eq 0 ]]; then
@@ -1118,7 +1149,7 @@ check_oom_logs() {
   [[ "$SYSTEM_COUNT" -gt 0 ]] && title_parts+=("System: $SYSTEM_COUNT")
   [[ "$USER_COUNT" -gt 0 ]] && title_parts+=("User: $USER_COUNT")
 
-  title="OOM Alert - $(date '+%Y-%m-%d %H:%M') - $(IFS=' | '; echo "${title_parts[*]}")"
+  title="OOM Alert - $(date '+%Y-%m-%d %H:%M') - ${title_parts[0]}${title_parts[1]:+ | ${title_parts[1]}}"
   message=""
 
   if [[ "$SYSTEM_COUNT" -gt 0 ]]; then
@@ -1127,9 +1158,14 @@ check_oom_logs() {
   fi
 
   if [[ "$USER_COUNT" -gt 0 ]]; then
-    message+="$USER_COUNT user process(es) killed by OOM since $SINCE_TIME."
+    message+="$USER_COUNT user process(es) killed by OOM since $SINCE_TIME."$'\n'
     echo -e "\e[31m[✘]\e[0m $USER_COUNT user process(es) killed by OOM since $SINCE_TIME"
   fi
+
+  # cap the list so a kill loop doesn't flood the email
+  message+=$(printf '%s\n' "${SUMMARY[@]:0:10}")
+  (( ${#SUMMARY[@]} > 10 )) && message+=$'\n'"- ...and $(( ${#SUMMARY[@]} - 10 )) more"
+  printf '    %s\n' "${SUMMARY[@]:0:10}"
 
   message+=$'\n'"Check with: journalctl -k --since '$SINCE_TIME' | grep 'Killed process'"
 
