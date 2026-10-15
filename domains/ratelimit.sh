@@ -2,9 +2,10 @@
 ################################################################################
 # Script Name: domains/ratelimit.sh
 # Description: Set the per-ip and per-domain request rate limits in Caddy, server default or per domain.
-# Usage: opencli domains-ratelimit [status]
+# Usage: opencli domains-ratelimit [status] [--json]
 #        opencli domains-ratelimit default <per_ip> <per_site>
-#        opencli domains-ratelimit <DOMAIN_NAME|--all> <per_ip> <per_site>|default|off
+#        opencli domains-ratelimit <DOMAIN_NAME...|--all|--user USERNAME> <per_ip> <per_site>|default|off
+#        opencli domains-ratelimit stats [DOMAIN_NAME...|--all|--user USERNAME] [--hours 24] [--json]
 # Author: Stefan Pejcic
 # Created: 15.10.2026
 # Last Modified: 15.10.2026
@@ -44,13 +45,15 @@ RL_LINE_RE='^[[:space:]]*(import[[:space:]]+ratelimit(_ip|_site)?([[:space:]].*)
 
 usage() {
     echo "Usage:"
-    echo "  opencli domains-ratelimit [status]                                  show the server default and every domain"
+    echo "  opencli domains-ratelimit [status] [--json]                         show the server default and every domain"
     echo "  opencli domains-ratelimit default <per_ip> <per_site>               server default, used by domains set to 'default'"
-    echo "  opencli domains-ratelimit <domain|--all> <per_ip> <per_site>        custom limits for a domain"
-    echo "  opencli domains-ratelimit <domain|--all> default|off                use the server default, or no limits"
+    echo "  opencli domains-ratelimit <targets> <per_ip> <per_site>             custom limits"
+    echo "  opencli domains-ratelimit <targets> default|off                     use the server default, or no limits"
+    echo "  opencli domains-ratelimit stats [targets] [--hours 24] [--json]     requests, 429s and peaks from the access logs"
     echo ""
+    echo "Targets: one or more domains, --all, or --user <username>, mixed freely."
     echo "Limits are requests per minute, per visitor IP and per domain; 0 turns that limit off."
-    echo "Example: opencli domains-ratelimit default 300 6000"
+    echo "Example: opencli domains-ratelimit --user john shop.com 600 20000"
     exit 1
 }
 
@@ -284,18 +287,38 @@ prepare() {
 
 # ---------------------------------------------------------------- main
 
+# "<mode> <per_ip> <per_site>" with the limits that actually apply, default resolved to the server default
+effective_setting() {
+    local setting="$1" d_ip="$2" d_site="$3"
+    case "$setting" in
+        default) echo "default $d_ip $d_site" ;;
+        off)     echo "off 0 0" ;;
+        *)       echo "custom $setting" ;;
+    esac
+}
+
 status() {
-    local d_ip d_site file
+    local json="$1" d_ip d_site file setting mode ip site first=1
     read -r d_ip d_site < <(read_default)
+    shopt -s nullglob
+    if $json; then
+        printf '{"default":{"per_ip":%s,"per_site":%s},"domains":[' "$d_ip" "$d_site"
+        for file in "$DOMAIN_DIR"/*.conf; do
+            read -r mode ip site < <(effective_setting "$(domain_setting "$file")" "$d_ip" "$d_site")
+            (( first )) || printf ','
+            first=0
+            printf '{"domain":"%s","mode":"%s","per_ip":%s,"per_site":%s}' "$(basename "$file" .conf)" "$mode" "$ip" "$site"
+        done
+        printf ']}\n'
+        return
+    fi
     if (( d_ip == 0 && d_site == 0 )); then
         echo "Server default: off"
     else
         echo "Server default: ${d_ip}/min per IP, ${d_site}/min per domain (0 = off)"
     fi
     echo "----------------------------------------"
-    shopt -s nullglob
     for file in "$DOMAIN_DIR"/*.conf; do
-        local setting
         setting=$(domain_setting "$file")
         case "$setting" in
             default|off) echo "  $(basename "$file" .conf): $setting" ;;
@@ -304,14 +327,139 @@ status() {
     done
 }
 
-TARGET="${1:-status}"
+# one JSON object for the domain's last <hours> of access logs: requests, 429s, the busiest minute for the whole domain and for a single IP, and the IPs that got the most 429s
+domain_stats_json() {
+    local domain="$1" hours="$2" dir="/var/log/caddy/domlogs/$1" since f files=()
+    since=$(( $(date +%s) - hours * 3600 ))
+    shopt -s nullglob
+    # rolled files carry the time of their last entry, so anything rolled before the window is skipped; oldest first keeps the minutes in order
+    while read -r f; do
+        [[ -n "$f" ]] && files+=("$f")
+    done < <(for f in "$dir"/access*.log "$dir"/access*.log.gz; do
+        [[ "$f" == "$dir/access.log" || $(stat -c %Y "$f") -ge $since ]] && echo "$(stat -c %Y "$f") $f"
+    done | sort -n | cut -d' ' -f2-)
 
-if [[ "$TARGET" == "status" ]]; then
-    status
+    for f in "${files[@]}"; do
+        if [[ "$f" == *.gz ]]; then zcat -- "$f" 2>/dev/null; else cat -- "$f"; fi
+    done | awk -v since="$since" -v domain="$domain" -v hours="$hours" '
+        {
+            if (!match($0, /"ts":[0-9.]+/)) next
+            ts = substr($0, RSTART + 5, RLENGTH - 5) + 0
+            if (ts < since) next
+            if (!match($0, /"size":[0-9]+,"status":[0-9]+/)) next
+            st = substr($0, RSTART, RLENGTH); sub(/.*"status":/, "", st)
+            ip = ""
+            if (match($0, /"client_ip":"[^"]*"/)) ip = substr($0, RSTART + 13, RLENGTH - 14)
+            m = int(ts / 60)
+            # counters per minute only live for the current minute, so a busy day does not keep millions of ip/minute keys
+            if (m != lastm) { cnt = 0; delete pip; lastm = m }
+            req++; cnt++
+            if (cnt > peak) peak = cnt
+            if (++pip[ip] > peakip) peakip = pip[ip]
+            if (st == 429) { blocked++; bip[ip]++ }
+        }
+        END {
+            printf "{\"domain\":\"%s\",\"hours\":%d,\"requests\":%d,\"blocked\":%d,\"peak_minute\":%d,\"peak_ip_minute\":%d,\"top_blocked\":[", domain, hours, req, blocked, peak, peakip
+            for (n = 0; n < 5; n++) {
+                best = ""; bc = 0
+                for (k in bip) if (bip[k] > bc) { bc = bip[k]; best = k }
+                if (bc == 0) break
+                printf "%s{\"ip\":\"%s\",\"count\":%d}", (n ? "," : ""), best, bc
+                delete bip[best]
+            }
+            printf "]}"
+        }'
+}
+
+stats() {
+    local json="$1" hours="$2" first=1 domain line
+    shift 2
+    if $json; then
+        printf '['
+        for domain in "$@"; do
+            (( first )) || printf ','
+            first=0
+            domain_stats_json "$domain" "$hours"
+        done
+        printf ']\n'
+        return
+    fi
+    printf '%-40s %10s %8s %12s %14s\n' "Domain (last ${hours}h)" "Requests" "429s" "Peak/min" "Peak/min/IP"
+    for domain in "$@"; do
+        line=$(domain_stats_json "$domain" "$hours")
+        printf '%-40s %10s %8s %12s %14s\n' "$domain" \
+            "$(grep -o '"requests":[0-9]*' <<< "$line" | cut -d: -f2)" \
+            "$(grep -o '"blocked":[0-9]*' <<< "$line" | cut -d: -f2)" \
+            "$(grep -o '"peak_minute":[0-9]*' <<< "$line" | cut -d: -f2)" \
+            "$(grep -o '"peak_ip_minute":[0-9]*' <<< "$line" | cut -d: -f2)"
+    done
+}
+
+# fills TARGET_DOMAINS from domain names, --all and --user <username>, only domains with a caddy config
+TARGET_DOMAINS=()
+resolve_targets() {
+    local args=("$@") i t u
+    shopt -s nullglob
+    for (( i = 0; i < ${#args[@]}; i++ )); do
+        t="${args[$i]}"
+        case "$t" in
+            --all)
+                for f in "$DOMAIN_DIR"/*.conf; do TARGET_DOMAINS+=("$(basename "$f" .conf)"); done ;;
+            --user)
+                u="${args[$((i + 1))]:-}"
+                (( i++ )) || true
+                [[ "$u" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "ERROR: --user needs a username."; exit 1; }
+                local found=0
+                while read -r d; do
+                    [[ "$d" =~ ^[A-Za-z0-9.-]+$ && -f "$DOMAIN_DIR/$d.conf" ]] && { TARGET_DOMAINS+=("$d"); found=1; }
+                done < <(opencli domains-user "$u" 2>/dev/null)
+                (( found )) || { echo "ERROR: No domains found for user $u."; exit 1; } ;;
+            -*)
+                usage ;;
+            *)
+                # a domain name never has a slash, this also keeps the path inside DOMAIN_DIR
+                [[ "$t" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "ERROR: Invalid domain: $t"; exit 1; }
+                if [[ -f "$DOMAIN_DIR/$t.conf" ]]; then
+                    TARGET_DOMAINS+=("$t")
+                else
+                    echo "ERROR: Domain config not found: $DOMAIN_DIR/$t.conf"
+                fi ;;
+        esac
+    done
+    # same domain twice, e.g. a name plus --user
+    mapfile -t TARGET_DOMAINS < <(printf '%s\n' "${TARGET_DOMAINS[@]}" | awk 'NF && !seen[$0]++')
+}
+
+# --json and --hours can go anywhere
+JSON=false
+HOURS=24
+ARGS=()
+while (( $# )); do
+    case "$1" in
+        --json)  JSON=true ;;
+        --hours) HOURS="${2:-}"; shift; [[ "$HOURS" =~ ^[0-9]+$ ]] && (( HOURS > 0 && HOURS <= 720 )) || { echo "ERROR: --hours must be 1-720."; exit 1; } ;;
+        *)       ARGS+=("$1") ;;
+    esac
+    shift
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+ACTION="${1:-status}"
+
+if [[ "$ACTION" == "status" ]]; then
+    status "$JSON"
     exit 0
 fi
 
-if [[ "$TARGET" == "default" ]]; then
+if [[ "$ACTION" == "stats" ]]; then
+    shift
+    (( $# )) || set -- --all
+    resolve_targets "$@"
+    stats "$JSON" "$HOURS" "${TARGET_DOMAINS[@]+"${TARGET_DOMAINS[@]}"}"
+    exit 0
+fi
+
+if [[ "$ACTION" == "default" ]]; then
     [[ $# -eq 3 ]] && is_limit "$2" && is_limit "$3" || usage
     prepare
     write_ratelimit_conf "$2" "$3"
@@ -320,25 +468,25 @@ if [[ "$TARGET" == "default" ]]; then
     exit 0
 fi
 
-# domain or --all
-MODE="${2:-}"
-case "$MODE" in
-    default|off) [[ $# -eq 2 ]] || usage; IP=0; SITE=0 ;;
-    *)           [[ $# -eq 3 ]] && is_limit "$2" && is_limit "$3" || usage; IP="$2"; SITE="$3"; MODE="custom" ;;
+# <target...> then default, off or <per_ip> <per_site>
+(( $# >= 2 )) || usage
+ARGV=("$@")
+LAST="${ARGV[-1]}"
+case "$LAST" in
+    default|off)
+        MODE="$LAST"; IP=0; SITE=0
+        TARGETS=("${ARGV[@]:0:${#ARGV[@]}-1}") ;;
+    *)
+        (( $# >= 3 )) && is_limit "${ARGV[-2]}" && is_limit "$LAST" || usage
+        MODE="custom"; IP="${ARGV[-2]}"; SITE="$LAST"
+        TARGETS=("${ARGV[@]:0:${#ARGV[@]}-2}") ;;
 esac
 
-shopt -s nullglob
-if [[ "$TARGET" == "--all" ]]; then
-    FILES=("$DOMAIN_DIR"/*.conf)
-    (( ${#FILES[@]} )) || { echo "No domain configs found."; exit 0; }
-else
-    [[ "$TARGET" == -* ]] && usage
-    FILES=("$DOMAIN_DIR/$TARGET.conf")
-    [[ -f "${FILES[0]}" ]] || { echo "ERROR: Domain config not found: ${FILES[0]}"; exit 1; }
-fi
+resolve_targets "${TARGETS[@]}"
+(( ${#TARGET_DOMAINS[@]} )) || { echo "ERROR: No domains to change."; exit 1; }
 
 prepare
-for file in "${FILES[@]}"; do
-    set_domain "$file" "$MODE" "$IP" "$SITE"
+for domain in "${TARGET_DOMAINS[@]}"; do
+    set_domain "$DOMAIN_DIR/$domain.conf" "$MODE" "$IP" "$SITE"
 done
 apply_caddy
