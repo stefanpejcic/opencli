@@ -79,6 +79,7 @@ if podman exec openadmin_ftp sh -c "deluser $username"; then
     sed -i "/^$username|/d" /etc/openpanel/ftp/users/"${context}"/users.list
     # clears a leftover upload block in case the same username is added again
     podman exec openadmin_ftp /bin/start_vsftpd.sh --check-quotas >/dev/null 2>&1
+    opencli ftp-users >/dev/null 2>&1
     nohup opencli sentinel --action=ftp_delete --title="FTP account deleted" --message="FTP account '$username' has been deleted." >/dev/null 2>&1 &
     disown
     echo "Success: FTP user '$username' deleted successfully."

@@ -120,8 +120,11 @@ print('\$6\$' + salt.hex() + '\$' + h)
 
         echo "$username|$HASHED_PASS|$directory|$USER_UID|$USER_GID" >> "/etc/openpanel/ftp/users/${context}/users.list"
 
+        # ftp-quota also refreshes all.users, otherwise do it here so OpenAdmin lists the new account
         if [ -n "$QUOTA" ]; then
             opencli ftp-quota "$username" "$QUOTA" "$openpanel_username" | sed 's/^Success: /    /'
+        else
+            opencli ftp-users >/dev/null 2>&1
         fi
 
         nohup opencli sentinel --action=ftp_create --title="FTP account created" --message="New FTP account has been created for OpenPanel user: '$openpanel_username'. Directory: $directory | UID: $USER_UID | GID: $USER_GID" >/dev/null 2>&1 &
