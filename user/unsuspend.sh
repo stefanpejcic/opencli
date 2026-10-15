@@ -82,6 +82,8 @@ unsuspend_user_domains() {
     # 2. move all vhosts
     for domain_name in $domain_list; do
         # from /etc/openpanel/caddy/suspended_domains/ to /etc/openpanel/caddy/domains/
+        # only undo what account suspend did, domain suspensions stay
+        grep -q "suspended_user.html" "${CADDY_VHOST_DIR}/${domain_name}.conf" 2>/dev/null || continue
         [[ -f "${SUSPENDED_DIR}${domain_name}.conf" ]] && cp "${SUSPENDED_DIR}${domain_name}.conf" "${CADDY_VHOST_DIR}/${domain_name}.conf"
     done
 

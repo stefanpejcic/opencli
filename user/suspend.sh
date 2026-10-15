@@ -118,6 +118,9 @@ suspend_user_domains() {
         # from /etc/openpanel/caddy/domains/ to /etc/openpanel/caddy/suspended_domains/
         src="${CADDY_VHOST_DIR}/${domain_name}.conf"
         dest="${SUSPENDED_DIR}/${domain_name}.conf"
+
+        # individually suspended domains keep their own page so unsuspending the account can't reactivate them
+        grep -qE '^# suspended_by:|suspended_domain\.html' "$src" 2>/dev/null && continue
     
         if [[ -f "$src" ]]; then
             if [[ ! -f "$dest" ]]; then

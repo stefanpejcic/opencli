@@ -480,6 +480,21 @@ find_available_ports() {
     echo "${ports[@]}"
 }
 
+# prints services that mount webserver_data and publish ports, backup mounts it too but has no ports
+compose_webservers() {
+    awk '
+        function flush() { if (name != "" && vol && ports) print name }
+        /^services:/ { in_s = 1; next }
+        in_s && /^[^[:space:]#]/ { flush(); in_s = 0; name = "" }
+        !in_s { next }
+        /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { flush(); name = $1; sub(/:$/, "", name); vol = 0; ports = 0; next }
+        name == "" { next }
+        /^[[:space:]]+-[[:space:]]*["'\'']?webserver_data:/ || /source:[[:space:]]*["'\'']?webserver_data["'\'']?[[:space:]]*$/ { vol = 1 }
+        /^    ports:/ && !/ports:[[:space:]]*\[[[:space:]]*\]/ { ports = 1 }
+        END { if (in_s) flush() }
+    ' "$1" 2>/dev/null
+}
+
 configure_environment() {
     log "Configuring environment for '$USERNAME'"
 
@@ -531,7 +546,10 @@ configure_environment() {
 
     # Webserver
     if [[ -n "$WEBSERVER" ]]; then
-        if [[ "$WEBSERVER" =~ ^varnish\+([a-zA-Z]+)$ ]]; then
+        local available_ws
+        available_ws=" $(compose_webservers "${home_dir}/docker-compose.yml" | tr '\n' ' ')"
+        [[ "$available_ws" == " " ]] && available_ws=" nginx apache openresty openlitespeed "
+        if [[ "$WEBSERVER" =~ ^varnish\+([a-zA-Z0-9_.-]+)$ ]] && [[ "$available_ws" == *" ${BASH_REMATCH[1]} "* ]]; then
             local ws="${BASH_REMATCH[1]}"
             log "Enabling Varnish + $ws"
             sed -i \
@@ -539,11 +557,11 @@ configure_environment() {
                 -e "s|^#\(PROXY_HTTP_PORT=.*\)|\1|" \
                 "${home_dir}/.env"
             sed -i "/container_name: ${ws}\$/,/HTTPS_PORT/ s|\${HTTP_PORT}|\${PROXY_HTTP_PORT}|" "${home_dir}/docker-compose.yml"
-        elif [[ "$WEBSERVER" =~ ^(nginx|apache|openresty|openlitespeed|litespeed)$ ]]; then
+        elif [[ "$available_ws" == *" ${WEBSERVER} "* ]]; then
             log "Setting webserver: $WEBSERVER"
             sed -i "s|WEB_SERVER=\"[^\"]*\"|WEB_SERVER=\"${WEBSERVER}\"|g" "${home_dir}/.env"
         else
-            echo "[!] Warning: Invalid webserver '$WEBSERVER'. Using template default."
+            echo "[!] Warning: Webserver '$WEBSERVER' is not in the docker-compose.yml template (available:${available_ws% }). Using template default."
         fi
     fi
 

@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: domains/unsuspend.sh
 # Description: Unsuspend a domain name
-# Usage: opencli domains-unsuspend <DOMAIN-NAME>
+# Usage: opencli domains-unsuspend <DOMAIN-NAME> [--by=admin|user]
 # Author: Stefan Pejcic
 # Created: 04.11.2024
 # Last Modified: 15.10.2026
@@ -28,18 +28,34 @@
 # THE SOFTWARE.
 ################################################################################
 
-if [ $# -ne 1 ]; then
-    echo "Usage: opencli domains-unsuspend <domain_name>"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    echo "Usage: opencli domains-unsuspend <domain_name> [--by=admin|user]"
     exit 1
 fi
 
 domain_name="$1"
+by="user"
+
+if [ -n "$2" ]; then
+    case "$2" in
+        --by=admin|--by=user) by="${2#--by=}" ;;
+        *) echo "Unknown option: $2"; exit 1 ;;
+    esac
+fi
+
 domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
 suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
 
 [ -f "$suspended_vhost" ] || { echo "Domain $domain_name is not suspended."; exit 0; }
+# while the account is suspended that copy is the only real vhost, don't touch it
+grep -q "suspended_user.html" "$domain_vhost" 2>/dev/null && { echo "ERROR: account owning $domain_name is suspended, unsuspend it first"; exit 1; }
 # a copy left behind by an older unsuspend must not overwrite a live, unsuspended vhost
-grep -q "suspended_domain.html" "$domain_vhost" 2>/dev/null || { rm -f "$suspended_vhost"; echo "Domain $domain_name is not suspended."; exit 0; }
+grep -qE '^# suspended_by:|suspended_domain\.html' "$domain_vhost" 2>/dev/null || { rm -f "$suspended_vhost"; echo "Domain $domain_name is not suspended."; exit 0; }
+
+if [ "$by" != "admin" ] && grep -q '^# suspended_by: admin' "$domain_vhost"; then
+    echo "ERROR: Domain $domain_name was suspended by the administrator and can only be unsuspended by them."
+    exit 1
+fi
 
 # 1. restore vhost, moved so the next suspend doesn't think it's still suspended
 mv "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
