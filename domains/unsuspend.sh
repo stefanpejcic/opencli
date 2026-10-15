@@ -5,7 +5,7 @@
 # Usage: opencli domains-unsuspend <DOMAIN-NAME>
 # Author: Stefan Pejcic
 # Created: 04.11.2024
-# Last Modified: 21.08.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -38,9 +38,11 @@ domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
 suspended_vhost="/etc/openpanel/caddy/suspended_domains/$domain_name.conf"
 
 [ -f "$suspended_vhost" ] || { echo "Domain $domain_name is not suspended."; exit 0; }
+# a copy left behind by an older unsuspend must not overwrite a live, unsuspended vhost
+grep -q "suspended_domain.html" "$domain_vhost" 2>/dev/null || { rm -f "$suspended_vhost"; echo "Domain $domain_name is not suspended."; exit 0; }
 
-# 1. restore vhost
-cp "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
+# 1. restore vhost, moved so the next suspend doesn't think it's still suspended
+mv "$suspended_vhost" "$domain_vhost"  > /dev/null 2>&1
 
 # 2. reload caddy
 nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 &

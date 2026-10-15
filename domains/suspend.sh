@@ -5,7 +5,7 @@
 # Usage: opencli domains-suspend <DOMAIN-NAME> [--comment="<COMMENT>"]
 # Author: Stefan Pejcic
 # Created: 04.11.2024
-# Last Modified: 21.08.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -47,7 +47,8 @@ domain_vhost="/etc/openpanel/caddy/domains/$domain_name.conf"
 suspended_dir="/etc/openpanel/caddy/suspended_domains/"
 conf_template="/etc/openpanel/caddy/templates/suspended.conf"
 
-[ -f "${suspended_dir}${domain_name}.conf" ] && { echo "Domain is already suspended."; exit 0; }
+# the live caddy file says whether it's suspended, a copy left in suspended_dir alone doesn't
+grep -q "suspended_domain.html" "$domain_vhost" 2>/dev/null && { echo "Domain is already suspended."; exit 0; }
 [ -f "$domain_vhost" ] || { echo "ERROR: vhost file for domain $domain_name does not exist"; exit 1; }
 
 # 1. cp vhost to suspended-dir
