@@ -37,6 +37,7 @@ domain_name="$1"
 comment=""
 by="user"
 template=""
+reason=""
 
 shift
 for arg in "$@"; do
@@ -62,6 +63,9 @@ if [ -n "$template" ]; then
     [[ "$template" =~ ^[a-z0-9_-]+$ ]] || { echo "ERROR: invalid template name: $template"; exit 1; }
     [ -f "/etc/openpanel/caddy/templates/suspended/$template.html" ] || { echo "ERROR: suspension template '$template' does not exist"; exit 1; }
     page="/suspended/$template.html"
+    # display name sits in the first line as <!-- name: ... -->, users see it as the reason
+    reason=$(head -n1 "/etc/openpanel/caddy/templates/suspended/$template.html" | sed -n 's/^<!-- name: \(.*\) -->$/\1/p' | tr -d '[:cntrl:]')
+    reason="${reason:-$template}"
 fi
 
 [ -f "$domain_vhost" ] || { echo "ERROR: vhost file for domain $domain_name does not exist"; exit 1; }
@@ -86,6 +90,7 @@ fi
 {
     [ -n "$comment" ] && printf '# comment: %s\n' "$comment"
     printf '# suspended_by: %s\n' "$by"
+    [ -n "$reason" ] && printf '# reason: %s\n' "$reason"
     sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|/suspended_domain\.html|$page|g" "$conf_template"
 } > "$domain_vhost"
 
@@ -94,7 +99,7 @@ nohup podman exec caddy sh -c "caddy validate && caddy reload" > /dev/null 2>&1 
 disown
 
 # 4. notify
-message="Domain name $domain_name has been suspended${by:+ by $by}.${comment:+ Reason: $comment}"
+message="Domain name $domain_name has been suspended by $by.${reason:+ Reason: $reason.}${comment:+ Comment: $comment}"
 nohup opencli sentinel --action=domains_status --title="Domain name $domain_name suspended" --message="$message" >/dev/null 2>&1 &
 disown
 

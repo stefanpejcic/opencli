@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: waf.sh
 # Description: Manage CorazaWAF
-# Usage: opencli waf <status|enable|disable|domain|plugins|tags|ids|update|stats|count> [options]
+# Usage: opencli waf <status|enable|disable|domain|user|plugins|tags|ids|update|stats|count> [options]
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 01.10.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -47,6 +47,9 @@ usage() {
     echo "  domain DOMAIN_NAME disable                   Disable CorazaWAF for a domain."
     echo "  domain DOMAIN_NAME monitor                   Monitor only: log attacks for a domain without blocking them."
     echo "  domain DOMAIN_NAME plugins                   Show protection level and app profiles (CRS plugins) for a domain."
+    echo "  user USERNAME                                Check if CorazaWAF is enabled for a user's domains."
+    echo "  user USERNAME enable                         Enable CorazaWAF for all current and new domains of a user."
+    echo "  user USERNAME disable                        Disable CorazaWAF for all current and new domains of a user."
     echo "  plugins                                      List installed CRS plugins and how many domains use each."
     echo "  plugins install                              Download missing CRS plugins."
     echo "  tags                                         Display all tags from enabled sets."
@@ -65,6 +68,8 @@ usage() {
     echo "  opencli waf domain pcx3.com disable"
     echo "  opencli waf domain pcx3.com monitor"
     echo "  opencli waf domain pcx3.com plugins"
+    echo "  opencli waf user stefan"
+    echo "  opencli waf user stefan disable"
     echo "  opencli waf plugins"
     echo "  opencli waf plugins install"
     echo "  opencli waf stats ip"
@@ -156,6 +161,89 @@ set_coraza_waf_for_domain() {
     [[ "$action" == "monitor" ]] && done_text="set to monitor only"
     nohup opencli sentinel --action=waf_domain --title="WAF $action for domain" --message="CorazaWAF has been ${done_text} for domain '$domain'." >/dev/null 2>&1 &
     disown
+}
+
+# sets user_id and context, suspended accounts included
+get_user_context() {
+    local username="$1" esc row
+    # shellcheck disable=SC1091
+    . /usr/local/opencli/db.sh
+    esc=$(mysql_escape "$username")
+    row=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id, server FROM users WHERE username = '$esc' UNION ALL SELECT id, server FROM users WHERE username LIKE 'SUSPENDED#_%#_$esc' ESCAPE '#' LIMIT 1;" 2>/dev/null)
+    read -r user_id context <<< "$row"
+    if [[ -z "$user_id" || -z "$context" ]]; then
+        echo "User $username not found!"
+        exit 1
+    fi
+}
+
+get_user_domains() {
+    mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT domain_url FROM domains WHERE user_id = '$user_id';" 2>/dev/null
+}
+
+set_coraza_waf_for_user() {
+    local username="$1"
+    local action="$2"   # "", "enable" or "disable"
+    local flag domains domain value file
+
+    get_user_context "$username"
+    flag="/home/${context}/waf.disabled"
+    domains=$(get_user_domains)
+
+    case "$action" in
+        "")
+            if [[ -f "$flag" ]]; then
+                echo "CorazaWAF is disabled for new domains of user $username"
+            else
+                echo "CorazaWAF is enabled for new domains of user $username"
+            fi
+            for domain in $domains; do
+                check_domain "$domain"
+            done
+            return
+            ;;
+        enable)
+            rm -f "$flag"
+            value="On"
+            # without the module domains-add sets Off anyway, so leave existing domains alone
+            if ! grep -qi "waf" /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null; then
+                echo "CorazaWAF will be used for new domains of user $username once the 'waf' module is enabled."
+                return
+            fi
+            ;;
+        disable)
+            touch "$flag"
+            value="Off"
+            ;;
+        *)
+            echo "Invalid action: $action. Use 'enable' or 'disable'."
+            exit 1
+            ;;
+    esac
+
+    for domain in $domains; do
+        # suspended domains keep the real vhost in suspended_domains, update both
+        for file in "/etc/openpanel/caddy/domains/${domain}.conf" "/etc/openpanel/caddy/suspended_domains/${domain}.conf"; do
+            [[ -f "$file" ]] && sed -i "s/SecRuleEngine .*/SecRuleEngine $value/" "$file"
+        done
+        echo "- SecRuleEngine $value is now set for domain $domain"
+    done
+    [[ -n "$domains" ]] && reload_caddy_now
+
+    echo "CorazaWAF is now ${action}d for all current and new domains of user $username"
+    nohup opencli sentinel --action=waf_domain --title="WAF $action for user" --message="CorazaWAF has been ${action}d for all domains of user '$username'." >/dev/null 2>&1 &
+    disown
+}
+
+# domains of users that turned WAF off with 'opencli waf user USERNAME disable'
+get_waf_disabled_domains() {
+    local flag ctx
+    for flag in /home/*/waf.disabled; do
+        [[ -f "$flag" ]] || continue
+        ctx=$(basename "$(dirname "$flag")")
+        [[ "$ctx" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+        mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT d.domain_url FROM domains d JOIN users u ON u.id = d.user_id WHERE u.server = '$ctx';" 2>/dev/null
+    done
 }
 
 get_stats_from_file() {
@@ -371,8 +459,14 @@ enable_coraza_waf() {
     echo "Setting container image 'openpanel/caddy-coraza'.."
     sed -i 's|^CADDY_IMAGE=".*"|CADDY_IMAGE="openpanel/caddy-coraza"|' /root/.env
 
-    # 4. enable WAF for ALL user domains
-    sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' /etc/openpanel/caddy/domains/*.conf >/dev/null 2>&1
+    # 4. enable WAF for all user domains, except users that turned it off
+    local skip conf
+    skip=$(get_waf_disabled_domains)
+    for conf in /etc/openpanel/caddy/domains/*.conf; do
+        [[ -f "$conf" ]] || continue
+        grep -qxF "$(basename "$conf" .conf)" <<< "$skip" && continue
+        sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$conf"
+    done
 
     # 5. restart caddy
     echo "Restarting Web Server to use the new image with CorazaWAF.."
@@ -463,6 +557,13 @@ case "$1" in
                 usage
                 ;;
         esac
+        ;;
+    "user")
+        if [[ -z "$2" ]]; then
+            echo "Username is required."
+            usage
+        fi
+        set_coraza_waf_for_user "$2" "$3"
         ;;
     "enable")
         enable_coraza_waf
