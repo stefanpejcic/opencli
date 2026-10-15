@@ -114,3 +114,18 @@ derive_tasks_max() {
 
     echo "$tasks_max"
 }
+
+# safety ceiling for a user-<uid>.slice whose plan has unlimited cpu/ram, so one account can never take the whole server: all cores but 2 (at least half of them), MemoryHigh at 80% and MemoryMax at 90% of host RAM -- e.g. read -r cpu_pct mem_high_mb mem_max_mb < <(unlimited_slice_ceiling)
+unlimited_slice_ceiling() {
+    local cores ram_mb cpu_pct
+    cores=$(nproc --all)
+    ram_mb=$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo)
+    cpu_pct=$(( (cores - 2) * 100 ))
+    (( cpu_pct < cores * 50 )) && cpu_pct=$(( cores * 50 ))
+    echo "$cpu_pct $(( ram_mb * 80 / 100 )) $(( ram_mb * 90 / 100 ))"
+}
+
+# derives a user-<uid>.slice IOWeight from the plan's CPU cores (cores x 100, 50..1000, unlimited = 100), so bigger plans get a bigger share of a busy disk and nobody is throttled on an idle one -- e.g. derive_io_weight <cpu>
+derive_io_weight() {
+    awk -v c="${1%[Gg]}" 'BEGIN { w = (c + 0 == 0) ? 100 : int(c * 100); if (w < 50) w = 50; if (w > 1000) w = 1000; print w }'
+}

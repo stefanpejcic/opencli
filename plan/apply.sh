@@ -150,32 +150,39 @@ EOF
         ram="${ram%g}"
 
         if [[ "$ram" -eq 0 ]]; then
-            systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
-            systemctl set-property "user-${user_id}.slice" TasksMax=infinity
+            read -r _ mem_high_mb mem_max_mb < <(unlimited_slice_ceiling)
+            tasks_max=$(derive_tasks_max $(( mem_max_mb / 1024 )) "$context")
+            systemctl set-property "user-${user_id}.slice" MemoryHigh="${mem_high_mb}M" MemoryMax="${mem_max_mb}M"
+            systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
+            echo "- Ceiling:    [OK]   Unlimited RAM, safety ceiling at ${mem_high_mb}MB (throttled) / ${mem_max_mb}MB (max), ${tasks_max} tasks."
         else
             tasks_max=$(derive_tasks_max "$ram" "$context")
             ram="${ram}G"
-            systemctl set-property "user-${user_id}.slice" MemoryMax="$ram"
+            systemctl set-property "user-${user_id}.slice" MemoryHigh=infinity MemoryMax="$ram"
             systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
             echo "- Tasks:      [OK]   Ceiling set to ${tasks_max} tasks (derived from RAM; /home/${context}/TasksMax overrides)."
         fi
+        # no swap even on unlimited plans, a container at its memory limit gets oom-killed and restarted instead of swapping and saturating the disk for every account
+        systemctl set-property "user-${user_id}.slice" MemorySwapMax=0
         echo "- Memory:     [OK]   $ram_text"
     fi
     
     # CPU
     if ! $partial || $docpu; then
         if [[ "$cpu" -eq 0 ]]; then
-            systemctl set-property "user-${user_id}.slice" CPUQuota=
+            read -r cpu_ceiling _ < <(unlimited_slice_ceiling)
+            systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_ceiling}%"
+            echo "- Ceiling:    [OK]   Unlimited CPU, safety ceiling at ${cpu_ceiling}%."
         else
             cpu_percent=$(echo "$cpu * 100" | bc)
             systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_percent}%"
         fi
+        systemctl set-property "user-${user_id}.slice" IOWeight="$(derive_io_weight "$cpu")"
         echo "- CPU:        [OK]   $cpu_text"
     fi
 
 	# TODO: cover remote context and 
 	# systemctl set-property user-1002.slice TasksMax=150 # Max processes
-	# systemctl set-property user-1002.slice IOWeight=500 # I/O weight
 
     # Disk and Inodes
     if ! $partial || $dodsk; then

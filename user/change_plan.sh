@@ -106,28 +106,38 @@ update_resource() {
 
     if [[ "$type" == "cpu" ]]; then
         if [[ "$value" -eq 0 ]]; then
-            systemctl set-property "user-${user_id}.slice" CPUQuota=infinity
+            local cpu_ceiling
+            read -r cpu_ceiling _ < <(unlimited_slice_ceiling)
+            systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_ceiling}%"
+            echo "[✔] Unlimited CPU, safety ceiling set to ${cpu_ceiling}%."
         else
             local cpu_percent
             cpu_percent=$(echo "$value * 100" | bc)
             systemctl set-property "user-${user_id}.slice" CPUQuota="${cpu_percent}%"
         fi
+        systemctl set-property "user-${user_id}.slice" IOWeight="$(derive_io_weight "$value")"
     fi
 
     if [[ "$type" == "ram" ]]; then
         if [[ "$value" -eq 0 ]]; then
-            systemctl set-property "user-${user_id}.slice" MemoryMax=infinity
-            systemctl set-property "user-${user_id}.slice" TasksMax=infinity
+            local mem_high_mb mem_max_mb tasks_max
+            read -r _ mem_high_mb mem_max_mb < <(unlimited_slice_ceiling)
+            tasks_max=$(derive_tasks_max $(( mem_max_mb / 1024 )) "$USERNAME")
+            systemctl set-property "user-${user_id}.slice" MemoryHigh="${mem_high_mb}M" MemoryMax="${mem_max_mb}M"
+            systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
+            echo "[✔] Unlimited RAM, safety ceiling set to ${mem_high_mb}MB (throttled) / ${mem_max_mb}MB (max), ${tasks_max} tasks."
         else
             local ram_gb="$value"
             [[ "$value" != *G ]] && value="${value}G"
-            systemctl set-property "user-${user_id}.slice" MemoryMax="$value"
+            systemctl set-property "user-${user_id}.slice" MemoryHigh=infinity MemoryMax="$value"
 
             local tasks_max
             tasks_max=$(derive_tasks_max "$ram_gb" "$USERNAME")
             systemctl set-property "user-${user_id}.slice" TasksMax="$tasks_max"
             echo "[✔] Tasks ceiling set to ${tasks_max} (derived from RAM; /home/${USERNAME}/TasksMax overrides)."
         fi
+        # no swap even on unlimited plans, a container at its memory limit gets oom-killed and restarted instead of swapping and saturating the disk for every account
+        systemctl set-property "user-${user_id}.slice" MemorySwapMax=0
     fi
 
     ((success_count++))

@@ -15,6 +15,7 @@ opencli domains-dnssec
 opencli domains-docroot
 opencli domains-edit
 opencli domains-hsts
+opencli domains-ratelimit
 opencli domains-ssl
 opencli domains-stats
 opencli domains-suspend
