@@ -5,7 +5,7 @@
 # Usage: opencli docker-backup [--parallel=N]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic
 # Created: 22.07.2025
-# Last Modified: 12.10.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -48,6 +48,15 @@ done
 log() {
     local message="$1"
     echo "$(date '+%Y-%m-%d %H:%M:%S') : $message" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
+}
+
+# sentinel only logs/sends it if docker_backup is enabled in notifications.ini
+notify_failure() {
+    local message="$1" details
+    details=$(jq -nc --arg l "$LOG_FILE" '{log_file: $l}')
+    nohup opencli sentinel --action=docker_backup --severity=critical --title="Backup failed" \
+        --message="$message Detailed report was saved in: $LOG_FILE" --details="$details" >/dev/null 2>&1 &
+    disown
 }
 
 # --no-deps since we start docker-proxy ourselves, otherwise podman-compose run can tear down the whole stack (mariadb included)
@@ -203,6 +212,7 @@ process_all_users() {
     log "Fetching list of active users..."
     if ! users=$(get_active_users); then
         log "ERROR: Could not retrieve active users from the database."
+        notify_failure "Backups did not run because the list of active users could not be retrieved from the database."
         return 1
     fi
     
@@ -280,6 +290,7 @@ process_all_users() {
         log "Successfully processed all $user_count users"
     else
         log "Failed to process ${#failed_users[@]} users: ${failed_users[*]}"
+        notify_failure "Backup failed for ${#failed_users[@]} of $user_count users: ${failed_users[*]}."
         return 1
     fi
 
