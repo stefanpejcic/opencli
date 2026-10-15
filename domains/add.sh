@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 21.08.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/backups.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command jq
@@ -749,6 +751,10 @@ run_dns_setup() {
     is_module_enabled "dns" || { log "DNS module disabled — skipping"; return; }
 
     create_zone_file
+    # own zone only, subdomains just add records to the apex one
+    if ! $USE_PARENT_DNS_ZONE && [[ -f "$ZONE_FILE_DIR${domain_name}.zone" ]]; then
+        backup_mount_add "$context" "$ZONE_FILE_DIR${domain_name}.zone" "/backup/dns/${domain_name}.zone" && backup_service_reload "$user" "$context"
+    fi
     get_slave_dns_option   # must happen before named.conf update on master
     update_named_conf
     reload_bind
@@ -894,6 +900,13 @@ create_mail_mountpoint() {
 	local mail_uid
 	mail_uid=$(stat -c '%u' "/home/$context" 2>/dev/null) || true
 	[[ -n "$mail_uid" ]] && chown -R -h "$mail_uid:$mail_uid" "/home/$context/docker-data/volumes/${context}_mail_data" 2>/dev/null || true
+
+	# the backup container can't follow the mail_data symlink, so it gets the real mail dir mounted too
+	if backup_mount_add "$context" "$(backup_mail_dir "$context" "$domain_name")" "/backup/emails/$domain_name"; then
+		backup_service_reload "$user" "$context"
+	else
+		log "Could not add the mail backup mount for $domain_name to /home/$context/docker-compose.yml"
+	fi
 
     if grep -qF "$volume_to_add" "$compose_file"; then
         return

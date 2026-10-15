@@ -115,6 +115,22 @@ ensure_docker_proxy_running() {
     wait_for_proxy_ready "$context"
 }
 
+# db containers started before backup_meta was in the compose file need one recreate, otherwise the manifest misses their dumps and the panel has to list the whole archive
+refresh_db_containers() {
+    local context="$1" service mounts output
+    grep -q "backup_meta:/tmp/backup_meta" "$(podman_compose_file "$context")" 2>/dev/null || return 0
+    for service in mysql mariadb postgres; do
+        [[ "$(podman_ctx "$context" inspect -f '{{.State.Running}}' "$service" 2>/dev/null)" == "true" ]] || continue
+        mounts=$(podman_ctx "$context" inspect -f '{{range .Mounts}}{{.Destination}} {{end}}' "$service" 2>/dev/null)
+        [[ "$mounts" == *"/tmp/backup_meta"* ]] && continue
+        log "Recreating $service for context: $context to add the backup_meta volume"
+        if ! output=$(podman_compose_ctx "$context" up -d --no-deps --force-recreate "$service" 2>&1); then
+            log "WARNING: failed to recreate $service for context: $context"
+            echo "$output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
+        fi
+    done
+}
+
 # podman context (users.server) of a user, defaults to the username
 get_context() {
     local username="$1" ctx
@@ -134,6 +150,7 @@ run_for_user() {
         log "Backup FAILED for user: $username (context: $context) — docker-proxy unavailable"
         return 1
     fi
+    refresh_db_containers "$context"
     start_user_time=$(date +%s)
     # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
     local backup_output backup_exit

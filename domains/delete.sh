@@ -5,7 +5,7 @@
 # Usage: opencli domains-delete <DOMAIN_NAME> [--debug]
 # Author: Stefan Pejcic
 # Created: 07.11.2024
-# Last Modified: 21.08.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/backups.sh
 
 [ $# -lt 1 ] && { echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"; exit 1; }
 
@@ -296,6 +298,8 @@ remove_dns_entries_from_apex_zone() {
 delete_zone_file() {
 	local zone_file="/etc/bind/zones/$domain_name.zone"
 
+	backup_mount_remove "$context" "/backup/dns/$domain_name.zone" && backup_service_reload "$user" "$context"
+
 	if [ -f "$zone_file" ]; then
 	    log "Removing DNS zone file: $zone_file"
 	    rm "$zone_file"
@@ -330,7 +334,10 @@ delete_mail_mountpoint(){
     local store_in
     store_in=$(grep -E '^email_storage_location=' /etc/openpanel/openadmin/config/admin.ini 2>/dev/null | cut -d'=' -f2- | xargs)
 
-	rm -rf "/home/$context/docker-data/volumes/${context}_mail_data/_data/"
+	# only this domain's link, the other domains keep theirs
+	rm -f "/home/$context/docker-data/volumes/${context}_mail_data/_data/$domain_name"
+	backup_mount_remove "$context" "/backup/emails/$domain_name"
+	backup_service_reload "$user" "$context"
 
     if [[ "$store_in" == /* ]]; then
         :
