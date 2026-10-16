@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: user/restore.sh
 # Description: Restores a single OpenPanel user account from a full account .tar.gz backup.
-# Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--quiet] [--temp-dir=<PATH> ]
+# Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--reseller=NAME] [--quiet] [--temp-dir=<PATH> ]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
@@ -42,6 +42,7 @@ ARCHIVE=""
 FORCE=0
 QUIET=0
 NEW_USERNAME=""
+RESELLER=""
 
 WARNINGS=()
 DOMAINS_ADDED=0; DOMAINS_SKIPPED=0; DOMAINS_SKIPPED_LIST=()
@@ -60,11 +61,12 @@ while [[ $# -gt 0 ]]; do
         --temp-dir=*)       WORK="${1#*=}"; shift ;;
         --new-username=*)   NEW_USERNAME="${1#*=}"; shift ;;
         --new-username)     NEW_USERNAME="$2"; shift 2 ;;
+        --reseller=*)       RESELLER="${1#*=}"; shift ;;
         *) echo "[ERROR] Unknown option: $1"; exit 1 ;;
     esac
 done
 
-[[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
+[[ -z "$ARCHIVE" ]] && { echo "Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--reseller=NAME] [--temp-dir=/home/] [--quiet]"; exit 1; }
 [[ -f "$ARCHIVE" ]] || { echo "[ERROR] Archive not found: $ARCHIVE"; exit 1; }
 ARCHIVE=$(realpath "$ARCHIVE")
 
@@ -114,6 +116,8 @@ echo "Import started, log file: $log_file"
 log "Log file: $log_file"
 log "PID: $pid"
 log "Archive: $ARCHIVE"
+# OpenAdmin shows this log only to this reseller
+[[ -n "$RESELLER" ]] && log "Reseller: $RESELLER"
 
 # Disk space check — extraction target must fit the fully uncompressed archive
 check_disk_space_extract() {
@@ -178,6 +182,26 @@ fi
 if [[ -z "$edition_key" ]]; then
     user_count=$(mysql_q "SELECT COUNT(*) FROM users;")
     [[ "${user_count:-0}" -ge 3 && "${username_exists:-0}" -eq 0 ]] && die "Community edition limit: 3 accounts. Upgrade to Enterprise for more."
+fi
+
+# a reseller restore has to fit the reseller's limits before anything is created
+if [[ -n "$RESELLER" ]]; then
+    source /usr/local/opencli/lib/reseller.sh
+    reseller_ok=$(sqlite3 /etc/openpanel/openadmin/users.db "SELECT COUNT(*) FROM user WHERE username='${RESELLER//\'/\'\'}' AND role='reseller';" 2>/dev/null)
+    [[ "${reseller_ok:-0}" -ge 1 ]] || die "User '$RESELLER' is not a reseller."
+    [[ $FORCE -eq 1 ]] && die "Resellers can't overwrite existing accounts with --force."
+    reseller_file=$(reseller_limits_file "$RESELLER")
+    reseller_accounts=$(mysql_q "SELECT COUNT(*) FROM users WHERE owner='$(mysql_escape "$RESELLER")';")
+    reseller_max=$(jq -r '.max_accounts // 0' "$reseller_file")
+    if [[ "$reseller_max" =~ ^[0-9]+$ ]] && (( reseller_max > 0 && ${reseller_accounts:-0} >= reseller_max )); then
+        die "Reseller '$RESELLER' has reached the maximum account limit ($reseller_max)."
+    fi
+    reseller_over_disk "$reseller_file" && die "Reseller '$RESELLER' has reached the maximum disk usage limit."
+    restore_plan=$(awk -F"'" '/INSERT INTO plans/{getline; print $2; exit}' "$WORK/db/plan.sql" 2>/dev/null)
+    restore_plan_id=$(mysql_q "SELECT id FROM plans WHERE name='$(mysql_escape "$restore_plan")' LIMIT 1;")
+    [[ -n "$restore_plan_id" ]] || die "Plan '$restore_plan' from the backup doesn't exist on this server, resellers can only restore onto plans that are assigned to them."
+    reseller_plan_allowed "$reseller_file" "$restore_plan_id" || die "Plan '$restore_plan' is not assigned to reseller '$RESELLER'."
+    log "Reseller '$RESELLER' limits ok, plan '$restore_plan' is allowed."
 fi
 
 # ── 1) System user ───────────────────────────────────────────────────────────
@@ -401,6 +425,14 @@ restore_database() {
     USER_ID=$(mysql_q "SELECT id FROM users WHERE username='$USERNAME';")
     [[ -z "$USER_ID" ]] && die "Failed to import user row for '$USERNAME'."
     log "User row ready (ID: $USER_ID)."
+
+    # the backup's owner is from the old server, a reseller restore always belongs to the reseller
+    if [[ -n "$RESELLER" ]]; then
+        mysql_q "UPDATE users SET owner='$(mysql_escape "$RESELLER")' WHERE id=$USER_ID;"
+        local reseller_count; reseller_count=$(mysql_q "SELECT COUNT(*) FROM users WHERE owner='$(mysql_escape "$RESELLER")';")
+        jq --argjson n "${reseller_count:-0}" '.current_accounts = $n' "$reseller_file" > "$reseller_file.tmp" && mv "$reseller_file.tmp" "$reseller_file"
+        log "Owner set to reseller '$RESELLER'."
+    fi
 
     # mcp tokens / passkeys, the tables only exist once the panel used them so create them first
     local t cols

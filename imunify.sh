@@ -428,10 +428,16 @@ uninstall_av() {
 # opencli imunify start
 start_av() {
   pkill -u _imunify -f "php -S 127.0.0.1:9000" 2>/dev/null || true
+  systemctl stop imunify-gui 2>/dev/null || true
 
   chown -R _imunify /etc/sysconfig/imunify360/
   if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
-    nohup sudo -u _imunify php -S 127.0.0.1:9000 -t /etc/sysconfig/imunify360/ > /var/log/imunify-php-server.log 2>&1 &
+    # its own unit, so restarting the admin service (which may have called this) doesn't take the gui down with it
+    if command -v systemd-run >/dev/null 2>&1; then
+      systemd-run --unit=imunify-gui --collect --quiet -p User=_imunify -p StandardOutput=append:/var/log/imunify-php-server.log -p StandardError=append:/var/log/imunify-php-server.log "$(command -v php)" -S 127.0.0.1:9000 -t /etc/sysconfig/imunify360/
+    else
+      nohup sudo -u _imunify php -S 127.0.0.1:9000 -t /etc/sysconfig/imunify360/ > /var/log/imunify-php-server.log 2>&1 &
+    fi
     echo "ImunifyAV GUI started."
   else
     echo "ImunifyAV GUI already running."
@@ -441,6 +447,7 @@ start_av() {
 # ======================================================================
 # opencli imunify stop
 stop_av() {
+  systemctl stop imunify-gui 2>/dev/null || true
   pkill -f "php -S 127.0.0.1:9000"
   if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
     echo "ImunifyAV GUI disabled."
