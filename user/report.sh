@@ -5,7 +5,7 @@
 # Usage: opencli user-report <USERNAME|--all> [--section <name,...>] [--json]
 # Author: Stefan Pejcic
 # Created: 02.10.2026
-# Last Modified: 02.10.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -719,10 +719,14 @@ notify_api_token_change|1|API token created or revoked|
 notify_api_token_change_notification_disabled|1|Email if this alert gets turned off|notify_api_token_change
 notify_ssl_expiry|1|SSL certificate problem|
 notify_malware_found|1|Malware found|
+notify_wp_vulnerability|1|Vulnerable WordPress site|
 notify_disk_limit|1|Disk space running out|
 notify_email_quota_limit|1|Mailbox almost full|
 notify_email_ratelimit|1|Hourly email limit reached|
-notify_service_failed|1|Service stopped|"
+notify_service_failed|1|Service stopped|
+notify_ratelimit|0|Visitors blocked by rate limit|
+notify_daily_summary|0|Daily summary|
+notify_error_logs|0|Daily error report|"
 
 section_account() {
     section "ACCOUNT"

@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
-# Last Modified: 12.10.2026
+# Last Modified: 15.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -35,6 +35,8 @@
 # Helpers
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/email.sh
 require_command jq
 
 update_version() {
@@ -119,6 +121,24 @@ human_duration() {
   fi
 }
 
+# emails the account owner when a finished scan of their home found malware, path is /home/<context>/...
+notify_av_user() {
+  local context="$1" malicious="$2" path="$3" files_json="$4" username list
+  [[ "$context" =~ ^[A-Za-z0-9_.-]+$ ]] || return 0
+  username=$(mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT username FROM users WHERE server = '$context' LIMIT 1" 2>/dev/null)
+  [[ -n "$username" && "$username" != SUSPENDED_* ]] || return 0
+
+  # the user only knows their files by the path inside the panel, not the host volume path
+  list=$(jq -r --arg c "$context" '.[:20][] | sub("^/home/\($c)/docker-data/volumes/\($c)_html_data/_data/"; "/var/www/html/") | "- " + .' <<< "$files_json")
+  (( malicious > 20 )) && list+=$'\n'"- and $((malicious - 20)) more"
+
+  send_user_email "$username" "Malware found on account $username" \
+    "An ImunifyAV malware scan found $malicious infected file(s) on account $username:"$'\n\n'"${list}"$'\n\n'"Scanned: $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+    notify_malware_found "" "" "" \
+    "Remove or clean these files, or ask your hosting provider for help if you're not sure what they are. Malware usually gets in through outdated plugins, themes or stolen passwords, so update your websites and change your FTP and admin passwords." \
+    && echo "$username notified by email about $malicious malicious file(s)."
+}
+
 # opencli imunify notify
 notify_av() {
   local files=("$IAV_SPOOL"/new/*)
@@ -167,6 +187,7 @@ notify_av() {
         list=$(jq -r '.malicious_files // [] | .[:5] | join(", ")' <<< "$ev")
         (( malicious > 5 )) && list+=" and $((malicious - 5)) more"
         message="$kind ($path) checked $files_count files in $duration and found: $list. Review them in OpenAdmin > ImunifyAV."
+        [[ -n "$user" ]] && notify_av_user "$user" "$malicious" "$path" "$(jq -c '.malicious_files // []' <<< "$ev")"
       else
         title="ImunifyAV scan clean${user:+: $user}"
         message="$kind ($path) checked $files_count files in $duration, no malware found."

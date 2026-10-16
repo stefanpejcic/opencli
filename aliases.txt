@@ -71,8 +71,10 @@ opencli user-backup
 opencli user-block_ip
 opencli user-change_plan
 opencli user-check
+opencli user-daily_summary
 opencli user-delete
 opencli user-email
+opencli user-error_report
 opencli user-ip
 opencli user-list
 opencli user-login

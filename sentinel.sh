@@ -55,6 +55,8 @@ readonly LOCK_FILE_FOR_DOCKER_PRUNE="/tmp/sentinel.docker"
 readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
+readonly LOCK_FILE_FOR_RATELIMIT="/tmp/sentinel.ratelimit"
+readonly RATELIMIT_CHECK_HOURS=6
 readonly STARTUP_STAGGER=2  # seconds between user starts on boot
 readonly MYSQL_IDLE_GRACE=7200  # mysql of an account this old with no databases gets stopped
 readonly RUN_TIMEOUT=900  # whole run gets killed after this, so a hung podman can't hold the run lock forever
@@ -87,6 +89,8 @@ SSH_LOGIN=$(validate_yes_no "$(ini_get ssh)")
 SERVICES=$(ini_get services); SERVICES="${SERVICES:-admin,podman,mysql,csf,panel}"
 
 LIMIT=$(validate_yes_no "$(ini_get limit)")
+# new and off by default, so a missing key means no
+RATELIMIT=$([[ "$(ini_get ratelimit)" == "yes" ]] && echo yes || echo no)
 ATTACK=$(validate_yes_no "$(ini_get attack)")
 MAX_TOTAL_CONN=$(validate_count "$(ini_get max_total_conn)"   5000)
 MAX_CONN_PER_IP=$(validate_count "$(ini_get max_conn_per_ip)" 500)
@@ -1327,6 +1331,61 @@ check_disk_usage() {
   fi
 }
 
+# per domain list of 429s for an email or the panel notification
+ratelimit_lines() {
+  jq -r '.[] | "- \(.domain): \(.blocked) of \(.requests) requests blocked\(if (.top_blocked | length) > 0 then ", most from \(.top_blocked[0].ip) (\(.top_blocked[0].count))" else "" end)"'
+}
+
+# every 6h: domains whose visitors got 429s from the rate limits, admin first, then each owner who opted in
+check_ratelimit_hits() {
+  if [[ "$RATELIMIT" == "no" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limit checks are disabled."; return
+  fi
+  if [[ -f "$LOCK_FILE_FOR_RATELIMIT" ]]; then
+    local age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE_FOR_RATELIMIT") ))
+    if (( age < RATELIMIT_CHECK_HOURS * 3600 )); then
+      ((PASS++)); echo -e "\e[32m[✔]\e[0m Rate limit check skipped (last run $((age / 3600))h $((age % 3600 / 60))m ago)."; return
+    fi
+  fi
+  touch "$LOCK_FILE_FOR_RATELIMIT"
+
+  local stats hits count
+  stats=$(timeout 500 opencli domains-ratelimit stats --all --hours "$RATELIMIT_CHECK_HOURS" --json 2>/dev/null)
+  if ! hits=$(jq -c '[.[] | select(.blocked > 0)] | sort_by(-.blocked)' <<< "$stats" 2>/dev/null) || [[ -z "$hits" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Could not read rate limit stats from the domain logs."; return
+  fi
+  count=$(jq 'length' <<< "$hits")
+  if (( count == 0 )); then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m No visitors blocked by rate limits in the last ${RATELIMIT_CHECK_HOURS}h."
+    return
+  fi
+
+  ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limits blocked visitors on ${count} domain(s) in the last ${RATELIMIT_CHECK_HOURS}h."
+  write_notification warning traffic "Rate limit reached on ${count} domain(s)" \
+    "Visitors got 429 Too Many Requests in the last ${RATELIMIT_CHECK_HOURS}h:"$'\n'"$(jq '.[:10]' <<< "$hits" | ratelimit_lines)" \
+    "$(jq -c '{hours: '"$RATELIMIT_CHECK_HOURS"', domains: [.[:20][] | {domain, requests, blocked, peak_minute, peak_ip_minute, top_blocked}]}' <<< "$hits")"
+
+  local domain username list by_user
+  declare -A by_user=()
+  while IFS= read -r domain; do
+    [[ "$domain" =~ ^[A-Za-z0-9.-]+$ ]] || continue
+    username=$(mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT u.username FROM domains d JOIN users u ON u.id = d.user_id WHERE d.domain_url = '$domain' LIMIT 1" 2>/dev/null)
+    [[ -n "$username" && "$username" != SUSPENDED_* ]] || continue
+    # opt-in, a missing key means no
+    grep -qx "notify_ratelimit=1" "/etc/openpanel/openpanel/core/users/${username}/notifications.yaml" 2>/dev/null || continue
+    by_user[$username]+="$domain "
+  done < <(jq -r '.[].domain' <<< "$hits")
+
+  for username in "${!by_user[@]}"; do
+    list=$(jq --arg d "${by_user[$username]}" '[.[] | select(.domain as $x | ($d | split(" ")) | index($x))]' <<< "$hits" | ratelimit_lines)
+    send_user_email "$username" "Visitors blocked by rate limit on account $username" \
+      "In the last ${RATELIMIT_CHECK_HOURS} hours some visitors to your websites were blocked for sending too many requests per minute, and got a 429 Too Many Requests error:"$'\n\n'"${list}"$'\n\n'"Checked: $(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      notify_ratelimit "" "" "" \
+      "One IP with most of the blocks is usually a bot or scraper, and blocking it is what the limit is for. If real visitors are being blocked, for example during a sale or after a newsletter, ask your hosting provider to raise the rate limit for your domain." \
+      && echo "$username: notified about rate limited domains."
+  done
+}
+
 check_system_load() {
   local title="High System Load!"
   local load_raw; read -r load_raw _ < /proc/loadavg
@@ -1841,6 +1900,7 @@ _parallel_tasks=(
   check_swap_usage
   check_if_panel_domain_and_ns_resolve_to_server
   check_user_containers
+  check_ratelimit_hits
 )
 
 for _task in "${_parallel_tasks[@]}"; do
