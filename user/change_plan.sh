@@ -50,9 +50,9 @@ source /usr/local/opencli/lib/redis.sh
 source /usr/local/opencli/lib/podman.sh
 
 # For old plan: id, name, context
-IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT db_user_id < <(
+IFS=$'\t' read -r current_plan_id current_plan_name CONTEXT db_user_id current_disk_limit OWNER < <(
     mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "
-        SELECT u.plan_id, p.name, u.server, u.id
+        SELECT u.plan_id, p.name, u.server, u.id, p.disk_limit, IFNULL(u.owner, '')
         FROM users u
         JOIN plans p ON p.id = u.plan_id
         WHERE u.username = '$(mysql_escape "$USERNAME")'
@@ -84,6 +84,36 @@ if [ -z "$new_plan_id" ]; then
     echo "Error: Plan '$new_plan_name' not found in the database."
     exit 1
 fi
+
+# same reseller checks as user-add, so plan changes can't get around them
+check_reseller_limits() {
+    [[ -n "$OWNER" && "$OWNER" != "root" ]] || return 0
+    source /usr/local/opencli/lib/reseller.sh
+    local limits_file
+    limits_file="$(reseller_limits_file "$OWNER")"
+
+    if ! reseller_plan_allowed "$limits_file" "$new_plan_id"; then
+        echo "Error: Plan '$new_plan_name' is not assigned to reseller '$OWNER'."
+        exit 1
+    fi
+
+    local old_disk new_disk
+    old_disk=$(awk '{print $1}' <<< "$current_disk_limit")
+    new_disk=$(awk '{print $1}' <<< "$Ndisk_limit")
+    [[ "$new_disk" =~ ^[0-9]+$ ]] || new_disk=0
+    [[ "$old_disk" =~ ^[0-9]+$ ]] || old_disk=0
+    # 0 is unlimited, so it counts as bigger than anything
+    local bigger=false
+    if (( old_disk != 0 )) && (( new_disk == 0 || new_disk > old_disk )); then
+        bigger=true
+    fi
+    if $bigger && reseller_over_disk "$limits_file"; then
+        echo "Error: Reseller '$OWNER' has reached the maximum disk usage limit, can't move user to a plan with more disk space."
+        exit 1
+    fi
+}
+
+check_reseller_limits
 
 # convert
 numNram=$(echo "$Nram" | tr -d 'g')

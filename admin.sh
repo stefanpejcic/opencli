@@ -68,9 +68,9 @@ usage() {
     echo "  log                                           Display the last 25 lines of the OpenAdmin error log."
     echo "  logs                                          Display live logs for all OpenAdminn services."
     echo "  list                                          List all current admin users."
-    echo "  new <user> <pass> [--reseller|--super]        Add a new user, optionally as a reseller or super admin."
+    echo "  new <user> <pass> [--reseller|--super] [--plan=<name>] Add a new user, optionally as a reseller (on a reseller plan) or super admin."
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
-    echo "  update <user> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 --logo_url=<url> Assign plans, limits, and branding for reseller."
+    echo "  update <user> --plan=<name> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 --logo_url=<url> Assign a reseller plan, limits, and branding for reseller."
 	echo "  rename <old> <new>                            Change the admin username."
     echo "  suspend <user>                                Suspend admin user."
     echo "  unsuspend <user>                              Unsuspend admin user."
@@ -91,6 +91,8 @@ usage() {
     echo "  opencli admin list"
     echo "  opencli admin new stefan SuperStrong1"
     echo "  opencli admin new stefan SuperStrong1 --reseller"
+    echo "  opencli admin new stefan SuperStrong1 --reseller --plan=reseller_basic"
+    echo "  opencli admin update stefan --plan=reseller_pro"
     echo "  opencli admin new stefan SuperStrong1 --super"
     echo "  opencli admin password stefan SuperStrong2"
     echo "  opencli admin rename stefan pejcic"
@@ -334,6 +336,7 @@ add_new_user() {
     local username="$1"
     local password="$2"
     local flag="$3"
+    local reseller_plan="$4"
 	local password_hash
 	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$password")
 
@@ -382,11 +385,13 @@ add_new_user() {
 	else
 	# ---------------------- success msg
 		if [ "$flag" == "--reseller" ]; then
-			local resellers_template="/etc/openpanel/openadmin/config/reseller_template.json"
-			local resellers_dir="/etc/openpanel/openadmin/resellers"
-			mkdir -p $resellers_dir
-			cp $resellers_template $resellers_dir/"$username".json
+			source /usr/local/opencli/lib/reseller.sh
+			rm -f "${RESELLERS_DIR}/${username}.json"
+			reseller_limits_file "$username" >/dev/null
 			echo "Reseller user '$username' created."
+			if [ -n "$reseller_plan" ]; then
+				update_reseller_account "$username" --plan="$reseller_plan"
+			fi
 			nohup opencli sentinel --action=reseller_create --title="Reseller created" --message="Reseller administrator account '$username' has been created." >/dev/null 2>&1 &
 			disown
 		elif [ "$flag" == "--super" ]; then
@@ -408,9 +413,11 @@ update_reseller_account() {
     local max_disk_blocks=""
     local logo_url=""
     local logo_url_set=0
+    local reseller_plan=""
 
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --plan=*) reseller_plan="${1#*=}" ;;
             --allowed_plans=*) allowed_plans="${1#*=}" ;;
             --max_accounts=*) max_accounts="${1#*=}" ;;
             --max_disk_blocks=*) max_disk_blocks="${1#*=}" ;;
@@ -424,15 +431,44 @@ update_reseller_account() {
         shift
     done
 
-    if [[ -n "$allowed_plans" && "$allowed_plans" != \[*\] ]]; then
-        IFS=',' read -r -a plans_array <<< "$allowed_plans"
-        allowed_plans=$(printf '%s\n' "${plans_array[@]}" | jq -R . | jq -s .)
+    source /usr/local/opencli/lib/reseller.sh
+
+    if [[ -z "$username" ]] || ! sqlite3 "$db_file_path" "SELECT 1 FROM user WHERE username='$(sqlite_escape "$username")' AND role='reseller';" | grep -q 1; then
+        echo "Error: Reseller '$username' does not exist." >&2
+        return 1
     fi
 
-    local reseller_file="/etc/openpanel/openadmin/resellers/$username.json"
-    if [[ ! -f "$reseller_file" ]]; then
-        echo "Error: Reseller file $reseller_file not found!"
-        return 1
+    local reseller_file
+    reseller_file="$(reseller_limits_file "$username")"
+
+    if [[ -n "$allowed_plans" ]]; then
+        allowed_plans="$(reseller_plans_json "$allowed_plans")"
+    fi
+
+    local plan_file=""
+    if [[ -n "$reseller_plan" ]]; then
+        if ! plan_file="$(reseller_plan_file "$reseller_plan")"; then
+            echo "Error: Reseller plan '$reseller_plan' not found." >&2
+            return 1
+        fi
+        # explicit flags win over the plan's values
+        [[ -n "$max_accounts" ]] || max_accounts="$(jq -r '.max_accounts // 0' "$plan_file")"
+        [[ -n "$max_disk_blocks" ]] || max_disk_blocks="$(jq -r '.max_disk_blocks // 0' "$plan_file")"
+        [[ -n "$allowed_plans" ]] || allowed_plans="$(jq -c '(.allowed_plans // []) | map(tonumber? // empty)' "$plan_file")"
+
+        # refuse a downgrade below what the reseller already uses
+        source /usr/local/opencli/db.sh
+        local current_accounts current_disk
+        current_accounts=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT COUNT(*) FROM users WHERE owner='$(mysql_escape "$username")';" 2>/dev/null)
+        current_disk=$(jq -r '(.current_disk_blocks // 0) | tonumber? // 0' "$reseller_file")
+        if [[ "$max_accounts" =~ ^[0-9]+$ ]] && (( max_accounts > 0 && ${current_accounts:-0} > max_accounts )); then
+            echo "Error: Reseller '$username' has ${current_accounts} accounts, plan '$reseller_plan' allows only ${max_accounts}. Remove accounts first." >&2
+            return 1
+        fi
+        if [[ "$max_disk_blocks" =~ ^[0-9]+$ ]] && (( max_disk_blocks > 0 && ${current_disk%.*} > max_disk_blocks )); then
+            echo "Error: Reseller '$username' uses ${current_disk} disk blocks, plan '$reseller_plan' allows only ${max_disk_blocks}. Free up disk space first." >&2
+            return 1
+        fi
     fi
 
     # only touch fields whose flag was actually passed, so e.g. --logo_url alone doesn't wipe the rest
@@ -449,6 +485,10 @@ update_reseller_account() {
     if [[ -n "$allowed_plans" ]]; then
         jq_filter+=' | .allowed_plans = ($plans_json | fromjson)'
         jq_args+=(--arg plans_json "$allowed_plans")
+    fi
+    if [[ -n "$reseller_plan" ]]; then
+        jq_filter+=' | .reseller_plan = $reseller_plan'
+        jq_args+=(--arg reseller_plan "$reseller_plan")
     fi
     if [[ "$logo_url_set" -eq 1 ]]; then
         jq_filter+=' | .logo_url = $logo_url'
@@ -707,7 +747,7 @@ case "$1" in
         ;;
 	"update")
 	    shift 1
-	    update_reseller_account "$@"
+	    update_reseller_account "$@" || exit 1
 	    ;;
 	"suspend"|"unsuspend")
 	    username="$2"
@@ -774,6 +814,8 @@ case "$1" in
         new_username="$2"
         new_password="$3"
         reseller="$4"
+        new_reseller_plan=""
+        [[ "$5" == --plan=* ]] && new_reseller_plan="${5#*=}"
 		
         if [ -z "$new_username" ] || [ -z "$new_password" ]; then
             echo "ERROR: Invalid 'opencli admin new' command - please provide username and password."
@@ -782,11 +824,18 @@ case "$1" in
 
 		if [ "$reseller" = "--reseller" ]; then
 			check_edition
+			if [ -n "$new_reseller_plan" ]; then
+				source /usr/local/opencli/lib/reseller.sh
+				if ! reseller_plan_file "$new_reseller_plan" >/dev/null; then
+					echo -e "${RED}Error${RESET}: Reseller plan '$new_reseller_plan' not found." >&2
+					exit 1
+				fi
+			fi
 		fi
 		
         validate_password_and_username "$new_username" "Username"
         validate_password_and_username "$new_password" "Password"
-        add_new_user "$new_username" "$new_password" "$reseller"
+        add_new_user "$new_username" "$new_password" "$reseller" "$new_reseller_plan"
         ;;
     "notifications")
         command="$2"

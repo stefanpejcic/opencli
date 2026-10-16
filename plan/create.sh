@@ -199,7 +199,7 @@ insert_plan() {
             plan_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)
             if [ -n "$plan_id" ]; then
                 tmpfile=$(mktemp)
-                jq --arg plan "$plan_id" '.allowed_plans |= (if index($plan) then . else . + [$plan] end)' "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
+                jq --argjson plan "$plan_id" '.allowed_plans |= ((. // []) | map(tonumber? // empty) | if index($plan) then . else . + [$plan] end)' "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
             else
                 echo "Warning: failed to retrieve plan ID from the database and assign it to the reseller user."
             fi

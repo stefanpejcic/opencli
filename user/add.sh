@@ -177,11 +177,9 @@ check_reseller_limits() {
     user_exists="$(sqlite3 "$db_file" "SELECT COUNT(*) FROM user WHERE username='${RESELLER//\'/\'\'}' AND role='reseller';")"
     (( user_exists >= 1 )) || die "User '$RESELLER' is not a reseller or is not allowed to create users."
 
-    local limits_file="/etc/openpanel/openadmin/resellers/${RESELLER}.json"
-    if [[ ! -f "$limits_file" ]]; then
-        echo "[!] Warning: Reseller $RESELLER has no limits file; unlimited accounts allowed."
-        return 0
-    fi
+    source /usr/local/opencli/lib/reseller.sh
+    local limits_file
+    limits_file="$(reseller_limits_file "$RESELLER")"
 
     local current_accounts
     current_accounts="$(db_query "SELECT COUNT(*) FROM users WHERE owner='${RESELLER_ESC//\'/\\\'}'")"
@@ -195,9 +193,10 @@ check_reseller_limits() {
         die "Reseller '$RESELLER' has reached the maximum account limit ($max_accounts)."
     fi
 
-    local allowed_plans
-    allowed_plans="$(jq -r '.allowed_plans | join(",")' "$limits_file")"
-    grep -wq "$PLAN_ID" <<< "$allowed_plans" || die "Plan ID '$PLAN_ID' is not assigned to reseller '$RESELLER'."
+    reseller_plan_allowed "$limits_file" "$PLAN_ID" || die "Plan ID '$PLAN_ID' is not assigned to reseller '$RESELLER'."
+
+    reseller_over_disk "$limits_file" && die "Reseller '$RESELLER' has reached the maximum disk usage limit."
+    return 0
 }
 
 validate_password_in_lists() {
