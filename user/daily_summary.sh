@@ -102,7 +102,8 @@ summarize_user() {
         echo "  $username already got this summary."
         return 0
     fi
-    if send_user_email "$username" "$(jq -r '.subject' <<< "$out")" "$(jq -r '.body' <<< "$out")" notify_daily_summary "" "" "" \
+    # disk and inode use come along as bars, drawn by OpenAdmin's email template
+    if send_user_email "$username" "$(jq -r '.subject' <<< "$out")" "$(jq -r '.body' <<< "$out")" notify_daily_summary "$(jq -c '.usage // []' <<< "$out")" "" "" \
         "To stop these emails, turn off 'Daily summary' in Account > Notifications. The summaries stay in Statistics > Daily Summary either way."; then
         jq -r '.date' <<< "$out" > "$sent_state"
         echo "  $username notified by email."

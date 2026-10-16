@@ -5,7 +5,7 @@
 # Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 02.10.2026
+# Last Modified: 16.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -444,17 +444,16 @@ update_modules() {
     [[ "$no_log" == "--no-log" ]] && echo "$msg" || log "$msg"
     local url="https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/openadmin/config/features.json"
 
-    if wget --spider -q "$url" 2>/dev/null; then
-        if wget -q -O "/etc/openpanel/openadmin/config/features.json" "$url"; then
-            (( updated++ ))
-        else
-            log_warn "Failed to download features from github"
-            (( failed++ ))
-        fi
+    local features="/etc/openpanel/openadmin/config/features.json"
+    local tmp="${features}.tmp"
+    local http_code
+    http_code=$(curl -sS --connect-timeout 10 --max-time 60 --retry 2 -o "$tmp" -w "%{http_code}" "$url" 2>/dev/null)
+    if [[ "$http_code" == "200" ]] && jq empty "$tmp" &>/dev/null; then
+        mv -f "$tmp" "$features"
     else
-        log_warn "No features file found: $url (skipping)"
+        rm -f "$tmp"
+        log_warn "Failed to download features from github (HTTP ${http_code:-000}), keeping current file"
     fi
-    
 }
 
 
@@ -794,15 +793,21 @@ update_locales() {
         [[ -n "$formatted_locale" ]] || formatted_locale="${two_letter}-${two_letter}"
         local url="https://raw.githubusercontent.com/${github_repo}/main/${formatted_locale}/messages.po"
 
-        if wget --spider -q "$url" 2>/dev/null; then
-            if wget -q -O "$po_file" "$url"; then
-                (( updated++ ))
-            else
-                log_warn "Failed to download locale: $formatted_locale"
-                (( failed++ ))
-            fi
-        else
+        # default wget retries 20x with 15min read timeout, that hung updates with several locales #1199
+        local tmp_po="${po_file}.tmp"
+        local http_code
+        http_code=$(curl -sS --connect-timeout 10 --max-time 60 --retry 2 -o "$tmp_po" -w "%{http_code}" "$url" 2>/dev/null)
+        if [[ "$http_code" == "200" ]] && grep -q '^msgid' "$tmp_po" 2>/dev/null; then
+            mv -f "$tmp_po" "$po_file"
+            (( updated++ ))
+            log_info "Updated locale: $formatted_locale"
+        elif [[ "$http_code" == "404" ]]; then
+            rm -f "$tmp_po"
             log_warn "No remote locale found for: $formatted_locale (skipping)"
+        else
+            rm -f "$tmp_po"
+            log_warn "Failed to download locale: $formatted_locale (HTTP ${http_code:-000})"
+            (( failed++ ))
         fi
     done
 
