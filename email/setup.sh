@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 30.09.2026
+# Last Modified: 18.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -44,6 +44,8 @@ readonly QUOTAS_FILE="$CONFIG_DIR/dovecot-quotas.cf"
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/redis.sh
 
 is_valid_email() {
   local email="$1"
@@ -89,6 +91,8 @@ reload_emails_data_file_for_user() {
     while IFS= read -r domain; do
         grep "@${domain}" <<< "$all_emails" >> "$file_to_refresh"
     done <<< "$all_domains"
+    # the panel memoizes the list from this file for 1h (GetEmailList), drop it so /emails shows the change now
+    redis_drop_key "openpanel_cache_email_list:${owner}"
 }
 
 
@@ -313,9 +317,12 @@ run_setup_command "${command[@]}"
 setup_rc=$?
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
-    if is_valid_email "$3"; then
+    target_email="$3"
+    # 'email del -y|-n <email>': the address comes after the flag
+    [[ "$1 $2" == "email del" && "$3" =~ ^-[yYnN]$ ]] && target_email="$4"
+    if is_valid_email "$target_email"; then
         # get OpenPanel user UID and store/update it in postfix-accounts.cf
-        get_openpanel_username_and_uid_for_domain "$3"
+        get_openpanel_username_and_uid_for_domain "$target_email"
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
             sed -i "/^$3|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "$ACCOUNTS_FILE"
             nohup timeout 300 podman exec "$CONTAINER" bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" &
