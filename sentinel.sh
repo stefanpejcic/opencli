@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 15.10.2026
+# Last Modified: 18.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -653,6 +653,7 @@ remove_dependent_openpanel() {
   timeout 30 podman kill openpanel &>/dev/null
   timeout 30 podman container cleanup openpanel &>/dev/null
   timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
+  _docker_rm_storage_leftover openpanel
 }
 
 check_user_containers() {
@@ -773,6 +774,23 @@ _docker_ps_refresh() { DOCKER_PS_CACHE=$(timeout 20 podman ps --format "{{.Names
 _docker_ps() { echo "$DOCKER_PS_CACHE"; }
 _docker_log() { timeout 10 podman logs --tail 10 "$1" 2>&1; }
 
+# removes a storage-only leftover (podman ps -a --external shows "Storage") that still holds the container name, so podman-compose up can't create it ("name ... is already in use") while podman inspect says it doesn't exist
+# rm --storage refuses when the unmounted merged/ dir isn't empty (seen: an empty data/ left from a half-created bind mount), so clear empty dirs there and retry - never files, never a mounted dir
+_docker_rm_storage_leftover() {
+  local name="$1" id out merged
+  id=$(timeout 20 podman ps -a --external --filter "name=^${name}\$" --format '{{.ID}} {{.Status}}' 2>/dev/null | awk '$2=="Storage"{print $1; exit}')
+  [[ -z "$id" ]] && return 0
+  echo "  - Removing storage-only leftover of $name ($id)"
+  out=$(timeout 30 podman rm --storage --force "$id" 2>&1) && return 0
+  merged=$(grep -oP 'mount point "\K/var/lib/containers/storage/overlay/[0-9a-f]{64}/merged(?=": directory not empty)' <<< "$out" | head -n 1)
+  if [[ -n "$merged" && -d "$merged" ]] && ! grep -qF " $merged " /proc/mounts; then
+    find "$merged" -mindepth 1 -depth -type d -empty -delete 2>/dev/null
+    timeout 30 podman rm --storage --force "$id" &>/dev/null && return 0
+  fi
+  echo "  - Could not remove storage-only $name ($id): $(tail -n 1 <<< "$out")"
+  return 1
+}
+
 _openpanel_http_ok() {
   local code
   code=$(curl -sko /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "https://localhost:2083/")
@@ -835,6 +853,7 @@ docker_containers_status() {
       else
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
         timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
+        _docker_rm_storage_leftover openpanel; _docker_rm_storage_leftover openpanel_redis
         timeout 30 podman rm -f clamav &>/dev/null
         timeout 30 podman rm -f phpmyadmin &>/dev/null
         cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
@@ -866,6 +885,7 @@ docker_containers_status() {
         ((WARN--)); echo "  - No users found; $svc not needed."; resolve_notification "$title"
       else
         timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
+        _docker_rm_storage_leftover openpanel; _docker_rm_storage_leftover openpanel_redis
         timeout 30 podman rm -f clamav &>/dev/null
         timeout 30 podman rm -f phpmyadmin &>/dev/null
         cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
@@ -985,6 +1005,7 @@ redis_docker_container_status() {
   if ! timeout 30 podman inspect "$container" &>/dev/null; then
     ((WARN++))
     echo -e "\e[31m[✘]\e[0m Redis container not found — starting."
+    _docker_rm_storage_leftover openpanel_redis
     cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
     sleep 2
     _docker_check_after_restart "$container" "$title" "did not exist"
@@ -1004,6 +1025,7 @@ redis_docker_container_status() {
         echo -e "\e[31m[✘]\e[0m Redis running but not responding — restarting."
         remove_dependent_openpanel
         timeout 30 podman rm -f "$container" &>/dev/null; timeout 30 podman rm -f --storage "$container" &>/dev/null
+        _docker_rm_storage_leftover openpanel_redis
         cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
         _docker_check_after_restart "$container" "$title" "was running but not responding to PING"
       fi
@@ -1012,6 +1034,7 @@ redis_docker_container_status() {
       rm -f "$LOCK_FILE_FOR_REDIS_STUCK"
       ((WARN++))
       echo -e "\e[38;5;214m[!]\e[0m Redis container is $state — restarting."
+      _docker_rm_storage_leftover openpanel_redis
       cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
       _docker_check_after_restart "$container" "$title" "had stopped (state: $state)"
       ;;
@@ -1045,6 +1068,7 @@ redis_docker_container_status() {
       remove_dependent_openpanel
       timeout 30 podman kill "$container" &>/dev/null
       timeout 30 podman rm -f "$container" &>/dev/null; timeout 30 podman rm -f --storage "$container" &>/dev/null
+      _docker_rm_storage_leftover openpanel_redis
       cd /root && timeout 120 podman-compose up -d openpanel_redis &>/dev/null
       sleep 2
       _docker_check_after_restart "$container" "$title" "was stuck in state '$state' for ${stuck_age}s"
