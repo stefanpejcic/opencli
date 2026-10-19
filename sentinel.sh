@@ -94,6 +94,11 @@ RATELIMIT=$([[ "$(ini_get ratelimit)" == "yes" ]] && echo yes || echo no)
 ATTACK=$(validate_yes_no "$(ini_get attack)")
 MAX_TOTAL_CONN=$(validate_count "$(ini_get max_total_conn)"   5000)
 MAX_CONN_PER_IP=$(validate_count "$(ini_get max_conn_per_ip)" 500)
+# hardcoded until they get settings in OpenAdmin, 0 turns the mail queue check off
+readonly MAIL_QUEUE=500
+readonly HOLD_SPAM=yes
+readonly BLOCK_IP=yes
+readonly BLOCK_IP_MINUTES=60
 
 LOAD_THRESHOLD=$(validate_number "$(ini_get load)" 20)
 CPU_THRESHOLD=$(validate_number  "$(ini_get cpu)"  90)
@@ -1351,17 +1356,78 @@ empty_users_trash() {
     timeout 120 find "$trash" -mindepth 1 -maxdepth 1 ! -name .trash_restore -exec rm -rf -- {} + 2>/dev/null
     if [ -z "$(find "$trash" -mindepth 1 -maxdepth 1 ! -name .trash_restore -print -quit 2>/dev/null)" ]; then
       [ -f "$trash/.trash_restore" ] && : > "$trash/.trash_restore"
-      TRASH_EMPTIED+=("$user ($(LC_ALL=C numfmt --to=iec $(( ${kb:-0} * 1024 )))B)")
+      TRASH_EMPTIED+=("$user ($(human_kb "${kb:-0}"))")
     else
       TRASH_FAILED+=("$user")
     fi
   done
 }
 
+disk_used_kb() { df / | awk 'NR==2 {print $3}'; }
+disk_pct() { df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}'; }
+human_kb() { echo "$(LC_ALL=C numfmt --to=iec $(( $1 * 1024 )))B"; }
+
+cleanup_journal() {
+  command -v journalctl > /dev/null || return
+  timeout 60 journalctl --vacuum-size=500M > /dev/null 2>&1
+}
+
+cleanup_package_cache() {
+  if command -v apt-get > /dev/null; then timeout 60 apt-get clean > /dev/null 2>&1
+  elif command -v dnf > /dev/null; then timeout 60 dnf clean all > /dev/null 2>&1
+  elif command -v yum > /dev/null; then timeout 60 yum clean all > /dev/null 2>&1
+  fi
+}
+
+cleanup_old_logs() {
+  timeout 60 find /var/log/openpanel/admin/crashlog /var/log/openpanel/admin/reports -type f -mtime +7 -delete 2>/dev/null
+  timeout 60 find /var/log/openpanel/updates -type f -mtime +30 -delete 2>/dev/null
+  # rotated archives only, wtmp/btmp are kept for login history
+  timeout 120 find /var/log -xdev -type f \( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \) ! -name 'wtmp*' ! -name 'btmp*' -mtime +7 -delete 2>/dev/null
+  timeout 60 find /tmp -maxdepth 1 \( -name 'trash_purge_*' -o -name 'sentinel.container_restart_results.*' \) -mmin +1440 -exec rm -rf -- {} + 2>/dev/null
+}
+
+# keeps the last 100MB in place so caddy and others keep writing to the same file
+cleanup_large_logs() {
+  BIG_LOGS=()
+  local f tmp
+  while IFS= read -r f; do
+    tmp=$(mktemp /tmp/sentinel.log_tail.XXXXXX) || return
+    if timeout 60 tail -c 100M -- "$f" > "$tmp" 2>/dev/null && cat "$tmp" > "$f"; then
+      BIG_LOGS+=("$f")
+    fi
+    rm -f "$tmp"
+  # %b is blocks really used, so sparse files like lastlog don't count
+  done < <(timeout 60 find /var/log -xdev -path /var/log/journal -prune -o -type f ! -name 'lastlog' ! -name 'wtmp*' ! -name 'btmp*' -printf '%b %p\n' 2>/dev/null | awk '$1 > 2097152 { sub(/^[0-9]+ /, ""); print }')
+}
+
+cleanup_podman() {
+  timeout 30 podman system prune -f --filter "until=24h" > /dev/null 2>&1
+  for context in /home/*; do
+     [ -d "$context" ] || continue
+     # timeout execs a binary directly and can't invoke podman_user (a bash function), so the socket is inlined via CONTAINER_HOST instead
+     context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
+     timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
+  done
+  prune_shared_images
+}
+
+# runs one cleanup step and notes how much it freed, returns 1 once the disk is under the threshold
+run_cleanup_step() {
+  local label="$1" before freed; shift
+  before=$(disk_used_kb)
+  "$@"
+  freed=$(( before - $(disk_used_kb) ))
+  (( freed < 0 )) && freed=0
+  CLEANUP_STEPS+=("${label}: $(human_kb "$freed")")
+  (( $(disk_pct) <= DISK_THRESHOLD )) && return 1
+  return 0
+}
+
 check_disk_usage() {
   local flag_tt=86400
   local title="Running out of Disk Space!"
-  local pct; pct=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
+  local pct; pct=$(disk_pct)
   if (( pct > DISK_THRESHOLD )); then
     if is_unread_message_present "$title"; then
       ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Unread DU notification. Skipping."; return
@@ -1374,48 +1440,48 @@ check_disk_usage() {
         return
       fi
     fi
-
-    local kb_before; kb_before=$(df / | awk 'NR==2 {print $3}')
-
-    timeout 30 podman system prune -f --filter "until=24h" > /dev/null 2>&1
-    for context in /home/*; do
-       [ -d "$context" ] || continue
-       # timeout execs a binary directly and can't invoke podman_user (a bash function), so the socket is inlined via CONTAINER_HOST instead
-       context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
-       timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
-    done
-    prune_shared_images
-    empty_users_trash
     touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
 
-    local cleanup_msg=""
+    local kb_before; kb_before=$(disk_used_kb)
+    CLEANUP_STEPS=(); BIG_LOGS=(); SHARED_IMAGES_REMOVED=(); SHARED_IMAGES_FAILED=(); SHARED_IMAGES_ERROR=""; TRASH_EMPTIED=(); TRASH_FAILED=()
+
+    # safest first, users' Trash last since it's the only step that loses user data
+    run_cleanup_step "systemd journal" cleanup_journal \
+      && run_cleanup_step "package cache" cleanup_package_cache \
+      && run_cleanup_step "old and rotated logs" cleanup_old_logs \
+      && run_cleanup_step "logs over 1GB" cleanup_large_logs \
+      && run_cleanup_step "unused podman data and images" cleanup_podman \
+      && run_cleanup_step "users' Trash" empty_users_trash
+    local stopped_early=$?
+
+    local steps; steps=$(printf '%s, ' "${CLEANUP_STEPS[@]}")
+    local cleanup_msg=" Cleaned up ${steps%, }."
+    (( stopped_early )) && cleanup_msg+=" Stopped once the disk was under the threshold."
+    (( ${#BIG_LOGS[@]} )) && cleanup_msg+=" Shrank to the last 100MB: ${BIG_LOGS[*]}."
     if [ -n "$SHARED_IMAGES_ERROR" ]; then
-      cleanup_msg=" Skipped removing unused images from the shared store: ${SHARED_IMAGES_ERROR}."
+      cleanup_msg+=" Skipped removing unused images from the shared store: ${SHARED_IMAGES_ERROR}."
     elif (( ${#SHARED_IMAGES_REMOVED[@]} )); then
-      cleanup_msg=" Removed ${#SHARED_IMAGES_REMOVED[@]} unused image(s) from the shared store: ${SHARED_IMAGES_REMOVED[*]}."
-    else
-      cleanup_msg=" No unused images in the shared store."
+      cleanup_msg+=" Removed ${#SHARED_IMAGES_REMOVED[@]} unused image(s) from the shared store: ${SHARED_IMAGES_REMOVED[*]}."
     fi
     (( ${#SHARED_IMAGES_FAILED[@]} )) && cleanup_msg+=" Failed to remove: ${SHARED_IMAGES_FAILED[*]}."
     if (( ${#TRASH_EMPTIED[@]} )); then
       local emptied; emptied=$(printf '%s, ' "${TRASH_EMPTIED[@]}")
       cleanup_msg+=" Emptied the Trash of ${#TRASH_EMPTIED[@]} user(s): ${emptied%, }."
-    else
-      cleanup_msg+=" No user had files in Trash."
     fi
     (( ${#TRASH_FAILED[@]} )) && cleanup_msg+=" Failed to empty the Trash of: ${TRASH_FAILED[*]}."
 
-    local kb_after; kb_after=$(df / | awk 'NR==2 {print $3}')
-    local freed_gb=$(( (kb_before - kb_after) / 1024 / 1024 ))
-    local pct_after; pct_after=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
+    local freed_kb=$(( kb_before - $(disk_used_kb) ))
+    (( freed_kb < 0 )) && freed_kb=0
+    local freed; freed=$(human_kb "$freed_kb")
+    local pct_after; pct_after=$(disk_pct)
 
-    if (( freed_gb >= 1 )); then
-      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data, removed unused images from the shared store, emptied users' Trash and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%).${cleanup_msg}" "$(disk_details "$pct_after")"
-      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%.${cleanup_msg}"; return
+    if (( pct_after <= DISK_THRESHOLD )); then
+      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel freed ${freed} and it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%).${cleanup_msg}" "$(disk_details "$pct_after")"
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed}, disk is now at ${pct_after}%.${cleanup_msg}"
     else
       ((FAIL++)); STATUS=2
-      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%, cleanup freed less than 1GB.${cleanup_msg}"
-      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data, removed unused images from the shared store and emptied users' Trash but it freed less than 1GB.${cleanup_msg} Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
+      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%, cleanup freed ${freed} and it is still at ${pct_after}%.${cleanup_msg}"
+      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel freed ${freed} but it is still at ${pct_after}%.${cleanup_msg} Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct_after")"
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Disk ${pct}% < threshold ${DISK_THRESHOLD}%"
@@ -1429,6 +1495,55 @@ ratelimit_lines() {
 }
 
 # every 6h: domains whose visitors got 429s from the rate limits, admin first, then each owner who opted in
+# a big queue from one local sender is usually a stolen mailbox password or an abused contact form
+check_mail_queue() {
+  local title="Large mail queue!" container="openadmin_mailserver"
+  if [[ "$MAIL_QUEUE" == "0" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Mail queue checks are disabled."; return
+  fi
+  if [[ "$(timeout 20 podman inspect -f '{{.State.Running}}' "$container" 2>/dev/null)" != "true" ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Mail server is not running, skipping mail queue check."; return
+  fi
+  local queue total
+  if ! queue=$(timeout 60 podman exec "$container" postqueue -j 2>/dev/null) || ! total=$(jq -s '[.[] | select(.queue_name != "hold")] | length' <<< "$queue" 2>/dev/null); then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Could not read the mail queue."; return
+  fi
+  if (( total < MAIL_QUEUE )); then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Mail queue ${total} < threshold ${MAIL_QUEUE}"
+    resolve_notification "$title"; return
+  fi
+
+  ((FAIL++)); STATUS=2
+  local owners count sender domain owner lines="" top_sender="" top_count=0
+  owners=$(timeout 10 mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT d.domain_url, u.username FROM domains d JOIN users u ON u.id = d.user_id" 2>/dev/null)
+  while read -r count sender; do
+    [ -n "$sender" ] || continue
+    owner=""
+    if [[ "$sender" != "<>" ]]; then
+      domain=${sender##*@}
+      owner=$(awk -F'\t' -v d="${domain,,}" 'tolower($1) == d {print $2; exit}' <<< "$owners")
+    fi
+    lines+="- ${sender/#<>/<> (bounces)}: ${count} queued${owner:+ (user $owner)}"$'\n'
+    # only local accounts are held, bounces and relayed mail are left alone
+    if [[ -z "$top_sender" && -n "$owner" ]]; then top_sender=$sender; top_count=$count; fi
+  done < <(jq -r 'select(.queue_name != "hold") | if .sender == "" then "<>" else .sender end' <<< "$queue" | sort | uniq -c | sort -rn | head -5)
+
+  local note="" held=""
+  if [[ "$HOLD_SPAM" == "yes" && -n "$top_sender" ]] && (( top_count * 2 >= MAIL_QUEUE )); then
+    held=$(jq -r --arg s "$top_sender" 'select(.sender == $s and .queue_name != "hold") | .queue_id' <<< "$queue" \
+      | timeout 60 podman exec -i "$container" postsuper -h - 2>&1 | grep -oE '[0-9]+ message' | grep -oE '[0-9]+')
+    if [[ -n "$held" ]]; then
+      note=" Sentinel put ${held} email(s) from ${top_sender} on hold. Review them with: opencli email-server queue, then release them all with: opencli email-server unhold ALL or delete one with: opencli email-server delete QUEUE_ID."
+    else
+      note=" Sentinel failed to put the emails from ${top_sender} on hold."
+    fi
+  fi
+
+  echo -e "\e[31m[✘]\e[0m Mail queue ${total} > threshold ${MAIL_QUEUE}.${note}"
+  write_notification warning security "$title" "${total} emails are waiting in the mail queue (threshold ${MAIL_QUEUE}). Top senders:"$'\n'"${lines}${note# } If you didn't expect this, a mailbox password may be stolen or a website form abused by spammers." \
+    "$(jq -nc --argjson t "$total" --arg s "$lines" --arg h "${held:+$top_sender}" '{kind: "mail_queue", total: $t, top_senders: $s, held_sender: $h}')"
+}
+
 check_ratelimit_hits() {
   if [[ "$RATELIMIT" == "no" ]]; then
     ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limit checks are disabled."; return
@@ -1478,6 +1593,33 @@ check_ratelimit_hits() {
   done
 }
 
+# top 3 users by cpu or ram, read from their user-UID.slice cgroup since plan limits live there too
+top_users() {
+  local sort_key=1 home uid cg ncpu c2 mem io
+  [[ "$1" == "ram" ]] && sort_key=2
+  declare -A ctx_of=() c1=()
+  for home in /home/*; do
+    uid=$(stat -c %u "$home" 2>/dev/null) && ctx_of[$uid]=$(basename "$home")
+  done
+  for cg in /sys/fs/cgroup/user.slice/user-*.slice; do
+    uid=${cg##*/user-}; uid=${uid%.slice}
+    [ -n "${ctx_of[$uid]}" ] || continue
+    c1[$uid]=$(awk '/^usage_usec/{print $2; exit}' "$cg/cpu.stat" 2>/dev/null)
+  done
+  (( ${#c1[@]} )) || return
+  ncpu=$(nproc)
+  sleep 1
+  for uid in "${!c1[@]}"; do
+    cg="/sys/fs/cgroup/user.slice/user-${uid}.slice"
+    c2=$(awk '/^usage_usec/{print $2; exit}' "$cg/cpu.stat" 2>/dev/null)
+    mem=$(cat "$cg/memory.current" 2>/dev/null)
+    io=$(awk '/^some/{sub(/avg10=/, "", $2); print int($2); exit}' "$cg/io.pressure" 2>/dev/null)
+    echo "$(( (${c2:-0} - ${c1[$uid]:-0}) / (10000 * ncpu) )) ${mem:-0} ${io:-0} ${ctx_of[$uid]}"
+  done | sort -k${sort_key},${sort_key}nr | head -3 | while read -r cpu mem io name; do
+    echo "$name ($cpu% CPU, $(human_kb $(( mem / 1024 ))) RAM, $io% IO wait)"
+  done | paste -sd';' - | sed 's/;/, /g'
+}
+
 check_system_load() {
   local title="High System Load!"
   local load_raw; read -r load_raw _ < /proc/loadavg
@@ -1491,7 +1633,8 @@ check_system_load() {
     echo -e "\e[31m[✘]\e[0m Load ${load} > threshold ${LOAD_THRESHOLD} for ${STREAK} checks in a row. Generating crash report."
     is_unread_message_present "$title" && return
     generate_crashlog_report
-    write_notification warning resources "$title" "Load average is ${load_raw} (threshold ${LOAD_THRESHOLD}) for ${STREAK} checks in a row." "$(jq -nc --arg l "$load_raw" --arg c "$REPORT" '{kind: "load", load: $l, crashlog: $c}')"
+    local users; users=$(top_users cpu)
+    write_notification warning resources "$title" "Load average is ${load_raw} (threshold ${LOAD_THRESHOLD}) for ${STREAK} checks in a row.${users:+ Top users: ${users}.}" "$(jq -nc --arg l "$load_raw" --arg c "$REPORT" --arg u "$users" '{kind: "load", load: $l, crashlog: $c, top_users: $u}')"
   else
     clear_streak load
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Load ${load} < threshold ${LOAD_THRESHOLD}."
@@ -1515,8 +1658,9 @@ check_ram_usage() {
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m RAM ${pct}% > threshold ${RAM_THRESHOLD}%"
     local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10)
-    write_notification warning resources "$title" "RAM usage is ${pct}% (${used}MB of ${total}MB, threshold ${RAM_THRESHOLD}%)." \
-      "$(jq -nc --argjson p "$pct" --argjson u "$used" --argjson t "$total" --arg procs "$procs" '{kind: "ram", percent: $p, used_mb: $u, total_mb: $t, processes: $procs}')"
+    local users; users=$(top_users ram)
+    write_notification warning resources "$title" "RAM usage is ${pct}% (${used}MB of ${total}MB, threshold ${RAM_THRESHOLD}%).${users:+ Top users: ${users}.}" \
+      "$(jq -nc --argjson p "$pct" --argjson u "$used" --argjson t "$total" --arg procs "$procs" --arg tu "$users" '{kind: "ram", percent: $p, used_mb: $u, total_mb: $t, processes: $procs, top_users: $tu}')"
   else
     clear_streak ram
     ((PASS++)); echo -e "\e[32m[✔]\e[0m RAM ${pct}% < threshold ${RAM_THRESHOLD}%"
@@ -1545,13 +1689,33 @@ check_cpu_usage() {
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m CPU ${pct}% > threshold ${CPU_THRESHOLD}%"
     local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10)
-    write_notification warning resources "$title" "CPU usage is ${pct}% (threshold ${CPU_THRESHOLD}%)." \
-      "$(jq -nc --argjson p "$pct" --arg procs "$procs" '{kind: "cpu", percent: $p, processes: $procs}')"
+    local users; users=$(top_users cpu)
+    write_notification warning resources "$title" "CPU usage is ${pct}% (threshold ${CPU_THRESHOLD}%).${users:+ Top users: ${users}.}" \
+      "$(jq -nc --argjson p "$pct" --arg procs "$procs" --arg u "$users" '{kind: "cpu", percent: $p, processes: $procs, top_users: $u}')"
   else
     clear_streak cpu
     ((PASS++)); echo -e "\e[32m[✔]\e[0m CPU ${pct}% < threshold ${CPU_THRESHOLD}%"
     resolve_notification "$title"
   fi
+}
+
+# fallback when the Caddyfile has no trusted_proxies line, same list as the Caddyfile template
+readonly CLOUDFLARE_IPV4="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22"
+
+# prints why an ip must never be blocked, nothing if it can be
+never_block_reason() {
+  local ip=$1 cidr ranges
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "IPv6"; return; }
+  is_ip_whitelisted "$ip" && { echo "whitelisted"; return; }
+  for cidr in 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10; do
+    ip_in_cidr "$ip" "$cidr" && { echo "private IP"; return; }
+  done
+  hostname -I 2>/dev/null | tr ' ' '\n' | grep -qxF -- "$ip" && { echo "server IP"; return; }
+  grep -qwF -- "$ip" /etc/csf/csf.allow /etc/csf/csf.ignore 2>/dev/null && { echo "allowed in CSF"; return; }
+  ranges=$(grep -m1 'trusted_proxies' /etc/openpanel/caddy/Caddyfile 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]+')
+  for cidr in ${ranges:-$CLOUDFLARE_IPV4}; do
+    ip_in_cidr "$ip" "$cidr" && { echo "Cloudflare"; return; }
+  done
 }
 
 check_https_traffic() {
@@ -1561,7 +1725,8 @@ check_https_traffic() {
   if [[ "$CADDY_IS_ACTIVE" != "true" ]]; then
     ((WARN++)); echo "[!] Skipping website traffic checks because Caddy is not running."; return
   fi
-  local ALERT=0 SYN_ALERT=0
+  local ALERT=0 SYN_ALERT=0 SYN_NOTE=""
+  declare -A BLOCKED=()
   local ALL_CONNS
   ALL_CONNS=$(ss -tn '( sport = :80 or sport = :443 )' | tail -n +2)
 
@@ -1569,7 +1734,11 @@ check_https_traffic() {
   while read -r COUNT PORT; do
     if (( COUNT >= 1000 )); then
       echo -e "\e[31m[✘]\e[0m Possible SYN flood on :$PORT — $COUNT in SYN_RECV"
-      write_notification warning traffic "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state"
+      if [[ -z "$SYN_NOTE" && "$(sysctl -n net.ipv4.tcp_syncookies 2>/dev/null)" != "1" ]]; then
+        sysctl -qw net.ipv4.tcp_syncookies=1 2>/dev/null && SYN_NOTE=" Sentinel turned on SYN cookies (net.ipv4.tcp_syncookies=1) until the next reboot." || SYN_NOTE=" Sentinel failed to turn on SYN cookies."
+        echo -e "    \e[33m[→]\e[0m${SYN_NOTE}"
+      fi
+      write_notification warning traffic "Possible SYN flood" "Port $PORT: $COUNT connections in SYN_RECV state.${SYN_NOTE}"
       ALERT=1; SYN_ALERT=1
     fi
   done < <(awk '/SYN-RECV/{split($4,a,":"); print a[length(a)]}' <<< "$ALL_CONNS" | sort | uniq -c | awk '{print $1, $2}')
@@ -1592,12 +1761,30 @@ check_https_traffic() {
         done | sed 's|/var/log/caddy/domlogs/||; s|/access\.log||' | sort -u | tr '\n' ', ' | sed 's/,$//'
       )
 
+      local BLOCK_NOTE=""
+      if [[ "$BLOCK_IP" == "yes" ]]; then
+        local reason; reason=$(never_block_reason "$IP")
+        if [[ -n "${BLOCKED[$IP]}" ]]; then
+          BLOCK_NOTE="${BLOCKED[$IP]}"
+        elif [[ -n "$reason" ]]; then
+          BLOCK_NOTE=" | not blocked: $reason"
+        elif ! command -v csf > /dev/null; then
+          BLOCK_NOTE=" | not blocked: CSF is not installed"
+        elif timeout 30 csf -td "$IP" $(( BLOCK_IP_MINUTES * 60 )) "Sentinel: $COUNT connections on port $PORT" > /dev/null 2>&1; then
+          BLOCK_NOTE=" | blocked for ${BLOCK_IP_MINUTES} min"
+        else
+          BLOCK_NOTE=" | failed to block with csf -td"
+        fi
+        BLOCKED[$IP]="$BLOCK_NOTE"
+        echo -e "    \e[33m[→]\e[0m${BLOCK_NOTE# |}"
+      fi
+
       if [[ -n "$DOMAINS" ]]; then
         echo -e "    \e[33m[→]\e[0m Domain hit: $DOMAINS"
-        HIGH_TRAFFIC_LINES+=("$IP (port $PORT: $COUNT conns | domains: $DOMAINS)")
+        HIGH_TRAFFIC_LINES+=("$IP (port $PORT: $COUNT conns | domains: $DOMAINS${BLOCK_NOTE})")
       else
         echo -e "    \e[33m[→]\e[0m No matching domain logs found, check manually with: 'grep -Rli --include=access.log $IP /var/log/caddy/domlogs/ | xargs -n1 dirname | xargs -n1 basename'"
-        HIGH_TRAFFIC_LINES+=("$IP (port $PORT: $COUNT conns)")
+        HIGH_TRAFFIC_LINES+=("$IP (port $PORT: $COUNT conns${BLOCK_NOTE})")
       fi
 
       ALERT=1
@@ -1993,6 +2180,7 @@ _parallel_tasks=(
   check_if_panel_domain_and_ns_resolve_to_server
   check_user_containers
   check_ratelimit_hits
+  check_mail_queue
 )
 
 for _task in "${_parallel_tasks[@]}"; do
