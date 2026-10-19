@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 18.10.2026
+# Last Modified: 19.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -1309,6 +1309,28 @@ disk_details() {
   jq -nc --argjson p "$1" --arg parts "$(df -h | sort -r -k 5 -i)" '{kind: "disk", percent: $p, partitions: $parts}'
 }
 
+# same as Empty Trash in the File Manager, keeps .trash_restore but empties it
+empty_users_trash() {
+  TRASH_EMPTIED=(); TRASH_FAILED=()
+  local home user trash kb
+  for home in /home/*; do
+    trash="$home/.local/share/Trash"
+    [ -d "$trash" ] || continue
+    # skip if any part of the path is a symlink, the user controls it and we run rm as root
+    [ "$(realpath -e "$trash" 2>/dev/null)" == "$trash" ] || continue
+    [ -n "$(find "$trash" -mindepth 1 -maxdepth 1 ! -name .trash_restore -print -quit 2>/dev/null)" ] || continue
+    user=$(basename "$home")
+    kb=$(timeout 30 du -sk "$trash" 2>/dev/null | cut -f1)
+    timeout 120 find "$trash" -mindepth 1 -maxdepth 1 ! -name .trash_restore -exec rm -rf -- {} + 2>/dev/null
+    if [ -z "$(find "$trash" -mindepth 1 -maxdepth 1 ! -name .trash_restore -print -quit 2>/dev/null)" ]; then
+      [ -f "$trash/.trash_restore" ] && : > "$trash/.trash_restore"
+      TRASH_EMPTIED+=("$user ($(LC_ALL=C numfmt --to=iec $(( ${kb:-0} * 1024 )))B)")
+    else
+      TRASH_FAILED+=("$user")
+    fi
+  done
+}
+
 check_disk_usage() {
   local flag_tt=86400
   local title="Running out of Disk Space!"
@@ -1335,19 +1357,29 @@ check_disk_usage() {
        context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
        timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
     done
+    empty_users_trash
     touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
+
+    local trash_msg=""
+    if (( ${#TRASH_EMPTIED[@]} )); then
+      local emptied; emptied=$(printf '%s, ' "${TRASH_EMPTIED[@]}")
+      trash_msg=" Emptied the Trash of ${#TRASH_EMPTIED[@]} user(s): ${emptied%, }."
+    else
+      trash_msg=" No user had files in Trash."
+    fi
+    (( ${#TRASH_FAILED[@]} )) && trash_msg+=" Failed to empty the Trash of: ${TRASH_FAILED[*]}."
 
     local kb_after; kb_after=$(df / | awk 'NR==2 {print $3}')
     local freed_gb=$(( (kb_before - kb_after) / 1024 / 1024 ))
     local pct_after; pct_after=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
 
     if (( freed_gb >= 1 )); then
-      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%)." "$(disk_details "$pct_after")"
-      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%."; return   
+      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data, emptied users' Trash and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%).${trash_msg}" "$(disk_details "$pct_after")"
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%.${trash_msg}"; return
     else
       ((FAIL++)); STATUS=2
-      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%"
-      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data but it freed less than 1GB. Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
+      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%, cleanup freed less than 1GB.${trash_msg}"
+      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data and emptied users' Trash but it freed less than 1GB.${trash_msg} Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Disk ${pct}% < threshold ${DISK_THRESHOLD}%"
