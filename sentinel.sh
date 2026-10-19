@@ -1309,6 +1309,33 @@ disk_details() {
   jq -nc --argjson p "$1" --arg parts "$(df -h | sort -r -k 5 -i)" '{kind: "disk", percent: $p, partitions: $parts}'
 }
 
+# the shared store has no containers of its own, users and root only read it via additionalimagestores, so "unused" means no containers.json anywhere points at the image
+prune_shared_images() {
+  SHARED_IMAGES_REMOVED=(); SHARED_IMAGES_FAILED=(); SHARED_IMAGES_ERROR=""
+  local store="/var/lib/containers/shared-storage" f id names
+  [ -d "$store/overlay-images" ] || return
+  declare -A used=()
+  for f in /var/lib/containers/storage/overlay-containers/containers.json /home/*/docker-data/overlay-containers/containers.json; do
+    [ -f "$f" ] || continue
+    # if one can't be read we don't know what's in use, so don't delete anything
+    local ids; ids=$(jq -r '.[].image // empty' "$f" 2>/dev/null) || { SHARED_IMAGES_ERROR="could not read $f"; return; }
+    for id in $ids; do used[$id]=1; done
+  done
+  while read -r id names; do
+    [ -n "$id" ] || continue
+    id=${id#sha256:}
+    [ -n "${used[$id]}" ] && continue
+    # just pulled by docker-update or autostart and its containers aren't recreated yet
+    [ -n "$(find "$store/overlay-images/$id" -maxdepth 0 -mmin -1440 2>/dev/null)" ] && continue
+    [ "$names" == "<none>:<none>" ] && names="${id:0:12}"
+    if timeout 60 podman --root "$store" rmi -f "$id" > /dev/null 2>&1; then
+      SHARED_IMAGES_REMOVED+=("$names")
+    else
+      SHARED_IMAGES_FAILED+=("$names")
+    fi
+  done < <(timeout 30 podman --root "$store" images --no-trunc --format '{{.ID}} {{.Repository}}:{{.Tag}}' 2>/dev/null | sort -u -k1,1)
+}
+
 # same as Empty Trash in the File Manager, keeps .trash_restore but empties it
 empty_users_trash() {
   TRASH_EMPTIED=(); TRASH_FAILED=()
@@ -1357,29 +1384,38 @@ check_disk_usage() {
        context_uid=$(stat -c '%u' "$context" 2>/dev/null) || continue
        timeout 15 env CONTAINER_HOST="unix:///hostfs/run/user/${context_uid}/podman/podman.sock" podman --remote system prune -f --filter "until=24h" > /dev/null 2>&1
     done
+    prune_shared_images
     empty_users_trash
     touch "$LOCK_FILE_FOR_DOCKER_PRUNE"
 
-    local trash_msg=""
+    local cleanup_msg=""
+    if [ -n "$SHARED_IMAGES_ERROR" ]; then
+      cleanup_msg=" Skipped removing unused images from the shared store: ${SHARED_IMAGES_ERROR}."
+    elif (( ${#SHARED_IMAGES_REMOVED[@]} )); then
+      cleanup_msg=" Removed ${#SHARED_IMAGES_REMOVED[@]} unused image(s) from the shared store: ${SHARED_IMAGES_REMOVED[*]}."
+    else
+      cleanup_msg=" No unused images in the shared store."
+    fi
+    (( ${#SHARED_IMAGES_FAILED[@]} )) && cleanup_msg+=" Failed to remove: ${SHARED_IMAGES_FAILED[*]}."
     if (( ${#TRASH_EMPTIED[@]} )); then
       local emptied; emptied=$(printf '%s, ' "${TRASH_EMPTIED[@]}")
-      trash_msg=" Emptied the Trash of ${#TRASH_EMPTIED[@]} user(s): ${emptied%, }."
+      cleanup_msg+=" Emptied the Trash of ${#TRASH_EMPTIED[@]} user(s): ${emptied%, }."
     else
-      trash_msg=" No user had files in Trash."
+      cleanup_msg+=" No user had files in Trash."
     fi
-    (( ${#TRASH_FAILED[@]} )) && trash_msg+=" Failed to empty the Trash of: ${TRASH_FAILED[*]}."
+    (( ${#TRASH_FAILED[@]} )) && cleanup_msg+=" Failed to empty the Trash of: ${TRASH_FAILED[*]}."
 
     local kb_after; kb_after=$(df / | awk 'NR==2 {print $3}')
     local freed_gb=$(( (kb_before - kb_after) / 1024 / 1024 ))
     local pct_after; pct_after=$(df --output=pcent / | awk 'NR==2{gsub(/%/,"",$1); print $1+0}')
 
     if (( freed_gb >= 1 )); then
-      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data, emptied users' Trash and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%).${trash_msg}" "$(disk_details "$pct_after")"
-      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%.${trash_msg}"; return
+      write_notification warning resources "$title" "Disk was ${pct}%, Sentinel pruned unused podman data, removed unused images from the shared store, emptied users' Trash and freed ${freed_gb}GB, it is now at ${pct_after}% (threshold ${DISK_THRESHOLD}%).${cleanup_msg}" "$(disk_details "$pct_after")"
+      ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Disk was ${pct}%, sentinel freed ${freed_gb}GB, disk is now at ${pct_after}%.${cleanup_msg}"; return
     else
       ((FAIL++)); STATUS=2
-      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%, cleanup freed less than 1GB.${trash_msg}"
-      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data and emptied users' Trash but it freed less than 1GB.${trash_msg} Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
+      echo -e "\e[31m[✘]\e[0m Disk was ${pct}% > threshold ${DISK_THRESHOLD}%, cleanup freed less than 1GB.${cleanup_msg}"
+      write_notification warning resources "$title" "Disk usage is ${pct}% (threshold ${DISK_THRESHOLD}%). Sentinel pruned unused podman data, removed unused images from the shared store and emptied users' Trash but it freed less than 1GB.${cleanup_msg} Check with: du -xh / --max-depth=2 | sort -rh | head" "$(disk_details "$pct")"
     fi
   else
     ((PASS++)); echo -e "\e[32m[✔]\e[0m Disk ${pct}% < threshold ${DISK_THRESHOLD}%"
