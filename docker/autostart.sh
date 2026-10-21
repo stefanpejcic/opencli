@@ -31,7 +31,9 @@
 COMPOSE_DIR="/etc/openpanel/docker/compose/1.0"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 AUTOSTART_FILE="${COMPOSE_DIR}/autostart.services"
-SHARED_STORE="/var/lib/containers/shared-storage"
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+SHARED_STORE="$(shared_image_store)"
 # own runroot for pulls into the shared store: root's default one makes a pull unmount every running root container's layer, skopeo since podman 4.9 refuses another runroot (see docker/update.sh)
 SHARED_RUNROOT="/run/containers/shared-storage"
 FORCE=false

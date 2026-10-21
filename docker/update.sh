@@ -41,7 +41,6 @@
 
 readonly LOG_DIR="/var/log/openpanel/admin/docker"
 readonly LOG_FILE="${LOG_DIR}/$(date '+%Y-%m-%d').log"
-readonly SHARED_STORE="/var/lib/containers/shared-storage"
 # pulls into the shared store use their own runroot: with root's default one (/run/containers/storage) a pull that creates layers rewrites root's layer mount records, unmounting every running root container's layer so its next restart fails
 # they go through skopeo, podman 4.9 refuses a runroot other than the one recorded in the store's db.sql; reads (inspect, images) don't touch mount records and keep using podman
 readonly SHARED_RUNROOT="/run/containers/shared-storage"
@@ -49,6 +48,7 @@ mkdir -p "$LOG_DIR"
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+readonly SHARED_STORE="$(shared_image_store)"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command skopeo

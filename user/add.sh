@@ -33,7 +33,6 @@ readonly FORBIDDEN_USERNAMES_FILE="/etc/openpanel/openadmin/config/forbidden_use
 readonly DB_CONFIG_FILE="/usr/local/opencli/db.sh"
 readonly PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 readonly LOCK_FILE="/var/lock/openpanel_user_add.lock"
-readonly SHARED_STORE="/var/lib/containers/shared-storage" # for 2.0.0-beta: /var/lib/openpanel/shared-containers/storage
 
 if [[ "$#" -lt 4 || "$#" -gt 12 ]]; then
     echo "Usage: opencli user-add <username> <password|generate> <email> '<plan_name>' [--send-email] [--debug] [--reseller=<RESELLER_USER>] [--private-note=<NOTE>] [--webserver=<TYPE>] [--sql=<mysql|mariadb>] [--no-sentinel]"
@@ -143,6 +142,8 @@ log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 . /usr/local/opencli/lib/weakpass.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# /var/lib/openpanel/shared-containers/storage on servers installed with 2.0.0-beta
+readonly SHARED_STORE="$(shared_image_store)"
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command jq

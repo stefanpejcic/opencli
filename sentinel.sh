@@ -1317,7 +1317,8 @@ disk_details() {
 # the shared store has no containers of its own, users and root only read it via additionalimagestores, so "unused" means no containers.json anywhere points at the image
 prune_shared_images() {
   SHARED_IMAGES_REMOVED=(); SHARED_IMAGES_FAILED=(); SHARED_IMAGES_ERROR=""
-  local store="/var/lib/containers/shared-storage" f id names
+  local store f id names
+  store=$(shared_image_store)
   [ -d "$store/overlay-images" ] || return
   declare -A used=()
   for f in /var/lib/containers/storage/overlay-containers/containers.json /home/*/docker-data/overlay-containers/containers.json; do

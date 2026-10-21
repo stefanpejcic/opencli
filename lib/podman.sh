@@ -88,6 +88,13 @@ podman_ensure_running() {
     podman_is_running "$container"
 }
 
+# echoes the shared image store root and users read through additionalimagestores in root's storage.conf, servers installed with 2.0.0-beta have it at /var/lib/openpanel/shared-containers/storage
+shared_image_store() {
+    local store
+    store=$(awk '/^[[:space:]]*additionalimagestores/ { f = 1 } f && match($0, /"[^"]+"/) { print substr($0, RSTART + 1, RLENGTH - 2); exit } f && /\]/ { exit }' /etc/containers/storage.conf 2>/dev/null)
+    echo "${store:-/var/lib/containers/shared-storage}"
+}
+
 # echoes the path to <context>'s docker-compose.yml (root's own stack for ""/default/root, otherwise the user's per-account file), e.g. podman_compose_file <context>
 podman_compose_file() {
     local context="$1"
@@ -98,8 +105,8 @@ podman_compose_file() {
 }
 
 # derives a user-<uid>.slice TasksMax (cgroup pids.max) from the plan's RAM, since a process cap is a fork-bomb safety net rather than something customers shop for, so it scales with ram instead of being its own plan column; a /home/<user>/TasksMax file overrides it -- e.g. derive_tasks_max <ram_gb> [username]
-readonly TASKS_PER_RAM_GB=1000
-readonly TASKS_MAX_FLOOR=1000
+[[ -v TASKS_PER_RAM_GB ]] || readonly TASKS_PER_RAM_GB=1000
+[[ -v TASKS_MAX_FLOOR ]] || readonly TASKS_MAX_FLOOR=1000
 
 derive_tasks_max() {
     local ram_gb="$1" username="${2:-}"
