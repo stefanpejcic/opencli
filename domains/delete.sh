@@ -373,21 +373,15 @@ delete_emails() {
 	local username="$1"
 	local domain="$2"
 
-	# email accounts
-	local email_file="/etc/openpanel/openpanel/core/users/$username/emails.yml"
+	# email accounts, read live from the mailserver since emails.yml can be stale and covers all the user's domains
+	local emails=()
+	log "Removing email accounts for this domain"
+	mapfile -t emails < <(opencli email-setup email list 2>/dev/null | awk -v dom="${domain,,}" '
+		$1 == "*" { split(tolower($2), p, "@"); if (p[2] == dom) print $2 }')
 
-    if [ -f "$email_file" ]; then
-        emails=()
-    	log "Removing email accounts for this domain"
-        while read -r _ email; do
-            [ -n "$email" ] && emails+=("$email")
-        done < "$email_file"
-
-        if [ "${#emails[@]}" -gt 0 ]; then
-			nohup opencli email-setup email del -y "${emails[@]}" >/dev/null 2>&1 &
-			disown
-        fi
-    fi
+	if [ "${#emails[@]}" -gt 0 ]; then
+		opencli email-setup email del -y "${emails[@]}" >/dev/null 2>&1
+	fi
 
 	# aliases
 	aliases_file="/etc/openpanel/openpanel/core/users/$username/aliases.yml"

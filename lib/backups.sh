@@ -5,7 +5,7 @@
 # Usage: . /usr/local/opencli/lib/backups.sh
 # Author: Stefan Pejcic
 # Created: 15.10.2026
-# Last Modified: 15.10.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -42,7 +42,7 @@ backup_mail_dir() {
     fi
 }
 
-# adds a read-only mount to <context>'s backup service, right after the legacy mail_data one, e.g. backup_mount_add <context> <host_dir> <container_dir>
+# adds a read-only mount to <context>'s backup service, right after the mail_data one, e.g. backup_mount_add <context> <host_dir> <container_dir>
 backup_mount_add() {
     local context="$1" src="$2" dest="$3" compose line
     compose="$(podman_compose_file "$context")"
@@ -52,8 +52,9 @@ backup_mount_add() {
     (
         flock 9 || exit 1
         grep -qxF "$line" "$compose" && exit 0
-        grep -qx "      - mail_data:/backup/mail:ro" "$compose" || exit 1
-        awk -v line="$line" '{print} $0 == "      - mail_data:/backup/mail:ro" {print line}' "$compose" > "$compose.tmp" \
+        # 01-mail since 2.0.16, mail is the older mount
+        grep -qxE "      - mail_data:/backup/(01-)?mail:ro" "$compose" || exit 1
+        awk -v line="$line" '{print} $0 == "      - mail_data:/backup/mail:ro" || $0 == "      - mail_data:/backup/01-mail:ro" {print line}' "$compose" > "$compose.tmp" \
             && cat "$compose.tmp" > "$compose" && rm -f "$compose.tmp"
     ) 9>"/tmp/.backup-mounts-$context.lock"
 }

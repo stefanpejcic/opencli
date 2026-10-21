@@ -109,8 +109,10 @@ delete_user_from_database() {
 	[ -n "$sql" ] && mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 
 	# 3. terminate redis sessions
-	# todo: drop all cache by username!
 	redis_drop_user_sessions "$user_id"
+	redis_drop_user_cache "$user_id" "$openpanel_username"
+	# the account is gone, so drop every cached key under its name, otherwise a new user with the same name sees the old data
+	redis_drop_pattern "openpanel_cache_*:${openpanel_username}" "openpanel_cache_*:${openpanel_username}:*"
 
 	# 4. delete domain files, emails and reload Caddy
 	ionice -c3 rm -rf "/var/log/caddy/stats/$openpanel_username"            # goaccess reports
@@ -156,20 +158,34 @@ delete_emails() {
 
     # email accounts
     local email_file="/etc/openpanel/openpanel/core/users/$openpanel_username/emails.yml"
+    emails=()
     if [ -f "$email_file" ]; then
-        emails=()
-        while read -r _ email; do
+        while read -r _ email _; do
             if [ -n "$email" ]; then
                 emails+=("$email")
                 domain="${email#*@}"
                 [[ -n "$domain" ]] && user_domains+=("$domain")
             fi
         done < "$email_file"
+    fi
 
-        if [ "${#emails[@]}" -gt 0 ]; then
-            nohup opencli email-setup email del -y "${emails[@]}" >/dev/null 2>&1 &
-            disown
-        fi
+    # emails.yml is only rewritten when /emails is opened, so also catch live mailboxes on the user's domains
+    local db_domains
+    db_domains=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "SELECT domain_url FROM domains WHERE user_id='$user_id';" 2>/dev/null)
+    if [ -n "$db_domains" ]; then
+        while read -r mailbox; do
+            [[ " ${emails[*]} " == *" $mailbox "* ]] || emails+=("$mailbox")
+        done < <(opencli email-setup email list 2>/dev/null | awk -v doms="$db_domains" '
+            BEGIN { n = split(tolower(doms), d, "\n"); for (i = 1; i <= n; i++) own[d[i]] = 1 }
+            $1 == "*" { split(tolower($2), p, "@"); if (p[2] in own) print $2 }')
+        while read -r domain; do
+            [[ -n "$domain" ]] && user_domains+=("$domain")
+        done <<< "$db_domains"
+    fi
+
+    # not backgrounded, a detached del got lost and left the mailboxes behind
+    if [ "${#emails[@]}" -gt 0 ]; then
+        opencli email-setup email del -y "${emails[@]}" >/dev/null 2>&1
     fi
 
     mapfile -t user_domains < <(printf '%s\n' "${user_domains[@]}" | sort -u)
