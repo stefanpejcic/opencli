@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 15.10.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -34,6 +34,8 @@
 . /usr/local/opencli/lib/backups.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 require_command jq
 
 # Constants
@@ -415,17 +417,23 @@ make_docroot_dirs() {
     fi
 
     local stripped="${docroot#/var/www/html/}"
+    local html_root; html_root=$(tenant_volume "$context" html_data)
+    local site_dir="$html_root/$stripped"
     local dirs=(
-        "/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped"
         "/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
         "/home/$context/docker-data/volumes/${context}_html_data"
-        "/home/$context/docker-data/volumes/${context}_html_data/_data"
+        "$html_root"
     )
 
     mkdir -p "${dirs[@]}"
+    # the docroot is picked by the user and may already exist, so it's created and touched only from a cwd checked to be inside the volume
+    if ! tenant_mkdir "$html_root" "$site_dir"; then
+        warn "Docroot $docroot is not a real folder inside /var/www/html/ — skipping"
+        return
+    fi
 
 	# https://github.com/stefanpejcic/OpenPanel/discussions/1084
-	[[ "$WEB_SERVER" == *litespeed* ]] && cp -f "/etc/openpanel/nginx/default_page.html" "/home/$context/docker-data/volumes/${context}_html_data/_data/$stripped/index.html" 
+	[[ "$WEB_SERVER" == *litespeed* ]] && tenant_write "$html_root" "$site_dir/index.html" 644 < "/etc/openpanel/nginx/default_page.html"
 
     timeout 3s chown -R "$context_uid:$context_uid" "${dirs[@]}" || true
     timeout 1s chmod -R g+w "${dirs[@]}" || true
@@ -462,7 +470,7 @@ fix_ftp_perms() {
     new_directory="${real_path}${relative_path}"
 
     if opencli ftp-list "$user" | tail -n +2 | cut -d'|' -f2 | sed 's/^ *//;s/ *$//' | grep -Fxq "$docroot"; then
-        chown -R "$user:$user" "$new_directory"
+        tenant_chown_r "${real_path%/}" "$new_directory" "$user:$user"
         for dir in \
             "/home/$context" \
             "/home/$context/docker-data" \
@@ -495,11 +503,11 @@ create_vhost_file() {
     local template="/etc/openpanel/nginx/vhosts/1.1/docker_${WEB_SERVER}_domain.conf"
 
     log "Creating vhost: $vhost_file"
-    cp "$template" "$vhost_file"
+    # the webserver volume is writable by the user's containers, so the vhost is written to a temp file and renamed in, never through whatever sits at that name
+	sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" "$template" \
+		| tenant_write "$(tenant_volume "$context" webserver_data)" "$vhost_file" 644
 
     chown "$context_uid:$context_uid" "/home/$context/docker-data/volumes/${context}_webserver_data/" "/home/$context/docker-data/volumes/${context}_webserver_data/_data/" 2>/dev/null || true
-
-	sed -i -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" "$vhost_file"
 
     if ! $SKIP_STARTING_CONTAINERS; then
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"

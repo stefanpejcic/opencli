@@ -5,7 +5,7 @@
 # Usage: opencli domains-delete <DOMAIN_NAME> [--debug]
 # Author: Stefan Pejcic
 # Created: 07.11.2024
-# Last Modified: 15.10.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,6 +32,8 @@
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/backups.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 
 [ $# -lt 1 ] && { echo "Usage: opencli domains-delete <DOMAIN_NAME> [--debug]"; exit 1; }
 
@@ -98,8 +100,9 @@ remove_onion_files() {
                 }" "$hostfs_path/torrc"
             fi
         done
+	# each one goes by its bare name from a checked cwd, so a swapped path can't send rm elsewhere
 	while IFS= read -r dir; do
-	    [[ -n "$dir" ]] && rm -rf "$dir"
+	    [[ -n "$dir" ]] && ( tenant_cd "$hostfs_path" "$(dirname -- "$dir")" && rm -rf -- "./$(basename -- "$dir")" )
 	done <<< "$onion_dir"
     fi
 }

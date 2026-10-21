@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com/
 # Author: Stefan Pejcic
 # Created: 10.09.2024
-# Last Modified: 21.08.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -28,6 +28,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 ################################################################################
+
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 
 if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
     echo "Usage: opencli ftp-path <username> <path> <openpanel_username> [--debug]"
@@ -104,6 +107,12 @@ change_path() {
     real_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/"
     relative_path="${path##/var/www/html/}"
     container_path="${real_path}${relative_path}"
+
+    # a symlink here would hand the FTP account someone else's files
+    if ! ( tenant_cd "${real_path%/}" "$container_path" ); then
+        echo "ERROR: Path '$path' is not a real folder inside /var/www/html/."
+        exit 1
+    fi
 
     if podman exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"; then
         sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/"$context"/users.list

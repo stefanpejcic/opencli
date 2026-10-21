@@ -5,7 +5,7 @@
 # Usage: opencli domains-docroot <DOMAIN_NAME> [update <DOCROOT>] [--debug]
 # Author: Stefan Pejcic
 # Created: 10.02.2025
-# Last Modified: 21.08.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,6 +32,8 @@
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 
 debug_mode=false
 args=()
@@ -99,8 +101,8 @@ get_user_context() {
 
 validate_docroot() {
   log "Updating document root for domain: $domain to: $new_docroot"
-  if [[ -n "$docroot" && ! "$docroot" =~ ^/var/www/html/ ]]; then
-      echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/"
+  if [[ ! "$new_docroot" =~ ^/var/www/html/[A-Za-z0-9._/-]*$ || "$new_docroot" == *".."* ]]; then
+      echo "FATAL ERROR: Invalid docroot. It must start with /var/www/html/ and only use letters, numbers, dots, dashes, underscores and slashes."
       exit 1
   fi
 }
@@ -109,9 +111,13 @@ make_folder() {
   folder_name="${new_docroot##/var/www/html/}"
   newnew_docroot="/home/${context}/docker-data/volumes/${context}_html_data/_data/${folder_name}"
   log "Creating document root directory $new_docroot"
-  mkdir -p "$newnew_docroot"
+  html_root=$(tenant_volume "$context" html_data)
+  if ! tenant_mkdir "$html_root" "$newnew_docroot"; then
+      echo "FATAL ERROR: $new_docroot is not a real folder inside /var/www/html/"
+      exit 1
+  fi
   uid=$(stat -c '%u' "/home/$user")
-  chown "$uid:$uid" "$newnew_docroot"
+  tenant_chown "$html_root" "$newnew_docroot" "$uid:$uid"
 }
 
 get_webserver_for_user(){
@@ -123,7 +129,7 @@ get_webserver_for_user(){
 
 vhost_file_edit() {
 	vhost_file=/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf
-	sed -i -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' "$vhost_file" > /dev/null 2>&1
+	tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$vhost_file" -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' > /dev/null 2>&1
 	podman_user "$context" restart "$WEB_SERVER" > /dev/null 2>&1
 }
 

@@ -5,7 +5,7 @@
 # Usage: opencli domains-varnish <DOMAIN-NAME> [on|off] [--short]
 # Author: Stefan Pejcic
 # Created: 20.03.2025
-# Last Modified: 21.08.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,6 +32,8 @@
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 require_command jq
 
 # ======================================================================
@@ -119,15 +121,16 @@ detect_wp_sites_and_add_mu_plugin() {
 		hostos_wp_path="/home/$context/docker-data/volumes/${context}_html_data/_data/${WP_PATH#/var/www/html/}"
         if [ -d "$WP_PATH" ]; then
             MU_DIR="${hostos_wp_path}/wp-content/mu-plugins"
+            html_root=$(tenant_volume "$context" html_data)
             if [ ! -d "$MU_DIR" ]; then
-                mkdir -p "$MU_DIR"
-                chown "$context_uid:$context_uid" "$MU_DIR"
+                tenant_mkdir "$html_root" "$MU_DIR" || continue
+                tenant_chown "$html_root" "$MU_DIR" "$context_uid:$context_uid"
             fi
 
             MU_PLUGIN_FILE="$MU_DIR/opencli-helper.php"
             if [ ! -f "$MU_PLUGIN_FILE" ]; then
-				cp /etc/openpanel/wordpress/mu-plugin.php "$MU_PLUGIN_FILE"
-                chown "$context_uid:$context_uid" "$MU_PLUGIN_FILE"
+				tenant_write "$html_root" "$MU_PLUGIN_FILE" 644 < /etc/openpanel/wordpress/mu-plugin.php || continue
+                ( tenant_cd "$html_root" "$MU_DIR" && chown -h "$context_uid:$context_uid" ./opencli-helper.php )
             fi
         fi
     done

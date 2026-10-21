@@ -6,7 +6,7 @@
 #        opencli php-domain <domain_name> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -29,6 +29,8 @@
 # THE SOFTWARE.
 ################################################################################
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 # ======================================================================
 # Variables
 domain="$1"
@@ -108,7 +110,7 @@ fi
 
 # update
 # 1. replace in domain vhost file
-sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
+tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$domain_path_in_volume" "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g"
 
 # 2. start new php version container if not running
 # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined

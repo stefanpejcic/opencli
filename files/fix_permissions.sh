@@ -5,7 +5,7 @@
 # Usage: opencli files-fix_permissions <USERNAME|--all> [PATH] [--debug]
 # Author: Stefan Pejcic
 # Created: 15.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,6 +32,8 @@
 . /usr/local/opencli/lib/requirement.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/db.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 
 verbose=""
 
@@ -54,7 +56,7 @@ check_and_fix_FTP_permissions() {
 
             if [ -d "$new_directory" ]; then
                 echo "[*] Fixing ownership for FTP path: $new_directory"
-                chown -R "$uid:$uid" "$new_directory"
+                tenant_chown_r "$base_path" "$new_directory" "$uid:$uid"
             fi
         done < <(opencli ftp-list "$user" | tail -n +2 | cut -d'|' -f2 | sed 's/^ *//;s/ *$//' | grep -v "^/var/www/html$")
 
@@ -135,17 +137,16 @@ apply_permissions_in_container() {
         # https://github.com/litespeedtech/ols-dockerfiles/issues/13#issuecomment-4275956701
         apply_workaround_for_litespeed
 
-        # owner
-        #chown -R $verbose $uid:$uid $directory
-        find "$directory" -print0 | xargs -0 chown $verbose "$uid":"$gid" > /dev/null 2>&1
+        volume_root=$(tenant_volume "$context" html_data)
+
+        # everything runs from the checked cwd so a symlink or .. in the path can't point it outside the volume, -h and -execdir keep symlinks inside from being followed
+        ( tenant_cd "$volume_root" "$directory" && chown -R -h $verbose "$uid":"$gid" . ) > /dev/null 2>&1
         owner_result=$?
 
-        # files
-        find "$directory" -type f -print0 | xargs -0 chmod $verbose 664 > /dev/null 2>&1
+        ( tenant_cd "$volume_root" "$directory" && find . -type f -execdir chmod $verbose 664 {} + ) > /dev/null 2>&1
         files_result=$?
 
-        # folders
-        find "$directory" -type d -print0 | xargs -0 chmod $verbose 775
+        ( tenant_cd "$volume_root" "$directory" && find . -type d -execdir chmod $verbose 775 {} + )
         folders_result=$?
 
         check_and_fix_FTP_permissions "$username" "$uid"

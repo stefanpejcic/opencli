@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 30.09.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -33,6 +33,8 @@ set -o pipefail
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 
 pid=$$
 start_time=$(date +%s)
@@ -123,6 +125,12 @@ fi
 
 # Destination
 DEST_DIR="${CUSTOM_OUTPUT:-/home/$CONTEXT/docker-data/volumes/${CONTEXT}_html_data/_data/_backups}"
+# the default _backups folder sits in the user's own volume, so the archive is only written from a cwd checked to be inside it
+if [[ -z "$CUSTOM_OUTPUT" ]]; then
+    DEST_ROOT=$(tenant_volume "$CONTEXT" html_data)
+else
+    DEST_ROOT="$DEST_DIR"
+fi
 timestamp="$(date +'%Y-%m-%d_%H-%M-%S')"
 ARCHIVE_NAME="${USERNAME}_${timestamp}.tar.gz"
 ARCHIVE="${DEST_DIR}/${ARCHIVE_NAME}"
@@ -151,7 +159,6 @@ slog() { echo "$1" | tee -a "$log_file"; }
 
 check_disk_space() {
     log "Checking disk space ..."
-    mkdir -p "$DEST_DIR" 2>/dev/null || true
 
     # --- Step 1: how much disk does this account use? (= backup size estimate)
     local used_kb=0
@@ -210,12 +217,21 @@ check_disk_space() {
 log "Backup started  log: $log_file  (PID: $pid)"
 log "Account: $USERNAME  Context: $CONTEXT  UID:${SYS_UID:-?} GID:${SYS_GID:-?}  Plan: ${PLAN_NAME:-none}"
 
+ensure_dest_dir() {
+    if [[ -z "$CUSTOM_OUTPUT" ]]; then
+        tenant_mkdir "$DEST_ROOT" "$DEST_DIR" || die "Backup folder $DEST_DIR is not a real folder inside the user's volume."
+    else
+        mkdir -p "$DEST_DIR" || die "Cannot create backup folder $DEST_DIR"
+    fi
+}
+
+ensure_dest_dir
 check_disk_space
 
 # Staging area: small metadata only; home is streamed live
 STAGE=$(mktemp -d "/tmp/opbackup_${base_name}.XXXXXX")
 BACKUP_OK=0
-trap '[[ $BACKUP_OK -eq 0 && -f "$ARCHIVE" ]] && rm -f "$ARCHIVE"; rm -rf "$STAGE"' EXIT
+trap '[[ $BACKUP_OK -eq 0 ]] && ( tenant_cd "$DEST_ROOT" "$DEST_DIR" && rm -f -- "./$ARCHIVE_NAME" ); rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE"/{db,system,features,core,ftp,caddy/domains,caddy/ssl/acme,caddy/ssl/custom,caddy/domlogs,caddy/waf,caddy/stats,caddy/suspended,bind/zones,docker,emails/dkim}
 
 # --- manifest ---
@@ -468,69 +484,81 @@ ESCAPED_CTX=$(printf '%s\n' "$CONTEXT" | sed 's|[|\\.*^$()+?{}]|\\&|g')
 # Use pigz for multi-core compression if available, otherwise fall back to gzip
 if command -v pigz &>/dev/null; then
     log "Using pigz for multi-core compression"
-    TAR_ARGS=(
-        -cf -
-        --numeric-owner --acls --xattrs
-        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
-        "--exclude=${CONTEXT}/sockets/*/*/*"
-        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
-        "--exclude=${CONTEXT}/docker-data/[!v]*"
-        "--exclude=${CONTEXT}/docker-data/v[!o]*"
-        "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
-    )
-
-    if [[ -d "/home/$CONTEXT" ]]; then
-        log "Streaming /home/$CONTEXT  →  homedir/ ..."
-        TAR_ARGS+=(-C /home "$CONTEXT")
-    else
-        warn "/home/$CONTEXT not found — archive will not contain home files."
-    fi
-
-    [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
-
-    mkdir -p "$DEST_DIR"
-    "${LOWPRIO[@]}" tar "${TAR_ARGS[@]}" 2>>"$log_file" | "${LOWPRIO[@]}" pigz > "$ARCHIVE"
-    tar_rc=${PIPESTATUS[0]}
-    [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
-    [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1) — archive created, verify integrity."
+    COMPRESS=(pigz)
 else
-    TAR_ARGS=(
-        -czf "$ARCHIVE"
-        --numeric-owner --acls --xattrs
-        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
-        "--exclude=${CONTEXT}/sockets/*/*/*"
-        "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
-        "--exclude=${CONTEXT}/docker-data/[!v]*"
-        "--exclude=${CONTEXT}/docker-data/v[!o]*"
-        "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
-    )
-
-    if [[ -d "/home/$CONTEXT" ]]; then
-        log "Streaming /home/$CONTEXT  →  homedir/ ..."
-        TAR_ARGS+=(-C /home "$CONTEXT")
-    else
-        warn "/home/$CONTEXT not found — archive will not contain home files."
-    fi
-
-    [[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
-
-    mkdir -p "$DEST_DIR"
-    "${LOWPRIO[@]}" tar "${TAR_ARGS[@]}" 2>>"$log_file"
-    tar_rc=$?
-    [[ $tar_rc -gt 1 ]] && die "tar failed creating: $ARCHIVE (exit $tar_rc)"
-    [[ $tar_rc -eq 1 ]] && warn "tar reported changed files during archive (exit 1)."
+    COMPRESS=(gzip)
 fi
 
-# verify archive integrity
-"${LOWPRIO[@]}" gzip -t "$ARCHIVE" 2>>"$log_file" || die "Archive integrity check failed: $ARCHIVE"
+TAR_ARGS=(
+    -cf -
+    --numeric-owner --acls --xattrs
+    "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_html_data/_data/_backups"
+    "--exclude=${CONTEXT}/sockets/*/*/*"
+    "--exclude=${CONTEXT}/docker-data/volumes/${CONTEXT}_mysql_data/_data/tc.log"
+    "--exclude=${CONTEXT}/docker-data/[!v]*"
+    "--exclude=${CONTEXT}/docker-data/v[!o]*"
+    "--transform=s|^${ESCAPED_CTX}/|homedir/|;s|^${ESCAPED_CTX}$|homedir|"
+)
 
-# Permissions + ownership
-chmod 640 "$ARCHIVE"
+if [[ -d "/home/$CONTEXT" ]]; then
+    log "Streaming /home/$CONTEXT  →  homedir/ ..."
+    TAR_ARGS+=(-C /home "$CONTEXT")
+else
+    warn "/home/$CONTEXT not found — archive will not contain home files."
+fi
+
+[[ ${#STAGE_ITEMS[@]} -gt 0 ]] && TAR_ARGS+=(-C "$STAGE" "${STAGE_ITEMS[@]}")
+
 BACKUP_UID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
 BACKUP_GID=$(id -g "$CONTEXT" 2>/dev/null)
-if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" ]]; then
-    # shellcheck disable=SC2015 # log() only fails on a write error; chown's own failure is what warn() should report
-    chown "${BACKUP_UID}:${BACKUP_GID}" "$ARCHIVE" 2>/dev/null && log "Ownership: $CONTEXT (${BACKUP_UID}:${BACKUP_GID})" || warn "Could not chown archive to $CONTEXT (non-fatal)."
+
+# everything happens from a cwd checked to be the destination: the temp file is created new (excl) without following links, checked, chowned with -h and renamed over the final name
+write_archive() {
+    (
+        tenant_cd "$DEST_ROOT" "$DEST_DIR" || exit 90
+        umask 027
+        tmp=".${ARCHIVE_NAME}.$$.partial"
+        "${LOWPRIO[@]}" tar "${TAR_ARGS[@]}" 2>>"$log_file" | "${LOWPRIO[@]}" "${COMPRESS[@]}" | dd of="./$tmp" oflag=nofollow conv=excl status=none
+        rcs=("${PIPESTATUS[@]}")
+        if [[ ${rcs[1]} -ne 0 || ${rcs[2]} -ne 0 || ${rcs[0]} -gt 1 ]]; then
+            rm -f -- "./$tmp"
+            [[ ${rcs[0]} -gt 1 ]] && exit "${rcs[0]}"
+            exit 91
+        fi
+        if ! dd if="./$tmp" iflag=nofollow status=none | "${LOWPRIO[@]}" gzip -t 2>>"$log_file"; then
+            rm -f -- "./$tmp"
+            exit 92
+        fi
+        chown_rc=0
+        if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" ]]; then
+            chown -h "${BACKUP_UID}:${BACKUP_GID}" "./$tmp" 2>/dev/null || chown_rc=1
+        fi
+        mv -fT -- "./$tmp" "./$ARCHIVE_NAME" || { rm -f -- "./$tmp"; exit 95; }
+        if [[ ${rcs[0]} -eq 1 ]]; then
+            [[ $chown_rc -eq 1 ]] && exit 94
+            exit 1
+        fi
+        [[ $chown_rc -eq 1 ]] && exit 93
+        exit 0
+    )
+}
+
+write_archive
+archive_rc=$?
+case $archive_rc in
+    0) ;;
+    1) warn "tar reported changed files during archive (exit 1) — archive created, verify integrity." ;;
+    90) die "Backup folder $DEST_DIR is not a real folder inside the user's volume." ;;
+    91) die "Compressing the archive failed: $ARCHIVE" ;;
+    92) die "Archive integrity check failed: $ARCHIVE" ;;
+    93) warn "Could not chown archive to $CONTEXT (non-fatal)." ;;
+    94) warn "tar reported changed files during archive (exit 1) — archive created, verify integrity."
+        warn "Could not chown archive to $CONTEXT (non-fatal)." ;;
+    95) die "Could not move the finished archive into place: $ARCHIVE" ;;
+    *) die "tar failed creating: $ARCHIVE (exit $archive_rc)" ;;
+esac
+if [[ -n "$BACKUP_UID" && -n "$BACKUP_GID" && $archive_rc -ne 93 && $archive_rc -ne 94 ]]; then
+    log "Ownership: $CONTEXT (${BACKUP_UID}:${BACKUP_GID})"
 fi
 
 # Summary

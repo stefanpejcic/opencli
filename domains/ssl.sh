@@ -5,7 +5,7 @@
 # Usage: opencli domains-ssl <DOMAIN_NAME> [status|info|logs|auto|selfsigned|custom] [path/to/fullchain.pem path/to/key.pem] | opencli domains-ssl --notify
 # Author: Stefan Pejcic
 # Created: 22.03.2025
-# Last Modified: 01.10.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -32,6 +32,8 @@
 # Constants
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 require_command jq
 
 GREEN='\033[0;32m'
@@ -210,7 +212,7 @@ check_and_use_tls() {
  	local full_key="$2"
 
 	# 1. validate and format paths
-	if [[ ! "$full_cert" =~ ^/var/www/html/ || ! "$full_key" =~ ^/var/www/html/ ]]; then
+	if [[ ! "$full_cert" =~ ^/var/www/html/ || ! "$full_key" =~ ^/var/www/html/ || "$full_cert" == *".."* || "$full_key" == *".."* ]]; then
 	  echo "ERROR: Paths must be inside /var/www/html/ directory."
 	  exit 1
 	fi
@@ -220,16 +222,29 @@ check_and_use_tls() {
  	local real_cert_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/${cert_path}"
   	local real_key_path="/home/${context}/docker-data/volumes/${context}_html_data/_data/${key_path}"
 
-  	# 2. check if cert is valid
-	if ! openssl x509 -noout -checkend 0 -in "$real_cert_path" >/dev/null 2>&1; then
-	    echo "Error: $cert_path is not valid or has expired!"
+	# 2. copy the files out of the user's volume without following symlinks, then check the copies so nothing can change between check and use
+	local html_root; html_root=$(tenant_volume "$context" html_data)
+	mkdir -p "$hostfs_domain_tls_dir"
+	if ! tenant_read "$html_root" "$real_cert_path" > "$hostfs_domain_tls_dir"/fullchain.pem.new \
+	   || ! tenant_read "$html_root" "$real_key_path" > "$hostfs_domain_tls_dir"/key.pem.new; then
+	    rm -f "$hostfs_domain_tls_dir"/fullchain.pem.new "$hostfs_domain_tls_dir"/key.pem.new
+	    echo "Error: $cert_path and $key_path must be regular files inside /var/www/html/"
 	    exit 1
 	fi
 
-	# 3. copy files from user homedir to /etc/openpanel/caddy/ssl/custom
-	mkdir -p "$hostfs_domain_tls_dir"
-	cp "${real_cert_path}" "$hostfs_domain_tls_dir"/fullchain.pem
-	cp "${real_key_path}" "$hostfs_domain_tls_dir"/key.pem
+	# 3. check if cert is valid and the key is really a key
+	if ! openssl x509 -noout -checkend 0 -in "$hostfs_domain_tls_dir"/fullchain.pem.new >/dev/null 2>&1; then
+	    rm -f "$hostfs_domain_tls_dir"/fullchain.pem.new "$hostfs_domain_tls_dir"/key.pem.new
+	    echo "Error: $cert_path is not valid or has expired!"
+	    exit 1
+	fi
+	if ! openssl pkey -noout -in "$hostfs_domain_tls_dir"/key.pem.new >/dev/null 2>&1; then
+	    rm -f "$hostfs_domain_tls_dir"/fullchain.pem.new "$hostfs_domain_tls_dir"/key.pem.new
+	    echo "Error: $key_path is not a valid private key!"
+	    exit 1
+	fi
+	mv -f "$hostfs_domain_tls_dir"/fullchain.pem.new "$hostfs_domain_tls_dir"/fullchain.pem
+	mv -f "$hostfs_domain_tls_dir"/key.pem.new "$hostfs_domain_tls_dir"/key.pem
 
 	# 4. update caddyfile
 	if grep -qE "tls\s+/.*?/fullchain\.pem\s+/.*?/key\.pem" "$CONFIG_FILE"; then

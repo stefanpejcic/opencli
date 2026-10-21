@@ -32,6 +32,8 @@ COMPOSE_DIR="/etc/openpanel/docker/compose/1.0"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 AUTOSTART_FILE="${COMPOSE_DIR}/autostart.services"
 SHARED_STORE="/var/lib/containers/shared-storage"
+# own runroot for pulls into the shared store: root's default one makes a pull unmount every running root container's layer, skopeo since podman 4.9 refuses another runroot (see docker/update.sh)
+SHARED_RUNROOT="/run/containers/shared-storage"
 FORCE=false
 [[ "$1" == "-f" || "$1" == "--force" ]] && FORCE=true
 # disk check (free space on /), skippable with -f/--force
@@ -48,6 +50,9 @@ fi
 [[ -f "$COMPOSE_FILE" ]]   || { echo "compose file not found: $COMPOSE_FILE"; exit 1; }
 [[ -f "$AUTOSTART_FILE" ]] || { echo "autostart file not found: $AUTOSTART_FILE"; exit 1; }
 mkdir -p "$SHARED_STORE"
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/requirement.sh
+require_command skopeo
 cd "$COMPOSE_DIR" || exit 1
 # awk emits "service image" pairs, tracking 2-space service headers, off inside top-level networks/volumes/configs/secrets blocks
 read -r -d '' PARSE <<'AWK'
@@ -96,11 +101,16 @@ for svc in "${sorted[@]}"; do
         continue
     fi
     echo -n "pull   $svc -> $img ... "
-    if podman --root "$SHARED_STORE" pull --policy always "$img" >/dev/null 2>&1; then
+    full="$img"
+    [[ "$img" != */* ]] && full="docker.io/library/$img"
+    [[ "$img" == */* && "${img%%/*}" != *.* && "${img%%/*}" != *:* && "${img%%/*}" != localhost ]] && full="docker.io/$img"
+    if skopeo copy -q "docker://$full" "containers-storage:[overlay@$SHARED_STORE+$SHARED_RUNROOT]$full" >/dev/null 2>&1; then
         echo "OK"
     else
         echo "FAIL"
     fi
+    # right away, users' podman can't read the store until it's fixed and their socket gives up
+    chmod -R o+rX "$SHARED_STORE" 2>/dev/null
 done
 # autostart entries that have no image in compose (typos / imageless services)
 for svc in "${!AUTO[@]}"; do

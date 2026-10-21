@@ -42,6 +42,9 @@
 readonly LOG_DIR="/var/log/openpanel/admin/docker"
 readonly LOG_FILE="${LOG_DIR}/$(date '+%Y-%m-%d').log"
 readonly SHARED_STORE="/var/lib/containers/shared-storage"
+# pulls into the shared store use their own runroot: with root's default one (/run/containers/storage) a pull that creates layers rewrites root's layer mount records, unmounting every running root container's layer so its next restart fails
+# they go through skopeo, podman 4.9 refuses a runroot other than the one recorded in the store's db.sql; reads (inspect, images) don't touch mount records and keep using podman
+readonly SHARED_RUNROOT="/run/containers/shared-storage"
 mkdir -p "$LOG_DIR"
 
 # shellcheck disable=SC1091
@@ -127,6 +130,54 @@ store_podman() {
     fi
 }
 
+# docker.io/library/<name> for official images, docker.io/<name> for other short names, so skopeo and containers-storage get the same name podman stores
+qualify_image() {
+    local image="$1" first="${1%%/*}"
+    if [[ "$image" != */* ]]; then
+        echo "docker.io/library/$image"
+    elif [[ "$first" != *.* && "$first" != *:* && "$first" != localhost ]]; then
+        echo "docker.io/$image"
+    else
+        echo "$image"
+    fi
+}
+
+# a write to the shared store leaves images.json and new layers readable by root only, users' podman then fails to start and its socket gives up (trigger-limit-hit)
+fix_shared_perms() {
+    chmod -R o+rX "$SHARED_STORE" 2>/dev/null || true
+    find "$SHARED_STORE" -name '*.lock' -exec chmod o+rw {} \; 2>/dev/null || true
+}
+
+# pulls <image> into <store>, see SHARED_RUNROOT for why the shared store goes through skopeo
+pull_image() {
+    local store="$1" image rc
+    if [[ "$store" == shared ]]; then
+        image=$(qualify_image "$2")
+        skopeo copy -q "docker://$image" "containers-storage:[overlay@$SHARED_STORE+$SHARED_RUNROOT]$image"
+        rc=$?
+        fix_shared_perms
+        return $rc
+    else
+        podman pull "$2"
+    fi
+}
+
+# starts the podman socket again for users whose socket gave up while the shared store was unreadable during a pull
+revive_user_sockets() {
+    local context
+    for context in "${CONTEXTS[@]}"; do
+        [[ "$context" == root ]] && continue
+        systemctl --user -M "${context}@" is-failed --quiet podman.socket 2>/dev/null || continue
+        systemctl --user -M "${context}@" reset-failed podman.socket podman.service >/dev/null 2>&1
+        if systemctl --user -M "${context}@" start podman.socket >/dev/null 2>&1; then
+            log "  started the podman socket again for ${CONTEXT_LABEL[$context]}"
+        else
+            log "  ERROR: podman socket for ${CONTEXT_LABEL[$context]} is down, start it with: systemctl --user -M ${context}@ start podman.socket"
+            failed=$((failed + 1))
+        fi
+    done
+}
+
 # id of <image> in <store>, empty if not pulled
 image_id() {
     store_podman "$1" image inspect --format '{{.Id}}' "$2" 2>/dev/null
@@ -143,6 +194,29 @@ has_digest() {
 remote_digest() {
     local image="$1"
     skopeo inspect --format '{{.Digest}}' "docker://${image}" 2>/dev/null
+}
+
+# first release on each php branch with the latest php security fixes (CVE-2026-109618, CVE-2026-109619), bump on the next php security release
+readonly PHP_FIXED="8.2.35 8.3.36 8.4.27 8.5.12"
+
+# echoes the PHP_VERSION php reports inside <image> in <store>, empty if the image has no php (only images with PHP_VERSION in their env are run)
+image_php_version() {
+    local store="$1" image="$2" id
+    id=$(image_id "$store" "$image")
+    [[ -n "$id" ]] || return 0
+    store_podman "$store" image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2>/dev/null | grep -q '^PHP_VERSION=' || return 0
+    # run by root's own podman, which reads the shared store as an additional image store: a container created in the shared store itself would rewrite root's mount records too
+    podman run --rm --network none --entrypoint php "$id" -r 'echo PHP_VERSION;' 2>/dev/null
+}
+
+# echoes the fixed release for <version>'s branch if <version> is older than it, empty if it's current or the branch gets no fixes anymore
+php_outdated() {
+    local version="$1" fixed
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || return 0
+    for fixed in $PHP_FIXED; do
+        [[ "${fixed%.*}" == "$(echo "$version" | cut -d. -f1,2)" ]] || continue
+        [[ "$(printf '%s\n%s\n' "$version" "$fixed" | sort -V | head -n1)" != "$fixed" ]] && echo "$fixed"
+    done
 }
 
 # shinsenter/php:7.4-fpm and docker.io/shinsenter/php:7.4-fpm are the same image
@@ -365,20 +439,59 @@ reload_webserver() {
     fi
 }
 
+# echoes the compose service names of <context>'s containers created depending on container <id>, and on those in turn, since rm --depend removes the whole chain
+dependent_services() {
+    local context="$1" id="$2"
+    [[ -n "$id" ]] || return 0
+    local ids
+    ids=$(podman_ctx "$context" ps -aq --no-trunc 2>/dev/null)
+    [[ -n "$ids" ]] || return 0
+    # shellcheck disable=SC2086
+    podman_ctx "$context" inspect --format '{{.Id}} {{index .Config.Labels "com.docker.compose.service"}} {{range .Dependencies}}{{.}} {{end}}' $ids 2>/dev/null \
+        | awk -v root="$id" '
+            { cid[NR] = $1; svc[NR] = $2; deps[NR] = " " substr($0, length($1) + length($2) + 3) " " }
+            END {
+                want[root] = 1; changed = 1
+                while (changed) {
+                    changed = 0
+                    for (i = 1; i <= NR; i++) {
+                        if (cid[i] in want) continue
+                        for (w in want) if (index(deps[i], " " w " ")) { want[cid[i]] = 1; changed = 1; break }
+                    }
+                }
+                for (i = 1; i <= NR; i++) if (cid[i] != root && (cid[i] in want) && svc[i] != "") print svc[i]
+            }' | sort -u | tr '\n' ' '
+}
+
 log "=== Update run started ==="
-declare -A FAILED_PULL=()
+declare -A FAILED_PULL=() PHP_CHECKED=()
 failed=0
 
 for entry in "${PLAN_PULL[@]}"; do
     read -r store image <<< "$entry"
     log "pull $image into the $store store"
-    if ! store_podman "$store" pull "$image" >/dev/null 2>&1; then
+    if ! pull_image "$store" "$image" >/dev/null 2>&1; then
         log "FAILED to pull $image into the $store store"
         FAILED_PULL["$store $image"]=1
         failed=$((failed + 1))
     fi
 done
-chmod -R o+rX "$SHARED_STORE" 2>/dev/null || true
+revive_user_sockets
+
+# a pulled image with a php older than its branch's security release is reported even when nothing gets recreated on it, new accounts and php version switches would get it
+declare -A PHP_WARNED=()
+for entry in "${PLAN_PULL[@]}"; do
+    read -r store image <<< "$entry"
+    [[ -n "${FAILED_PULL[$store $image]:-}" ]] && continue
+    version=$(image_php_version "$store" "$image")
+    PHP_CHECKED["$store $image"]="$version $(php_outdated "$version")"
+    read -r version fixed <<< "${PHP_CHECKED[$store $image]}"
+    if [[ -n "$fixed" ]]; then
+        log "WARNING: $image in the $store store still has PHP $version, the security fixes are in $fixed - run this again once the image is rebuilt"
+        PHP_WARNED["$store $image"]=1
+        failed=$((failed + 1))
+    fi
+done
 
 for entry in "${PLAN_RECREATE[@]}"; do
     read -r context svc cname store image <<< "$entry"
@@ -387,21 +500,38 @@ for entry in "${PLAN_RECREATE[@]}"; do
         log "skipping $svc for $label, $image failed to pull"
         continue
     fi
+    # an image pulled before its upstream rebuilt for a php security release still has the old php, recreating on it would only look like a fix
+    if [[ -z "${PHP_CHECKED[$store $image]+x}" ]]; then
+        version=$(image_php_version "$store" "$image")
+        PHP_CHECKED["$store $image"]="$version $(php_outdated "$version")"
+    fi
+    read -r version fixed <<< "${PHP_CHECKED[$store $image]}"
+    if [[ -n "$fixed" ]]; then
+        log "skipping $svc for $label, $image still has PHP $version (security fixes are in $fixed) - run this again once the image is rebuilt"
+        [[ -n "${PHP_WARNED[$store $image]:-}" ]] || failed=$((failed + 1))
+        continue
+    fi
     compose_dir=$(dirname "$(podman_compose_file "$context")")
     log "recreating $svc for $label"
-    if ! (cd "$compose_dir" && podman_compose_ctx "$context" up -d --no-deps --force-recreate "$svc") >/dev/null 2>&1; then
+    # a webserver created with depends_on on this container blocks removing it, so those get removed and started again with it
+    old_id=$(podman_ctx "$context" inspect -f '{{.Id}}' "$cname" 2>/dev/null)
+    dependents=$(dependent_services "$context" "$old_id")
+    [[ -n "$dependents" ]] && log "  also recreating $(echo $dependents) for $label, created depending on $svc"
+    # podman-compose 1.0.6 --force-recreate can fail to remove the old container, then just starts it again on the old image and still exits 0, so it's removed here first (named volumes are kept)
+    podman_ctx "$context" rm -f -t 10 --depend "$cname" >/dev/null 2>&1
+    # shellcheck disable=SC2086
+    if ! (cd "$compose_dir" && podman_compose_ctx "$context" up -d --no-deps "$svc" $dependents) >/dev/null 2>&1; then
         log "  ERROR: failed to recreate $svc for $label - check manually"
         failed=$((failed + 1))
         continue
     fi
     expected=$(image_id "$store" "$image")
     current=$(podman_ctx "$context" inspect -f '{{.Image}}' "$cname" 2>/dev/null)
-    # a copy of the image in the user's own storage wins over the shared store
     if [[ -n "$expected" && "$current" != "$expected" ]]; then
-        log "  WARNING: $svc for $label still runs ${current:0:12}, not ${expected:0:12} - it has its own copy of $image"
+        log "  WARNING: $svc for $label still runs ${current:0:12}, not ${expected:0:12} - check it with: opencli docker-update $image --dry-run"
         failed=$((failed + 1))
     fi
-    if [[ "$svc" == php-fpm-* && "$context" != root ]]; then
+    if [[ "$svc" == php-fpm-* && "$context" != root && -z "$dependents" ]]; then
         if ! wait_fpm_ready "$context" "$cname"; then
             log "  WARNING: $svc for $label is not listening on 9000 after 2 minutes, reloading the webserver anyway"
             failed=$((failed + 1))

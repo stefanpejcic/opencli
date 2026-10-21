@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
-# Last Modified: 14.10.2026
+# Last Modified: 21.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -42,6 +42,8 @@ DEBUG=false
 QUOTA=""
 
 source /usr/local/opencli/lib/password_strength.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/tenantfs.sh
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/podman.sh
 
@@ -79,7 +81,10 @@ create_user() {
         podman exec openadmin_ftp addgroup -g "$GID" "$context"
     fi
 
-    mkdir -p "$new_directory"
+    if ! tenant_mkdir "${real_path%/}" "$new_directory"; then
+        echo "ERROR: Directory '$directory' is not a real folder inside /var/www/html/."
+        exit 1
+    fi
     chmod +rx "/home/$context"
     chmod +rx "/home/$context/docker-data"
     chmod +rx "/home/$context/docker-data/volumes"
@@ -106,9 +111,8 @@ print('\$6\$' + salt.hex() + '\$' + h)
     podman exec openadmin_ftp useradd -d "${new_directory}" -s /sbin/nologin -g "$context" -M "$username" --badname
 
     if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
-        mkdir -p "$new_directory"
-        chown -R "$GID:$GID" "$new_directory"
-        chmod -R 2775 "$new_directory"
+        tenant_chown_r "${real_path%/}" "$new_directory" "$GID:$GID"
+        tenant_chmod_r "${real_path%/}" "$new_directory" 2775
         chmod +rx "/home/$context"
         chmod +rx "/home/$context/docker-data"
         chmod +rx "/home/$context/docker-data/volumes"

@@ -83,7 +83,8 @@ podman_ensure_running() {
         podman rm -f --storage "$container" &>/dev/null
     fi
 
-    (cd "$compose_dir" && timeout "$timeout_secs" podman-compose up -d "$service") &>/dev/null
+    # --no-deps: without it podman-compose 1.0.6 can remove other services of the stack and not start them again (seen with clamav and phpmyadmin when only openpanel was started)
+    (cd "$compose_dir" && timeout "$timeout_secs" podman-compose up -d --no-deps "$service") &>/dev/null
     podman_is_running "$container"
 }
 
