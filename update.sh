@@ -869,10 +869,19 @@ run_version_specific_script() {
     log_info "Checking for version-specific update script"
     if wget --spider -q "$url" 2>/dev/null; then
         log_info "Downloading and executing version-specific script: $url"
-        if timeout "$UPDATE_TIMEOUT" bash -c "wget --timeout=1 --tries=1 -q -O - '$url' | bash" &>> "$log_file"; then
+        # run from a file with stdin closed: piped into bash, a command in the script that reads stdin (apt-get) ate the rest of it and bash went on mid-line
+        local script exit_code
+        script=$(mktemp)
+        if wget --timeout=15 --tries=2 -q -O "$script" "$url"; then
+            timeout "$UPDATE_TIMEOUT" bash "$script" </dev/null &>> "$log_file"
+            exit_code=$?
+        else
+            exit_code=1
+        fi
+        rm -f "$script"
+        if [[ $exit_code -eq 0 ]]; then
             log_info "[✔] Version-specific script executed successfully"
         else
-            local exit_code=$?
             if [[ $exit_code -eq 124 ]]; then
                 log_error "[!] Version-specific script timed out after ${UPDATE_TIMEOUT} seconds"
             else
