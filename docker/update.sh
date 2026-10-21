@@ -42,6 +42,8 @@
 readonly LOG_DIR="/var/log/openpanel/admin/docker"
 readonly LOG_FILE="${LOG_DIR}/$(date '+%Y-%m-%d').log"
 readonly SHARED_STORE="/var/lib/containers/shared-storage"
+# the shared store gets its own runroot: with root's default one (/run/containers/storage) a pull that creates layers rewrites root's layer mount records, unmounting every running root container's layer so its next restart fails
+readonly SHARED_RUNROOT="/run/containers/shared-storage"
 mkdir -p "$LOG_DIR"
 
 # shellcheck disable=SC1091
@@ -121,7 +123,7 @@ store_of() {
 store_podman() {
     local store="$1"; shift
     if [[ "$store" == shared ]]; then
-        podman --root "$SHARED_STORE" "$@"
+        podman --root "$SHARED_STORE" --runroot "$SHARED_RUNROOT" "$@"
     else
         podman "$@"
     fi

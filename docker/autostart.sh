@@ -32,6 +32,8 @@ COMPOSE_DIR="/etc/openpanel/docker/compose/1.0"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 AUTOSTART_FILE="${COMPOSE_DIR}/autostart.services"
 SHARED_STORE="/var/lib/containers/shared-storage"
+# own runroot for the shared store: root's default one makes a pull unmount every running root container's layer (see docker/update.sh)
+SHARED_RUNROOT="/run/containers/shared-storage"
 FORCE=false
 [[ "$1" == "-f" || "$1" == "--force" ]] && FORCE=true
 # disk check (free space on /), skippable with -f/--force
@@ -96,7 +98,7 @@ for svc in "${sorted[@]}"; do
         continue
     fi
     echo -n "pull   $svc -> $img ... "
-    if podman --root "$SHARED_STORE" pull --policy always "$img" >/dev/null 2>&1; then
+    if podman --root "$SHARED_STORE" --runroot "$SHARED_RUNROOT" pull --policy always "$img" >/dev/null 2>&1; then
         echo "OK"
     else
         echo "FAIL"
@@ -113,7 +115,7 @@ find "$SHARED_STORE" -name '*.lock' -exec chmod o+rw {} \; 2>/dev/null || true
 echo "Done."
 echo
 echo "Store contents:"
-podman --root "$SHARED_STORE" images
+podman --root "$SHARED_STORE" --runroot "$SHARED_RUNROOT" images
 echo
 size_h="$(du -sh "$SHARED_STORE" 2>/dev/null | cut -f1)"
 size_gb="$(du -sm "$SHARED_STORE" 2>/dev/null | cut -f1 | awk '{printf "%.2f", $1/1024}')"
