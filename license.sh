@@ -41,6 +41,7 @@ readonly EMAIL_MODULES=(
     "email_filters"
     "email_aliases"
     "email_import"
+    "email_migrate"
     "email_export"
     "email_default"
 )
