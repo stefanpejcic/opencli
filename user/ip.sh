@@ -161,8 +161,9 @@ edit_domain_files() {
     fi
 
     if $bind_changed; then
-        podman restart openpanel_bind9 >/dev/null 2>&1 || service bind9 restart >/dev/null 2>&1
-        $DEBUG && echo "- Restarted DNS server"
+        # rndc reload rereads the changed zone files, reconfig would only pick up new zones
+        podman exec openpanel_dns rndc reload >/dev/null 2>&1
+        $DEBUG && echo "- Reloaded DNS server"
     fi
 }
 

@@ -281,6 +281,8 @@ set_tls_block() {
 			for (i = 1; i <= n; i++) print ind "  " rows[i]
 			print ind "}"
 		}
+		# files made from a template saved through a browser have CRLF line endings
+		{ sub(/\r$/, "") }
 		!done && /^[ \t]*tls[ \t]+\/[^ \t]*fullchain\.pem[ \t]+\/[^ \t]*key\.pem[ \t]*$/ { block($0); done = 1; next }
 		!done && /^[ \t]*tls[ \t]*\{[ \t]*$/ { block($0); skip = 1; next }
 		skip { if ($0 ~ /^[ \t]*\}[ \t]*$/) { skip = 0; done = 1 } next }
@@ -296,7 +298,6 @@ trigger_certificate() {
 	local host_ip
 	host_ip=$(getent hosts host.containers.internal 2>/dev/null | awk '{print $1; exit}')
 	host_ip=${host_ip:-127.0.0.1}
-	sleep 2
 	for _ in 1 2 3; do
 		curl -sk -o /dev/null --max-time 20 --resolve "$DOMAIN:443:$host_ip" "https://$DOMAIN/" && return 0
 		sleep 2

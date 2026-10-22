@@ -80,13 +80,26 @@ get_openpanel_username_and_uid_for_domain() {
     [[ -n "$owner" ]] && OP_UID=$(stat -c '%u' "/home/$owner")
 }
 
+# dovecot needs ~2s to pick up a new account, listing it with an empty quota and then without its limit until then; filled in with what it will show: nothing used yet and the limit from the quotas file
+fill_new_account_quotas() {
+    local line email limit
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^\*\ ([^ ]+)\ \((\ \ /\ \ \)\ \[%\]|\ 0\ /\ ~\ \)\ \[0%\])$ ]]; then
+            email="${BASH_REMATCH[1]}"
+            limit=$(grep -m1 "^$(escape_key "$email"):" "$QUOTAS_FILE" 2>/dev/null | cut -d: -f2)
+            limit=$(numfmt --from=iec --to=iec "$limit" 2>/dev/null) || limit=""
+            line="* $email ( 0 / ${limit:-~} ) [0%]"
+        fi
+        printf '%s\n' "$line"
+    done
+}
+
 reload_emails_data_file_for_user() {
     [[ -z "$owner" ]] && return
     local file_to_refresh="/etc/openpanel/openpanel/core/users/$owner/emails.yml"
     local all_domains all_emails
     all_domains=$(opencli domains-user "$owner")
-    sleep 2 # for https://github.com/docker-mailserver/docker-mailserver/blob/cb76075f25e22476e8fdb45adfbea8026d4ea898/target/bin/addmailuser#L16
-    all_emails=$(opencli email-setup email list)
+    all_emails=$(opencli email-setup email list 2>/dev/null)
     : > "$file_to_refresh"
     while IFS= read -r domain; do
         grep "@${domain}" <<< "$all_emails" >> "$file_to_refresh"
@@ -313,8 +326,13 @@ set -- "${args[@]}"
 
 command=("$@")
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
-run_setup_command "${command[@]}"
-setup_rc=$?
+if [[ "$1 $2" == "email list" ]]; then
+    run_setup_command "${command[@]}" | fill_new_account_quotas
+    setup_rc=${PIPESTATUS[0]}
+else
+    run_setup_command "${command[@]}"
+    setup_rc=$?
+fi
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
     target_email="$3"

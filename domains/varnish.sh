@@ -86,7 +86,7 @@ get_context() {
 }
 
 reload_caddy() {
-	podman restart caddy  > /dev/null
+	caddy_reload
 	if ! $JSON_OUTPUT; then
 		echo "Caddy container reloaded."
 	fi

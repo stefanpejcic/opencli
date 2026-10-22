@@ -88,6 +88,94 @@ podman_ensure_running() {
     podman_is_running "$container"
 }
 
+# same as podman_is_running but against <context>'s podman, e.g. podman_ctx_is_running <context> <container>
+podman_ctx_is_running() {
+    [[ "$(podman_ctx "$1" inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" == true ]]
+}
+
+# same as podman_ctx_is_running but also wants a listening tcp socket inside, a php-fpm container is running a few seconds before fpm accepts connections, e.g. podman_ctx_is_listening <context> <container>
+podman_ctx_is_listening() {
+    podman_ctx_is_running "$1" "$2" \
+        && podman_ctx "$1" exec "$2" sh -c "awk '\$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ." >/dev/null 2>&1
+}
+
+# reloads <context>'s webserver without dropping connections: config test, then a graceful signal to its pid 1, or lswsctrl restart on litespeed whose pid 1 is start.sh -- extra containers (e.g. the php-fpm a new vhost points to) are waited on for up to 60s until they listen, since nginx refuses a config whose upstream host doesn't resolve yet and 502s until fpm accepts; a stopped webserver gets started and a failed signal falls back to a restart -- e.g. podman_reload_webserver <context> <webserver> [container...]
+podman_reload_webserver() {
+    local context="$1" ws="$2"; shift 2
+    local c ready tries=30 signal out
+    local -a check
+
+    if (( $# > 0 )); then
+        while :; do
+            ready=1
+            podman_ctx_is_running "$context" "$ws" || ready=0
+            for c in "$@"; do
+                (( ready )) && { podman_ctx_is_listening "$context" "$c" || ready=0; }
+            done
+            (( ready || --tries <= 0 )) && break
+            sleep 2
+        done
+    fi
+
+    if ! podman_ctx_is_running "$context" "$ws"; then
+        podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+        return
+    fi
+
+    case "$ws" in
+        nginx|openresty) check=(nginx -t); signal=HUP ;;
+        apache)          check=(apachectl configtest); signal=USR1 ;;
+        *litespeed)
+            podman_ctx "$context" exec "$ws" /usr/local/lsws/bin/lswsctrl restart >/dev/null 2>&1 \
+                || podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+            return ;;
+        *)
+            podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+            return ;;
+    esac
+
+    # a reload with a broken config is ignored silently, a restart would take every site down
+    # retried since aardvark-dns briefly fails lookups right after a container is created or removed
+    tries=5
+    until out=$(podman_ctx "$context" exec "$ws" "${check[@]}" 2>&1) || (( --tries <= 0 )); do
+        sleep 1
+    done
+    if (( tries <= 0 )); then
+        echo "$ws config test failed, still running the previous config:" >&2
+        echo "$out" >&2
+        return 1
+    fi
+    podman_ctx "$context" kill --signal "$signal" "$ws" >/dev/null 2>&1 \
+        || podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+}
+
+# sed for a file another container sees through a single-file bind mount: sed -i swaps the inode and the container keeps reading the old file until it restarts, e.g. sed_in_place <file> <sed-args...>
+sed_in_place() {
+    local file="$1" tmp; shift
+    tmp=$(mktemp) || return 1
+    if sed "$@" "$file" > "$tmp"; then
+        cat "$tmp" > "$file"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+    rm -f "$tmp"
+}
+
+# applies caddy config changes without dropping connections, a restart takes every site on the server down and its stop can hang; an invalid config is reported and caddy keeps the running one, a stopped caddy gets started -- e.g. caddy_reload
+caddy_reload() {
+    if ! podman_is_running caddy; then
+        (cd /root && podman-compose up -d caddy) >/dev/null 2>&1
+        return
+    fi
+    local out
+    if ! out=$(podman exec caddy caddy validate --config /etc/caddy/Caddyfile 2>&1); then
+        echo "Caddy config is invalid, kept the running one: $(grep -m1 -i error <<< "$out")" >&2
+        return 1
+    fi
+    podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || podman restart caddy >/dev/null 2>&1
+}
+
 # echoes the shared image store root and users read through additionalimagestores in root's storage.conf, servers installed with 2.0.0-beta have it at /var/lib/openpanel/shared-containers/storage
 shared_image_store() {
     local store

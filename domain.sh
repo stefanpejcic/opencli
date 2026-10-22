@@ -30,6 +30,8 @@
 
 # ======================================================================
 # Configuration
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 readonly CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
 readonly MAILSERVER_ENV="/usr/local/mail/openmail/mailserver.env"
@@ -176,18 +178,18 @@ update_caddyfile() {
 	if [[ "$new_hostname" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         # was using IPv4
         if grep -q "# START HOSTNAME IP #" "$CADDY_FILE"; then
-            sed -i "/# START HOSTNAME IP #/,/# END HOSTNAME IP #/ s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/$new_hostname/" "$CADDY_FILE"
+            sed_in_place "$CADDY_FILE" "/# START HOSTNAME IP #/,/# END HOSTNAME IP #/ s/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/$new_hostname/"
         else
 		# was not using IPv4
 			local admin_port; admin_port=$(opencli admin port)
             local ip_block="# START HOSTNAME IP #\n${new_hostname} {\n  tls {\n    issuer acme {\n      profile shortlived\n    }\n  }\n  reverse_proxy localhost:${admin_port}\n}\n# END HOSTNAME IP #\n"
-            sed -i "s|# START HOSTNAME DOMAIN #|${ip_block}# START HOSTNAME DOMAIN #|" "$CADDY_FILE"
+            sed_in_place "$CADDY_FILE" "s|# START HOSTNAME DOMAIN #|${ip_block}# START HOSTNAME DOMAIN #|"
         fi
 		# example.net
-		sed -i "s/$current_domain/$DEFAULT_DOMAIN/g" "$CADDY_FILE"
+		sed_in_place "$CADDY_FILE" "s/$current_domain/$DEFAULT_DOMAIN/g"
     else
         # was using a domain
-        sed -i "s/$current_domain/$new_hostname/g" "$CADDY_FILE"
+        sed_in_place "$CADDY_FILE" "s/$current_domain/$new_hostname/g"
     fi
 }
 
@@ -302,13 +304,7 @@ configure_mailserver() {
 
 restart_services() {
 
-	if podman-compose -f /root/docker-compose.yml ps -q caddy >/dev/null 2>&1; then
-        nohup podman restart caddy >/dev/null 2>&1 &
-        disown
-    else
-        nohup bash -c "cd /root && podman-compose up -d caddy" >/dev/null 2>&1 &
-        disown
-    fi
+	caddy_reload
 
     local no_restart=false
     
@@ -390,7 +386,7 @@ check_domain_not_added_by_user(){
         local forbidden_domains=()
 
         if [ -f "$CONFIG_FILE_PATH" ]; then
-            log "Checking domain against forbidden_domains list"
+            log_debug "Checking domain against forbidden_domains list"
             mapfile -t forbidden_domains < "$CONFIG_FILE_PATH"
             local forbidden
             for forbidden in "${forbidden_domains[@]}"; do

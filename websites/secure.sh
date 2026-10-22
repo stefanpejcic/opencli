@@ -30,6 +30,9 @@
 ################################################################################
 
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 usage() {
   echo "Usage:"
   echo "opencli websites-secure <domain>"
@@ -57,7 +60,7 @@ if [[ ! -f "$WP_MANAGER_RULES" ]]; then
   MARKER='# import all sites'
 
   if ! grep -Fxq "$RULE_LINE" "$CADDY_FILE"; then
-    sed -i "/$MARKER/i $RULE_LINE" "$CADDY_FILE"
+    sed_in_place "$CADDY_FILE" "/$MARKER/i $RULE_LINE"
   fi
   
   curl -s -L "https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/templates/wp.rules" -o "$WP_MANAGER_RULES"

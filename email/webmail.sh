@@ -30,6 +30,9 @@
 ################################################################################
 
 
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
+
 usage() {
     echo "Usage: opencli email-webmail [--debug] [domain <domain>]"
     echo
@@ -124,12 +127,12 @@ update_webmail_domain() {
                     echo "Updating Caddyfile webmail block to: ${new_domain}"
                 fi
 
-sed -i "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
+sed_in_place "$CADDYFILE" "/# START WEBMAIL DOMAIN #/,/# END WEBMAIL DOMAIN #/c\\
 # START WEBMAIL DOMAIN #\\
 ${new_domain} {\\
     reverse_proxy localhost:8080\\
 }\\
-# END WEBMAIL DOMAIN #" "$CADDYFILE"
+# END WEBMAIL DOMAIN #"
 
 
             else
@@ -141,9 +144,7 @@ ${new_domain} {\\
 
         echo "Webmail domain updated to ${proto}://${new_domain}"
 
-        cd /root && podman-compose down caddy >/dev/null 2>&1
-        cd /root && podman-compose up -d caddy >/dev/null 2>&1
-        # todo: reload instead of a full down/up!
+        caddy_reload
         exit 0
     else
         echo "Error: No redir @webmail line found in $PROXY_FILE"

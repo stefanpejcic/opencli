@@ -60,9 +60,9 @@ if [ "$USE_WS" -eq 1 ]; then
     if [ -f "$FINAL_PATH" ]; then
         echo "Opening VirtualHosts file in nano: $FINAL_PATH"
         nano "$FINAL_PATH"
-        echo "Restarting $WEB_SERVER webserver to save changes.."
+        echo "Reloading $WEB_SERVER webserver to apply changes.."
         get_webserver_for_user
-        podman_user "$CONTEXT" restart "$WEB_SERVER"
+        podman_reload_webserver "$CONTEXT" "$WEB_SERVER" || exit 1
     else
         echo "ERROR: VirtualHosts for domain $DOMAIN does not exist: $FINAL_PATH"
         exit 1

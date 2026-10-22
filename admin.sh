@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 require_command jq
 
 service_name="admin"
@@ -766,10 +768,9 @@ case "$1" in
 				echo "Removing port for OpenAdmin"
 			else
             	echo "Changing port to: $new_port"
-				sed -i \
+				sed_in_place "/etc/openpanel/caddy/Caddyfile" \
 				  -e "/# START HOSTNAME DOMAIN #/,/# END HOSTNAME DOMAIN #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/" \
-				  -e "/# START HOSTNAME IP #/,/# END HOSTNAME IP #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/" \
-				  "/etc/openpanel/caddy/Caddyfile"				
+				  -e "/# START HOSTNAME IP #/,/# END HOSTNAME IP #/ s/\(reverse_proxy localhost:\)[0-9]\+/\1$new_port/"				
 				if [[ -f "/root/disable_2087_port" ]]; then
 					rm -rf /root/disable_2087_port
 				fi
@@ -787,10 +788,8 @@ case "$1" in
 			    fi
 	            echo "Restarting OpenAdmin.."
 				systemctl restart admin
-				if [[ "$new_port" == "443" ]]; then
-					echo "Restarting Caddy.."
-					podman restart caddy
-				fi
+				echo "Reloading Caddy.."
+				caddy_reload
 			else
 				if [[ "$new_port" == "443" ]]; then
 					echo "Restart OpenAdmin service and Caddy container to apply new port."

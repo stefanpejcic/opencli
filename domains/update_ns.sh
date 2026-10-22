@@ -126,8 +126,8 @@ case "$1" in
 esac
 
 
-podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
-cd /root && podman-compose up -d bind9  >/dev/null 2>&1
+# rndc reload rereads the changed zone files, reconfig only picks up new zones; bind9 only gets started when it isn't running
+podman exec openpanel_dns rndc reload >/dev/null 2>&1 || (cd /root && podman-compose up -d bind9 >/dev/null 2>&1)
 
 echo "Nameservers have been updated and BIND9 zones reloaded."
 exit 0

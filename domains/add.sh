@@ -489,8 +489,13 @@ create_vhost_file() {
     get_varnish_for_user
 
     if ! $SKIP_STARTING_CONTAINERS; then
-        local services="$WEB_SERVER"
-        [[ "$VARNISH" == true ]] && services="$services varnish"
+        # podman-compose up recreates running containers too, which drops every site, so only start what's down
+        local services="" svc
+        for svc in "$WEB_SERVER" $([[ "$VARNISH" == true ]] && echo varnish); do
+            podman_ctx_is_running "$context" "$svc" || services="$services $svc"
+        done
+    fi
+    if ! $SKIP_STARTING_CONTAINERS && [[ -n "$services" ]]; then
 	    local service_count; service_count=$(echo "$services" | wc -w)
 	    local container_word; container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
 	    log "Starting $service_count $container_word ($services)"
@@ -511,9 +516,19 @@ create_vhost_file() {
     chown "$context_uid:$context_uid" "/home/$context/docker-data/volumes/${context}_webserver_data/" "/home/$context/docker-data/volumes/${context}_webserver_data/_data/" 2>/dev/null || true
 
     if ! $SKIP_STARTING_CONTAINERS; then
-        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
-		disown
+        # litespeed only registers new vhosts in its start.sh, so it still needs a real restart
+        if [[ "$WEB_SERVER" == *litespeed* ]]; then
+            local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
+            nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
+            disown
+        else
+            # waits for the webserver and php-fpm being started in parallel before reloading
+            local php_container=""
+            is_module_enabled "php" && php_container="php-fpm-$php_version"
+            # shellcheck disable=SC2016
+            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" $php_container </dev/null >nohup.out 2>nohup.err &
+            disown
+        fi
     fi
 }
 
@@ -560,7 +575,8 @@ create_caddy_domain_file() {
 	local host="127.0.0.1:"
 	[[ "$REMOTE_SERVER" == "yes" ]] && host="$current_ip:"
 	
-	sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|127.0.0.1:||g" -e "s|<SSL_PORT>|${host}${ssl_port}|g" -e "s|<NON_SSL_PORT>|${host}${non_ssl_port}|g" "$conf_template" > "$domains_file"
+	# a template saved through a browser has CRLF, which breaks the $-anchored edits other scripts make to this file
+	sed -e 's/\r$//' -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|127.0.0.1:||g" -e "s|<SSL_PORT>|${host}${ssl_port}|g" -e "s|<NON_SSL_PORT>|${host}${non_ssl_port}|g" "$conf_template" > "$domains_file"
 
     # Dedicated IP bind directives
     if [[ -n "$dedicated_ip" ]]; then
@@ -841,6 +857,7 @@ start_php_fpm() {
     $SKIP_STARTING_CONTAINERS && return
     [[ "$WEB_SERVER" == *litespeed* ]] && return
     is_module_enabled "php" || { log "PHP module disabled — skipping"; return; }
+    podman_ctx_is_running "$context" "php-fpm-${php_version}" && return
     log "Starting PHP-FPM $php_version"
     local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
     nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &

@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 source /usr/local/opencli/lib/redis.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 ENV_FILE="/root/.env"
 COMPOSE_DIR="/root"
 REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
@@ -77,7 +79,7 @@ do_reload() {
   if [[ "$NO_RESTART" != true ]]; then
     # restart caddy and openpanel
     cd $COMPOSE_DIR || exit
-    nohup podman-compose restart caddy > /dev/null 2>&1 < /dev/null &
+    caddy_reload
     nohup bash -c "podman-compose down openpanel && podman-compose up -d openpanel" > /dev/null 2>&1 &
 
     # open port on csf

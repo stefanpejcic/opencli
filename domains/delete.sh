@@ -197,8 +197,8 @@ vhost_files_delete() {
 	vhost_in_docker_file="/home/$context/docker-data/volumes/${context}_webserver_data/_data/${domain_name}.conf"
 	rm "$vhost_in_docker_file" >/dev/null 2>&1
 
- 	log "Restarting $WEB_SERVER to apply changes"
-	podman_user "$context" restart "$WEB_SERVER" >/dev/null 2>&1
+ 	log "Reloading $WEB_SERVER to apply changes"
+	podman_reload_webserver "$context" "$WEB_SERVER" >/dev/null 2>&1
 }
 
 

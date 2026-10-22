@@ -31,6 +31,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/tenantfs.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 # ======================================================================
 # Variables
 domain="$1"
@@ -115,28 +117,32 @@ tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$domain_path_in_volum
 # 2. start new php version container if not running
 # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
 owner_sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$owner")/podman/podman.sock"
-nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
+# up -d would recreate it if another domain already runs this version
+if ! podman_ctx_is_running "$owner" "php-fpm-${new_php_version}"; then
+    nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
+fi
 
-# 3. restart webserver
-context_sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-nohup sh -c "CONTAINER_HOST=$context_sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
+# 3. previous version gets stopped if not used by other domains AND not set as default
+old_php_version="$php_version"
+default_php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "/home/$context/.env" | tr -d '[:space:]')
+stop_old=""
+if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_version" ]; then
+	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
+    grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf" || stop_old="php-fpm-$old_php_version"
+fi
 
-# 4. save in database
+# 4. reload webserver once the new php-fpm listens, and only then stop the old one so the site never points at a stopped container
+# shellcheck disable=SC2016
+nohup bash -c '. /usr/local/opencli/lib/podman.sh
+    podman_reload_webserver "$1" "$2" "$3" || exit 1
+    [ -n "$4" ] && cd "/home/$5" && podman_compose_ctx "$5" down "$4"' _ "$context" "$WEB_SERVER" "php-fpm-$new_php_version" "$stop_old" "$owner" </dev/null >nohup.out 2>nohup.err &
+disown
+
+# 5. save in database
 update_query="UPDATE domains SET php_version='$(mysql_escape "$new_php_version")' WHERE domain_url='$(mysql_escape "$domain")';"
 mariadb -e "$update_query"
 
-# 5. notify
+# 6. notify
 # todo: trigger user and admin notifications
 echo "Updated PHP version in the configuration file to $new_php_version"
 
-# 6. stop previous version if not used by other domains AND not set as default
-old_php_version="$php_version"
-default_php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "/home/$context/.env" | tr -d '[:space:]')
-
-if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_version" ]; then
-	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
-    if ! grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf"; then
-		nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose down php-fpm-${old_php_version}" </dev/null >nohup.out 2>nohup.err &
-        disown
-    fi
-fi

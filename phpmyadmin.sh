@@ -157,13 +157,7 @@ update_env_for_new_users() {
 
     touch "/etc/openpanel/caddy/domains/$DOMAIN.conf"
 
-    if podman-compose ps -q caddy >/dev/null 2>&1; then
-        nohup podman restart caddy >/dev/null 2>&1 &
-        disown
-    else
-        nohup bash -c "cd /root && podman-compose up -d caddy" >/dev/null 2>&1 &
-        disown
-    fi
+    caddy_reload
 }
 
 if [ "$#" -eq 0 ]; then
