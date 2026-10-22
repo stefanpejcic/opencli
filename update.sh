@@ -183,6 +183,14 @@ write_notification() {
     notification_add no unread "$severity" update update "$title" "$message" "$details"
 }
 
+# every step that didn't work is added here, the update only reports success when it stays empty
+UPDATE_ERRORS=()
+update_error() {
+    log_error "$1"
+    [[ -n "${log_file:-}" ]] && echo "[ERROR] $1" >> "$log_file"
+    UPDATE_ERRORS+=("$1")
+}
+
 write_notification_for_update_check() {
     notification_add yes unread "$1" update update "$2" "$3"
 }
@@ -433,6 +441,8 @@ run_custom_postupdate_script() {
     if [[ -s "$script_path" ]]; then
         log_info "[!] Running custom post-update script: $script_path"
         bash "$script_path" 2>&1 | tee -a "$log_file"
+        local rc=${PIPESTATUS[0]}
+        [[ $rc -eq 0 ]] || update_error "Custom post-update script $script_path failed with exit code $rc"
     fi
 }
 
@@ -453,6 +463,7 @@ update_modules() {
     else
         rm -f "$tmp"
         log_warn "Failed to download features from github (HTTP ${http_code:-000}), keeping current file"
+        return 1
     fi
 }
 
@@ -818,6 +829,7 @@ update_locales() {
     local summary="Locales updated: $updated, failed: $failed"
     # shellcheck disable=SC2015  # echo can't meaningfully fail here; used as if/else shorthand
     [[ "$no_log" == "--no-log" ]] && echo "[✔] $summary" || log "[✔] $summary"
+    [[ $failed -eq 0 ]]
 }
 
 # ---------------------- UPDATES TRANSLATIONS ONLY, THEN RESTARTS OPENPANEL ---------------------- #
@@ -872,22 +884,20 @@ run_version_specific_script() {
         # run from a file with stdin closed: piped into bash, a command in the script that reads stdin (apt-get) ate the rest of it and bash went on mid-line
         local script exit_code
         script=$(mktemp)
-        if wget --timeout=15 --tries=2 -q -O "$script" "$url"; then
+        if ! wget --timeout=15 --tries=2 -q -O "$script" "$url"; then
+            update_error "Failed to download the $version update script, run it with: wget -O - $url | bash"
+        else
             timeout "$UPDATE_TIMEOUT" bash "$script" </dev/null &>> "$log_file"
             exit_code=$?
-        else
-            exit_code=1
-        fi
-        rm -f "$script"
-        if [[ $exit_code -eq 0 ]]; then
-            log_info "[✔] Version-specific script executed successfully"
-        else
-            if [[ $exit_code -eq 124 ]]; then
-                log_error "[!] Version-specific script timed out after ${UPDATE_TIMEOUT} seconds"
+            if [[ $exit_code -eq 0 ]]; then
+                log_info "[✔] Version-specific script executed successfully"
+            elif [[ $exit_code -eq 124 ]]; then
+                update_error "The $version update script timed out after ${UPDATE_TIMEOUT} seconds and its remaining steps did not run, run it again: wget -O - $url | bash"
             else
-                log_error "[!] Version-specific script failed with exit code: $exit_code"
+                update_error "The $version update script failed with exit code $exit_code, run it again: wget -O - $url | bash"
             fi
         fi
+        rm -f "$script"
     else
         log_info "[✔] No version-specific script"
     fi
@@ -953,6 +963,7 @@ run_update_immediately() {
         log "Updating version in /root/.env"
         if [[ -f /root/.env ]]; then
             sed -i "s/^VERSION=.*$/VERSION=\"$version\"/" /root/.env
+            grep -qxF "VERSION=\"$version\"" /root/.env || update_error "Failed to set VERSION=\"$version\" in /root/.env"
         fi
 
         if [[ "$NO_RESTART" == "true" ]]; then
@@ -964,6 +975,7 @@ run_update_immediately() {
                 cd /root && podman-compose down openpanel && \
                 podman-compose up -d openpanel 2>&1 | tee -a "$log_file"
             fi
+            verify_openpanel_running "$version"
         fi
         redis_drop_key openpanel_cache_app.get_openpanel_version &>/dev/null
 
@@ -972,10 +984,10 @@ run_update_immediately() {
     fi
 
     # ---------------------- 5. UPDATE INSTALLED LOCALES
-    update_locales  
+    update_locales || update_error "Some locales failed to update, run: opencli update --translations"
 
     # ---------------------- 6. UPDATE MODULES/FEATURES
-    update_modules 
+    update_modules || update_error "Failed to update /etc/openpanel/openadmin/config/features.json, run: opencli update --modules"
 
     # ---------------------- 7. DOWNLOAD OPENADMIN FILES FROM GITHUB
     update_openadmin
@@ -996,8 +1008,19 @@ run_update_immediately() {
     log "Checking for custom post-update scripts"
     run_custom_postupdate_script
     
-    # ---------------------- 11. CLEANUP     
+    # ---------------------- 11. CHECK, CLEANUP AND REPORT
+    verify_openadmin_running
+
     notification_delete_title "OpenPanel update started"
+    if (( ${#UPDATE_ERRORS[@]} > 0 )); then
+        local e
+        log "Update to version $version completed with ${#UPDATE_ERRORS[@]} error(s):"
+        for e in "${UPDATE_ERRORS[@]}"; do
+            echo "  - $e" | tee -a "$log_file"
+        done
+        write_notification warning "OpenPanel update completed with errors" "Updated to version $version, but ${#UPDATE_ERRORS[@]} step(s) failed: $(printf '%s; ' "${UPDATE_ERRORS[@]}" | sed 's/; $//')" "$log_file"
+        return 1
+    fi
     notification_delete_title "New OpenPanel update is available"
     write_notification info "OpenPanel updated successfully!" "OpenPanel updated to version $version." "$log_file"
     log "Update completed successfully!"
@@ -1005,6 +1028,42 @@ run_update_immediately() {
 }
 
 
+
+# waits up to a minute for the openpanel container to be running on the new image
+verify_openpanel_running() {
+    local version="$1" state image i
+    for (( i=0; i<30; i++ )); do
+        state=$(podman inspect -f '{{.State.Status}}' openpanel 2>/dev/null)
+        [[ "$state" == "running" ]] && break
+        sleep 2
+    done
+    image=$(podman inspect -f '{{.ImageName}}' openpanel 2>/dev/null)
+    if [[ "$state" != "running" ]]; then
+        update_error "OpenPanel container is not running after the update (state: ${state:-missing}), start it with: cd /root && podman-compose up -d openpanel"
+    elif [[ "$image" != *":$version" ]]; then
+        update_error "OpenPanel container runs $image instead of version $version, recreate it with: cd /root && podman-compose up -d --force-recreate openpanel"
+    else
+        log "[✔] OpenPanel is running version $version"
+    fi
+}
+
+# the OpenAdmin binary is swapped in a background unit, waits up to 2 minutes for it and checks the admin service came back
+verify_openadmin_running() {
+    local unit="openadmin-selfupdate-$$.service" i
+    [[ -d /usr/local/admin ]] || return 0
+    [[ "$NO_RESTART" == "true" ]] && return 0
+    for (( i=0; i<60; i++ )); do
+        systemctl is-active --quiet "$unit" || break
+        sleep 2
+    done
+    if systemctl is-active --quiet "$unit"; then
+        update_error "OpenAdmin update is still running after 2 minutes, check: journalctl -u $unit"
+    elif systemctl is-enabled --quiet admin 2>/dev/null && ! systemctl is-active --quiet admin; then
+        update_error "OpenAdmin (admin service) is not running after the update, start it with: systemctl start admin"
+    else
+        log "[✔] OpenAdmin is running"
+    fi
+}
 
 update_openpanel() {
     cd /root || return
@@ -1047,8 +1106,8 @@ update_openadmin() {
         target_log="${log_file:-/dev/null}"
 
         if ! curl -sSLI -o /dev/null -w "%{http_code}" "$url" | grep -q "^200$"; then
-            echo "No release asset found: $url" >&2
-            exit 1
+            update_error "No OpenAdmin release found at $url, kept the previous OpenAdmin"
+            return 1
         elif [[ "$NO_RESTART" == "true" ]]; then
             # mv over the running binary is safe, the old one keeps running until restarted
             if curl -sSL "$url" -o "/usr/local/admin/${admin_binary}.new" \
@@ -1060,7 +1119,7 @@ update_openadmin() {
                 [[ "$1" == "--no-log" ]] && echo "[!] OpenAdmin updated, restart the 'admin' service to apply it" || log "[!] OpenAdmin updated, restart the 'admin' service to apply it"
             else
                 rm -f "/usr/local/admin/${admin_binary}.new"
-                log_error "Failed to download $url, kept the previous OpenAdmin binary"
+                update_error "Failed to download $url, kept the previous OpenAdmin binary"
             fi
             return
         else
@@ -1127,18 +1186,18 @@ update_opencli() {
                 log_info "[✔] Terminal commands updated successfully"
             else
                 mv /usr/local/opencli.old /usr/local/opencli 2>/dev/null
-                log_error "[!] Failed to replace /usr/local/opencli, kept the previous version."
+                update_error "Failed to replace /usr/local/opencli, kept the previous version, run: opencli update --cli"
             fi
         else
             local exit_code=$?
             if [[ $exit_code -eq 124 ]]; then
-                log_error "[!] Updating terminal commands timed out after ${UPDATE_TIMEOUT} seconds, kept the previous version."
+                update_error "Updating terminal commands timed out after ${UPDATE_TIMEOUT} seconds, kept the previous version, run: opencli update --cli"
             else
-                log_error "[!] Updating terminal commands failed with exit code: $exit_code, kept the previous version."
+                update_error "Updating terminal commands failed with exit code $exit_code, kept the previous version, run: opencli update --cli"
             fi
         fi
     else
-        log_info "[!] Failed to reach github."
+        update_error "Failed to reach github, terminal commands not updated, run: opencli update --cli"
     fi
     rm -rf "$tmp_dir"
 
