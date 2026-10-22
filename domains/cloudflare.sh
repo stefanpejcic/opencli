@@ -5,7 +5,7 @@
 # Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME [DOMAIN_NAME...]|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
-# Last Modified: 12.10.2026
+# Last Modified: 22.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -253,6 +253,7 @@ if [[ "$ACTION" == "status" ]]; then
         echo "Summary: $enabled_count enabled, $disabled_count disabled out of ${#DOMAIN_FILES[@]} domain(s)."
         exit 0
     else
+        [[ "$TARGET" =~ ^[A-Za-z0-9.-]+$ && "$TARGET" != *".."* ]] || { echo "ERROR: Invalid domain name: $TARGET"; exit 1; }
         DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
         if [[ ! -f "$DOMAIN_FILE" ]]; then
             echo "ERROR: Domain config not found: $DOMAIN_FILE"
@@ -330,6 +331,7 @@ if [[ "$ACTION" == "enable" || "$ACTION" == "disable" ]]; then
         template_checked=0
 
         for TARGET in "${TARGETS[@]}"; do
+            [[ "$TARGET" =~ ^[A-Za-z0-9.-]+$ && "$TARGET" != *".."* ]] || { echo "ERROR: Invalid domain name: $TARGET"; failed=1; continue; }
             DOMAIN_FILE="$DOMAIN_DIR/$TARGET.conf"
 
             if [[ ! -f "$DOMAIN_FILE" ]]; then

@@ -5,7 +5,7 @@
 # Usage: opencli domains-suspend <DOMAIN-NAME> [--comment="<COMMENT>"] [--by=admin|user] [--template=<NAME>]
 # Author: Stefan Pejcic
 # Created: 04.11.2024
-# Last Modified: 15.10.2026
+# Last Modified: 22.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -34,6 +34,8 @@ if [ $# -lt 1 ] || [ $# -gt 4 ]; then
 fi
 
 domain_name="$1"
+# goes straight into the caddy file path
+[[ "$domain_name" =~ ^[A-Za-z0-9.-]+$ && "$domain_name" != *".."* ]] || { echo "ERROR: Invalid domain name: $domain_name"; exit 1; }
 comment=""
 by="user"
 template=""

@@ -5,7 +5,7 @@
 # Usage: opencli domains-unsuspend <DOMAIN-NAME> [--by=admin|user]
 # Author: Stefan Pejcic
 # Created: 04.11.2024
-# Last Modified: 15.10.2026
+# Last Modified: 22.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -34,6 +34,8 @@ if [ $# -lt 1 ] || [ $# -gt 2 ]; then
 fi
 
 domain_name="$1"
+# goes straight into the caddy file path
+[[ "$domain_name" =~ ^[A-Za-z0-9.-]+$ && "$domain_name" != *".."* ]] || { echo "ERROR: Invalid domain name: $domain_name"; exit 1; }
 by="user"
 
 if [ -n "$2" ]; then

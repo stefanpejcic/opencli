@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 21.10.2026
+# Last Modified: 22.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -160,7 +160,8 @@ validate_domain_format() {
 
 validate_docroot() {
     if [[ -n "$docroot" ]]; then
-        [[ "$docroot" =~ ^/var/www/html/ ]] || die "Invalid docroot. Must start with /var/www/html/"
+        # docroot goes into sed and the vhost, so only plain path chars and no ..
+        [[ "$docroot" =~ ^/var/www/html/[A-Za-z0-9._/-]*$ && "$docroot" != *".."* ]] || die "Invalid docroot. It must start with /var/www/html/ and only use letters, numbers, dots, dashes, underscores and slashes."
     else
         docroot="/var/www/html/$domain_name"
         log "No docroot specified, using $docroot"
