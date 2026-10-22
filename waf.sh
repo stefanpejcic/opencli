@@ -5,7 +5,7 @@
 # Usage: opencli waf <status|enable|disable|domain|user|plugins|tags|ids|update|stats|count> [options]
 # Author: Stefan Pejcic
 # Created: 22.05.2025
-# Last Modified: 15.10.2026
+# Last Modified: 22.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -435,15 +435,36 @@ update_owasp_rules() {
 
 enable_coraza_waf() {
 
+    local crs_dir="/etc/openpanel/caddy/coreruleset"
+
     # 1. download rules
     echo "Downloading Coraza rules.."
-    wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/coraza_rules.conf -O /etc/openpanel/caddy/coraza_rules.conf
+    # download to a temp file so a failed download doesn't leave an empty rules file behind
+    if wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/coraza_rules.conf -O /etc/openpanel/caddy/coraza_rules.conf.tmp && [[ -s /etc/openpanel/caddy/coraza_rules.conf.tmp ]]; then
+        mv -f /etc/openpanel/caddy/coraza_rules.conf.tmp /etc/openpanel/caddy/coraza_rules.conf
+    else
+        rm -f /etc/openpanel/caddy/coraza_rules.conf.tmp
+        [[ -s /etc/openpanel/caddy/coraza_rules.conf ]] || { echo "Error: failed to download Coraza rules." >&2; return 1; }
+        echo "Download failed, keeping the existing Coraza rules."
+    fi
 
     echo "Downloading OWASP CRS.."
-    git clone https://github.com/coreruleset/coreruleset /etc/openpanel/caddy/coreruleset/
+    # enable can run again, e.g. after a failed install, so reuse a clone that's already there
+    if [[ -d "$crs_dir/.git" ]]; then
+        echo "OWASP CRS is already downloaded."
+    else
+        rm -rf "$crs_dir"
+        local tries
+        for tries in 1 2 3; do
+            git clone https://github.com/coreruleset/coreruleset "$crs_dir" && break
+            rm -rf "$crs_dir"
+            sleep 5
+        done
+        [[ -d "$crs_dir/.git" ]] || { echo "Error: failed to download OWASP CRS into $crs_dir" >&2; return 1; }
+    fi
 
     # avoid SecDefaultAction collision with coraza_rules.conf (which sets phase:3/4/5)
-    sed -i -E 's/^(SecDefaultAction "phase:[345])/#\1/' /etc/openpanel/caddy/coreruleset/crs-setup.conf.example
+    sed -i -E 's/^(SecDefaultAction "phase:[345])/#\1/' "$crs_dir/crs-setup.conf.example"
 
     echo "Disabling rulesets not used by the stack.."
     disable_unused_rulesets
@@ -474,7 +495,10 @@ enable_coraza_waf() {
         echo "Failed to cd to /root - are you root?" >&2
         exit 1
     }
-    podman-compose down caddy && podman-compose up -d caddy
+    if ! { podman-compose down caddy && podman-compose up -d caddy; }; then
+        echo "Error: failed to restart the caddy container." >&2
+        return 1
+    fi
 
     nohup opencli sentinel --action=waf_status --title="WAF configured" --message="CorazaWAF has been configured on the server and WAF will be auto-enabled for new domains." >/dev/null 2>&1 &
     disown
@@ -567,7 +591,7 @@ case "$1" in
         ;;
     "enable")
         enable_coraza_waf
-        exit 0
+        exit $?
         ;;
     "disable")
         disable_coraza_waf "$2"

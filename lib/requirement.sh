@@ -16,8 +16,9 @@ require_command() {
     command -v "$cmd" &> /dev/null && return 0
 
     if command -v apt-get &> /dev/null; then
-        apt-get update -qq > /dev/null 2>&1
-        apt-get install -y -qq "$package" > /dev/null 2>&1
+        # wait for the dpkg lock instead of failing when another install runs at the same time, e.g. parallel install steps
+        apt-get -o DPkg::Lock::Timeout=300 update -qq > /dev/null 2>&1
+        apt-get -o DPkg::Lock::Timeout=300 install -y -qq "$package" > /dev/null 2>&1
     elif command -v dnf &> /dev/null; then
         # some packages (e.g. fzf on older RHEL) only exist in EPEL, retry through it if the plain install fails
         dnf install -y -q "$package" > /dev/null 2>&1 || {
