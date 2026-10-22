@@ -1334,7 +1334,9 @@ prune_shared_images() {
     # just pulled by docker-update or autostart and its containers aren't recreated yet
     [ -n "$(find "$store/overlay-images/$id" -maxdepth 0 -mmin -1440 2>/dev/null)" ] && continue
     [ "$names" == "<none>:<none>" ] && names="${id:0:12}"
-    if timeout 60 podman --root "$store" rmi -f "$id" > /dev/null 2>&1; then
+    # skopeo with the shared store's own runroot: podman rmi there used root's runroot, which unmounts every running root container's layer so its next restart fails
+    if timeout 60 skopeo delete "containers-storage:[overlay@$store+/run/containers/shared-storage]$id" > /dev/null 2>&1; then
+      chmod -R o+rX "$store" 2>/dev/null
       SHARED_IMAGES_REMOVED+=("$names")
     else
       SHARED_IMAGES_FAILED+=("$names")
