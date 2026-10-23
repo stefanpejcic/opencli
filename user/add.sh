@@ -404,6 +404,9 @@ EOF
 	    sleep 1; ((w++))
 	done
 
+	# a pull into the shared store may still be running (installer prefetch, docker-update), it leaves the store unreadable for users
+	fix_shared_perms
+
 	# machinectl shell -c silently did nothing here, so the socket never got enabled and died on the next user@ restart or reboot
 	systemctl --user -M "${USERNAME}@" daemon-reload >/dev/null 2>&1
 	systemctl --user -M "${USERNAME}@" reset-failed podman.socket >/dev/null 2>&1
@@ -423,23 +426,20 @@ test_podman_service() {
 
 	log "Testing connection to podman service.."
 
-	fixed_permissions=false
+	output="no socket at $sock_path"
 	while (( elapsed < max_time )); do
-	    if [[ -S "$sock_path" ]]; then
-	        output=$(CONTAINER_HOST="$sock" timeout 3 podman --remote info 2>&1)
-	        status=$?
-	
-	        if [[ $status -eq 0 ]]; then
-	            ready=true
-	            log "Podman socket live ($sock_path)"
-	            break
-			# Error: configure storage: overlay: can't stat imageStore dir /var/lib/containers/shared-storage: stat /var/lib/containers/shared-storage: permission denied
-	        elif [[ "$fixed_permissions" != true ]] && [[ "$output" == *"permission denied"* ]] && [[ "$output" == *"shared-storage"* ]]; then
-	            log "Detected shared-storage permission issue. Fixing permissions..."
-	            chmod -R o+rX "${SHARED_STORE}" || true
-	            fixed_permissions=true
-	            continue
-	        fi
+	    if [[ -S "$sock_path" ]] && output=$(CONTAINER_HOST="$sock" timeout 3 podman --remote info 2>&1); then
+	        ready=true
+	        log "Podman socket live ($sock_path)"
+	        break
+	    fi
+	    # a podman that couldn't read the shared store exits 125 and its socket gives up (trigger-limit-hit), so all this sees is
+	    # "connection refused": every 5s fix the store again (a pull may still be running and rewrite it) and start the socket again
+	    if (( elapsed % 5 == 4 )); then
+	        log "Podman not answering yet, fixing shared store permissions and starting the socket again.."
+	        fix_shared_perms
+	        systemctl --user -M "${USERNAME}@" reset-failed podman.socket podman.service >/dev/null 2>&1
+	        systemctl --user -M "${USERNAME}@" start podman.socket >/dev/null 2>&1
 	    fi
 	    sleep 1; (( elapsed++ )) || true
 	done

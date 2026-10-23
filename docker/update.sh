@@ -142,12 +142,6 @@ qualify_image() {
     fi
 }
 
-# a write to the shared store leaves images.json and new layers readable by root only, users' podman then fails to start and its socket gives up (trigger-limit-hit)
-fix_shared_perms() {
-    chmod -R o+rX "$SHARED_STORE" 2>/dev/null || true
-    find "$SHARED_STORE" -name '*.lock' -exec chmod o+rw {} \; 2>/dev/null || true
-}
-
 # pulls <image> into <store>, see SHARED_RUNROOT for why the shared store goes through skopeo
 pull_image() {
     local store="$1" image rc

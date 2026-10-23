@@ -183,6 +183,13 @@ shared_image_store() {
     echo "${store:-/var/lib/containers/shared-storage}"
 }
 
+# a write to the shared store leaves images.json and new layers readable by root only, users' podman then fails to start and its socket gives up (trigger-limit-hit)
+fix_shared_perms() {
+    local store="${SHARED_STORE:-$(shared_image_store)}"
+    chmod -R o+rX "$store" 2>/dev/null || true
+    find "$store" -name '*.lock' -exec chmod o+rw {} + 2>/dev/null || true
+}
+
 # echoes the path to <context>'s docker-compose.yml (root's own stack for ""/default/root, otherwise the user's per-account file), e.g. podman_compose_file <context>
 podman_compose_file() {
     local context="$1"

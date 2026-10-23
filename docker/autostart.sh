@@ -112,7 +112,7 @@ for svc in "${sorted[@]}"; do
         echo "FAIL"
     fi
     # right away, users' podman can't read the store until it's fixed and their socket gives up
-    chmod -R o+rX "$SHARED_STORE" 2>/dev/null
+    fix_shared_perms
 done
 # autostart entries that have no image in compose (typos / imageless services)
 for svc in "${!AUTO[@]}"; do
@@ -120,8 +120,7 @@ for svc in "${!AUTO[@]}"; do
 done
 echo
 echo "Fixing permissions on $SHARED_STORE ..."
-chmod -R o+rX "$SHARED_STORE"
-find "$SHARED_STORE" -name '*.lock' -exec chmod o+rw {} \; 2>/dev/null || true
+fix_shared_perms
 echo "Done."
 echo
 echo "Store contents:"
