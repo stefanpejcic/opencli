@@ -266,7 +266,12 @@ delete_all_user_files() {
 
 
 delete_system_user() {
-    local context="$1"
+    local context="$1" uid
+    uid=$(id -u "$context" 2>/dev/null)
+
+    # stop the user's systemd and podman first, with linger on they'd keep /run/user/<uid> alive
+    loginctl disable-linger "$context" 2>/dev/null || true
+    [[ "$uid" =~ ^[0-9]+$ ]] && systemctl stop "user@${uid}.service" 2>/dev/null || true
 
     # kill by both real and effective/saved uid, then loop until gone
     pkill -9 -u "$context" 2>/dev/null || true
@@ -288,6 +293,9 @@ delete_system_user() {
     elif command -v deluser >/dev/null 2>&1; then
         deluser --remove-home "$context"
     fi
+
+    # a new account that gets this uid would inherit the old podman network state from here and its containers wouldn't start
+    [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/run/user/${uid:?}"
 }
 
 refresh_resellers_data() {
