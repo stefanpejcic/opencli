@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/podman.sh
 require_command git
 
 # ======================================================================
@@ -441,7 +443,9 @@ enable_coraza_waf() {
     echo "Downloading Coraza rules.."
     # download to a temp file so a failed download doesn't leave an empty rules file behind
     if wget --timeout=15 --tries=3 --inet4-only https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/refs/heads/main/caddy/coraza_rules.conf -O /etc/openpanel/caddy/coraza_rules.conf.tmp && [[ -s /etc/openpanel/caddy/coraza_rules.conf.tmp ]]; then
-        mv -f /etc/openpanel/caddy/coraza_rules.conf.tmp /etc/openpanel/caddy/coraza_rules.conf
+        # written into the existing file, caddy sees it through a single-file bind mount and a reload has to find the new rules
+        cat /etc/openpanel/caddy/coraza_rules.conf.tmp > /etc/openpanel/caddy/coraza_rules.conf
+        rm -f /etc/openpanel/caddy/coraza_rules.conf.tmp
     else
         rm -f /etc/openpanel/caddy/coraza_rules.conf.tmp
         [[ -s /etc/openpanel/caddy/coraza_rules.conf ]] || { echo "Error: failed to download Coraza rules." >&2; return 1; }
@@ -489,15 +493,20 @@ enable_coraza_waf() {
         sed -i 's/SecRuleEngine Off/SecRuleEngine On/g' "$conf"
     done
 
-    # 5. restart caddy
-    echo "Restarting Web Server to use the new image with CorazaWAF.."
-    cd /root || {
-        echo "Failed to cd to /root - are you root?" >&2
-        exit 1
-    }
-    if ! { podman-compose down caddy && podman-compose up -d caddy; }; then
-        echo "Error: failed to restart the caddy container." >&2
-        return 1
+    # 5. a caddy already on the coraza image (disable keeps it) only needs a reload, only a new image needs the container recreated
+    if podman_is_running caddy && [[ "$(podman inspect -f '{{.ImageName}}' caddy 2>/dev/null)" == *openpanel/caddy-coraza* ]]; then
+        echo "Reloading Web Server with CorazaWAF.."
+        caddy_reload || return 1
+    else
+        echo "Restarting Web Server to use the new image with CorazaWAF.."
+        cd /root || {
+            echo "Failed to cd to /root - are you root?" >&2
+            exit 1
+        }
+        if ! { podman-compose down caddy && podman-compose up -d caddy; }; then
+            echo "Error: failed to restart the caddy container." >&2
+            return 1
+        fi
     fi
 
     nohup opencli sentinel --action=waf_status --title="WAF configured" --message="CorazaWAF has been configured on the server and WAF will be auto-enabled for new domains." >/dev/null 2>&1 &

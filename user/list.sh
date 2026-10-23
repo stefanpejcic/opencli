@@ -112,20 +112,38 @@ strip_suspended_prefix() {
 
 # scans redis (via openpanel_redis, same as lib/redis.sh) for live login sessions and fills ONLINE_USERS with every username that owns at least one
 declare -A ONLINE_USERS
+# one redis call collects every session's username, a podman exec per session took ~130ms each
+readonly ONLINE_USERS_LUA='local c, out = "0", {}
+repeat
+    local r = redis.call("SCAN", c, "MATCH", ARGV[1], "COUNT", 1000)
+    c = r[1]
+    for _, k in ipairs(r[2]) do
+        if redis.call("TYPE", k)["ok"] == "hash" then
+            local u = redis.call("HGET", k, "username")
+            if u then out[#out + 1] = u end
+        end
+    end
+until c == "0"
+return out'
 build_online_users() {
-    local keys key uname
-    keys=$(redis_cli --scan --pattern "session:*" 2>/dev/null)
-    [ -z "$keys" ] && return 0
-    while IFS= read -r key; do
-        [ -z "$key" ] && continue
-        uname=$(redis_cli HGET "$key" username 2>/dev/null)
+    local uname
+    while IFS= read -r uname; do
         [ -n "$uname" ] && ONLINE_USERS["$uname"]=1
-    done <<< "$keys"
+    done < <(redis_cli EVAL "$ONLINE_USERS_LUA" 0 "session:*" 2>/dev/null)
 }
 
-# converts a quota_report.json KB figure to the same "N.NNGB" string users.go's humanGB() renders (KB / 1024000), forced to the C locale so the decimal point is always "."
+# converts a quota_report.json KB figure to the same "N.NNGB" string users.go's humanGB() renders (KB / 1024000), in bash so a long user list doesn't start awk twice per user
 humangb() {
-    LC_NUMERIC=C awk -v v="${1:-0}" 'BEGIN { printf "%.2fGB", v/1024000 }'
+    local v="${1:-0}" h
+    v="${v%%.*}"
+    [[ "$v" =~ ^[0-9]+$ ]] || v=0
+    # an exact .xx5 depends on how the double rounds, awk keeps those identical to before
+    if (( v * 200 % 2048000 == 1024000 )); then
+        LC_ALL=C awk -v v="$v" 'BEGIN { printf "%.2fGB", v/1024000 }'
+        return
+    fi
+    h=$(( (v * 200 + 1024000) / 2048000 ))
+    printf '%d.%02dGB' $(( h / 100 )) $(( h % 100 ))
 }
 
 get_dedicated_ip() {
@@ -146,10 +164,14 @@ get_resource_usage_line() {
     tail -n 1 "$usage_file"
 }
 
-get_quota_for_user() {
-    local plain="$1"
+# the whole quota report in one jq run, as "disk_used disk_hard inodes_used inodes_hard" per username, instead of five jq runs per user
+declare -A QUOTA_ROWS
+load_quota_report() {
     [ -f "$QUOTA_REPORT_PATH" ] || return 0
-    jq -c --arg u "$plain" '.users[]? | select(.username == $u)' "$QUOTA_REPORT_PATH" 2>/dev/null
+    local u rest
+    while IFS=$'\t' read -r u rest; do
+        [ -n "$u" ] && [ -z "${QUOTA_ROWS[$u]:-}" ] && QUOTA_ROWS[$u]="$rest"
+    done < <(jq -r '.users[]? | [.username, (.disk_used // 0), (.disk_hard // 0), (.inodes_used // 0), (.inodes_hard // 0)] | @tsv' "$QUOTA_REPORT_PATH" 2>/dev/null)
 }
 
 require_command jq
@@ -240,6 +262,7 @@ print_users() {
     fi
 
     build_online_users
+    load_quota_report
 
     local server_ip
     server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -294,25 +317,18 @@ print_users() {
         if [ "$suspended" = false ]; then
             local usage_line
             usage_line=$(get_resource_usage_line "$context")
-            if [ -n "$usage_line" ] && echo "$usage_line" | jq -e . >/dev/null 2>&1; then
-                ram_used=$(echo "$usage_line" | jq -r '.memory.used.human // "N/A"')
-                mem_pct=$(echo "$usage_line" | jq -r '.memory.usage_pct // 0')
-                cpu_used=$(echo "$usage_line" | jq -r '.cpu.usage.human // "N/A"')
-                cpu_pct=$(echo "$usage_line" | jq -r '.cpu.usage.pct // 0')
-                mem_used_bytes=$(echo "$usage_line" | jq -r '.memory.used.bytes // 0')
-                mem_total_bytes=$(echo "$usage_line" | jq -r '.memory.total.bytes // 0')
+            if [ -n "$usage_line" ]; then
+                local usage_tsv
+                # one jq run for all six fields, nothing comes out when the line isn't valid json
+                usage_tsv=$(jq -r 'select(.) | [(.memory.used.human // "N/A"), (.memory.usage_pct // 0), (.cpu.usage.human // "N/A"), (.cpu.usage.pct // 0), (.memory.used.bytes // 0), (.memory.total.bytes // 0)] | @tsv' <<< "$usage_line" 2>/dev/null)
+                [ -n "$usage_tsv" ] && IFS=$'\t' read -r ram_used mem_pct cpu_used cpu_pct mem_used_bytes mem_total_bytes <<< "$usage_tsv"
             fi
         fi
 
         local disk_used="0GB" disk_hard="unlimited" inodes_used=0 inodes_hard="unlimited"
         local disk_used_kb=0 disk_hard_kb=0 inodes_used_n=0 inodes_hard_n=0
-        local quota_json
-        quota_json=$(get_quota_for_user "$plain")
-        if [ -n "$quota_json" ]; then
-            disk_used_kb=$(echo "$quota_json" | jq -r '.disk_used // 0')
-            disk_hard_kb=$(echo "$quota_json" | jq -r '.disk_hard // 0')
-            inodes_used_n=$(echo "$quota_json" | jq -r '.inodes_used // 0')
-            inodes_hard_n=$(echo "$quota_json" | jq -r '.inodes_hard // 0')
+        if [ -n "${QUOTA_ROWS[$plain]:-}" ]; then
+            IFS=$'\t' read -r disk_used_kb disk_hard_kb inodes_used_n inodes_hard_n <<< "${QUOTA_ROWS[$plain]}"
             disk_used=$(humangb "$disk_used_kb")
             [ "$disk_hard_kb" != "0" ] && disk_hard=$(humangb "$disk_hard_kb")
             inodes_used=$inodes_used_n
