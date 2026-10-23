@@ -220,6 +220,8 @@ log "Account: $USERNAME  Context: $CONTEXT  UID:${SYS_UID:-?} GID:${SYS_GID:-?} 
 ensure_dest_dir() {
     if [[ -z "$CUSTOM_OUTPUT" ]]; then
         tenant_mkdir "$DEST_ROOT" "$DEST_DIR" || die "Backup folder $DEST_DIR is not a real folder inside the user's volume."
+        # mkdir runs as root, give the folder the volume's owner or the account's own php and ftp can't write there
+        ( tenant_cd "$DEST_ROOT" "$DEST_DIR" && chown -h "$(stat -c '%u:%g' "$DEST_ROOT")" . ) 2>/dev/null || warn "Could not chown $DEST_DIR to the account (non-fatal)."
     else
         mkdir -p "$DEST_DIR" || die "Cannot create backup folder $DEST_DIR"
     fi
