@@ -82,13 +82,23 @@ get_openpanel_username_and_uid_for_domain() {
 
 # dovecot needs ~2s to pick up a new account, listing it with an empty quota and then without its limit until then; filled in with what it will show: nothing used yet and the limit from the quotas file
 fill_new_account_quotas() {
-    local line email limit
+    local line email limit used used_b limit_b
     while IFS= read -r line; do
         if [[ "$line" =~ ^\*\ ([^ ]+)\ \((\ \ /\ \ \)\ \[%\]|\ 0\ /\ ~\ \)\ \[0%\])$ ]]; then
             email="${BASH_REMATCH[1]}"
             limit=$(grep -m1 "^$(escape_key "$email"):" "$QUOTAS_FILE" 2>/dev/null | cut -d: -f2)
             limit=$(numfmt --from=iec --to=iec "$limit" 2>/dev/null) || limit=""
             line="* $email ( 0 / ${limit:-~} ) [0%]"
+        elif [[ "$line" =~ ^\*\ ([^ ]+)\ \(\ ([^ ]+)\ /\ ([^ ]+)\ \)\ \[[0-9]+%\]$ ]]; then
+            # a changed quota also shows the old limit for a few seconds, the quotas file already has the new one
+            email="${BASH_REMATCH[1]}" used="${BASH_REMATCH[2]}"
+            limit=$(grep -m1 "^$(escape_key "$email"):" "$QUOTAS_FILE" 2>/dev/null | cut -d: -f2)
+            if [[ -n "$limit" ]]; then
+                used_b=$(numfmt --from=iec "$used" 2>/dev/null) limit_b=$(numfmt --from=iec "$limit" 2>/dev/null)
+                if [[ "$used_b" =~ ^[0-9]+$ && "$limit_b" =~ ^[0-9]+$ && "$limit_b" -gt 0 ]]; then
+                    line="* $email ( $used / $(numfmt --to=iec "$limit_b") ) [$(( used_b * 100 / limit_b ))%]"
+                fi
+            fi
         fi
         printf '%s\n' "$line"
     done
