@@ -441,11 +441,16 @@ load_user() {
     local u; u=$(mysql_escape "$1")
     local line
     if (( DB_ALL )); then
-        line=$(awk -F'\t' -v u="$1" '$2 == u || ($2 ~ /^SUSPENDED_/ && substr($2, length($2) - length(u)) == "_" u) { print; exit }' <<< "$DB_USERS")
+        # exact name wins, else SUSPENDED_<14 digit timestamp>_<name>
+        line=$(awk -F'\t' -v u="$1" '
+            $2 == u { print; found = 1; exit }
+            susp == "" && u != "" && substr($2, 26) == u && substr($2, 1, 25) ~ /^SUSPENDED_[0-9]+_$/ { susp = $0 }
+            END { if (!found && susp != "") print susp }' <<< "$DB_USERS")
     else
         line=$(sql "SELECT u.id, u.username, u.email, IFNULL(NULLIF(u.owner, ''), 'root'), u.server, u.registered_date, IFNULL(u.twofa_enabled, 0), u.plan_id, IFNULL(p.name, ''), IFNULL(p.feature_set, '')
                     FROM users u LEFT JOIN plans p ON p.id = u.plan_id
-                    WHERE u.username = '$u' OR u.username LIKE 'SUSPENDED\_%\_$u' LIMIT 1")
+                    WHERE u.username = '$u' OR (u.username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(u.username, 26) = '$u')
+                    ORDER BY u.username = '$u' DESC LIMIT 1")
     fi
     [[ -n "$line" ]] || return 1
     IFS=$'\t' read -ra USER_ROW <<< "$line"

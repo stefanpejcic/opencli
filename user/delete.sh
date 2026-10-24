@@ -74,12 +74,12 @@ get_user_info() {
 	# 1. get context and ID
     local escaped_username
     escaped_username=$(mysql_escape "$USERNAME")
+    # exact name or SUSPENDED_<14 digit timestamp>_<name>, exact name first
     read -r user_id context <<< "$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
         SELECT id, server FROM users
         WHERE username='$escaped_username'
-        UNION ALL
-        SELECT id, server FROM users
-        WHERE username LIKE 'SUSPENDED_%_$escaped_username'
+           OR (username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '$escaped_username')
+        ORDER BY username='$escaped_username' DESC
         LIMIT 1;
     ")"
 
@@ -89,8 +89,6 @@ get_user_info() {
 
 delete_user_from_database() {
     openpanel_username="$1"
-    local escaped_openpanel_username
-    escaped_openpanel_username=$(mysql_escape "$openpanel_username")
 
     # 1. Get all domain IDs and URLs
 	read -r domain_ids domain_urls < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "
@@ -105,7 +103,7 @@ delete_user_from_database() {
     sql=""
 	[ -n "$domain_ids" ] && sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "
-	sql+="DELETE FROM users WHERE username='$escaped_openpanel_username' OR username LIKE 'SUSPENDED_%_$escaped_openpanel_username';"
+	sql+="DELETE FROM users WHERE id='$user_id';"
 	[ -n "$sql" ] && mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$sql"
 
 	# 3. terminate redis sessions

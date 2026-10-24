@@ -65,7 +65,8 @@ source "/usr/local/opencli/db.sh"
 # Functions
 get_docker_context() {
     local query
-    query="SELECT server FROM users WHERE username LIKE 'SUSPENDED\_%$(mysql_escape "$USERNAME")';"
+    # only SUSPENDED_<14 digit timestamp>_<username>, a LIKE here also caught other names ending in it
+    query="SELECT server FROM users WHERE username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '$(mysql_escape "$USERNAME")' LIMIT 1;"
     local server_name
     server_name=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query" -N)
     context="$server_name"
@@ -138,10 +139,13 @@ start_user_containers() {
 rename_user_in_db() {
     local escaped_username
     escaped_username=$(mysql_escape "$USERNAME")
-    local query="UPDATE users SET username='${escaped_username}' WHERE username LIKE 'SUSPENDED\\_%_${escaped_username}';"
     local user_id suspended_username
     read -r user_id suspended_username < <(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s \
-        -e "SELECT id, username FROM users WHERE username LIKE 'SUSPENDED\\_%_${escaped_username}' LIMIT 1;")
+        -e "SELECT id, username FROM users WHERE username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '${escaped_username}' LIMIT 1;")
+    [[ -n "$user_id" ]] || { echo "ERROR: No suspended user '$USERNAME'." >&2; exit 1; }
+
+    # rename only the row found above
+    local query="UPDATE users SET username='${escaped_username}' WHERE id='${user_id}';"
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$query"; then
         echo "User '$USERNAME' unsuspended successfully."
