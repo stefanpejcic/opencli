@@ -54,13 +54,14 @@ source /usr/local/opencli/lib/requirement.sh
 fetch_plans_json() {
     require_command jq
     local data
-    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
+    # columns by name so they always match the jq indexes below
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id, name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set, max_email_quota, max_hourly_email FROM plans;" | tail -n +2)
     if [ -z "$data" ]; then
         echo "No plans."
         return
     fi
     local json
-    json=$(echo "$data" | jq -R '
+    json=$(echo "$data" | jq -Rs '
         split("\n") | map(select(length > 0) | split("\t") | {
             id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4],
             domains_limit: .[5], websites_limit: .[6], disk_limit: .[7],

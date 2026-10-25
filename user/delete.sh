@@ -296,6 +296,9 @@ delete_system_user() {
 
     # a new account that gets this uid would inherit the old podman network state from here and its containers wouldn't start
     [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/run/user/${uid:?}"
+
+    # if the stop timed out or the pkill above hit the user manager, user@<uid> stays failed and the server shows degraded
+    [[ "$uid" =~ ^[0-9]+$ ]] && systemctl reset-failed "user@${uid}.service" "user-runtime-dir@${uid}.service" 2>/dev/null || true
 }
 
 refresh_resellers_data() {
