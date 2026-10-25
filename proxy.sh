@@ -100,10 +100,12 @@ elif [[ "$1" == 'set' && -n "$2" ]]; then
     else
         echo "Invalid path format. Please provide a path like '/openpanel' or '/hosting'."
         usage
-    fi    
+        exit 1
+    fi
 elif [[ "$1" == 'default' ]]; then
         new_path="openpanel"
         update_path $new_path
 else
     usage
+    exit 1
 fi

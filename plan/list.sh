@@ -60,10 +60,10 @@ fetch_plans_json() {
         return
     fi
     local json
-    json=$(echo "$data" | jq -R '
+    json=$(echo "$data" | jq -Rs '
         split("\n") | map(select(length > 0) | split("\t") | {
-            id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4],
-            domains_limit: .[5], websites_limit: .[6], disk_limit: .[7],
+            id: .[0], name: .[1], description: .[2], domains_limit: .[3], websites_limit: .[4],
+            email_limit: .[5], ftp_limit: .[6], disk_limit: .[7],
             inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11],
             bandwidth: .[12], feature_set: .[13], max_email_quota: .[14], max_hourly_email: .[15]
         })'

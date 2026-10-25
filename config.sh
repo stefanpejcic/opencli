@@ -92,6 +92,7 @@ update_config() {
         echo
         echo "Usage: opencli config update <parameter_name> <new_value>"
         echo "See the list of available parameters here: https://openpanel.com/docs/articles/opencli/config#available-options"
+        exit 1
     fi
 }
 

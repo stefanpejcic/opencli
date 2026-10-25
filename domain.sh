@@ -298,7 +298,7 @@ configure_mailserver() {
     fi
     
     log_debug "Restarting mailserver and webmail to apply new configuration"
-    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down && podman-compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down && podman-compose up -d mailserver roundcube" </dev/null >/dev/null 2>&1 &
 }
 
 

@@ -67,7 +67,7 @@ fetch_users_json() {
     data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';" | tail -n +2)
     if [ -n "$data" ]; then
         local json
-        json=$(echo "$data" | jq -R 'split("\n") | map(select(length > 0) | split("\t") | {
+        json=$(echo "$data" | jq -Rs 'split("\n") | map(select(length > 0) | split("\t") | {
             id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]
         })')
         echo "$json"

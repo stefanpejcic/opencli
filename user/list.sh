@@ -41,7 +41,7 @@ total_users=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --quota)
-            opencli user-quotas
+            opencli user-quota
             exit 0
             ;;
         --json)
