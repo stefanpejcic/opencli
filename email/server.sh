@@ -89,7 +89,7 @@ execute_cmd_and_print() {
 	local indent spaces status
 	indent=14
 	spaces=$(printf "%${indent}s")
-	status=$(echo -n "$2" | fold -s -w $(($(tput cols) - 16)) | sed "s/^/$spaces/g")
+	status=$(echo -n "$2" | fold -s -w $(( $(tput cols 2>/dev/null || echo 80) - 16 )) | sed "s/^/$spaces/g")
 	status=${status:$indent}
 	printf "%-${indent}s%s\n" "$1:" "$status"
 }
@@ -736,10 +736,10 @@ case "${1:-}" in
 
 	view)		# show mail by queue id
 		if [ -z "${2:-}" ]; then
-			echo "Error: Queue ID missing."
+			echo "Error: Queue ID missing." >&2
 		else
 			execute_cmd_in_container postcat -q "$2"
-		fi >&2
+		fi
 		;;
 
 	delete) 	# delete mail from queue
