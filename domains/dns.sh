@@ -138,7 +138,12 @@ delete_dns_zone(){
     # backup zone
     mkdir -p /etc/bind/zones/backups/
     mv /etc/bind/zones/"$DOMAIN".zone /etc/bind/zones/backups/"$DOMAIN".zone."$(date +%Y%m%d%H%M%S)"
-    # todo: reload zones!
+    # drop the zone from named.conf.local and reload bind, otherwise it keeps serving a zone whose file is gone and the next reconfig errors on the missing file
+    local ncl=/etc/bind/named.conf.local
+    if [ -f "$ncl" ] && grep -qF "zone \"$DOMAIN\"" "$ncl"; then
+        grep -vF "zone \"$DOMAIN\"" "$ncl" > "$ncl.tmp" && mv "$ncl.tmp" "$ncl"
+    fi
+    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
   }
 
 

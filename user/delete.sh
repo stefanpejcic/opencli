@@ -296,6 +296,8 @@ delete_system_user() {
 
     # a new account that gets this uid would inherit the old podman network state from here and its containers wouldn't start
     [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/run/user/${uid:?}"
+    # drop the Delegate= slice override add.sh created, so an account that reuses this uid doesn't inherit it
+    [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/etc/systemd/system/user-${uid:?}.slice.d"
 }
 
 refresh_resellers_data() {

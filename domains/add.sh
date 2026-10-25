@@ -501,7 +501,8 @@ create_vhost_file() {
 	    log "Starting $service_count $container_word ($services)"
         # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >/dev/null 2>&1 &
+        # flock serialises this with the parallel php-fpm/tor 'up' for the same project, which otherwise race on pod/network creation and can leave a container not started
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock flock /run/lock/opencli-compose-$context.lock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >/dev/null 2>&1 &
 		disown
     fi
 
@@ -845,7 +846,7 @@ start_tor_for_user() {
     else
         log "Starting Tor"
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >/dev/null 2>&1 &
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock flock /run/lock/opencli-compose-$context.lock podman-compose up -d tor" </dev/null >/dev/null 2>&1 &
 		disown
     fi
 }
@@ -860,7 +861,7 @@ start_php_fpm() {
     podman_ctx_is_running "$context" "php-fpm-${php_version}" && return
     log "Starting PHP-FPM $php_version"
     local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-    nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >/dev/null 2>&1 &
+    nohup sh -c "CONTAINER_HOST=$sock flock /run/lock/opencli-compose-$context.lock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >/dev/null 2>&1 &
 	disown
 }
 
