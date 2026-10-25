@@ -108,10 +108,11 @@ start_varnish() {
 
 detect_wp_sites_and_add_mu_plugin() {
 
-    JSON_OUTPUT=$(opencli websites-user "$OWNER" --type=wordpress --domains="$DOMAIN" --json)
-    [ -z "$JSON_OUTPUT" ] && return 0    # no sites
+    local wp_json
+    wp_json=$(opencli websites-user "$OWNER" --type=wordpress --domains="$DOMAIN" --json)
+    [ -z "$wp_json" ] && return 0    # no sites
 
-    WP_PATHS=$(echo "$JSON_OUTPUT" | jq -r '.[].sites[]?.path // empty')
+    WP_PATHS=$(echo "$wp_json" | jq -r '.[].sites[]?.path // empty')
     [ -z "$WP_PATHS" ] && return 0       # no paths
 
 	context_uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
