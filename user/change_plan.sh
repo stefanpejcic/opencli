@@ -126,6 +126,7 @@ failure_count=0
 update_resource() {
     local type="$1"   # cpu or ram
     local value="$2"
+    local env_value="$value"
 
     $debug && echo "Updating ${type^^} limit to $value"
 
