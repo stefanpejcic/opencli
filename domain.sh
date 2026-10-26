@@ -5,7 +5,7 @@
 # Usage: opencli domain [set <domain_name> | ip] [--debug] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 09.02.2025
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -200,8 +200,8 @@ create_mv_file() {
     mkdir -p "$DOMAINS_DIR"
     
     if [[ "$new_hostname" == "$DEFAULT_DOMAIN" ]]; then
-        # Remove existing domain file when switching to IP
-        [[ -f "${DOMAINS_DIR}${current_domain}.conf" ]] && rm "${DOMAINS_DIR}${current_domain}.conf"
+        # Remove existing domain file when switching to IP, nothing to do if already on IP
+        rm -f "${DOMAINS_DIR}${current_domain}.conf"
     else
         # Move or create domain file
         if [[ -f "${DOMAINS_DIR}${current_domain}.conf" ]]; then
@@ -298,7 +298,7 @@ configure_mailserver() {
     fi
     
     log_debug "Restarting mailserver and webmail to apply new configuration"
-    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down && podman-compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down && podman-compose up -d mailserver roundcube" </dev/null >/dev/null 2>&1 &
 }
 
 

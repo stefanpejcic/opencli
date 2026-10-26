@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 22.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -501,7 +501,7 @@ create_vhost_file() {
 	    log "Starting $service_count $container_word ($services)"
         # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >/dev/null 2>&1 &
 		disown
     fi
 
@@ -519,14 +519,14 @@ create_vhost_file() {
         # litespeed only registers new vhosts in its start.sh, so it still needs a real restart
         if [[ "$WEB_SERVER" == *litespeed* ]]; then
             local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-            nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >nohup.out 2>nohup.err &
+            nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >/dev/null 2>&1 &
             disown
         else
             # waits for the webserver and php-fpm being started in parallel before reloading
             local php_container=""
             is_module_enabled "php" && php_container="php-fpm-$php_version"
             # shellcheck disable=SC2016
-            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" $php_container </dev/null >nohup.out 2>nohup.err &
+            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" $php_container </dev/null >/dev/null 2>&1 &
             disown
         fi
     fi
@@ -613,7 +613,7 @@ create_caddy_domain_file() {
         fi
     else
         log "Caddy not running (or stuck), recovering in background"
-        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running caddy /root caddy' </dev/null >nohup.out 2>nohup.err &
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running caddy /root caddy' </dev/null >/dev/null 2>&1 &
 		disown
     fi
 }
@@ -700,7 +700,7 @@ reload_bind() {
         podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
     else
         log "BIND not running (or stuck), recovering in background"
-        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running openpanel_dns /root bind9' </dev/null >nohup.out 2>nohup.err &
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running openpanel_dns /root bind9' </dev/null >/dev/null 2>&1 &
 		disown
     fi
 }
@@ -840,12 +840,12 @@ start_tor_for_user() {
     if podman_user "$context" ps -q -f name=tor | grep -q .; then
         log "Tor running — restarting to apply new config"
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart tor" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart tor" </dev/null >/dev/null 2>&1 &
 		disown
     else
         log "Starting Tor"
         local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >nohup.out 2>nohup.err &
+        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >/dev/null 2>&1 &
 		disown
     fi
 }
@@ -860,7 +860,7 @@ start_php_fpm() {
     podman_ctx_is_running "$context" "php-fpm-${php_version}" && return
     log "Starting PHP-FPM $php_version"
     local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-    nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >/dev/null 2>&1 &
 	disown
 }
 
@@ -944,7 +944,7 @@ $volume_to_add
     }" "$compose_file"
 
     log "Reconfiguring mailserver in background"
-    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose up -d --force-recreate mailserver" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose up -d --force-recreate mailserver" </dev/null >/dev/null 2>&1 &
 	disown
 }
 

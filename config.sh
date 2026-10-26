@@ -6,7 +6,7 @@
 #        opencli config update <setting_name> <new_value>
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -92,6 +92,7 @@ update_config() {
         echo
         echo "Usage: opencli config update <parameter_name> <new_value>"
         echo "See the list of available parameters here: https://openpanel.com/docs/articles/opencli/config#available-options"
+        exit 1
     fi
 }
 

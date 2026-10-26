@@ -5,7 +5,7 @@
 # Usage: opencli user-rename <old_username> <new_username>
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 24.09.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -47,7 +47,6 @@ for arg in "$@"; do
             DEBUG=true
             ;;
         --context)
-            # shellcheck disable=SC2034 # reserved flag, not yet consumed elsewhere in this script
             RENAME_CONTEXT=true
             ;;     
         *)
@@ -170,9 +169,18 @@ fi
 
 }
 
+# only data keyed by username moves; /home, the system user, podman volumes, ftp and quotas
+# are keyed by the context, which stays the same on rename
 mv_user_data() {
-        mv /etc/openpanel/openpanel/core/users/"$old_username" /etc/openpanel/openpanel/core/users/"$new_username" > /dev/null 2>&1
-	mv /var/log/caddy/stats/"$old_username"/ /var/log/caddy/stats/"$new_username"/ > /dev/null 2>&1
+	local dir
+	for dir in /etc/openpanel/openpanel/core/users /var/log/caddy/stats; do
+		[[ -d "$dir/$old_username" ]] || continue
+		if [[ -e "$dir/$new_username" ]]; then
+			echo "WARNING: $dir/$new_username already exists, keeping $dir/$old_username"
+			continue
+		fi
+		mv -T "$dir/$old_username" "$dir/$new_username"
+	done
 }
 
 
@@ -183,6 +191,7 @@ rename_user_in_db() {
     mysql_query="UPDATE users SET username='$(mysql_escape "$NEW_USERNAME")' WHERE username='$(mysql_escape "$OLD_USERNAME")';"
 
     if mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "$mysql_query"; then
+		mv_user_data                                                       # before anything reads the new paths
 		redis_drop_user_cache "$user_id" "$OLD_USERNAME" "$NEW_USERNAME"
 
 		# postfwd ratelimit rules use usernames
@@ -193,20 +202,22 @@ rename_user_in_db() {
 		disown
 
         echo "User '$OLD_USERNAME' successfully renamed to '$NEW_USERNAME'."
+        [[ "$context" != "$NEW_USERNAME" ]] && echo "Files, containers and the system user stay under context '$context'."
     else
         echo "Error: Changing username in database failed!"
+        exit 1
     fi
 }
 
 # MAIN
+if [ "$RENAME_CONTEXT" = true ]; then
+    echo "Error: --context is not supported, only the username is renamed and the context stays the same."
+    exit 1
+fi
 check_username_is_valid                                                    # validate username first
 check_if_exists_in_db                                                      # check in db
 get_context "$old_username"
-mv_user_data                                                               # /etc/openpanel/openpanel/{core|stats}
 require_command jq                                                         # just helper for parsing json
-rename_user_in_db "$old_username" "$new_username"                          # rename username in db
-#reload_user_quotas
-# todo: rename ftp accounts suffix!
-# rename paths
+rename_user_in_db "$old_username" "$new_username"                          # rename in db, then core + stats dirs
 
 exit 0

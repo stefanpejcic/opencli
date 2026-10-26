@@ -6,7 +6,7 @@
 #        opencli php-default <username> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -37,6 +37,9 @@ if [ $# -lt 1 ]; then
 fi
 
 username="$1"
+
+# shellcheck source=/usr/local/opencli/db.sh
+source /usr/local/opencli/db.sh            # mysql_escape, config_file is set to the user .env later
 
 # ======================================================================
 # Validators
@@ -73,7 +76,7 @@ validate_user_exists() {
 
 get_user_info() {
     local user="$1"
-    local query="SELECT id, server FROM users WHERE username = '${user}';"
+    local query="SELECT id, server FROM users WHERE username = '$(mysql_escape "$user")';"
     user_info=$(mariadb -se "$query")
     user_id=$(echo "$user_info" | awk '{print $1}')
     context=$(echo "$user_info" | awk '{print $2}')

@@ -5,7 +5,7 @@
 # Usage: opencli email-quotas
 # Author: Stefan Pejcic
 # Created: 03.12.2025
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -57,35 +57,42 @@ else
 fi
 
 # shellcheck disable=SC2206 # FOLDER intentionally carries an unexpanded glob (e.g. /home/*/mail/) to fan out across every user's mail dir
-FOLDERS=($FOLDER/*)
+FOLDERS=(${FOLDER%/}/*)
 TOTAL=${#FOLDERS[@]}
 
 log "Total mail domains in ""$FOLDER"": [$TOTAL]"
 
 COUNT=0
 
-for FOLDER_NAME in "$FOLDER"/*; do
+# each entry is a domain dir: <storage>/<domain>/<mailbox>
+for FOLDER_NAME in "${FOLDERS[@]}"; do
+  [ -d "$FOLDER_NAME" ] || continue
   ((COUNT++))
-  DOMAIN=$(basename "$(dirname "$FOLDER_NAME")")
+  DOMAIN=$(basename "$FOLDER_NAME")
   log "[*] DOMAIN: $DOMAIN [$COUNT/$TOTAL]"
   log "Checking username and docker context for domain.."
+  # prints "<username> <context>", or an error sentence
   whoowns_output=$(opencli domains-whoowns "$DOMAIN" --context)
-  owner=$(log "$whoowns_output" | awk -F "Owner of '$DOMAIN': " '{print $2}')
-  if [ -z "$owner" ]; then
+  if [[ ! "$whoowns_output" =~ ^([^[:space:]]+)\ ([^[:space:]]+)$ ]]; then
     log "$FOLDER_NAME skipped - No owner detected for domain: $DOMAIN"
   else
-    USERNAME=$(log "$owner" | sed -n '1p')
-    CONTEXT=$(log "$owner" | sed -n '2p')
+    USERNAME="${BASH_REMATCH[1]}"
+    CONTEXT="${BASH_REMATCH[2]}"
     USER_ID=$(stat -c '%u' "/home/$CONTEXT" 2>/dev/null)
+    if [[ ! "$USER_ID" =~ ^[0-9]+$ ]]; then
+      log "$FOLDER_NAME skipped - /home/$CONTEXT not found for domain: $DOMAIN"
+      continue
+    fi
     log "USERNAME: $USERNAME - CONTEXT: $CONTEXT (UID: $USER_ID)"
-    log "Setting permissions to: $CONTEXT:$CONTEXT for all mails in: $FOLDER_NAME"
+    log "Setting permissions to: $USER_ID:$USER_ID for all mails in: $FOLDER_NAME"
     #sed -i "/@$DOMAIN/ {
     #    s/:[0-9]\+:[0-9]\+:/:$USER_ID:$USER_ID:/
     #    s#/var/mail/\([^/]*\)/\([^/]*\)#/home/$USERNAME/docker-data/volumes/${USERNAME}_mail_data/_data/\1/\2#
     #}" /usr/local/mail/openmail/docker-data/dms/dovecot/userdb
 
     #sed -i \"/@\$DOMAIN/ s/:[0-9]\+:[0-9]\+:/:\$USER_ID:\$USER_ID:/\" /etc/dovecot/userdb
-    timeout 300 chown -R "$CONTEXT:$CONTEXT" "$FOLDER_NAME"
+    # same owner email-setup gives new mailboxes
+    timeout 300 chown -R "$USER_ID:$USER_ID" "$FOLDER_NAME"
   fi
 done
 

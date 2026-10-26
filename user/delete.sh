@@ -5,7 +5,7 @@
 # Usage: opencli user-delete <username> [-y]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -262,6 +262,8 @@ delete_all_user_files() {
 	# 1. delete files
     [ -d /home/"$context" ] && rm -rf "/home/${context:?}"
     [ -d /etc/openpanel/openpanel/core/users/"$context" ] && rm -rf "/etc/openpanel/openpanel/core/users/$context"
+    # differs from the context after user-rename
+    [ -n "$openpanel_username" ] && [ -d /etc/openpanel/openpanel/core/users/"$openpanel_username" ] && rm -rf "/etc/openpanel/openpanel/core/users/${openpanel_username:?}"
 }
 
 

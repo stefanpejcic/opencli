@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Radovan Jecmenica
 # Created: 01.12.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -67,17 +67,25 @@ source /usr/local/opencli/db.sh
 
 escaped_plan_name=$(mysql_escape "$plan_name")
 
+plan_exists=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT COUNT(*) FROM plans WHERE name = '$escaped_plan_name';" | tail -n +2)
+
+if [ "${plan_exists:-0}" -eq 0 ]; then
+    if [ "$output_json" -eq 1 ]; then
+        echo "{\"error\": \"Plan '$plan_name' not found.\"}"
+    else
+        echo "Plan '$plan_name' not found."
+    fi
+    exit 1
+fi
+
 users_count=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT COUNT(*) FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$escaped_plan_name';" | tail -n +2)
 
 if [ "$users_count" -gt 0 ]; then
     if [ "$output_json" -eq 1 ]; then
         # JSON output
         users_data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT SUBSTRING_INDEX(username, '_', -1) as username FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$escaped_plan_name' AND username NOT LIKE 'SUSPENDED\_%';" -B -s)
-        if [ -n "$users_data" ]; then
-            echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": [$users_data]}"
-        else
-            echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": []}"
-        fi
+        users_json=$(printf '%s\n' "$users_data" | sed '/^$/d; s/"/\\"/g; s/.*/"&"/' | paste -sd, -)
+        echo "{\"error\": \"Cannot delete plan '$plan_name' as there are users assigned to it.\", \"users\": [${users_json}]}"
     else
         # Regular output
         echo "Cannot delete plan '$plan_name' as there are users assigned to it. List of users:"
@@ -93,12 +101,16 @@ if [ "$users_count" -gt 0 ]; then
 else
     if [ "$output_json" -eq 1 ]; then
         mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        podman network rm "$plan_name" > /dev/null 2>&1
-        echo "{\"message\": \"Plan '$plan_name' and Podman network '$plan_name' deleted successfully.\"}"
+        if podman network rm "$plan_name" > /dev/null 2>&1; then
+            echo "{\"message\": \"Plan '$plan_name' and Podman network '$plan_name' deleted successfully.\"}"
+        else
+            echo "{\"message\": \"Plan '$plan_name' deleted successfully.\"}"
+        fi
     else
         mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM plans WHERE name = '$escaped_plan_name';"
-        podman network rm "$plan_name" > /dev/null 2>&1
-        echo "Podman network '$plan_name' deleted successfully."
+        if podman network rm "$plan_name" > /dev/null 2>&1; then
+            echo "Podman network '$plan_name' deleted successfully."
+        fi
         echo "Plan '$plan_name' deleted successfully."
     fi
 fi

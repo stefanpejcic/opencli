@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 10.09.2024
-# Last Modified: 14.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -106,9 +106,12 @@ if [ -z "$1" ]; then
         done
     fi
 else
-    # single user
-    context="$1"
-    user_dir_name="$context"
+    # single user, ftp users are stored per context
+    user_dir_name="$1"
+    # shellcheck source=/usr/local/opencli/db.sh
+    source /usr/local/opencli/db.sh
+    context=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "SELECT server FROM users WHERE username = '$(mysql_escape "$1")' LIMIT 1;" 2>/dev/null)
+    context="${context:-$1}"  # not an openpanel username, treat it as the context
     users_file="/etc/openpanel/ftp/users/${context}/users.list"
     users_dir="/etc/openpanel/ftp/users/${context}"
     if [ ! -f "$users_file" ]; then
