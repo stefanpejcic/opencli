@@ -581,12 +581,10 @@ configure_environment() {
     if [[ -n "$RESELLER" ]]; then
         local reseller_logo_url
         reseller_logo_url="$(jq -r '.logo_url // empty' "/etc/openpanel/openadmin/resellers/${RESELLER}.json" 2>/dev/null)"
-        if [[ -n "$reseller_logo_url" ]]; then
-            if grep -q "^RESELLER_LOGO_URL=" "${home_dir}/.env"; then
-                sed -i "s|^RESELLER_LOGO_URL=.*|RESELLER_LOGO_URL=\"${reseller_logo_url}\"|" "${home_dir}/.env"
-            else
-                printf 'RESELLER_LOGO_URL="%s"\n' "${reseller_logo_url}" >> "${home_dir}/.env"
-            fi
+        # shellcheck disable=SC1091
+        source /usr/local/opencli/lib/reseller.sh
+        if [[ -n "$reseller_logo_url" ]] && reseller_logo_url_valid "$reseller_logo_url"; then
+            reseller_env_set_logo "${home_dir}/.env" "$reseller_logo_url" || log "[!] Warning: could not set the reseller logo URL in .env"
         fi
     fi
 

@@ -54,3 +54,29 @@ reseller_plan_file() {
     [[ -f "$file" ]] && jq empty "$file" >/dev/null 2>&1 || return 1
     echo "$file"
 }
+
+# reseller logo URLs end up in every owned account's .env, so only plain http(s) URLs: no quotes, $, backticks, backslashes or spaces
+reseller_logo_url_valid() {
+    local url="$1"
+    local re='^https?://[A-Za-z0-9._~:/?#@!&()*+,;=%[-]+$'
+    [[ -z "$url" ]] && return 0
+    (( ${#url} <= 2048 )) && [[ "$url" =~ $re ]]
+}
+
+# writes RESELLER_LOGO_URL into an account's .env as a literal line, never through sed (GNU sed's e command runs as root).
+# runs as the account's own uid, so a symlink the account planted in its home can only reach files it could already write
+reseller_env_set_logo() {
+    local env_file="$1" logo_url="$2" owner
+    owner=$(stat -c '%u:%g' "$(dirname "$env_file")" 2>/dev/null) || return 1
+    [[ "$owner" =~ ^[0-9]+:[0-9]+$ && "${owner%%:*}" -ge 1000 ]] || return 1
+    # shellcheck disable=SC2016 # expanded by the inner bash
+    setpriv --reuid="${owner%%:*}" --regid="${owner##*:}" --clear-groups -- bash -c '
+        f="$1"; v="$2"
+        [[ -f "$f" ]] || exit 1
+        t=$(mktemp "$f.XXXXXX") || exit 1
+        if { grep -v "^RESELLER_LOGO_URL=" "$f"; printf "RESELLER_LOGO_URL=\"%s\"\n" "$v"; } > "$t" && chmod 600 "$t" && mv -f "$t" "$f"; then
+            exit 0
+        fi
+        rm -f "$t"; exit 1
+    ' _ "$env_file" "$logo_url"
+}

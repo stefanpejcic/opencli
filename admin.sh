@@ -453,6 +453,11 @@ update_reseller_account() {
 
     source /usr/local/opencli/lib/reseller.sh
 
+    if [[ "$logo_url_set" -eq 1 ]] && ! reseller_logo_url_valid "$logo_url"; then
+        echo "Error: Invalid --logo_url, use a plain http:// or https:// URL without quotes, spaces, \$, \` or \\." >&2
+        return 1
+    fi
+
     if [[ -z "$username" ]] || ! sqlite3 "$db_file_path" "SELECT 1 FROM user WHERE username='$(sqlite_escape "$username")' AND role='reseller';" | grep -q 1; then
         echo "Error: Reseller '$username' does not exist." >&2
         return 1
@@ -546,11 +551,7 @@ sync_reseller_logo_to_owned_users() {
         [[ -z "$context" ]] && continue
         env_file="/home/${context}/.env"
         [[ -f "$env_file" ]] || continue
-        if grep -q "^RESELLER_LOGO_URL=" "$env_file"; then
-            sed -i "s|^RESELLER_LOGO_URL=.*|RESELLER_LOGO_URL=\"${logo_url}\"|" "$env_file"
-        else
-            printf 'RESELLER_LOGO_URL="%s"\n' "$logo_url" >> "$env_file"
-        fi
+        reseller_env_set_logo "$env_file" "$logo_url" || echo "Warning: could not set the logo URL in $env_file" >&2
     done <<< "$contexts"
 }
 

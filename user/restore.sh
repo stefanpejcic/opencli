@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -157,9 +157,27 @@ log "Extracting archive ..."
 tar -C "$WORK" --acls --xattrs -xzf "$ARCHIVE" 2>>"$log_file" || die "Failed to extract archive."
 
 [[ -f "$WORK/manifest.env" ]] || die "manifest.env missing from archive."
-# shellcheck disable=SC1090,SC1091
-. "$WORK/manifest.env"
+# the archive can be uploaded by a reseller, so the manifest is parsed, never sourced: only the keys user-backup writes, taken literally
+parse_manifest() {
+    local line key val
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^([A-Z_]+)=(.*)$ ]] || continue
+        key="${BASH_REMATCH[1]}"; val="${BASH_REMATCH[2]}"
+        [[ "$val" =~ ^\"(.*)\"$ ]] && val="${BASH_REMATCH[1]}"
+        case "$key" in
+            BACKUP_FORMAT_VERSION|USERNAME|CONTEXT|PLAN_NAME|PLAN_FEATURE_SET|SOURCE_UID|SOURCE_GID|SOURCE_IP|CREATED_AT)
+                printf -v "$key" '%s' "$val" ;;
+        esac
+    done < "$1"
+}
+parse_manifest "$WORK/manifest.env"
 [[ -n "$USERNAME" && -n "$CONTEXT" ]] || die "Invalid manifest: USERNAME/CONTEXT empty."
+# these go into SQL, paths and useradd, same rule as user-add
+[[ "$USERNAME" =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]] || die "Invalid manifest: bad USERNAME."
+[[ "$CONTEXT" =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]] || die "Invalid manifest: bad CONTEXT."
+[[ -z "$SOURCE_UID" || "$SOURCE_UID" =~ ^[0-9]+$ ]] || die "Invalid manifest: bad SOURCE_UID."
+[[ -z "$SOURCE_GID" || "$SOURCE_GID" =~ ^[0-9]+$ ]] || die "Invalid manifest: bad SOURCE_GID."
+[[ "$BACKUP_FORMAT_VERSION" =~ ^[0-9.]*$ ]] || die "Invalid manifest: bad BACKUP_FORMAT_VERSION."
 
 # --new-username override
 ORIG_USERNAME="$USERNAME"
@@ -228,8 +246,9 @@ restore_system_user() {
     [[ -f "$GR" ]] && while IFS=: read -r group _ gid _; do
         [[ -z "$group" ]] && continue
         # When username changed, rename the group entry to the new context name
-        local target_group="$group"
-        [[ "$group" == "$ORIG_CONTEXT" ]] && target_group="$CONTEXT"
+        # only the account's own group, and never with a system gid (0 would be root's group)
+        [[ "$group" == "$ORIG_CONTEXT" && "$gid" =~ ^[0-9]+$ && "$gid" -ge 1000 ]] || continue
+        local target_group="$CONTEXT"
         getent group "$target_group" >/dev/null 2>&1 || groupadd -g "$gid" "$target_group" 2>/dev/null || true
     done < <(cut -d: -f1,2,3 "$GR")
 
@@ -247,8 +266,13 @@ restore_system_user() {
             REMAPPED_UID=$(stat -c '%u' "$target_home")
             SYSTEM_USER_STATUS="already existed"
         else
+            # uid/gid/shell/comment come from the archive: no system ids, only a normal login shell, plain comment
+            [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] || uid=1000
+            [[ "$gid" =~ ^[0-9]+$ && "$gid" -ge 1000 ]] || gid=""
+            [[ "$shell" =~ ^(/bin/bash|/bin/sh|/usr/bin/bash|/usr/sbin/nologin|/sbin/nologin|/bin/false)$ ]] || shell=/bin/bash
+            comment="${comment//[^a-zA-Z0-9 ._-]/}"
             local free_uid; free_uid=$(find_free_uid "$uid")
-            useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$target_home" -s "$shell" "$target_user" 2>/dev/null || useradd -u "$free_uid" -c "$comment" -d "$target_home" -s "$shell" "$target_user"
+            { [[ -n "$gid" ]] && useradd -u "$free_uid" -g "$gid" -c "$comment" -d "$target_home" -s "$shell" "$target_user" 2>/dev/null; } || useradd -u "$free_uid" -c "$comment" -d "$target_home" -s "$shell" "$target_user"
             REMAPPED_UID="$free_uid"
             [[ "$free_uid" != "$uid" ]] && warn "UID remapped for $target_user: $uid → $free_uid"
             SYSTEM_USER_STATUS="created (UID $REMAPPED_UID)"
@@ -345,7 +369,9 @@ restore_home() {
 
     log "Restoring /home/$CONTEXT ..."
     # Pipe through rename transform: homedir → CONTEXT
-    tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs -xf - 2>>"$log_file" || die "Failed to restore home directory."
+    tar -C "$WORK" --numeric-owner --acls --xattrs --transform "s,^homedir,${CONTEXT}," -cf - homedir | tar -C /home --numeric-owner --acls --xattrs --xattrs-exclude='security.*' --xattrs-exclude='trusted.*' -xf - 2>>"$log_file" || die "Failed to restore home directory."
+    # an uploaded archive could carry a setuid binary owned by root or another system user, never keep those
+    find "/home/$CONTEXT" -xdev ! -type l \( -perm -4000 -o -perm -2000 \) \( -uid -1000 -o -gid -1000 \) -exec chmod ug-s {} + 2>>"$log_file"
 
     # so containers can later start without permission issues
     rm -f /home/"$CONTEXT"/sockets/*/*.sock /home/"$CONTEXT"/sockets/*/*.pid
