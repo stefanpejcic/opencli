@@ -43,6 +43,16 @@ podman_compose_user() {
     CONTAINER_HOST="$sock" podman-compose "$@"
 }
 
+# podman_compose_user with retries, two runs at once both create a missing network or volume and the loser exits 125 without starting anything, e.g. podman_compose_user_retry <username> -f <compose_file> up -d <service...>
+podman_compose_user_retry() {
+    local try
+    for try in 1 2 3; do
+        podman_compose_user "$@" && return 0
+        (( try < 3 )) && sleep $(( try * 2 ))
+    done
+    return 1
+}
+
 # "context" comes from the users table's server column (used to be a remote node/ssh host, now it's just a username or "default"/"root"/"" for root's own stack), e.g. podman_ctx <context> <podman-args...>
 podman_ctx() {
     local context="$1"; shift

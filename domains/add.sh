@@ -499,9 +499,9 @@ create_vhost_file() {
 	    local service_count; service_count=$(echo "$services" | wc -w)
 	    local container_word; container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
 	    log "Starting $service_count $container_word ($services)"
-        # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
-        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d --no-deps $services" </dev/null >nohup.out 2>nohup.err &
+        # the detached bash doesn't inherit lib/podman.sh's functions, so it sources it for the retry helper
+        # shellcheck disable=SC2086
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d --no-deps $services </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 
@@ -844,8 +844,7 @@ start_tor_for_user() {
 		disown
     else
         log "Starting Tor"
-        local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-        nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman-compose up -d tor" </dev/null >nohup.out 2>nohup.err &
+        nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d tor </dev/null >nohup.out 2>nohup.err &
 		disown
     fi
 }
@@ -859,8 +858,7 @@ start_php_fpm() {
     is_module_enabled "php" || { log "PHP module disabled — skipping"; return; }
     podman_ctx_is_running "$context" "php-fpm-${php_version}" && return
     log "Starting PHP-FPM $php_version"
-    local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-    nohup sh -c "CONTAINER_HOST=$sock podman-compose -f /home/$context/docker-compose.yml up -d php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
+    nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d "php-fpm-${php_version}" </dev/null >nohup.out 2>nohup.err &
 	disown
 }
 
