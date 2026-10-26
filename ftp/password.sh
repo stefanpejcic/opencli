@@ -36,7 +36,12 @@ if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
 fi
 
 username="${1,,}"
-new_password="$2"
+# read the password from stdin when "-" is passed, so it isn't exposed in the process list (argv)
+if [ "$2" = "-" ]; then
+	IFS= read -r new_password
+else
+	new_password="$2"
+fi
 openpanel_username="$3"
 DEBUG=false  # Default value for DEBUG
 
