@@ -84,9 +84,16 @@ reload_emails_data_file_for_user() {
 # ======================================================================
 # Run setup command
 validate_first
-command="$@" 
+command="$@"
 # https://docker-mailserver.github.io/docker-mailserver/latest/config/setup.sh/
-docker exec openadmin_mailserver setup $command  
+if [[ "$1" == "email" && ( "$2" == "add" || "$2" == "update" ) && "$4" == "-" ]]; then
+    # password comes in on stdin ("-" placeholder), so it isn't exposed in the process list (argv);
+    # docker-mailserver prompts for it twice (enter + confirm) when the password arg is omitted
+    IFS= read -r op_password
+    printf '%s\n%s\n' "$op_password" "$op_password" | docker exec -i openadmin_mailserver setup email "$2" "$3"
+else
+    docker exec openadmin_mailserver setup $command
+fi
 
 if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
     if is_valid_email "$3"; then
