@@ -143,7 +143,8 @@ log() { [[ "$DEBUG" == true ]] && echo "$*"; }
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 # /var/lib/openpanel/shared-containers/storage on servers installed with 2.0.0-beta
-readonly SHARED_STORE="$(shared_image_store)"
+SHARED_STORE="$(shared_image_store)"
+readonly SHARED_STORE
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command jq
@@ -178,6 +179,7 @@ check_reseller_limits() {
     user_exists="$(sqlite3 "$db_file" "SELECT COUNT(*) FROM user WHERE username='${RESELLER//\'/\'\'}' AND role='reseller';")"
     (( user_exists >= 1 )) || die "User '$RESELLER' is not a reseller or is not allowed to create users."
 
+    # shellcheck disable=SC1091
     source /usr/local/opencli/lib/reseller.sh
     local limits_file
     limits_file="$(reseller_limits_file "$RESELLER")"
