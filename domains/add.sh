@@ -80,7 +80,7 @@ SKIP_NOTIFY=false
 # ======================================================================
 # Logging / error helpers
 
-log()  { [[ "$debug_mode" == true ]] && echo "$*" >&2 || true; }
+log()  { if [[ "$debug_mode" == true ]]; then echo "$*" >&2; fi; }
 die()  { echo "FATAL ERROR: $*" >&2; exit 1; } # todo: hard_cleanup like in user/add.sh
 err()  { echo "ERROR: $*" >&2; exit 1; }
 warn() { echo "WARNING: $*" >&2; }
@@ -366,7 +366,7 @@ get_webserver_for_user() {
 
 get_varnish_for_user() {
     VARNISH=false
-    grep -qE "^PROXY_HTTP_PORT=" "/home/$context/.env" && VARNISH=true || true
+    if grep -qE "^PROXY_HTTP_PORT=" "/home/$context/.env"; then VARNISH=true; fi
 }
 
 get_php_version() {
@@ -500,7 +500,7 @@ create_vhost_file() {
 	    local container_word; container_word=$([ "$service_count" -eq 1 ] && echo "container" || echo "containers")
 	    log "Starting $service_count $container_word ($services)"
         # the detached bash doesn't inherit lib/podman.sh's functions, so it sources it for the retry helper
-        # shellcheck disable=SC2086
+        # shellcheck disable=SC2016,SC2086
         nohup bash -c '. /usr/local/opencli/lib/podman.sh; cd "/home/$1/" && podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d --no-deps $services </dev/null >/dev/null 2>&1 &
 		disown
     fi
@@ -526,7 +526,7 @@ create_vhost_file() {
             local php_container=""
             is_module_enabled "php" && php_container="php-fpm-$php_version"
             # shellcheck disable=SC2016
-            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" $php_container </dev/null >/dev/null 2>&1 &
+            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" ${php_container:+"$php_container"} </dev/null >/dev/null 2>&1 &
             disown
         fi
     fi
@@ -824,7 +824,7 @@ setup_tor_for_user() {
 
     local uid
     uid=$(stat -c '%u' "/home/$context" 2>/dev/null)
-    [[ -n "$uid" ]] && chown "$uid:$uid" "$tor_dir" || true
+    if [[ -n "$uid" ]]; then chown "$uid:$uid" "$tor_dir" || true; fi
     chmod 0600 "$tor_dir/torrc"
 
     get_varnish_for_user
@@ -844,6 +844,7 @@ start_tor_for_user() {
 		disown
     else
         log "Starting Tor"
+        # shellcheck disable=SC2016
         nohup bash -c '. /usr/local/opencli/lib/podman.sh; cd "/home/$1/" && podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d tor </dev/null >/dev/null 2>&1 &
 		disown
     fi
@@ -858,6 +859,7 @@ start_php_fpm() {
     is_module_enabled "php" || { log "PHP module disabled — skipping"; return; }
     podman_ctx_is_running "$context" "php-fpm-${php_version}" && return
     log "Starting PHP-FPM $php_version"
+    # shellcheck disable=SC2016
     nohup bash -c '. /usr/local/opencli/lib/podman.sh; cd "/home/$1/" && podman_compose_user_retry "$@"' _ "$context" -f "/home/$context/docker-compose.yml" up -d "php-fpm-${php_version}" </dev/null >/dev/null 2>&1 &
 	disown
 }
@@ -923,7 +925,7 @@ create_mail_mountpoint() {
 	# -h: chown the symlinks themselves, never the mail store they point to
 	local mail_uid
 	mail_uid=$(stat -c '%u' "/home/$context" 2>/dev/null) || true
-	[[ -n "$mail_uid" ]] && chown -R -h "$mail_uid:$mail_uid" "/home/$context/docker-data/volumes/${context}_mail_data" 2>/dev/null || true
+	if [[ -n "$mail_uid" ]]; then chown -R -h "$mail_uid:$mail_uid" "/home/$context/docker-data/volumes/${context}_mail_data" 2>/dev/null || true; fi
 
 	# the backup container can't follow the mail_data symlink, so it gets the real mail dir mounted too
 	if backup_mount_add "$context" "$(backup_mail_dir "$context" "$domain_name")" "/backup/emails/$domain_name"; then
