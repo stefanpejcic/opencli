@@ -1024,6 +1024,14 @@ create_docker_context
 ########################################################################
 # 6. validate docker service is started for user (socket exists), compose command and context are working
 wait $PID_ROOTLESS_INSTALL
+
+# lock down the account's secret-bearing files: they live in a world-traversable /home/<user> and hold DB,
+# service and backup credentials, so keep them owner-only. The account's own containers run as this user and
+# still read them. Runs after setup_docker_rootless's "chmod 755 -R" so it isn't clobbered.
+for secret_file in my.cnf .env backup.env; do
+    [ -f "/home/${USERNAME}/${secret_file}" ] && chmod 600 "/home/${USERNAME}/${secret_file}"
+done
+
 test_docker_service
 autostart_services
 
