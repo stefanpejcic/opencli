@@ -56,7 +56,7 @@ def main():
         print(error_log)
     else:
         print(f"\n=== LOGS FOR ERROR ID: '{args.error_code}' ===\n")
-        for line in error_log[:-1]:
+        for line in error_log:
             print(line)
 
 if __name__ == "__main__":
