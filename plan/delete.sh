@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: plan/delete
+# Script Name: plan/delete.sh
 # Description: Delete hosting plan
 # Usage: opencli plan-delete <PLAN_NAME> [--json]
 # Docs: https://docs.openpanel.com

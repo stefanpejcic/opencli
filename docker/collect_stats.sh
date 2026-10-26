@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: collect_stats.sh
+# Script Name: docker/collect_stats.sh
 # Description: Collect resource usage information for user(s).
 # Usage: opencli docker-collect_stats <username|--all>
 # Author: Stefan Pejcic

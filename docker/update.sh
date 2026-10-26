@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: update.sh
+# Script Name: docker/update.sh
 # Description: Check for image updates across root's stack and every
 #              non-suspended user's stack, print what's available, and
 #              optionally pull and recreate the running containers on an

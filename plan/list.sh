@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
-# Script Name: plans.sh
+# Script Name: plan/list.sh
 # Description: Display all plans: id, name, description, limits..
 # Usage: opencli plan-list [--json]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -54,19 +54,16 @@ source /usr/local/opencli/lib/requirement.sh
 fetch_plans_json() {
     require_command jq
     local data
-    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;" | tail -n +2)
-    if [ -z "$data" ]; then
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;")
+    if [ "$(echo "$data" | wc -l)" -lt 2 ]; then
         echo "No plans."
         return
     fi
     local json
-    json=$(echo "$data" | jq -R '
-        split("\n") | map(select(length > 0) | split("\t") | {
-            id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4],
-            domains_limit: .[5], websites_limit: .[6], disk_limit: .[7],
-            inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11],
-            bandwidth: .[12], feature_set: .[13], max_email_quota: .[14], max_hourly_email: .[15]
-        })'
+    # keys come from the header row, so columns added later (upsell_plan_id, upsell_url) show up too
+    json=$(echo "$data" | jq -Rs '
+        split("\n") | map(select(length > 0) | split("\t")) | .[0] as $cols
+        | .[1:] | map([$cols, .] | transpose | map({(.[0]): (if .[1] == "NULL" then null else .[1] end)}) | add)'
     )
     echo "$json"
 }

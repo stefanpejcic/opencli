@@ -7,7 +7,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 16.10.2023
-# Last Modified: 08.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -41,7 +41,7 @@ total_users=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --quota)
-            opencli user-quotas
+            opencli user-quota
             exit 0
             ;;
         --json)

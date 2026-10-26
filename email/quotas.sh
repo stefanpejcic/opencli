@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: quotas.sh
+# Script Name: email/quotas.sh
 # Description: Fixes email permission issues for all domains.
 # Usage: opencli email-quotas
 # Author: Stefan Pejcic

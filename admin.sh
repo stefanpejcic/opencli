@@ -5,7 +5,7 @@
 # Usage: opencli admin <command> [options]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -285,6 +285,23 @@ validate_password_and_username() {
     # todo: reject common passwords using a wordlist like https://weakpass.com/wordlist
 }
 
+# same rule as OpenAdmin, so a password set from the UI or API also works here
+validate_password() {
+    local input="$1"
+
+    if [[ "$input" =~ ^\$\$ ]]; then
+        echo "ERROR: Password cannot start with '\$\$' as it may cause unintended behavior."
+        echo "       docs: https://openpanel.com/docs/articles/opencli/admin/#create-new-admin"
+        exit 1
+    fi
+
+    if [[ ! "$input" =~ ^[^[:space:]]{6,30}$ ]]; then
+        echo "ERROR: Password is invalid. It must be between 6 and 30 characters and can't contain spaces."
+        echo "       docs: https://openpanel.com/docs/articles/opencli/admin/#create-new-admin"
+        exit 1
+    fi
+}
+
 
 ensure_totp_columns() {
     if [ ! -f "$db_file_path" ]; then
@@ -340,7 +357,7 @@ add_new_user() {
     local flag="$3"
     local reseller_plan="$4"
 	local password_hash
-	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$password")
+	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" -stdin <<< "$password")
 
 	# ---------------------- check total user count and license
     total_users=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user;")
@@ -585,7 +602,7 @@ update_password() {
     local user_exists
     user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_username';")
 	local password_hash
-	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$new_password")
+	password_hash=$(openssl passwd -6 -salt "$(openssl rand -hex 8)" -stdin <<< "$new_password")
 
     if [ "$user_exists" -gt 0 ]; then
         sqlite3 $db_file_path "UPDATE user SET password_hash='$(sqlite_escape "$password_hash")' WHERE username='$escaped_username';"
@@ -730,7 +747,7 @@ case "$1" in
         new_password="$3"
         if [ -f "$db_file_path" ]; then
             if [ "$new_password" ]; then
-                validate_password_and_username "$new_password" "Password"
+                validate_password "$new_password"
                 update_password "$user_flag"
             fi
         else
@@ -833,7 +850,7 @@ case "$1" in
 		fi
 		
         validate_password_and_username "$new_username" "Username"
-        validate_password_and_username "$new_password" "Password"
+        validate_password "$new_password"
         add_new_user "$new_username" "$new_password" "$reseller" "$new_reseller_plan"
         ;;
     "notifications")

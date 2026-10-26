@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: hsts.sh
+# Script Name: domains/hsts.sh
 # Description: Manage HSTS for a domain
 # Usage: opencli domains-hsts <domain> [enable|disable]
 # Author: Stefan Pejcic

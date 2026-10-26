@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: ftp/add.sh
+# Script Name: ftp/list.sh
 # Description: List FTP sub-users for openpanel user.
 # Usage: opencli ftp-list [OPENPANEL_USERNAME] [--json]
 # Docs: https://docs.openpanel.com

@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/unsuspend.sh
 # Description: Unsuspend user: start all containers and unsuspend domains
-# Usage: opencli user-unsuspend <USERNAME>
+# Usage: opencli user-unsuspend <USERNAME> [--debug]
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 

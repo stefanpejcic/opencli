@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/quota.sh
 # Description: Report or set disk and inodes for users.
-# Usage: opencli user-quota <username|--all>
+# Usage: opencli user-quota [--update <username|--all>]
 # Author: Stefan Pejcic
 # Created: 16.11.2023
-# Last Modified: 25.09.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 

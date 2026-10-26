@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: usage.sh
+# Script Name: plan/usage.sh
 # Description: Display all users that are currently using the plan.
 # Usage: opencli plan-usage <PLAN_NAME> [--json]
 # Docs: https://docs.openpanel.com

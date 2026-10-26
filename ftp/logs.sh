@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: ftp/add.sh
+# Script Name: ftp/logs.sh
 # Description: View the FTP server log
 # Usage: opencli ftp-logs
 # Docs: https://docs.openpanel.com
