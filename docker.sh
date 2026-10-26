@@ -48,8 +48,8 @@ get_context() {
   context=$(
     mariadb -Nse "
       SELECT server FROM users WHERE username = '${esc_username}'
-      UNION ALL
-      SELECT server FROM users WHERE username LIKE 'SUSPENDED#_%#_${esc_username}' ESCAPE '#'
+        OR (username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '${esc_username}')
+      ORDER BY username = '${esc_username}' DESC
       LIMIT 1;
     " 2>/dev/null
   )

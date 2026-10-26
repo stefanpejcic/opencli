@@ -234,7 +234,7 @@ validate_user_creation() {
 
     local USERNAME_ESC result
 	USERNAME_ESC=$(escape "$USERNAME")
-    result="$(db_query "SELECT COUNT(*), SUM(username='${USERNAME_ESC}' OR username LIKE 'SUSPENDED\_%\_${USERNAME_ESC}') FROM users")"
+    result="$(db_query "SELECT COUNT(*), SUM(username='${USERNAME_ESC}' OR (username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '${USERNAME_ESC}')) FROM users")"
 
     local user_count username_taken
     read -r user_count username_taken <<< "$result"
