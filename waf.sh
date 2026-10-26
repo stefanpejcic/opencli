@@ -171,7 +171,7 @@ get_user_context() {
     # shellcheck disable=SC1091
     . /usr/local/opencli/db.sh
     esc=$(mysql_escape "$username")
-    row=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id, server FROM users WHERE username = '$esc' UNION ALL SELECT id, server FROM users WHERE username LIKE 'SUSPENDED#_%#_$esc' ESCAPE '#' LIMIT 1;" 2>/dev/null)
+    row=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id, server FROM users WHERE username = '$esc' OR (username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '$esc') ORDER BY username = '$esc' DESC LIMIT 1;" 2>/dev/null)
     read -r user_id context <<< "$row"
     if [[ -z "$user_id" || -z "$context" ]]; then
         echo "User $username not found!"

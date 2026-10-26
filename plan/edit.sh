@@ -6,7 +6,7 @@
 # Example: opencli plan-edit --debug id=1 name="Some Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100 feature_set="default" max_email_quota="2G" max_hourly_email=100
 # Author: Radovan Jecmenica
 # Created: 10.04.2024
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -155,14 +155,10 @@ update_plan() {
   sql="SELECT name, disk_limit, inodes_limit, cpu, ram, bandwidth, max_hourly_email, feature_set FROM plans WHERE id='$plan_id'"
   result=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -e "$sql")
 
-  old_plan_name=$(echo "$result" | awk '{print $1}')
-  int_old_disk_limit=$(echo "$result" | awk '{print $2}')
-  old_inodes_limit=$(echo "$result" | awk '{print $4}')
-  old_cpu=$(echo "$result" | awk '{print $5}')
-  old_ram=$(echo "$result" | awk '{print $6}')
-  old_bandwidth=$(echo "$result" | awk '{print $7}')
-  old_max_hourly_email=$(echo "$result" | awk '{print $8}')
-  old_feature_set=$(echo "$result" | awk '{print $9}')
+  # split on tabs only: name can contain spaces, disk_limit is "10 GB"; \x1f keeps empty fields in place
+  local old_disk_raw
+  IFS=$'\x1f' read -r old_plan_name old_disk_raw old_inodes_limit old_cpu old_ram old_bandwidth old_max_hourly_email old_feature_set <<< "${result//$'\t'/$'\x1f'}"
+  int_old_disk_limit="${old_disk_raw%% *}"
   
   new_plan_name="$2"
   description="$3"

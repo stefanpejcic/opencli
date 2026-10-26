@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: backup.sh
+# Script Name: docker/backup.sh
 # Description: Generates a backup for all users.
 # Usage: opencli docker-backup [--parallel=N]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic

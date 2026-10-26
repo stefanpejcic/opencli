@@ -5,7 +5,7 @@
 # Usage: opencli license [key|verify|info|delete|<LICENSE_KEY>] [--json] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -102,13 +102,13 @@ get_license_key() {
 
     if [[ -z "$license_key" ]]; then
         if [[ "$JSON" == "yes" ]]; then
-            echo "No License Key"
+            echo '{"key": null}'
         else
             echo -e "${RED}No License Key${RESET}"
         fi
     else
         if [[ "$JSON" == "yes" ]]; then
-            echo "$license_key"
+            echo "{\"key\": \"$(json_escape "$license_key")\"}"
         else
             echo -e "${GREEN}$license_key${RESET}"
         fi
@@ -128,6 +128,16 @@ verify_license_api() {
     
     response=$(curl -sS --connect-timeout 1 --max-time 2 -X POST -d "licensekey=$license_key&ip=$ip_address&check_token=$check_token" "$WHMCS_URL")
     echo "$response" | grep -oP '(?<=<status>).*?(?=</status>)'
+}
+
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\t'/\\t}"
+    s="${s//$'\r'/}"
+    s="${s//$'\n'/\\n}"
+    printf '%s' "$s"
 }
 
 extract_xml_field() {
@@ -278,11 +288,10 @@ verify_existing_license() {
         exit 1
     fi
 
+    # read-only, enterprise features are applied when the key is added
     license_status=$(verify_license_api "$license_key")
     if [[ "$license_status" == "Active" ]]; then
         output_message "License is valid" "$GREEN"
-        manage_compose_volumes "enable"
-        restart_services
     else
         output_message "License is invalid" "$RED"
         exit 1
@@ -321,14 +330,14 @@ show_license_info() {
         if [[ "$JSON" == "yes" ]]; then
             cat << EOF
 {
-    "Owner": "$registered_name",
-    "Company Name": "$company_name",
-    "Email": "$email",
-    "License Type": "$product_name",
-    "Registration Date": "$reg_date",
-    "Next Due Date": "$next_due_date",
-    "Billing Cycle": "$billing_cycle",
-    "Valid IP": "$valid_ip"
+    "Owner": "$(json_escape "$registered_name")",
+    "Company Name": "$(json_escape "$company_name")",
+    "Email": "$(json_escape "$email")",
+    "License Type": "$(json_escape "$product_name")",
+    "Registration Date": "$(json_escape "$reg_date")",
+    "Next Due Date": "$(json_escape "$next_due_date")",
+    "Billing Cycle": "$(json_escape "$billing_cycle")",
+    "Valid IP": "$(json_escape "$valid_ip")"
 }
 EOF
         else

@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: domains/docroot.sh
+# Script Name: domains/edit.sh
 # Description: Open a domain's docroot directory, or its webserver vhost config file in nano with --ws.
 # Usage: opencli domains-edit <DOMAIN_NAME> [--ws]
 # Author: Stefan Pejcic

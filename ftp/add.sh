@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 22.05.2024
-# Last Modified: 21.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -160,8 +160,8 @@ validate_data() {
     local_part="${username%%@*}"
     domain_part="${username##*@}"
 
-    if [[ ! "$local_part" =~ ^[a-z0-9_-]+$ ]]; then
-        echo "ERROR: FTP username before the domain part may only contain a-z, 0-9, _ and -"
+    if [[ ! "$local_part" =~ ^[a-z0-9._-]+$ ]]; then
+        echo "ERROR: FTP username before the domain part may only contain a-z, 0-9, ., _ and -"
         exit 1
     fi
 

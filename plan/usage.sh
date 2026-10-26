@@ -1,12 +1,12 @@
 #!/bin/bash
 ################################################################################
-# Script Name: usage.sh
+# Script Name: plan/usage.sh
 # Description: Display all users that are currently using the plan.
 # Usage: opencli plan-usage <PLAN_NAME> [--json]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -67,7 +67,7 @@ fetch_users_json() {
     data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT users.id, users.username, users.email, plans.name AS plan_name, users.registered_date FROM users INNER JOIN plans ON users.plan_id = plans.id WHERE plans.name = '$(mysql_escape "$plan_name")';" | tail -n +2)
     if [ -n "$data" ]; then
         local json
-        json=$(echo "$data" | jq -R 'split("\n") | map(select(length > 0) | split("\t") | {
+        json=$(echo "$data" | jq -Rs 'split("\n") | map(select(length > 0) | split("\t") | {
             id: .[0], username: .[1], email: .[2], plan_name: .[3], registered_date: .[4]
         })')
         echo "$json"

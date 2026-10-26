@@ -160,7 +160,7 @@ _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-
 _opencli_plan_arg_commands="plan-usage plan-delete"
 
 # commands whose next positional argument is a username or the literal --all
-_opencli_username_or_all_arg_commands="docker-collect_stats user-quota user-report"
+_opencli_username_or_all_arg_commands="docker-collect_stats user-report"
 
 # commands whose next positional argument is an FTP sub-account username
 _opencli_ftp_username_arg_commands="ftp-delete ftp-password ftp-path ftp-quota"
@@ -383,6 +383,16 @@ _opencli_completions() {
                 return 0
                 ;;
         esac
+    fi
+
+    # opencli user-quota [--update <username|--all>]
+    if [[ "$cmd" == "user-quota" ]]; then
+        if [[ $COMP_CWORD -eq 2 ]]; then
+            COMPREPLY=( $(compgen -W "--update" -- "$cur") )
+        elif [[ $COMP_CWORD -eq 3 && "$prev" == "--update" ]]; then
+            COMPREPLY=( $(compgen -W "$(_opencli_usernames) --all" -- "$cur") )
+        fi
+        return 0
     fi
 
     # first argument after the subcommand

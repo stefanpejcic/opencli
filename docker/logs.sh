@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: logs.sh
+# Script Name: docker/logs.sh
 # Description: Display log sizes for user and system containers
 # Usage: opencli docker-logs [--all|--system|--users|<USERNAME>]
 # Author: Stefan Pejcic

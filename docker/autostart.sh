@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: autostart.sh
+# Script Name: docker/autostart.sh
 # Description: Prefetch (pull) container images for services listed as autostart, skipping if free disk space is low.
 # Usage: opencli docker-autostart [-f|--force]
 # Author: Stefan Pejcic

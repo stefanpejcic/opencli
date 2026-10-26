@@ -5,7 +5,7 @@
 # Usage: opencli api <status|on|off|list>
 # Author: Stefan Pejcic
 # Created: 04.09.2024
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -41,9 +41,21 @@ Examples:
   opencli api status              Display current OpenAdmin API status.
   opencli api on                  Enable OpenAdmin API access.
   opencli api off                 Disable OpenAdmin API access.
-  opencli api list                List available API endpoints with examples.
+  opencli api list                List available API endpoints with curl examples.
 
 EOF
+}
+
+# the list is built into the openadmin binary, from the same file as the swagger docs on Settings > API
+list_endpoints() {
+    local bin url
+    bin=$(grep -oP '^ExecStart=\K\S+' /etc/openpanel/openadmin/service/openadmin.service 2>/dev/null)
+    # old installs still have gunicorn there
+    [[ "$bin" == /usr/local/admin/openadmin-* && -x "$bin" ]] || bin=$(ls /usr/local/admin/openadmin-* 2>/dev/null | head -n1)
+    [[ -x "$bin" ]] || { echo "ERROR: OpenAdmin binary not found in /usr/local/admin/"; exit 1; }
+    url=$(opencli admin 2>/dev/null | grep -oE 'https?://[^ ]+' | head -n1)
+    url="${url:-https://localhost:2087/}"
+    "$bin" api-endpoints "${url%/}" || { echo "ERROR: This OpenAdmin version can't list endpoints, update it with: opencli update --admin"; exit 1; }
 }
 
 # ======================================================================
@@ -75,6 +87,6 @@ case "$1" in
         systemctl restart admin 2>&1
     fi
     ;;
-  list) cat /usr/local/admin/modules/api/available_endpoints.txt ;;
+  list) list_endpoints ;;
   *)    echo "Invalid option: $1"; show_usage; exit 1 ;;
 esac

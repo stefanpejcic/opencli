@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: ftp/add.sh
+# Script Name: ftp/connections.sh
 # Description: Display all active FTP connections, or only those for domains owned by an OpenPanel user.
 # Usage: opencli ftp-connections [OPENPANEL_USERNAME]
 # Docs: https://docs.openpanel.com

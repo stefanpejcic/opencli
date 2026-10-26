@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Script Name: update.sh
+# Script Name: docker/update.sh
 # Description: Check for image updates across root's stack and every
 #              non-suspended user's stack, print what's available, and
 #              optionally pull and recreate the running containers on an
@@ -40,7 +40,8 @@
 ################################################################################
 
 readonly LOG_DIR="/var/log/openpanel/admin/docker"
-readonly LOG_FILE="${LOG_DIR}/$(date '+%Y-%m-%d').log"
+LOG_FILE="${LOG_DIR}/$(date '+%Y-%m-%d').log"
+readonly LOG_FILE
 # pulls into the shared store use their own runroot: with root's default one (/run/containers/storage) a pull that creates layers rewrites root's layer mount records, unmounting every running root container's layer so its next restart fails
 # they go through skopeo, podman 4.9 refuses a runroot other than the one recorded in the store's db.sql; reads (inspect, images) don't touch mount records and keep using podman
 readonly SHARED_RUNROOT="/run/containers/shared-storage"
@@ -48,7 +49,8 @@ mkdir -p "$LOG_DIR"
 
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
-readonly SHARED_STORE="$(shared_image_store)"
+SHARED_STORE="$(shared_image_store)"
+readonly SHARED_STORE
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command skopeo
@@ -253,6 +255,8 @@ for context in "${CONTEXTS[@]}"; do
         CONTAINER_IMAGE["$context/$cname"]="$image_id"
     done < <(podman_ctx "$context" ps -a --no-trunc --format '{{.Names}} {{.State}} {{.ImageID}}' 2>/dev/null)
     while read -r svc img cname; do
+        # skip images with a literal ${, a compose variable that never got resolved
+        # shellcheck disable=SC2016
         [[ -z "$img" || "$img" == *'${'* ]] && continue
         key=$(normalize_image "$img")
         ALL_IMAGES["$key"]="$img"
@@ -510,7 +514,7 @@ for entry in "${PLAN_RECREATE[@]}"; do
     # a webserver created with depends_on on this container blocks removing it, so those get removed and started again with it
     old_id=$(podman_ctx "$context" inspect -f '{{.Id}}' "$cname" 2>/dev/null)
     dependents=$(dependent_services "$context" "$old_id")
-    [[ -n "$dependents" ]] && log "  also recreating $(echo $dependents) for $label, created depending on $svc"
+    [[ -n "$dependents" ]] && log "  also recreating ${dependents% } for $label, created depending on $svc"
     # podman-compose 1.0.6 --force-recreate can fail to remove the old container, then just starts it again on the old image and still exits 0, so it's removed here first (named volumes are kept)
     podman_ctx "$context" rm -f -t 10 --depend "$cname" >/dev/null 2>&1
     # shellcheck disable=SC2086

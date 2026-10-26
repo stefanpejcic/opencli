@@ -5,7 +5,7 @@
 # Usage: opencli port [set <port> | default] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 17.02.2025
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -120,7 +120,7 @@ update_port() {
     do_reload
     success_msg
   else
-    echo "Port ${new_port} s already set for accessing the user panel."
+    echo "Port ${new_port} is already set for accessing the user panel."
     exit 0
   fi
 }
@@ -143,12 +143,14 @@ elif [[ "$1" == 'set' && -n "$2" ]]; then
     else
         echo "Invalid port format. Please provide a valid port like '2083'."
         usage
-    fi    
+        exit 1
+    fi
 elif [[ "$1" == 'default' ]]; then
         new_port="2083"
         update_port $new_port
 else
     usage
+    exit 1
 fi
 
 

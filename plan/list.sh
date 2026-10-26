@@ -1,25 +1,25 @@
 #!/bin/bash
 ################################################################################
-# Script Name: plans.sh
+# Script Name: plan/list.sh
 # Description: Display all plans: id, name, description, limits..
 # Usage: opencli plan-list [--json]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 30.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -54,27 +54,23 @@ source /usr/local/opencli/lib/requirement.sh
 fetch_plans_json() {
     require_command jq
     local data
-    # columns by name so they always match the jq indexes below
-    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT id, name, description, email_limit, ftp_limit, domains_limit, websites_limit, disk_limit, inodes_limit, db_limit, cpu, ram, bandwidth, feature_set, max_email_quota, max_hourly_email FROM plans;" | tail -n +2)
-    if [ -z "$data" ]; then
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "SELECT * FROM plans;")
+    if [ "$(echo "$data" | wc -l)" -lt 2 ]; then
         echo "No plans."
         return
     fi
     local json
+    # keys come from the header row, so columns added later (upsell_plan_id, upsell_url) show up too
     json=$(echo "$data" | jq -Rs '
-        split("\n") | map(select(length > 0) | split("\t") | {
-            id: .[0], name: .[1], description: .[2], email_limit: .[3], ftp_limit: .[4],
-            domains_limit: .[5], websites_limit: .[6], disk_limit: .[7],
-            inodes_limit: .[8], db_limit: .[9], cpu: .[10], ram: .[11],
-            bandwidth: .[12], feature_set: .[13], max_email_quota: .[14], max_hourly_email: .[15]
-        })'
+        split("\n") | map(select(length > 0) | split("\t")) | .[0] as $cols
+        | .[1:] | map([$cols, .] | transpose | map({(.[0]): (if .[1] == "NULL" then null else .[1] end)}) | add)'
     )
     echo "$json"
 }
 
 fetch_plans_table() {
     local data
-    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM plans;")
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM
     if [ -n "$data" ]; then
         echo "$data"
     else

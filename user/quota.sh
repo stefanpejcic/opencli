@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/quota.sh
 # Description: Report or set disk and inodes for users.
-# Usage: opencli user-quota <username|--all>
+# Usage: opencli user-quota [--update <username|--all>]
 # Author: Stefan Pejcic
 # Created: 16.11.2023
-# Last Modified: 25.09.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -372,13 +372,13 @@ main() {
     local exit_code=0
 
     # report
-    if [[ $# -eq 0 ]] || [[ "$1" != "--update" ]]; then
+    if [[ $# -eq 0 ]]; then
         generate_report
         notify_disk_limits
         exit 0
     fi
 
-    # 3. check for 'set' command as first argument
+    # 3. check for 'set' command as first argument, a bare username used to only print the report
     if [[ "$1" != "--update" ]]; then
         log_error "You must specify '--update' as the first argument to modify quotas"
         usage

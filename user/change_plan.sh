@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: user/change_plan.sh
 # Description: Change plan for a user and apply new plan limits.
-# Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME>
+# Usage: opencli user-change_plan <USERNAME> <NEW_PLAN_NAME> [--debug]
 # Author: Petar Ćurić
 # Created: 17.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 

@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -89,7 +89,9 @@ execute_cmd_and_print() {
 	local indent spaces status
 	indent=14
 	spaces=$(printf "%${indent}s")
-	status=$(echo -n "$2" | fold -s -w $(($(tput cols) - 16)) | sed "s/^/$spaces/g")
+	# tput fails without a terminal (cron, panel), fall back to 80 columns
+	local cols; cols=$(tput cols 2>/dev/null); [[ "$cols" =~ ^[0-9]+$ && "$cols" -gt 40 ]] || cols=80
+	status=$(echo -n "$2" | fold -s -w $((cols - 16)) | sed "s/^/$spaces/g")
 	status=${status:$indent}
 	printf "%-${indent}s%s\n" "$1:" "$status"
 }
@@ -736,10 +738,10 @@ case "${1:-}" in
 
 	view)		# show mail by queue id
 		if [ -z "${2:-}" ]; then
-			echo "Error: Queue ID missing."
+			echo "Error: Queue ID missing." >&2
 		else
 			execute_cmd_in_container postcat -q "$2"
-		fi >&2
+		fi
 		;;
 
 	delete) 	# delete mail from queue

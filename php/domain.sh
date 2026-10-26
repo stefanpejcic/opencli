@@ -6,7 +6,7 @@
 #        opencli php-domain <domain_name> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 21.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -119,7 +119,7 @@ tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$domain_path_in_volum
 owner_sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$owner")/podman/podman.sock"
 # up -d would recreate it if another domain already runs this version
 if ! podman_ctx_is_running "$owner" "php-fpm-${new_php_version}"; then
-    nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >nohup.out 2>nohup.err &
+    nohup sh -c "cd /home/$owner && CONTAINER_HOST=$owner_sock podman-compose up -d php-fpm-${new_php_version}" </dev/null >/dev/null 2>&1 &
 fi
 
 # 3. previous version gets stopped if not used by other domains AND not set as default
@@ -135,7 +135,7 @@ fi
 # shellcheck disable=SC2016
 nohup bash -c '. /usr/local/opencli/lib/podman.sh
     podman_reload_webserver "$1" "$2" "$3" || exit 1
-    [ -n "$4" ] && cd "/home/$5" && podman_compose_ctx "$5" down "$4"' _ "$context" "$WEB_SERVER" "php-fpm-$new_php_version" "$stop_old" "$owner" </dev/null >nohup.out 2>nohup.err &
+    [ -n "$4" ] && cd "/home/$5" && podman_compose_ctx "$5" down "$4"' _ "$context" "$WEB_SERVER" "php-fpm-$new_php_version" "$stop_old" "$owner" </dev/null >/dev/null 2>&1 &
 disown
 
 # 5. save in database

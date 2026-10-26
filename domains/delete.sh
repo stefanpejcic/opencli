@@ -5,7 +5,7 @@
 # Usage: opencli domains-delete <DOMAIN_NAME> [--debug]
 # Author: Stefan Pejcic
 # Created: 07.11.2024
-# Last Modified: 21.10.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -214,9 +214,9 @@ delete_domain_file() {
 	    disown
 	fi
 
-	rm -rf "/var/log/caddy/domlogs/$domain_name/access*"                # access logs
+	rm -rf "/var/log/caddy/domlogs/${domain_name:?}"                      # access logs
 	rm -f "/var/log/caddy/stats/$user/$domain_name.html"  # goaccess
-   	rm -rf "/var/log/caddy/coraza_waf/$domain_name.log*"                # waf
+   	rm -f "/var/log/caddy/coraza_waf/$domain_name.log"*                 # waf
 	rm -rf "/etc/openpanel/caddy/ssl/custom/$domain_name"               # custom ssl
 }
 
@@ -328,6 +328,24 @@ postfwd_setup(){
 	fi
 }	
 
+# key dir and KeyTable/SigningTable lines added by: email-setup config dkim domain
+delete_dkim() {
+	local dkim_dir="/usr/local/mail/openmail/docker-data/dms/config/opendkim"
+	[[ -d "$dkim_dir/keys/$domain_name" ]] || return 0
+	log "Removing DKIM keys for the domain"
+	rm -rf "${dkim_dir:?}/keys/${domain_name:?}"
+
+	local table tmp
+	for table in KeyTable SigningTable; do
+		[[ -f "$dkim_dir/$table" ]] || continue
+		tmp=$(mktemp)
+		# KeyTable: <selector>._domainkey.<domain> <domain>:<selector>:<key>   SigningTable: *@<domain> <selector>._domainkey.<domain>
+		awk -v d="$domain_name" '!(($1 ~ /\._domainkey\./ && substr($1, index($1, "._domainkey.") + 12) == d) || $1 == "*@" d)' "$dkim_dir/$table" > "$tmp" \
+			&& cat "$tmp" > "$dkim_dir/$table"
+		rm -f "$tmp"
+	done
+}
+
 delete_mail_mountpoint(){
 	[[ -n "$key_value" ]] || return
 
@@ -339,6 +357,7 @@ delete_mail_mountpoint(){
 
 	# only this domain's link, the other domains keep theirs
 	rm -f "/home/$context/docker-data/volumes/${context}_mail_data/_data/$domain_name"
+	delete_dkim
 	backup_mount_remove "$context" "/backup/emails/$domain_name"
 	backup_service_reload "$user" "$context"
 
