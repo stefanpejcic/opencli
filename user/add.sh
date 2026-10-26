@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 30.09.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -290,9 +290,9 @@ autostart_services() {
     done
     [[ ${#images[@]} -eq 0 ]] && return 1;
 	log "Starting services in background: ${images[*]}"
-	# a fresh subshell doesn't inherit lib/podman.sh's functions, so the socket is inlined directly
+	# a fresh subshell doesn't inherit lib/podman.sh's functions, so the socket is inlined directly and the retry helper sourced
 	local sock="unix:///hostfs/run/user/${USER_ID}/podman/podman.sock"
-	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if CONTAINER_HOST=${sock} podman --remote info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; cd /home/${USERNAME}/; for svc in ${images[*]}; do CONTAINER_HOST=${sock} podman-compose up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
+	nohup bash -c "e=0; ok=0; while [[ \$e -lt 60 ]]; do if CONTAINER_HOST=${sock} podman --remote info >/dev/null 2>&1; then ((ok++)); [[ \$ok -ge 3 ]] && break; else ok=0; fi; sleep 3; ((e+=3)); done; . /usr/local/opencli/lib/podman.sh; cd /home/${USERNAME}/; for svc in ${images[*]}; do podman_compose_user_retry ${USERNAME} -f /home/${USERNAME}/docker-compose.yml up -d \$svc || true; done" </dev/null >"/tmp/autostart_${USERNAME}.log" 2>&1 &
 }
 
 create_linux_user_local() {

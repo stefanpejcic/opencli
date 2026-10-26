@@ -70,7 +70,7 @@ fetch_plans_json() {
 
 fetch_plans_table() {
     local data
-    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM
+    data=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" --table -e "SELECT * FROM plans;")
     if [ -n "$data" ]; then
         echo "$data"
     else

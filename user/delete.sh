@@ -296,6 +296,8 @@ delete_system_user() {
 
     # a new account that gets this uid would inherit the old podman network state from here and its containers wouldn't start
     [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/run/user/${uid:?}"
+    # drop the Delegate= slice override add.sh created, so an account that reuses this uid doesn't inherit it
+    [[ "$uid" =~ ^[0-9]+$ && "$uid" -ge 1000 ]] && rm -rf "/etc/systemd/system/user-${uid:?}.slice.d"
 
     # if the stop timed out or the pkill above hit the user manager, user@<uid> stays failed and the server shows degraded
     [[ "$uid" =~ ^[0-9]+$ ]] && systemctl reset-failed "user@${uid}.service" "user-runtime-dir@${uid}.service" 2>/dev/null || true

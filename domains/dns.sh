@@ -5,7 +5,7 @@
 # Usage: opencli domains-dns <reconfig|check|reload|show|list|create|delete|default|count|config|start|restart|hard-restart|stop> [DOMAIN] [-y]
 # Author: Stefan Pejcic
 # Created: 31.08.2024
-# Last Modified: 21.08.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -138,7 +138,12 @@ delete_dns_zone(){
     # backup zone
     mkdir -p /etc/bind/zones/backups/
     mv /etc/bind/zones/"$DOMAIN".zone /etc/bind/zones/backups/"$DOMAIN".zone."$(date +%Y%m%d%H%M%S)"
-    # todo: reload zones!
+    # drop the zone from named.conf.local and reload bind, otherwise it keeps serving a zone whose file is gone and the next reconfig errors on the missing file
+    local ncl=/etc/bind/named.conf.local
+    if [ -f "$ncl" ] && grep -qF "zone \"$DOMAIN\"" "$ncl"; then
+        grep -vF "zone \"$DOMAIN\"" "$ncl" > "$ncl.tmp" && mv "$ncl.tmp" "$ncl"
+    fi
+    podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
   }
 
 
