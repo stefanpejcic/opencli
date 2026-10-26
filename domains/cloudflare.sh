@@ -5,7 +5,7 @@
 # Usage: opencli domains-cloudflare <enable|disable|status> <DOMAIN_NAME|--all> [-y]
 # Author: Stefan Pejcic
 # Created: 30.09.2026
-# Last Modified: 30.09.2026
+# Last Modified: 26.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
