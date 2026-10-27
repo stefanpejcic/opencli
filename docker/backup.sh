@@ -144,8 +144,10 @@ refresh_db_containers() {
 # podman context (users.server) of a user, defaults to the username
 get_context() {
     local username="$1" ctx
+    # shellcheck disable=SC1091
     source /usr/local/opencli/db.sh
     username_query="SELECT server FROM users WHERE username = '$(mysql_escape "$username")'"
+    # shellcheck disable=SC2154 # mysql_database is set by the sourced db.sh
     ctx=$(mariadb -D "$mysql_database" -e "$username_query" -sN)
     echo "${ctx:-$username}"
 }
@@ -157,6 +159,7 @@ get_account_state() {
     # shellcheck disable=SC1091
     source /usr/local/opencli/db.sh
     name=$(mysql_escape "$1")
+    # shellcheck disable=SC2154 # mysql_database is set by the sourced db.sh
     mariadb -D "$mysql_database" -sN -e "SELECT CASE
         WHEN EXISTS (SELECT 1 FROM users WHERE username = '$name') THEN 'active'
         WHEN EXISTS (SELECT 1 FROM users WHERE username LIKE 'SUSPENDED\_%' AND SUBSTRING_INDEX(username, '_', -1) = '$name') THEN 'suspended'
@@ -351,7 +354,7 @@ process_all_users() {
         done
     else
         log "Running up to $PARALLEL user backups in parallel"
-        local tmpdir pid
+        local tmpdir
         tmpdir=$(mktemp -d)
         declare -A pid_user=()
 
