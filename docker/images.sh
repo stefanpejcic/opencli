@@ -265,13 +265,19 @@ check_user_quota() {
     fi
 
     # repquota columns: 1=user 2=flags 3=blk_used 4=blk_soft 5=blk_hard 6=blk_grace 7=ino_used 8=ino_soft 9=ino_hard
+    local -a f
+    read -r -a f <<< "$quota_line"
+
+    local off=0
+    [[ "${f[5]}" =~ ^[0-9]+$ ]] || off=1
+
     local block_used block_soft block_hard inode_used inode_soft inode_hard
-    block_used=$(echo "$quota_line" | awk '{print $3}')
-    block_soft=$(echo "$quota_line" | awk '{print $4}')
-    block_hard=$(echo "$quota_line" | awk '{print $5}')
-    inode_used=$(echo "$quota_line" | awk '{print $7}')
-    inode_soft=$(echo "$quota_line" | awk '{print $8}')
-    inode_hard=$(echo "$quota_line" | awk '{print $9}')
+    block_used=${f[2]}
+    block_soft=${f[3]}
+    block_hard=${f[4]}
+    inode_used=${f[$((5 + off))]}
+    inode_soft=${f[$((6 + off))]}
+    inode_hard=${f[$((7 + off))]}
 
     local block_limit inode_limit
     if [ "${block_hard:-0}" -gt 0 ] 2>/dev/null; then
