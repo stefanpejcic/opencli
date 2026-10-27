@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: docker/backup.sh
-# Description: Generates a backup for all users, or for one with --account.
+# Description: Backs up every account whose backups the hosting provider manages, or one with --account.
 # Usage: opencli docker-backup [--parallel=N | --account=USERNAME]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic
 # Created: 22.07.2025
@@ -53,6 +53,12 @@ done
 # a backup that finds its account locked by another run exits with this
 readonly LOCKED=75
 readonly LOCK_DIR="/run/lock"
+readonly CORE_USERS_DIR="/etc/openpanel/openpanel/core/users"
+
+# the hosting provider manages an account's backups when OpenAdmin left the admin.backups marker, everyone else runs their own
+is_provider_managed() {
+    [[ -e "$CORE_USERS_DIR/$1/admin.backups" ]]
+}
 
 # parallel workers write to their own file (USER_LOG_FILE), appended to LOG_FILE when the user is done
 log() {
@@ -265,6 +271,10 @@ process_one_account() {
         log "ERROR: user $username is excluded from backups (/home/$ctx/backup.off exists)"
         return 1
     fi
+    if ! is_provider_managed "$ctx"; then
+        log "ERROR: user $username manages its own backups ($CORE_USERS_DIR/$ctx/admin.backups doesn't exist)"
+        return 1
+    fi
 
     process_user "$username"
     status=$?
@@ -308,21 +318,25 @@ process_all_users() {
         return 1
     fi
     
-    # users can be excluded with /home/<context>/backup.off
-    local user ctx kept=() skipped_users=()
+    # users can be excluded with /home/<context>/backup.off, and users without the admin.backups marker run their own backups
+    local user ctx kept=() skipped_users=() self_managed=()
     for user in $users; do
         ctx=$(get_context "$user")
         if [[ -e "/home/$ctx/backup.off" ]]; then
             skipped_users+=("$user")
             log "Skipping user: $user (/home/$ctx/backup.off exists)"
+        elif ! is_provider_managed "$ctx"; then
+            self_managed+=("$user")
+            log "Skipping user: $user (manages its own backups)"
         else
             kept+=("$user")
         fi
     done
     users="${kept[*]}"
     (( ${#skipped_users[@]} )) && log "Skipped ${#skipped_users[@]} users with backup.off: ${skipped_users[*]}"
+    (( ${#self_managed[@]} )) && log "Skipped ${#self_managed[@]} users that manage their own backups: ${self_managed[*]}"
     if (( ${#kept[@]} == 0 )); then
-        log "No users to back up (all have backup.off)"
+        log "No users to back up (all have backup.off or manage their own backups)"
         return 0
     fi
 
