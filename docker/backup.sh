@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Script Name: docker/backup.sh
-# Description: Generates a backup for all users.
-# Usage: opencli docker-backup [--parallel=N]   (skip a user: touch /home/<context>/backup.off)
+# Description: Generates a backup for all users, or for one with --account.
+# Usage: opencli docker-backup [--parallel=N | --account=USERNAME]   (skip a user: touch /home/<context>/backup.off)
 # Author: Stefan Pejcic
 # Created: 22.07.2025
 # Last Modified: 15.10.2026
@@ -36,13 +36,23 @@ readonly LOG_FILE="/var/log/openpanel/admin/docker-backup.log"
 # number of users backed up at the same time (each user has its own podman context)
 # default: one backup per 4 CPU cores (gzip + upload per backup), at least 1, at most the number of users
 PARALLEL=""
+ACCOUNT=""
 for arg in "$@"; do
     case "$arg" in
         --parallel=*) PARALLEL="${arg#*=}" ;;
-        *) echo "Usage: opencli docker-backup [--parallel=N]"; exit 1 ;;
+        --account=*)
+            ACCOUNT="${arg#*=}"
+            [[ -n "$ACCOUNT" ]] || { echo "--account needs a username"; exit 1; }
+            ;;
+        *) echo "Usage: opencli docker-backup [--parallel=N | --account=USERNAME]"; exit 1 ;;
     esac
 done
 [[ -z "$PARALLEL" || "$PARALLEL" =~ ^[1-9][0-9]*$ ]] || { echo "--parallel must be a positive number"; exit 1; }
+[[ -n "$ACCOUNT" && -n "$PARALLEL" ]] && { echo "--parallel and --account can't be used together"; exit 1; }
+
+# a backup that finds its account locked by another run exits with this
+readonly LOCKED=75
+readonly LOCK_DIR="/run/lock"
 
 # parallel workers write to their own file (USER_LOG_FILE), appended to LOG_FILE when the user is done
 log() {
@@ -140,6 +150,34 @@ get_context() {
     echo "${ctx:-$username}"
 }
 
+# active, suspended or missing, a suspended account is renamed to SUSPENDED_<time>_<username>
+get_account_state() {
+    local name
+    [[ "$1" == SUSPENDED_* ]] && { echo suspended; return; }
+    # shellcheck disable=SC1091
+    source /usr/local/opencli/db.sh
+    name=$(mysql_escape "$1")
+    mariadb -D "$mysql_database" -sN -e "SELECT CASE
+        WHEN EXISTS (SELECT 1 FROM users WHERE username = '$name') THEN 'active'
+        WHEN EXISTS (SELECT 1 FROM users WHERE username LIKE 'SUSPENDED\_%' AND SUBSTRING_INDEX(username, '_', -1) = '$name') THEN 'suspended'
+        ELSE 'missing' END"
+}
+
+# runs the rest of the arguments while holding the account's lock, so a scheduled run and --account never back up the same account at once
+with_account_lock() {
+    local context="$1" fd status
+    shift
+    exec {fd}>"$LOCK_DIR/openpanel-docker-backup-$context.lock" || return 1
+    if ! flock -n "$fd"; then
+        exec {fd}>&-
+        return "$LOCKED"
+    fi
+    "$@"
+    status=$?
+    exec {fd}>&-
+    return "$status"
+}
+
 run_for_user() {
     local username="$1"
     context=$(get_context "$username")
@@ -195,14 +233,48 @@ reindex_user() {
 }
 
 process_user() {
-    local username="$1"
+    local username="$1" status
     log "Processing user: $username"
 
-    if ! run_for_user "$username"; then
+    with_account_lock "$(get_context "$username")" run_for_user "$username"
+    status=$?
+    (( status == LOCKED )) && return "$LOCKED"
+    if (( status != 0 )); then
         log "Failed processing user: $username"
         return 1
     fi
 
+    return 0
+}
+
+# --account: back up one account now, with the same checks the scheduled run applies
+process_one_account() {
+    local username="$1" ctx status
+    log "=== Backup of user $username started at $(date '+%Y-%m-%d %H:%M:%S') ==="
+
+    case "$(get_account_state "$username")" in
+        active) ;;
+        suspended) log "ERROR: user $username is suspended, suspended accounts are not backed up"; return 1 ;;
+        *) log "ERROR: user $username does not exist"; return 1 ;;
+    esac
+    ctx=$(get_context "$username")
+    if [[ -e "/home/$ctx/backup.off" ]]; then
+        log "ERROR: user $username is excluded from backups (/home/$ctx/backup.off exists)"
+        return 1
+    fi
+
+    process_user "$username"
+    status=$?
+    if (( status == LOCKED )); then
+        log "ERROR: a backup of user $username is already running"
+        return "$LOCKED"
+    fi
+    if (( status != 0 )); then
+        notify_failure "Backup failed for user $username."
+        return 1
+    fi
+
+    log "=== Backup of user $username finished at $(date '+%Y-%m-%d %H:%M:%S') ==="
     return 0
 }
 
@@ -221,7 +293,7 @@ get_active_users() {
 
 process_all_users() {
     local users user_count current_index=1
-    local failed_users=()
+    local failed_users=() locked_users=()
     
     start_time=$(date +%s)
     log "=== Backup started at $(date '+%Y-%m-%d %H:%M:%S') ==="
@@ -264,9 +336,15 @@ process_all_users() {
         for user in $users; do
             log "Processing user: $user ($current_index/$user_count)"
 
-            if ! process_user "$user"; then
-                failed_users+=("$user")
-            fi
+            process_user "$user"
+            case $? in
+                0) ;;
+                "$LOCKED")
+                    log "Skipping user: $user (a backup of this account is already running)"
+                    locked_users+=("$user")
+                    ;;
+                *) failed_users+=("$user") ;;
+            esac
 
             log "------------------------------"
             ((current_index++))
@@ -284,8 +362,13 @@ process_all_users() {
             status=$?
             local u="${pid_user[$done_pid]}"
             cat "$tmpdir/$u.log" >> "$LOG_FILE"
+            if (( status == LOCKED )); then
+                log "Skipping user: $u (a backup of this account is already running)"
+                locked_users+=("$u")
+            elif (( status != 0 )); then
+                failed_users+=("$u")
+            fi
             echo "$(date '+%Y-%m-%d %H:%M:%S') : ------------------------------" >> "$LOG_FILE"
-            (( status != 0 )) && failed_users+=("$u")
             unset "pid_user[$done_pid]"
         }
 
@@ -303,7 +386,10 @@ process_all_users() {
     end_time=$(date +%s)
     total_duration=$((end_time - start_time))
     
-    if [[ ${#failed_users[@]} -eq 0 ]]; then
+    (( ${#locked_users[@]} )) && log "Skipped ${#locked_users[@]} users that were already being backed up: ${locked_users[*]}"
+    if [[ ${#failed_users[@]} -eq 0 ]] && (( ${#locked_users[@]} )); then
+        log "Successfully processed $((user_count - ${#locked_users[@]})) of $user_count users"
+    elif [[ ${#failed_users[@]} -eq 0 ]]; then
         log "Successfully processed all $user_count users"
     else
         log "Failed to process ${#failed_users[@]} users: ${failed_users[*]}"
@@ -315,4 +401,8 @@ process_all_users() {
     return 0
 }
 
+if [[ -n "$ACCOUNT" ]]; then
+    process_one_account "$ACCOUNT"
+    exit $?
+fi
 process_all_users
