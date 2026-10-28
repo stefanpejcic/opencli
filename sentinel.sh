@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 19.10.2026
+# Last Modified: 29.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -1123,24 +1123,39 @@ check_oom_logs() {
   local SYSTEM_COUNT=0
   local USER_COUNT=0
   local -a SYSTEM_LINES=() USER_LINES=() SUMMARY=()
-  local -A OWNER=() CTR=() CTR_NAME=()
-  local line pid uid owner user name rss when why id ctr sock
+  local -A OWNER=() CTR=() CTR_NAME=() MEM_LIMIT=() SEEN=() PANEL_USER=()
+  local -a KEYS=()
+  local line pid uid owner user name rss when why id ctr sock who host_user mem_limit="" key ctx
+
+  # panel users by linux name, older accounts can have a UID below 1002
+  while read -r ctx; do [[ -n "$ctx" ]] && PANEL_USER[$ctx]=1; done < <(timeout 10 mariadb --defaults-extra-file=/etc/my.cnf -D panel -N -B -e "SELECT server FROM users" 2>/dev/null)
 
   # rootless podman kills report a subuid as UID, the real owner is in the cgroup path of the oom-kill line
   while read -r line; do
+    # memcg kills print the cgroup limit right before their oom-kill line
+    if [[ "$line" =~ memory:\ usage\ [0-9]+kB,\ limit\ ([0-9]+)kB ]]; then mem_limit=${BASH_REMATCH[1]}; continue; fi
     pid=$(sed -n 's/.*,pid=\([0-9]\+\).*/\1/p' <<< "$line")
+    [[ -n "$pid" && -n "$mem_limit" ]] && (( mem_limit < 4294967296 )) && MEM_LIMIT[$pid]=$(( mem_limit / 1024 ))
+    mem_limit=""
     owner=$(sed -n 's/.*task_memcg=[^,]*user-\([0-9]\+\)\.slice.*/\1/p' <<< "$line")
     [[ -n "$pid" && -n "$owner" ]] && OWNER[$pid]=$owner
     id=$(sed -n 's/.*task_memcg=[^,]*libpod-\([0-9a-f]\{12,\}\)\.scope.*/\1/p' <<< "$line")
     [[ -n "$pid" && -n "$id" ]] && CTR[$pid]=$id
-  done < <(grep 'oom-kill:' <<< "$KERNEL_LOG")
+  done < <(grep -E 'memory: usage|oom-kill:' <<< "$KERNEL_LOG")
 
   while read -r line; do
     [[ "$line" =~ Killed\ process\ ([0-9]+)\ \((.*)\).*anon-rss:([0-9]+)kB.*UID:([0-9]+) ]] || continue
     pid=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]} rss=$(( BASH_REMATCH[3] / 1024 )) uid=${BASH_REMATCH[4]}
     owner=${OWNER[$pid]:-$uid}
     when=$(date -d "${line%% *}" '+%Y-%m-%d %H:%M' 2>/dev/null)
-    [[ "$line" == *"Memory cgroup out of memory"* ]] && why="container memory limit" || why="server out of memory"
+    if [[ "$line" == *"Memory cgroup out of memory"* ]]; then
+      why="container memory limit"
+      if [[ -n "${MEM_LIMIT[$pid]}" ]]; then
+        (( MEM_LIMIT[$pid] >= 1024 && MEM_LIMIT[$pid] % 1024 == 0 )) && why+=" of $(( MEM_LIMIT[$pid] / 1024 )) GB" || why+=" of ${MEM_LIMIT[$pid]} MB"
+      fi
+    else
+      why="server out of memory"
+    fi
 
     # container name from the owner's podman, short id if the container is gone by now
     ctr=""
@@ -1159,16 +1174,29 @@ check_oom_logs() {
     fi
 
     user=""
-    (( owner >= 1002 )) && user=$(getent passwd "$owner" | cut -d: -f1)
+    ctx=$(getent passwd "$owner" | cut -d: -f1)
+    if (( ${#PANEL_USER[@]} )); then
+      [[ -n "$ctx" && -n "${PANEL_USER[$ctx]}" ]] && user=$ctx
+    else
+      (( owner >= 1002 )) && user=$ctx
+    fi
     if [[ -n "$user" ]]; then
         ((USER_COUNT++))
         USER_LINES+=("$user"$'\t'"$line")
         SUMMARY+=("- user $user: $name (pid $pid$ctr, ${rss} MB) at $when, $why")
+        key="$user"
     else
         ((SYSTEM_COUNT++))
         SYSTEM_LINES+=("$line")
-        SUMMARY+=("- system: $name (pid $pid$ctr, UID $uid, ${rss} MB) at $when, $why")
+        # host accounts like the admin's own rootless podman, named instead of showing the bare UID
+        who="UID $uid" host_user=""
+        [[ -n "${OWNER[$pid]}" ]] && host_user=$(getent passwd "${OWNER[$pid]}" | cut -d: -f1)
+        [[ -n "$host_user" ]] && who="owner $host_user"
+        SUMMARY+=("- system: $name (pid $pid$ctr, $who, ${rss} MB) at $when, $why")
+        key="$name"
+        [[ -n "$id" ]] && key=${CTR_NAME[$id]}
     fi
+    [[ -n "${SEEN[$key]}" ]] || { SEEN[$key]=1; KEYS+=("$key"); }
   done < <(grep -E "(Memory cgroup out of memory|Out of memory): Killed process" <<< "$KERNEL_LOG")
 
   if [[ "$SYSTEM_COUNT" -eq 0 && "$USER_COUNT" -eq 0 ]]; then
@@ -1177,12 +1205,10 @@ check_oom_logs() {
     ((FAIL++)); STATUS=2
   fi
 
-  title_parts=()
-
-  [[ "$SYSTEM_COUNT" -gt 0 ]] && title_parts+=("System: $SYSTEM_COUNT")
-  [[ "$USER_COUNT" -gt 0 ]] && title_parts+=("User: $USER_COUNT")
-
-  title="OOM Alert - $(date '+%Y-%m-%d %H:%M') - ${title_parts[0]}${title_parts[1]:+ | ${title_parts[1]}}"
+  # no date or counts in the title, so the same kill loop bumps one unread alert instead of emailing every hour
+  local title_who; title_who=$(IFS=,; echo "${KEYS[*]:0:3}"); title_who=${title_who//,/, }
+  (( ${#KEYS[@]} > 3 )) && title_who+=" and $(( ${#KEYS[@]} - 3 )) more"
+  title="OOM Alert - $title_who"
   message=""
 
   if [[ "$SYSTEM_COUNT" -gt 0 ]]; then
@@ -1571,8 +1597,9 @@ check_ratelimit_hits() {
   fi
 
   ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limits blocked visitors on ${count} domain(s) in the last ${RATELIMIT_CHECK_HOURS}h."
-  write_notification warning traffic "Rate limit reached on ${count} domain(s)" \
-    "Visitors got 429 Too Many Requests in the last ${RATELIMIT_CHECK_HOURS}h:"$'\n'"$(jq '.[:10]' <<< "$hits" | ratelimit_lines)" \
+  # count goes in the body, a changing title would send a new email instead of bumping the unread one
+  write_notification warning traffic "Rate limit reached" \
+    "Visitors got 429 Too Many Requests on ${count} domain(s) in the last ${RATELIMIT_CHECK_HOURS}h:"$'\n'"$(jq '.[:10]' <<< "$hits" | ratelimit_lines)" \
     "$(jq -c '{hours: '"$RATELIMIT_CHECK_HOURS"', domains: [.[:20][] | {domain, requests, blocked, peak_minute, peak_ip_minute, top_blocked}]}' <<< "$hits")"
 
   local domain username list by_user
@@ -1817,7 +1844,7 @@ check_https_traffic() {
     if (( ${#HIGH_TRAFFIC_LINES[@]} == 1 )); then
       write_notification warning traffic "High traffic from ${HIGH_TRAFFIC_LINES[0]%%(*}" "$NOTIF_BODY"
     else
-      write_notification warning traffic "High traffic from ${#HIGH_TRAFFIC_LINES[@]} IPs" "$NOTIF_BODY"
+      write_notification warning traffic "High traffic from multiple IPs" "${#HIGH_TRAFFIC_LINES[@]} IPs over the limit:"$'\n'"$NOTIF_BODY"
     fi
   else
     resolve_notification "High traffic from " --prefix
