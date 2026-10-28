@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 26.10.2026
+# Last Modified: 28.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -436,8 +436,22 @@ make_docroot_dirs() {
 	# https://github.com/stefanpejcic/OpenPanel/discussions/1084
 	[[ "$WEB_SERVER" == *litespeed* ]] && tenant_write "$html_root" "$site_dir/index.html" 644 < "/etc/openpanel/nginx/default_page.html"
 
-    timeout 3s chown -R "$context_uid:$context_uid" "${dirs[@]}" || true
-    timeout 1s chmod -R g+w "${dirs[@]}" || true
+    # only the volume dirs themselves, a recursive walk of the whole volume can hit huge or network-mounted folders
+    chown "$context_uid:$context_uid" "${dirs[@]}" 2>/dev/null || true
+    chmod g+w "${dirs[@]}" 2>/dev/null || true
+
+    # parents of a nested docroot are created by root too
+    local path="$html_root" part parts
+    IFS=/ read -ra parts <<< "$stripped"
+    for part in "${parts[@]}"; do
+        [[ -z "$part" ]] && continue
+        path="$path/$part"
+        [[ "$path" == "$site_dir" ]] && break
+        tenant_chown "$html_root" "$path" "$context_uid:$context_uid" 2>/dev/null || true
+    done
+
+    tenant_chown_r "$html_root" "$site_dir" "$context_uid:$context_uid" 2>/dev/null || true
+    tenant_chmod_r "$html_root" "$site_dir" g+w 2>/dev/null || true
 }
 
 # ======================================================================
