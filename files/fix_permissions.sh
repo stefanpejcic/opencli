@@ -157,6 +157,7 @@ apply_permissions_in_container() {
             echo "Permissions applied successfully to $fake_directory"
         else
             echo "Error applying permissions to $fake_directory"
+            return 1
         fi
 }
 
@@ -178,12 +179,16 @@ done
 
 if [ "${args[0]}" == "--all" ]; then
   require_command jq
+  # keep going through all accounts, but exit 1 if any of them failed
+  failed=0
   for username in $(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .username'); do
-    apply_permissions_in_container "$username"
+    apply_permissions_in_container "$username" || failed=1
   done
+  exit $failed
 else
   username="${args[0]}"
   path="${args[1]:-}"
   [ -z "$username" ] && { echo "Username required"; exit 1; }
-  apply_permissions_in_container "$username" "$path"
+  # the panel answers 500 on a non-zero exit, an error used to still exit 0
+  apply_permissions_in_container "$username" "$path" || exit 1
 fi

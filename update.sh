@@ -5,7 +5,7 @@
 # Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 16.10.2026
+# Last Modified: 28.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -995,7 +995,12 @@ run_update_immediately() {
     # ---------------------- 8. RUN VERSION-SPECIFIC FILES IF EXIST
     run_version_specific_scripts_in_range "$local_version" "$version"
 
-    # ---------------------- 9. IF MAJOR VERSION, ALSO UPDATE SYSTEM, DOCKER AND KERNEL     
+    # ---------------------- 9. REGENERATE LOGROTATE CONFIGS
+    # logrotate.d files are only written by server-logrotate, so its fixes never reach existing servers otherwise
+    log "Regenerating logrotate configs"
+    opencli server-logrotate >> "$log_file" 2>&1 || update_error "Failed to regenerate logrotate configs, run: opencli server-logrotate"
+
+    # ---------------------- 10. IF MAJOR VERSION, ALSO UPDATE SYSTEM, DOCKER AND KERNEL     
     current_major=$(echo "$local_version" | cut -d. -f1)
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
@@ -1004,11 +1009,11 @@ run_update_immediately() {
         log "[✔] Minor update - skipping system updates"
     fi
 
-    # ---------------------- 10. RUN POST-UPDATE HOOK IF EXISTS        
+    # ---------------------- 11. RUN POST-UPDATE HOOK IF EXISTS        
     log "Checking for custom post-update scripts"
     run_custom_postupdate_script
     
-    # ---------------------- 11. CHECK, CLEANUP AND REPORT
+    # ---------------------- 12. CHECK, CLEANUP AND REPORT
     verify_openadmin_running
 
     notification_delete_title "OpenPanel update started"

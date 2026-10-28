@@ -5,7 +5,7 @@
 # Usage: opencli server-logrotate
 # Author: Stefan Pejcic
 # Created: 16.01.2024
-# Last Modified: 21.08.2026
+# Last Modified: 28.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -98,8 +98,8 @@ fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
-# rotate all panel logs
-/var/log/openpanel/admin/!(notifications).log
+# rotate all panel logs except notifications.log, logrotate doesn't support extglob
+/var/log/openpanel/admin/[!n]*.log
 /var/log/openpanel/user/*.log {
     su root adm
     size $logrotate_size_limit
