@@ -563,12 +563,16 @@ print(svc.get('image', ''))
     # 11. extract images cup flagged as having updates
     local cup_flagged
     cup_flagged=$(python3 -c "
-import json, sys
+import json
 data = json.load(open('$cup_json'))
-for img, info in data.get('images', {}).items():
-    if info.get('has_update', False):
-        print(img)
-" 2>/dev/null)
+imgs = data.get('images', [])
+if isinstance(imgs, dict):          # older cup format
+    imgs = [dict(v, reference=k) for k, v in imgs.items()]
+for info in imgs:
+    res = info.get('result') or {}
+    if info.get('has_update') or res.get('has_update'):
+        print(info.get('reference', ''))
+" 2>>"$LOG_FILE")
 
     # 12. autoupdate?
     local do_update=false
