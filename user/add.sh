@@ -734,6 +734,11 @@ read -r P1 P2 P3 P4 P5 P6 P7 < /tmp/ports_$$
 rm -f /tmp/ports_$$
 configure_environment
 
+# https://github.com/stefanpejcic/opencli/pull/242
+for secret_file in my.cnf .env backup.env; do
+    [ -f "/home/${USERNAME}/${secret_file}" ] && chmod 600 "/home/${USERNAME}/${secret_file}"
+done
+
 ########################################################################
 # 6. validate podman service is started for user (socket exists), compose command and context are working
 test_podman_service
