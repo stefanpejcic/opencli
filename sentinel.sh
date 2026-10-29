@@ -196,6 +196,9 @@ webhook_notification() {
   local title=$1 message=$2
   notifications_paused && return
   [[ -z "$WEBHOOK_URL" ]] && return
+  # prefix the title with the server so it's clear which one the alert came from
+  local ip; ip=$(get_public_ip)
+  title="[$HOSTNAME${ip:+ ($ip)}] $title"
   # text is for Slack, content for Discord which rejects more than 2000 chars
   local payload
   payload=$(jq -nc --arg t "$title" --arg m "$message" --arg u "OpenAdmin-$HOSTNAME" \

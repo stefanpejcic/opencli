@@ -198,6 +198,11 @@ run_for_user() {
         return 1
     fi
     refresh_db_containers "$context"
+    # a leftover backup container has the same archive-pre labels, files-list.sh would run in both and race on backup_meta
+    if podman_ctx "$context" container exists backup 2>/dev/null; then
+        log "Removing leftover backup container for context: $context"
+        podman_compose_ctx "$context" down backup >/dev/null 2>&1
+    fi
     start_user_time=$(date +%s)
     # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
     local backup_output backup_exit
