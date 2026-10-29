@@ -706,7 +706,7 @@ rsync_files_for_user() {
                 IFS=':' read -r _ old_uid new_uid gid _ <<< "$MAPPING_LINE"
                 if [[ "$old_uid" != "$new_uid" ]]; then
                     log "UID changed for $CONTEXT (from $old_uid to $new_uid), performing chown on remote host ..."
-                    "${SSH_CMD[@]}" "chown -R $new_uid:$gid /home/$CONTEXT"
+                    "${SSH_CMD[@]}" "chown -R $new_uid:$gid /home/$CONTEXT; [ -f /home/$CONTEXT/backup.env ] && chown -h root:root /home/$CONTEXT/backup.env"
 		fi
             fi
             rm -f "$MAPPING_FILE"
