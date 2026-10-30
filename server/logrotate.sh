@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Script Name: server/logrotate.sh
-# Description: Configures logrotate for caddy, openpanel, syslog.
+# Description: Configures logrotate for caddy, openpanel, syslog and limits the journald size.
 # Usage: opencli server-logrotate
 # Author: Stefan Pejcic
 # Created: 16.01.2024
@@ -100,6 +100,17 @@ fi
 
 # csf installs this one group-writable, logrotate then refuses it and exits with an error on every run
 [ -f /etc/logrotate.d/lfd ] && chmod 644 /etc/logrotate.d/lfd
+
+# ---------- JOURNALD ----------
+# container output goes to the journal as well, cap it unless the admin already set a limit
+if ! grep -rqs "^SystemMaxUse=" /etc/systemd/journald.conf /etc/systemd/journald.conf.d/; then
+    mkdir -p /etc/systemd/journald.conf.d
+    printf "[Journal]\nSystemMaxUse=1G\n" > /etc/systemd/journald.conf.d/openpanel.conf
+    systemctl restart systemd-journald
+    echo "Journald limited to 1G."
+else
+    echo "Journald already has a SystemMaxUse limit, skipping."
+fi
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF

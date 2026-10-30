@@ -776,6 +776,29 @@ check_service_status() {
   fi
 }
 
+# top 9 processes for an alert with who runs them and the full command, a process inside a rootless container runs as a subuid so that maps back to its account, e.g. top_processes cpu
+top_processes() {
+  local key="${1:-cpu}" col="pcpu" sort="-%cpu"
+  [[ "$key" == "mem" ]] && { col="pmem"; sort="-%mem"; }
+  ps -eww --sort="$sort" -o pid=,uid=,"$col"=,args= | head -9 | awk -v head="$(echo "$key" | tr '[:lower:]' '[:upper:]')" '
+    BEGIN {
+      FS = ":"
+      while ((getline line < "/etc/passwd") > 0) { split(line, p, ":"); name[p[3]] = p[1] }
+      n = 0
+      while ((getline line < "/etc/subuid") > 0) { split(line, p, ":"); n++; owner[n] = p[1]; from[n] = p[2]; to[n] = p[2] + p[3] }
+      FS = " "
+      printf "%7s %-20s %6s %s\n", "PID", "USER", "%" head, "COMMAND"
+    }
+    {
+      who = ($2 in name) ? name[$2] : ""
+      if (who == "") { for (i = 1; i <= n; i++) if ($2 + 0 >= from[i] + 0 && $2 + 0 < to[i] + 0) who = owner[i] }
+      if (who == "") who = $2
+      cmd = $0
+      sub(/^ *[^ ]+ +[^ ]+ +[^ ]+ +/, "", cmd)
+      printf "%7s %-20s %6s %s\n", $1, who, $3, substr(cmd, 1, 200)
+    }'
+}
+
 # Cache docker ps once per run — called 6+ times otherwise
 DOCKER_PS_CACHE=""
 _docker_ps_refresh() { DOCKER_PS_CACHE=$(timeout 20 podman ps --format "{{.Names}}" 2>/dev/null); }
@@ -1690,7 +1713,7 @@ check_ram_usage() {
     fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m RAM ${pct}% > threshold ${RAM_THRESHOLD}%"
-    local procs; procs=$(ps ax --sort=-%mem -o pid:7,pmem:6,comm:20 | head -10)
+    local procs; procs=$(top_processes mem)
     local users; users=$(top_users ram)
     write_notification warning resources "$title" "RAM usage is ${pct}% (${used}MB of ${total}MB, threshold ${RAM_THRESHOLD}%).${users:+ Top users: ${users}.}" \
       "$(jq -nc --argjson p "$pct" --argjson u "$used" --argjson t "$total" --arg procs "$procs" --arg tu "$users" '{kind: "ram", percent: $p, used_mb: $u, total_mb: $t, processes: $procs, top_users: $tu}')"
@@ -1721,7 +1744,7 @@ check_cpu_usage() {
     fi
     ((FAIL++)); STATUS=2
     echo -e "\e[31m[✘]\e[0m CPU ${pct}% > threshold ${CPU_THRESHOLD}%"
-    local procs; procs=$(ps ax --sort=-%cpu -o pid:7,pcpu:6,comm:20 | head -10)
+    local procs; procs=$(top_processes cpu)
     local users; users=$(top_users cpu)
     write_notification warning resources "$title" "CPU usage is ${pct}% (threshold ${CPU_THRESHOLD}%).${users:+ Top users: ${users}.}" \
       "$(jq -nc --argjson p "$pct" --arg procs "$procs" --arg u "$users" '{kind: "cpu", percent: $p, processes: $procs, top_users: $u}')"

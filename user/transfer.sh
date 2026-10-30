@@ -37,7 +37,7 @@ pid=$$
 start_time=$(date +%s) #used to calculate elapsed time at the end
 
 : '
-Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--live-transfer]
+Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <OPENPANEL_USERNAME> [--password <DESTINATION_SSH_PASSWORD>|--identity <PRIVATE_KEY_FILE>] [--live-transfer]
 '
 
 USERNAME=""
@@ -45,6 +45,8 @@ REMOTE_HOST=""
 REMOTE_USER="root"
 REMOTE_PORT="22"
 REMOTE_PASS=""
+IDENTITY=""
+KNOWN_HOSTS=""
 FORCE=0
 LIVE_TRANSFER=false
 
@@ -68,6 +70,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --port)
             REMOTE_PORT="$2"
+            shift 2
+            ;;
+        --identity)
+            IDENTITY="$2"
+            shift 2
+            ;;
+        --known-hosts)
+            KNOWN_HOSTS="$2"
             shift 2
             ;;
         --force)
@@ -161,6 +171,13 @@ format_commands() {
 	    require_command sshpass
 	    RSYNC_CMD=(sshpass -e rsync $RSYNC_OPTS -e "ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no")
 	    SSH_CMD=(sshpass -e ssh -p "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "${REMOTE_USER}@${REMOTE_HOST}")
+	elif [[ -n "$IDENTITY" && -n "$KNOWN_HOSTS" ]]; then
+	    # the host key came from the destination itself over the cluster's pinned connection
+	    RSYNC_CMD=(rsync $RSYNC_OPTS -e "ssh -p $REMOTE_PORT -i $IDENTITY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o LogLevel=ERROR")
+	    SSH_CMD=(ssh -p "$REMOTE_PORT" -i "$IDENTITY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS" -o LogLevel=ERROR "${REMOTE_USER}@${REMOTE_HOST}")
+	elif [[ -n "$IDENTITY" ]]; then
+	    RSYNC_CMD=(rsync $RSYNC_OPTS -e "ssh -p $REMOTE_PORT -i $IDENTITY -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR")
+	    SSH_CMD=(ssh -p "$REMOTE_PORT" -i "$IDENTITY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "${REMOTE_USER}@${REMOTE_HOST}")
 	else
 	    RSYNC_CMD=(rsync $RSYNC_OPTS -e "ssh -p $REMOTE_PORT -o StrictHostKeyChecking=no")
 	    SSH_CMD=(ssh -p "$REMOTE_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "${REMOTE_USER}@${REMOTE_HOST}") # for ssh keys!
@@ -672,6 +689,8 @@ fi
 update_zone_file() {
     local zone_file="$1"
     local tmp_file
+    # without nameservers from the destination this would just strip every NS record
+    [[ ${#NAMESERVERS[@]} -gt 0 ]] || return 0
     tmp_file=$(mktemp)
 
     if [[ ! -f "$zone_file" ]]; then
@@ -709,7 +728,6 @@ rsync_files_for_user() {
                     "${SSH_CMD[@]}" "chown -R $new_uid:$gid /home/$CONTEXT; [ -f /home/$CONTEXT/backup.env ] && chown -h root:root /home/$CONTEXT/backup.env"
 		fi
             fi
-            rm -f "$MAPPING_FILE"
         else
             log "[WARNING] UID mapping file not found for $CONTEXT"
         fi
@@ -718,6 +736,9 @@ rsync_files_for_user() {
         log "$RSYNC_OUTPUT"
         exit 1
     fi
+
+    # the final pass only copies files again, the domains below were imported by the first one
+    [[ "$FINAL_SYNC" == true ]] && return 0
 
     CADDY_STATS="/var/log/caddy/stats/$USERNAME"
     if [ -d "$CADDY_STATS" ]; then
@@ -749,10 +770,6 @@ else
 	    DOMAIN_CADDY_CONF="/etc/openpanel/caddy/domains/$domain.conf"
 	    if [ -f "$DOMAIN_CADDY_CONF" ]; then
 			"${RSYNC_CMD[@]}" "$DOMAIN_CADDY_CONF" "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/caddy/domains/
-			if [[ "$LIVE_TRANSFER" == true ]]; then
-			   # https://github.com/stefanpejcic/OpenPanel/issues/897
-		       sed -E -i 's|reverse_proxy (https?://)[^ ]+|reverse_proxy \1'"$REMOTE_HOST"'|g' "$DOMAIN_CADDY_CONF"
-			fi
 		fi
 	
 	    DOMAIN_CADDY_LOG="/var/log/caddy/domlogs/$domain"
@@ -782,10 +799,6 @@ grep -qF "zone \"$domain\"" /etc/bind/named.conf.local || \
 echo 'zone "$domain" IN { type master; file "/etc/bind/zones/$domain.zone"; };' >> /etc/bind/named.conf.local
 EOF
 
-            if [[ "$LIVE_TRANSFER" == true ]]; then
-                sync_local_dns_zone "$domain"
-                update_zone_file "/etc/bind/zones/$domain.zone"
-            fi
 		fi
 
 		DOMAIN_CADDY_SSL="/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/$domain"
@@ -1124,8 +1137,34 @@ fi
 store_running_containers_for_user         # export running contianers on source and copy to dest
 
 if [[ "$LIVE_TRANSFER" == true ]]; then
-	opencli user-suspend "$USERNAME" > /dev/null 2>&1 &
+	LIVE_DOMAINS=$(opencli domains-user "$USERNAME" 2>/dev/null | awk '{print $1}')
+	# containers have to be stopped first, otherwise the copy misses late writes and live database files are inconsistent
+	log "Stopping the account on this server for the final sync ..."
+	# a failure from here on must not leave the account down on the source
+	trap '[[ $? -ne 0 ]] && opencli user-unsuspend "$USERNAME" >/dev/null 2>&1' EXIT
+	opencli user-suspend "$USERNAME" -y > /dev/null 2>&1 || log "[!] Warning: suspending $USERNAME reported an error"
+	log "Final sync ..."
+	FINAL_SYNC=true
+	rsync_files_for_user
+	trap - EXIT
+	# suspend replaced the vhosts with its own page, visitors still arriving here go to the new server until dns catches up
+	# https://github.com/stefanpejcic/OpenPanel/issues/897
+	for domain in $LIVE_DOMAINS; do
+		conf="/etc/openpanel/caddy/domains/$domain.conf"
+		if [[ -f "/etc/openpanel/caddy/suspended_domains/$domain.conf" ]]; then
+			cp "/etc/openpanel/caddy/suspended_domains/$domain.conf" "$conf"
+			sed -E -i 's|reverse_proxy (https?://)[^ ]+|reverse_proxy \1'"$REMOTE_HOST"'|g' "$conf"
+		fi
+		# the copy lets a cancelled move put the zone back
+		if [[ -f "/etc/bind/zones/$domain.zone" ]]; then
+			cp "/etc/bind/zones/$domain.zone" "/etc/bind/zones/$domain.zone.pre-move"
+			sync_local_dns_zone "$domain"
+			update_zone_file "/etc/bind/zones/$domain.zone"
+		fi
+	done
+	podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
 fi
+rm -f "/tmp/${CONTEXT}_uid_map.txt"
 restore_running_containers_for_user       # start containers on dest
 restart_services_on_target                # restart openpanel, webserver and admin on dest
 refresh_quotas                            # recalculate user usage on dest
