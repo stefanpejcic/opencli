@@ -636,6 +636,18 @@ save_user_to_database() {
     echo "[✔] Successfully added user $USERNAME with password: $PASSWORD"
 }
 
+# podman-compose up -d openpanel recreates mysql and redis when any root container has an older config hash (saving OpenAdmin > Modules is enough), so let it finish and wait for mysql before writing
+wait_for_panel_db() {
+    local waited=0
+    while kill -0 "$PID_OPENPANEL" 2>/dev/null && (( waited < 300 )); do
+        sleep 1; (( waited++ )) || true
+    done
+    until db_query "SELECT 1" >/dev/null 2>&1 || (( waited >= 360 )); do
+        sleep 1; (( waited++ )) || true
+    done
+    log "Waited ${waited}s for the openpanel container and the panel database."
+}
+
 send_welcome_email() {
     [[ "$SEND_EMAIL" == true ]] || return 0
 
@@ -725,6 +737,7 @@ if podman container exists openpanel; then
 else
   nohup sh -c "cd /root && podman-compose up -d openpanel" </dev/null >/dev/null 2>&1 &
 fi
+PID_OPENPANEL=$!
 
 generate_password_hash
 create_user_volume &
@@ -745,6 +758,7 @@ test_podman_service
 
 ########################################################################
 # 8. save and notify
+wait_for_panel_db
 save_user_to_database
 
 # needs to run AFTER saving user to database
