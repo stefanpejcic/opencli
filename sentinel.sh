@@ -978,6 +978,12 @@ mysql_docker_containers_status() {
     fi
 
     ((WARN++))
+    # a new container runs initialize.sql with networking off on its first start, recreating it then leaves the panel schema half-built
+    local started; started=$(timeout 10 podman inspect openpanel_mysql --format '{{.State.StartedAt.Unix}}' 2>/dev/null)
+    if [[ "$started" =~ ^[0-9]+$ ]] && (( $(date +%s) - started < 300 )); then
+      echo -e "\e[38;5;214m[!]\e[0m MariaDB started $(( $(date +%s) - started ))s ago and isn't answering yet — will re-check next run."
+      return
+    fi
     echo -e "\e[31m[✘]\e[0m MariaDB running but not responding — restarting."
     remove_dependent_openpanel
     timeout 30 podman rm -f openpanel_mysql &>/dev/null; timeout 30 podman rm -f --storage openpanel_mysql &>/dev/null
