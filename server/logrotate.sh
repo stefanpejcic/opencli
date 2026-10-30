@@ -5,7 +5,7 @@
 # Usage: opencli server-logrotate
 # Author: Stefan Pejcic
 # Created: 16.01.2024
-# Last Modified: 28.10.2026
+# Last Modified: 30.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -62,12 +62,10 @@ cat > /etc/logrotate.d/caddy-logs <<EOF
     delaycompress
     copytruncate
     create 640 root adm
-    postrotate
-        podman exec caddy sh -c "caddy validate && caddy reload" >/dev/null 2>&1
-    endscript
     maxage $logrotate_keep_days
 }
 EOF
+# no caddy reload needed with copytruncate, and podman exec fails in logrotate.service's sandbox which marked every nightly run failed
 
 logrotate -f /etc/logrotate.d/caddy-logs
 echo "Caddy log rotation configured."
@@ -92,9 +90,16 @@ if ! grep -qr "/var/log/syslog" /etc/logrotate.conf /etc/logrotate.d/; then
 EOF
     logrotate -f /etc/logrotate.d/syslog
     echo "Syslog rotation configured."
+elif [ -f /etc/logrotate.d/rsyslog ] && ! grep -q "maxsize" /etc/logrotate.d/rsyslog; then
+    # the distro rotates syslog weekly with no size limit, container output (caddy, php-fpm) can grow it by gigabytes a day
+    sed -i "0,/^{/s//{\n\tmaxsize $logrotate_size_limit/" /etc/logrotate.d/rsyslog
+    echo "Syslog already rotated by /etc/logrotate.d/rsyslog, added maxsize $logrotate_size_limit to it."
 else
     echo "Syslog is already configured in logrotate, skipping."
 fi
+
+# csf installs this one group-writable, logrotate then refuses it and exits with an error on every run
+[ -f /etc/logrotate.d/lfd ] && chmod 644 /etc/logrotate.d/lfd
 
 # ---------- OPENPANEL ----------
 cat > /etc/logrotate.d/openpanel <<EOF
