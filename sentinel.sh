@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 29.10.2026
+# Last Modified: 30.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -1263,6 +1263,29 @@ check_oom_logs() {
   write_notification warning resources "$title" "${message%$'\n'}" "$details"
 }
 
+# warns once per due date when the Enterprise license ends in 3 days or less, the api is asked at most once a day
+check_license_expiry() {
+  local checked="/root/sentinel_license_checked" notified="/root/sentinel_license_notified"
+  grep -qE '^key=.+' /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null || return
+  [[ -n $(find "$checked" -mmin -1440 2>/dev/null) ]] && return
+  touch "$checked"
+
+  local due; due=$(opencli license info --json 2>/dev/null | jq -r '."Next Due Date" // empty' 2>/dev/null)
+  [[ -z "$due" || "$due" == 0000-00-00 ]] && return
+  local due_ts; due_ts=$(date -d "$due" +%s 2>/dev/null) || return
+  local days=$(( (due_ts - $(date -d "$(date +%F)" +%s)) / 86400 ))
+
+  if (( days > 3 )); then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m License is paid until $due."; return
+  fi
+  ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m License expires on $due."
+  [[ "$(cat "$notified" 2>/dev/null)" == "$due" ]] && return
+  echo "$due" > "$notified"
+  local when="in $days day(s)"
+  (( days <= 0 )) && when="today"
+  write_notification warning system "License expires $when" "The OpenPanel Enterprise license on $HOSTNAME expires on $due. Renew it at https://my.openpanel.com/clientarea.php?action=services to keep Enterprise features working."
+}
+
 check_new_logins() {
   if [[ "$LOGIN" == "no" ]]; then
     ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Login check disabled."; return
@@ -2237,6 +2260,7 @@ _parallel_tasks=(
   check_user_containers
   check_ratelimit_hits
   check_mail_queue
+  check_license_expiry
 )
 
 for _task in "${_parallel_tasks[@]}"; do

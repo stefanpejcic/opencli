@@ -5,7 +5,7 @@
 # Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--exclude-* options]
 # Author: Stefan Pejcic
 # Created: 26.06.2025
-# Last Modified: 12.10.2026
+# Last Modified: 30.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -566,7 +566,8 @@ fi
 
 if [[ $EXCLUDE_OPENPANEL -eq 0 ]]; then
     echo "Syncing /etc/openpanel ..."
-    "${RSYNC_CMD[@]}" /etc/openpanel/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/
+    # the cluster identity stays here, a copy would make the new server a second master with the same key
+    "${RSYNC_CMD[@]}" --exclude=openadmin/cluster/ /etc/openpanel/ "${REMOTE_USER}"@"${REMOTE_HOST}":/etc/openpanel/
     replace_ip_in_configs
 
     echo "Syncing system cronjobs..."

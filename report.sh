@@ -2,10 +2,10 @@
 ################################################################################
 # Script Name: report.sh
 # Description: Generate a system report and send it to OpenPanel support team.
-# Usage: opencli report [--public|--link|--upload] [--non-interactive] [--user <USERNAME>]
+# Usage: opencli report [--non-interactive] [--user <USERNAME>]
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 24.09.2026
+# Last Modified: 30.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -37,7 +37,6 @@ LOG_LINES=50
 
 # ======================================================================
 # Variables
-upload_flag=false
 non_interactive=false
 report_user=""
 
@@ -46,9 +45,8 @@ report_user=""
 # Helpers
 
 usage() {
-	echo "Usage: opencli report [--public|--link|--upload] [--non-interactive] [--user <USERNAME>]"
+	echo "Usage: opencli report [--non-interactive] [--user <USERNAME>]"
 	echo ""
-	echo "  --public, --link, --upload  upload the report to support.openpanel.org and print a key to share"
 	echo "  --non-interactive           no progress messages, screen clearing or colors"
 	echo "  --user <USERNAME>           also collect containers, logs and config for this user"
 }
@@ -65,7 +63,8 @@ parse_args() {
 	while [[ $# -gt 0 ]]; do
 	    case $1 in
 	        --non-interactive) non_interactive=true ;;
-	        --public|--link|--upload) upload_flag=true ;;
+	        # kept so older commands still work, reports are not uploaded anymore
+        --public|--link|--upload) ;;
 	        --user) report_user="$2"; shift ;;
 	        --user=*) report_user="${1#*=}" ;;
 	        -h|--help) usage; exit 0 ;;
@@ -297,30 +296,13 @@ main() {
 upload_report() {
 	if [ ! -s "$output_file" ]; then
 	  echo "Information not collected! report file does not exist: $output_file"
-   	else
-	  if [ "$non_interactive" = false ]; then
-	  	clear
-	  fi
-	  if [ "$upload_flag" = true ]; then
-	    response=$(curl -F "file=@$output_file" https://support.openpanel.org/opencli_server_info.php 2>/dev/null)
-	    if echo "$response" | grep -q "File upload failed."; then
-	      echo ""
-	      echo -e "Information collected successfully but uploading to support.openpanel.org failed. Please provide content from the following file to the support team:\n$output_file"
-	    elif echo "$response" | grep -q "name="; then
-	      FILE_NAME=$(echo "$response" | cut -d'=' -f2)
-       		if [ "$non_interactive" = true ]; then
-		      echo -e "Information collected successfully. Please provide the following key to the support team:\n${FILE_NAME}"
-       		else
-		      echo -e "Information collected successfully. Please provide the following key to the support team:\n${GREEN}${FILE_NAME}${RESET}"
-  		fi
-	    else
-	      echo -e "Unexpected upload response:\n$response"
-	      echo -e "Please send the content of the following file manually:\n$output_file"
-	    fi
-	  else
-	    echo -e "Information collected successfully. Please provide content of the following file to the support team:\n$output_file"
-	  fi
+	  return
 	fi
+	if [ "$non_interactive" = false ]; then
+	  clear
+	fi
+	# reports are no longer uploaded anywhere, the admin sends the file to support
+	echo -e "Information collected successfully. Please provide content of the following file to the support team:\n$output_file"
 }
 
 

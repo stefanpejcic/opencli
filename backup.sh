@@ -93,7 +93,7 @@ BACKUP_PATHS=(
     # /etc/bind has the live named config and zone files -- etc/openpanel/bind9 below is just install-time templates
     "etc/bind"
     "etc/openpanel/openadmin/config"
-    "etc/openpanel/openadmin/cluster"
+    # openadmin/cluster is left out on purpose, it holds this server's cluster identity and restoring it elsewhere would clone it
     "etc/openpanel/openadmin/service"
     "etc/openpanel/openpanel/conf"
     "etc/openpanel/openpanel/features"

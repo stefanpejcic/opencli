@@ -5,7 +5,7 @@
 # Usage: opencli admin <command> [options]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 26.10.2026
+# Last Modified: 30.10.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -384,7 +384,8 @@ add_new_user() {
 		role="reseller"
 		# todo: call check_edition here too
 	elif [ "$flag" == "--super" ]; then
-		admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin';"
+		# cluster_<name> accounts are made by a multi-server master to log its admins in, they don't count
+		admin_check_sql="SELECT COUNT(*) FROM user WHERE role = 'admin' AND username NOT LIKE 'cluster\_%' ESCAPE '\\';"
 		admin_count=$(sqlite3 "$db_file_path" "$admin_check_sql")
 		if [ "$admin_count" -eq 0 ]; then
 			role="admin"
