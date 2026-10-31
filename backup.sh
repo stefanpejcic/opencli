@@ -116,6 +116,7 @@ BACKUP_PATHS=(
     "etc/openpanel/caddy/suspended_domains"
     "etc/openpanel/caddy/ssl"
     "etc/openpanel/openlitespeed"
+    "etc/openpanel/litespeed"
     "etc/openpanel/apache"
     "etc/openpanel/openresty"
     "etc/openpanel/php/ini"

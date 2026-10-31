@@ -11,7 +11,7 @@ CLUSTER_STATE="/etc/openpanel/openadmin/cluster/cluster.json"
 # lists from every server unless --local is passed
 CLUSTER_LIST_CMDS=" user-list domains-all websites-all plan-list ftp-list email-manage "
 # run on the server that has the account
-CLUSTER_USER_CMDS=" domains-user websites-user user-suspend user-unsuspend user-password user-change_plan user-quota user-2fa user-email user-login user-delete php-default "
+CLUSTER_USER_CMDS=" domains-user websites-user user-suspend user-unsuspend user-password user-change_plan user-quota user-2fa user-email user-login user-delete user-litespeed php-default "
 # run on the server that has the domain
 CLUSTER_DOMAIN_CMDS=" domains-whoowns domains-suspend domains-unsuspend domains-delete domains-ssl domains-dns domains-docroot domains-update_ns "
 # these take --all-servers

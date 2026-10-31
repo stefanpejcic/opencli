@@ -79,7 +79,7 @@ get_webserver_for_user(){
 		WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
         if [[ "$WEB_SERVER" == "openlitespeed" || "$WEB_SERVER" == "litespeed" ]]; then
             echo "ERROR: PHP version can not be changed on $WEB_SERVER webserver. Instead you need to change the docker image tag for the user."
-            echo "Available tags: https://hub.docker.com/r/litespeedtech/openlitespeed/tags"
+            echo "Available tags: https://hub.docker.com/r/litespeedtech/${WEB_SERVER}/tags"
             exit 0
         fi
 }

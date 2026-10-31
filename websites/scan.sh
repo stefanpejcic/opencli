@@ -82,7 +82,7 @@ mysql_socket_ready() {
     local home="/home/$current_username" ini
     [[ -f "$home/docker-compose.yml" ]] || return 1
     awk '
-        /^  [A-Za-z0-9_.-]+:$/ { if (php && !mounted) bad=1; name=$1; sub(":", "", name); php=(name ~ /^php-fpm-/ || name == "openlitespeed"); if (php) seen=1; mounted=0; next }
+        /^  [A-Za-z0-9_.-]+:$/ { if (php && !mounted) bad=1; name=$1; sub(":", "", name); php=(name ~ /^php-fpm-/ || name == "openlitespeed" || name == "litespeed"); if (php) seen=1; mounted=0; next }
         php && /^[[:space:]]*- \.\/sockets\/mysqld:\/var\/run\/mysqld[[:space:]]*$/ { mounted=1 }
         END { if (php && !mounted) bad=1; exit !(seen && !bad) }
     ' "$home/docker-compose.yml" || return 1

@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
+# Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --litespeed | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 28.10.2026
@@ -99,6 +99,7 @@ Options:
     --php               Update /etc/openpanel/php/ and add new PHP versions to the template and all users
     --wp                Update WP-CLI (/etc/openpanel/wordpress/wp-cli.phar)
     --ols               Update OpenLiteSpeed files in /etc/openpanel/openlitespeed/
+    --litespeed         Update LiteSpeed Enterprise files in /etc/openpanel/litespeed/
     --apache            Update Apache files in /etc/openpanel/apache/
     --clamav            Update /etc/openpanel/clamav/ and recreate the clamav container with a new image if running
     --phpmyadmin        Update /etc/openpanel/mysql/phpmyadmin/ and recreate the phpmyadmin container with a new image if running
@@ -1395,7 +1396,7 @@ main() {
     local modes=()
     for arg in "$@"; do
         case "$arg" in
-            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php|--wp|--ols|--apache|--clamav|--phpmyadmin|--postgres|--skeleton|--ssh|--varnish|--cron)
+            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php|--wp|--ols|--litespeed|--apache|--clamav|--phpmyadmin|--postgres|--skeleton|--ssh|--varnish|--cron)
                 # skip duplicates so each mode runs once
                 [[ " ${modes[*]} " == *" ${arg#--} "* ]] || modes+=("${arg#--}") ;;
             beta)    BETA=true    ;;
@@ -1422,6 +1423,7 @@ main() {
             php) update_php ;;
             wp) update_wp_cli ;;
             ols) update_config_path openlitespeed ;;
+            litespeed) update_config_path litespeed ;;
             apache) update_config_path apache ;;
             clamav) update_clamav ;;
             phpmyadmin) update_phpmyadmin ;;

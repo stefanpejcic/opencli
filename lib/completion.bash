@@ -151,7 +151,7 @@ _opencli_command_names() {
 }
 
 # commands whose next positional argument is a username
-_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
+_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-litespeed user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
 
 # commands whose next positional argument is a domain name
 _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-suspend domains-test domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-vulnerability"
@@ -481,6 +481,11 @@ _opencli_completions() {
             user-varnish)
                 # opencli user-varnish <username> [enable|disable|status]
                 COMPREPLY=( $(compgen -W "enable disable status" -- "$cur") )
+                return 0
+                ;;
+            user-litespeed)
+                # opencli user-litespeed <username> [status|serial <SERIAL>|trial]
+                COMPREPLY=( $(compgen -W "status serial trial --json" -- "$cur") )
                 return 0
                 ;;
             user-ip)

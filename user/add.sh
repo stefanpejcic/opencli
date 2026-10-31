@@ -598,6 +598,7 @@ configure_environment() {
     cp /etc/openpanel/nginx/user-nginx.conf      "${home_dir}/nginx.conf"
     cp /etc/openpanel/openresty/nginx.conf       "${home_dir}/openresty.conf"
     cp /etc/openpanel/openlitespeed/httpd_config.conf "${home_dir}/openlitespeed.conf"
+    cp /etc/openpanel/litespeed/httpd.conf       "${home_dir}/litespeed.conf"  2>/dev/null || true
     cp /etc/openpanel/apache/httpd.conf          "${home_dir}/httpd.conf"
     cp /etc/openpanel/varnish/default.vcl        "${home_dir}/default.vcl"
     cp /etc/openpanel/ofelia/users.ini           "${home_dir}/crons.ini"   2>/dev/null || true
@@ -608,6 +609,10 @@ configure_environment() {
     chmod 777 "${home_dir}/sockets/"
 
     printf '[client]\nuser=root\npassword=%s\n' "$root_password_for_services" > "${home_dir}/my.cnf"
+    # percona's image looks for the socket in /var/lib/mysql, the mysql tools need the shared one, same as OpenPanel sets when switching to percona
+    if awk '/^  mysql:/{f=1;next} /^  [^ #]/{f=0} f && /image:.*percona/{p=1} END{exit !p}' "${home_dir}/docker-compose.yml" 2>/dev/null; then
+        printf 'socket=/var/run/mysqld/mysqld.sock\n' >> "${home_dir}/my.cnf"
+    fi
     [[ -f "${home_dir}/my.cnf" ]] || echo "[!] Warning: Failed to create my.cnf."
 
     # shellcheck disable=SC2034
