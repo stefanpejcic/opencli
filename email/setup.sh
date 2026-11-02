@@ -149,7 +149,8 @@ hash_password() {
 }
 
 offline_email_add() {
-    local email="$1" password="$2" hash key
+    # lowercased like docker-mailserver's own 'email add' does, dovecot looks the address up lowercased
+    local email="${1,,}" password="$2" hash key
     is_valid_email "$email" || { echo "Error: '$email' is not a valid email address" >&2; return 1; }
     mkdir -p "$CONFIG_DIR"
     touch "$ACCOUNTS_FILE"
@@ -348,11 +349,13 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
     target_email="$3"
     # 'email del -y|-n <email>': the address comes after the flag
     [[ "$1 $2" == "email del" && "$3" =~ ^-[yYnN]$ ]] && target_email="$4"
+    # docker-mailserver stores 'Name@domain' as 'name@domain', so the uid line and the maildir use that form
+    target_email="${target_email,,}"
     if is_valid_email "$target_email"; then
         # get OpenPanel user UID and store/update it in postfix-accounts.cf
         get_openpanel_username_and_uid_for_domain "$target_email"
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
-            sed -i "/^$3|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "$ACCOUNTS_FILE"
+            sed -i "/^$(escape_key "$target_email")|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "$ACCOUNTS_FILE"
             nohup timeout 300 podman exec "$CONTAINER" bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" &
         fi
 
