@@ -979,6 +979,14 @@ insert_domain_to_db() {
     [[ "$count" -eq 1 ]] || die "Insert verification failed for $domain_name"
 }
 
+# a default address that an older delete left behind belongs to the domain's previous owner
+clear_old_default_address() {
+    local file="/usr/local/mail/openmail/docker-data/dms/config/postfix-regex.cf"
+    local line="^/\*@${domain_name//./[.]}/[[:space:]]"
+    grep -q "$line" "$file" 2>/dev/null || return 0
+    sed -i "\|$line|d" "$file" && opencli email-default_sync
+}
+
 run_parallel_async() {
     local pids=()
 
@@ -1044,6 +1052,7 @@ main() {
 
     # DB insert (fast, blocking — everything else depends on it succeeding)
     insert_domain_to_db
+    clear_old_default_address
 
     # Filesystem (fast, blocking — vhost/caddy/dns need this)
     make_docroot_dirs

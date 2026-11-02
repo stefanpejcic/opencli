@@ -218,7 +218,7 @@ delete_emails() {
             [ -z "$pattern" ] && continue
             matched=0
             for domain in "${user_domains[@]}"; do
-                if [[ "$pattern" =~ @${domain//./\\.}\$ ]]; then
+                if [[ "${pattern,,}" == "/*@${domain,,}/" ]]; then
                     matched=1
                     break
                 fi
@@ -231,7 +231,7 @@ delete_emails() {
         done < "$regex_aliases_file"
 
         if [ "$changed" -eq 1 ]; then
-            mv "$tmp_file" "$regex_aliases_file"
+            mv "$tmp_file" "$regex_aliases_file" && opencli email-default_sync
         else
             rm -f "$tmp_file"
         fi

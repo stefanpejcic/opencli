@@ -1095,6 +1095,7 @@ for cf in postfix-accounts.cf postfix-virtual.cf dovecot-quotas.cf postfix-recei
     done < "\$cf"
     echo "Merged \$cf: \$added line(s) added"
 done
+opencli email-default_sync
 if [[ -s postfwd.cf ]]; then
     touch /usr/local/mail/openmail/postfwd/postfwd.cf
     while IFS= read -r id_line; do

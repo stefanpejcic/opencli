@@ -691,6 +691,7 @@ restore_email() {
     merge_cf "$EMAILS_DIR/postfix-receive-access.cf" "$cfg_dst/postfix-receive-access.cf" "receive-access (postfix-receive-access.cf)"
     merge_cf "$EMAILS_DIR/postfix-send-access.cf"    "$cfg_dst/postfix-send-access.cf"    "send-access (postfix-send-access.cf)"
     merge_cf "$EMAILS_DIR/postfix-virtual.cf"        "$cfg_dst/postfix-virtual.cf"        "catch-all (postfix-virtual.cf)"
+    opencli email-default_sync
 
     # postfwd.cf — append non-duplicate rule blocks (two-line id=…/action=… pairs)
     if [[ -s "$EMAILS_DIR/postfwd.cf" && -f "$POSTFWD_DST" ]]; then
