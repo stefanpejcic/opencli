@@ -253,6 +253,10 @@ set_ssl_for_mailserver() {
         sed -i '/^SSL_CERT_PATH=/d' "$MAILSERVER_ENV"
         sed -i '/^SSL_KEY_PATH=/d' "$MAILSERVER_ENV"
 
+        # SRS needs a hostname to send forwarded mail from
+        sed -i '/^ENABLE_SRS=/c\ENABLE_SRS=0' "$MAILSERVER_ENV"
+        sed -i '/^SRS_DOMAINNAME=/d' "$MAILSERVER_ENV"
+
         # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
         if [[ -f "$MAILSERVER_COMPOSE_FILE" ]]; then
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=mailserver|" "$MAILSERVER_COMPOSE_FILE"
@@ -295,6 +299,18 @@ set_ssl_for_mailserver() {
             sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path_on_hosts|" "$MAILSERVER_ENV"
         else
             echo "SSL_KEY_PATH=$key_path_on_hosts" >> "$MAILSERVER_ENV"
+        fi
+
+        # SRS: forwarded mail goes out as SRS0=...@hostname, so it passes SPF at the receiver and bounces come back here.
+        # The hostname resolves to this server (it has a certificate); docker-mailserver's default, its parent domain, may not.
+        # Only with an accounts.sh that keeps the users' own mail out of SRS, an older one lets postsrsd rewrite all of it.
+        if grep -q '_create_srs_exclude_map' "$DIR/openpanel/accounts.sh" 2>/dev/null; then
+            sed -i '/^ENABLE_SRS=/c\ENABLE_SRS=1' "$MAILSERVER_ENV"
+            if grep -q '^SRS_DOMAINNAME=' "$MAILSERVER_ENV"; then
+                sed -i "s|^SRS_DOMAINNAME=.*|SRS_DOMAINNAME=$current_hostname|" "$MAILSERVER_ENV"
+            else
+                echo "SRS_DOMAINNAME=$current_hostname" >> "$MAILSERVER_ENV"
+            fi
         fi
 
         # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
