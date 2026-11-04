@@ -366,6 +366,11 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
     fi
 fi
 
+# catch-all rules leave out every mailbox and alias, so they follow those
+if [[ "$1" =~ ^(email|alias)$ && "$2" =~ ^(add|del)$ ]]; then
+    opencli email-default_sync
+fi
+
 if [[ "$SEND_WELCOME" == true && "$1" == "email" && "$2" == "add" && "$setup_rc" -eq 0 ]] && is_valid_email "$3" && podman_is_running "$CONTAINER"; then
     # panel treats any stdout as failure, so this runs detached and silent
     send_welcome_message "$3" </dev/null >/dev/null 2>&1 &
