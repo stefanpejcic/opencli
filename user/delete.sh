@@ -100,6 +100,10 @@ delete_user_from_database() {
 	")
 
 	# 2. Prepare SQL queries and execute all at once
+	# tokens and passkeys first and on their own, the tables may not exist yet and that must not stop the delete
+	for t in mcp_tokens user_passkeys; do
+		mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "DELETE FROM $t WHERE user_id='$user_id';" 2>/dev/null
+	done
     sql=""
 	[ -n "$domain_ids" ] && sql+="DELETE FROM sites WHERE domain_id IN ($domain_ids); "
     sql+="DELETE FROM domains WHERE user_id='$user_id'; "

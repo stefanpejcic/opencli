@@ -143,10 +143,16 @@ apply_permissions_in_container() {
         ( tenant_cd "$volume_root" "$directory" && chown -R -h $verbose "$uid":"$gid" . ) > /dev/null 2>&1
         owner_result=$?
 
-        ( tenant_cd "$volume_root" "$directory" && find . -type f -execdir chmod $verbose 664 {} + ) > /dev/null 2>&1
+        # chmod follows a symlink operand, so a file swapped for a link after find looked at it would change the link's target, -h stops that where chmod has it
+        local nodrf=""
+        local probe
+        probe=$(mktemp) && ln -s "$probe" "$probe.l" && chmod -h 600 "$probe.l" 2>/dev/null && nodrf="-h"
+        rm -f "$probe" "$probe.l"
+
+        ( tenant_cd "$volume_root" "$directory" && find . -type f -execdir chmod $nodrf $verbose 664 {} + ) > /dev/null 2>&1
         files_result=$?
 
-        ( tenant_cd "$volume_root" "$directory" && find . -type d -execdir chmod $verbose 775 {} + )
+        ( tenant_cd "$volume_root" "$directory" && find . -type d -execdir chmod $nodrf $verbose 775 {} + )
         folders_result=$?
 
         check_and_fix_FTP_permissions "$username" "$uid"
