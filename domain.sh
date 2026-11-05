@@ -5,7 +5,7 @@
 # Usage: opencli domain [set <domain_name> | ip] [--debug] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 09.02.2025
-# Last Modified: 26.10.2026
+# Last Modified: 05.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -182,7 +182,7 @@ update_caddyfile() {
         else
 		# was not using IPv4
 			local admin_port; admin_port=$(opencli admin port)
-            local ip_block="# START HOSTNAME IP #\n${new_hostname} {\n  tls {\n    issuer acme {\n      profile shortlived\n    }\n  }\n  reverse_proxy localhost:${admin_port}\n}\n# END HOSTNAME IP #\n"
+            local ip_block="# START HOSTNAME IP #\n${new_hostname} {\n  tls {\n    reuse_private_keys\n    issuer acme {\n      profile shortlived\n    }\n  }\n  reverse_proxy localhost:${admin_port}\n}\n# END HOSTNAME IP #\n"
             sed_in_place "$CADDY_FILE" "s|# START HOSTNAME DOMAIN #|${ip_block}# START HOSTNAME DOMAIN #|"
         fi
 		# example.net
