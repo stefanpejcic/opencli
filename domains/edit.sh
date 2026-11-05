@@ -50,13 +50,16 @@ DOCROOT=$(echo "$OUTPUT" | awk '{print $3}')
 get_webserver_for_user(){
 	local web_server
 	web_server=$(grep "^WEB_SERVER=" "/home/$CONTEXT/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
-	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)		
+	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed|caddy' | head -n1)		
 }
 
 
 if [ "$USE_WS" -eq 1 ]; then
     # webserver
     FINAL_PATH="/home/${CONTEXT}/docker-data/volumes/${CONTEXT}_webserver_data/_data/${DOMAIN}.conf"
+    # caddy mode has no vhost, the caddy conf is what serves the domain
+    get_webserver_for_user
+    [ "$WEB_SERVER" = "caddy" ] && FINAL_PATH="/etc/openpanel/caddy/domains/${DOMAIN}.conf"
     if [ -f "$FINAL_PATH" ]; then
         echo "Opening VirtualHosts file in nano: $FINAL_PATH"
         nano "$FINAL_PATH"

@@ -119,7 +119,7 @@ get_webserver_for_user(){
 	log "Checking webserver configuration"
 	local web_server
 	web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
-	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
+	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed|caddy' | head -n1)	
 }
 
 rm_domain_to_clamav_list(){	

@@ -76,7 +76,7 @@ get_context_for_user() {
 
 get_webserver_for_user(){
 		web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
-		WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
+		WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed|caddy' | head -n1)
         if [[ "$WEB_SERVER" == "openlitespeed" || "$WEB_SERVER" == "litespeed" ]]; then
             echo "ERROR: PHP version can not be changed on $WEB_SERVER webserver. Instead you need to change the docker image tag for the user."
             echo "Available tags: https://hub.docker.com/r/litespeedtech/${WEB_SERVER}/tags"
@@ -97,6 +97,8 @@ fi
 get_context_for_user
 get_webserver_for_user
 domain_path_in_volume="/home/$context/docker-data/volumes/${context}_webserver_data/_data/$domain.conf"
+# caddy mode keeps the php socket in the caddy conf, there's no vhost
+[[ "$WEB_SERVER" == "caddy" ]] && domain_path_in_volume="/etc/openpanel/caddy/domains/$domain.conf"
 php_version=$(grep -o "php-fpm-[0-9.]\+" "$domain_path_in_volume" | grep -o "[0-9.]\+" | head -n 1)
 
 if [ -z "$php_version" ]; then
@@ -112,7 +114,11 @@ fi
 
 # update
 # 1. replace in domain vhost file
-tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$domain_path_in_volume" "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g"
+if [[ "$WEB_SERVER" == "caddy" ]]; then
+    sed -i "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g" "$domain_path_in_volume"
+else
+    tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$domain_path_in_volume" "s/php-fpm-[0-9.]\+/php-fpm-$new_php_version/g"
+fi
 
 # 2. start new php version container if not running
 # sh -c doesn't inherit lib/podman.sh's bash functions, so the socket is inlined
@@ -128,7 +134,11 @@ default_php_version=$(awk -F '=' '/DEFAULT_PHP_VERSION/ {print $2}' "/home/$cont
 stop_old=""
 if [ -n "$default_php_version" ] && [ "$old_php_version" != "$default_php_version" ]; then
 	user_vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data/"
-    grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf" || stop_old="php-fpm-$old_php_version"
+    if [[ "$WEB_SERVER" == "caddy" ]]; then
+        grep -rqF "/home/$context/sockets/php/php-fpm-$old_php_version/" /etc/openpanel/caddy/domains/ --include="*.conf" || stop_old="php-fpm-$old_php_version"
+    else
+        grep -rq "php-fpm-$old_php_version" "$user_vhost_dir" --include="*.conf" || stop_old="php-fpm-$old_php_version"
+    fi
 fi
 
 # 4. reload webserver once the new php-fpm listens, and only then stop the old one so the site never points at a stopped container

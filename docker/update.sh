@@ -404,11 +404,11 @@ if [[ "$AUTO_YES" == false ]]; then
     fi
 fi
 
-# waits until php-fpm in the recreated container listens on 9000, a webserver reloaded before that gets connection refused
+# waits until php-fpm in the recreated container listens on 9000 or its /run/php socket, a webserver reloaded before that gets connection refused
 wait_fpm_ready() {
     local context="$1" container="$2" tries=60
     while (( tries-- > 0 )); do
-        if podman_ctx "$context" exec "$container" sh -c "awk '\$2 ~ /:2328\$/ && \$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ." >/dev/null 2>&1; then
+        if podman_ctx "$context" exec "$container" sh -c "awk '\$2 ~ /:2328\$/ && \$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q . || awk '\$4 == \"00010000\" && \$8 ~ /^\\/run\\/php\\//' /proc/net/unix 2>/dev/null | grep -q ." >/dev/null 2>&1; then
             return 0
         fi
         sleep 2
@@ -531,7 +531,7 @@ for entry in "${PLAN_RECREATE[@]}"; do
     fi
     if [[ "$svc" == php-fpm-* && "$context" != root && -z "$dependents" ]]; then
         if ! wait_fpm_ready "$context" "$cname"; then
-            log "  WARNING: $svc for $label is not listening on 9000 after 2 minutes, reloading the webserver anyway"
+            log "  WARNING: $svc for $label is not listening on 9000 or its socket after 2 minutes, reloading the webserver anyway"
             failed=$((failed + 1))
         fi
         reload_webserver "$context" || failed=$((failed + 1))

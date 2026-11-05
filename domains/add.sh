@@ -36,6 +36,8 @@
 . /usr/local/opencli/lib/requirement.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/tenantfs.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/php_listen.sh
 require_command jq
 
 # Constants
@@ -360,7 +362,8 @@ get_webserver_for_user() {
     log "Detecting web server"
     local raw_ws
     raw_ws=$(get_user_env_value WEB_SERVER)
-    WEB_SERVER=$(echo "$raw_ws" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)
+    WEB_SERVER=$(echo "$raw_ws" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed|caddy' | head -n1)
+    PHP_LISTEN=$(php_listen_mode "$context")
     [[ "$WEB_SERVER" == "nginx" ]] && ensure_nginx_conf
 }
 
@@ -499,6 +502,8 @@ fix_ftp_perms() {
 
 create_vhost_file() {
     $SKIP_VHOST_CREATE && { log "Skipping vhost creation (--skip_vhost)"; return; }
+    # caddy mode has no webserver container or vhost, its caddy conf points at php-fpm instead
+    [[ "$WEB_SERVER" == "caddy" ]] && { log "Caddy talks to php-fpm directly, no vhost needed"; return; }
 
     get_varnish_for_user
 
@@ -525,6 +530,7 @@ create_vhost_file() {
     log "Creating vhost: $vhost_file"
     # the webserver volume is writable by the user's containers, so the vhost is written to a temp file and renamed in, never through whatever sits at that name
 	sed -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|<USER>|$user|g" -e "s|<PHP>|$php_version|g" -e "s|<DOCUMENT_ROOT>|$docroot|g" "$template" \
+		| php_vhost_transport "$PHP_LISTEN" \
 		| tenant_write "$(tenant_volume "$context" webserver_data)" "$vhost_file" 644
 
     chown "$context_uid:$context_uid" "/home/$context/docker-data/volumes/${context}_webserver_data/" "/home/$context/docker-data/volumes/${context}_webserver_data/_data/" 2>/dev/null || true
@@ -610,6 +616,12 @@ create_caddy_domain_file() {
 
     log "WAF SecRuleEngine: $waf_value"
     sed -i "s/SecRuleEngine .*/SecRuleEngine $waf_value/" "$domains_file"
+
+    # caddy mode, php_fastcgi on the user's socket instead of the webserver ports
+    if [[ "$WEB_SERVER" == "caddy" ]]; then
+        log "Pointing Caddy at php-fpm-$php_version over the socket"
+        php_caddy_conf_direct "$domains_file" "$context" "$docroot" "$php_version"
+    fi
 
     # Varnish routing
     if [[ "$VARNISH" == true ]]; then
@@ -808,12 +820,16 @@ verify_onion_files() {
 
     for key in hs_ed25519_public_key hs_ed25519_secret_key; do
         [[ "${!key}" =~ ^/var/www/html/ ]] || die "--$key must be inside /var/www/html/"
+        [[ "/${!key}/" == */../* ]] && die "--$key can't contain .."
     done
 
-    hs_public_key="/home/$context/docker-data/volumes/${context}_html_data/_data/${hs_ed25519_public_key#/var/www/html/}"
-    hs_secret_key="/home/$context/docker-data/volumes/${context}_html_data/_data/${hs_ed25519_secret_key#/var/www/html/}"
+    hs_html_root=$(tenant_volume "$context" html_data)
+    hs_public_key="$hs_html_root/${hs_ed25519_public_key#/var/www/html/}"
+    hs_secret_key="$hs_html_root/${hs_ed25519_secret_key#/var/www/html/}"
 
-    [[ -f "$hs_public_key" && -f "$hs_secret_key" ]] || die "hs_ed25519_public_key or hs_ed25519_secret_key files not found"
+    # read through tenant_read so a symlink in the user's volume can't point the root copy elsewhere
+    tenant_read "$hs_html_root" "$hs_public_key" > /dev/null && tenant_read "$hs_html_root" "$hs_secret_key" > /dev/null \
+        || die "hs_ed25519_public_key or hs_ed25519_secret_key files not found"
 }
 
 setup_tor_for_user() {
@@ -832,9 +848,14 @@ setup_tor_for_user() {
         folder_name="hidden_service/$next_num"
     fi
 
-    mkdir -p "$tor_dir/$folder_name/authorized_clients"
-    cp "$hs_public_key" "$tor_dir/$folder_name/hs_ed25519_public_key"
-    cp "$hs_secret_key" "$tor_dir/$folder_name/hs_ed25519_secret_key"
+    # tor_dir is mounted into the user's tor container, so dirs and files there go through the tenant helpers too
+    mkdir -p "$tor_dir"
+    tenant_mkdir "$tor_dir" "$tor_dir/$folder_name/authorized_clients" || die "Failed to create $tor_dir/$folder_name"
+    local pub_mode sec_mode
+    pub_mode=$(stat -c %a -- "$hs_public_key" 2>/dev/null) || pub_mode=600
+    sec_mode=$(stat -c %a -- "$hs_secret_key" 2>/dev/null) || sec_mode=600
+    (set -o pipefail; tenant_read "$hs_html_root" "$hs_public_key" | tenant_write "$tor_dir" "$tor_dir/$folder_name/hs_ed25519_public_key" "$pub_mode") || die "Failed to copy hs_ed25519_public_key"
+    (set -o pipefail; tenant_read "$hs_html_root" "$hs_secret_key" | tenant_write "$tor_dir" "$tor_dir/$folder_name/hs_ed25519_secret_key" "$sec_mode") || die "Failed to copy hs_ed25519_secret_key"
 
     local uid
     uid=$(stat -c '%u' "/home/$context" 2>/dev/null)

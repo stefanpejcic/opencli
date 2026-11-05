@@ -34,6 +34,8 @@
 . /usr/local/opencli/db.sh
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/tenantfs.sh
+# shellcheck disable=SC1091
+. /usr/local/opencli/lib/php_listen.sh
 
 debug_mode=false
 args=()
@@ -124,10 +126,17 @@ get_webserver_for_user(){
 	log "Checking webserver configuration"
 	local web_server
 	web_server=$(grep "^WEB_SERVER=" "/home/$context/.env" | awk -F '=' '{print $2}' | tr -d '[:space:]' | sed 's/^"\(.*\)"$/\1/')
-	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed' | head -n1)	
+	WEB_SERVER=$(echo "$web_server" | grep -Eo 'nginx|openresty|apache|openlitespeed|litespeed|caddy' | head -n1)	
 }
 
 vhost_file_edit() {
+	if [[ "$WEB_SERVER" == "caddy" ]]; then
+		local caddy_conf="/etc/openpanel/caddy/domains/${domain}.conf" php
+		php=$(grep -o "php-fpm-[0-9.]\+" "$caddy_conf" | grep -o "[0-9.]\+" | head -n1)
+		[[ -n "$php" ]] && php_caddy_conf_direct "$caddy_conf" "$context" "$new_docroot" "$php"
+		podman exec caddy caddy reload --config /etc/caddy/Caddyfile > /dev/null 2>&1
+		return
+	fi
 	vhost_file=/home/${context}/docker-data/volumes/${context}_webserver_data/_data/${domain}.conf
 	tenant_sed_i "$(tenant_volume "$context" webserver_data)" "$vhost_file" -E 's|(/var/www/html/[^>;]*)|'"$new_docroot"'|g' > /dev/null 2>&1
 	podman_reload_webserver "$context" "$WEB_SERVER" > /dev/null 2>&1

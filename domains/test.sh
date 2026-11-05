@@ -33,6 +33,8 @@
 # shellcheck disable=SC1091
 . /usr/local/opencli/lib/podman.sh
 # shellcheck disable=SC1091
+. /usr/local/opencli/lib/php_listen.sh
+# shellcheck disable=SC1091
 . /usr/local/opencli/lib/requirement.sh
 require_command jq
 require_command curl
@@ -95,6 +97,8 @@ HTTP_PORT=$(env_port HTTP_PORT)
 HTTPS_PORT=$(env_port HTTPS_PORT)
 PROXY_PORT=$(grep -qE '^PROXY_HTTP_PORT=' "$ENV_FILE" && env_port PROXY_HTTP_PORT)
 LITESPEED=no; [[ "$WEB_SERVER" == *litespeed* ]] && LITESPEED=yes
+# caddy mode has no webserver container, the webserver steps go to the server's caddy on 443 instead
+[[ "$WEB_SERVER" == "caddy" ]] && HTTPS_PORT=443
 
 [[ "${DOCROOT:-}" != /var/www/html/* ]] && { echo "Could not detect the docroot for $DOMAIN."; exit 1; }
 [ -n "$FOLDER" ] && DOCROOT="$DOCROOT/$FOLDER"
@@ -104,6 +108,7 @@ PHP_CONTAINER=$(grep -o 'php-fpm-[0-9.]*' "$VHOST" 2>/dev/null | head -1)
 [ -z "$PHP_CONTAINER" ] && [ -n "${DB_PHP_VERSION:-}" ] && PHP_CONTAINER="php-fpm-$DB_PHP_VERSION"
 [ "$LITESPEED" = yes ] && PHP_CONTAINER="$WEB_SERVER"
 PHP_VERSION="${PHP_CONTAINER#php-fpm-}"
+FPM_SOCK=""; [[ "$(php_listen_mode "$CONTEXT")" != "port" ]] && FPM_SOCK="$PHP_SOCKET_DIR_IN_CONTAINER/$PHP_CONTAINER/www.sock"
 DB_CONTAINER=$(env_val MYSQL_TYPE); DB_CONTAINER="${DB_CONTAINER:-mysql}"
 
 RUNNING=$(podman_ctx "$CONTEXT" ps --format '{{.Names}}' 2>/dev/null)
@@ -495,7 +500,7 @@ elif [ -n "$PHP_CONTAINER" ] && is_running "$PHP_CONTAINER"; then
 
     if [ "$LITESPEED" = no ]; then
         FCGI_PHP='
-[, $root, $host, $path, $runs] = $argv;
+[, $root, $host, $path, $runs, $sock] = $argv + [5 => ""];
 $script = $path . "index.php";
 $params = ["SCRIPT_FILENAME" => "$root/index.php", "SCRIPT_NAME" => $script, "PHP_SELF" => $script, "REQUEST_URI" => $path,
     "DOCUMENT_ROOT" => $root, "REQUEST_METHOD" => "GET", "QUERY_STRING" => "", "SERVER_PROTOCOL" => "HTTP/1.1",
@@ -505,7 +510,7 @@ $rec = function ($t, $c) { $l = strlen($c); return chr(1) . chr($t) . "\x00\x01"
 $nv = function ($n, $v) { $a = strlen($n); $b = strlen($v); return ($a < 128 ? chr($a) : pack("N", $a | 0x80000000)) . ($b < 128 ? chr($b) : pack("N", $b | 0x80000000)) . $n . $v; };
 $p = ""; foreach ($params as $k => $v) { $p .= $nv($k, $v); }
 for ($i = 0; $i <= $runs; $i++) {
-    $fp = @fsockopen("127.0.0.1", 9000, $en, $es, 5);
+    $fp = $sock !== "" ? @fsockopen("unix://" . $sock, -1, $en, $es, 5) : @fsockopen("127.0.0.1", 9000, $en, $es, 5);
     if (!$fp) { echo "0 000\n"; continue; }
     $t0 = hrtime(true); $ttfb = null; $out = "";
     fwrite($fp, $rec(1, "\x00\x01\x00\x00\x00\x00\x00\x00") . $rec(4, $p) . $rec(4, "") . $rec(5, ""));
@@ -521,9 +526,9 @@ for ($i = 0; $i <= $runs; $i++) {
     $code = preg_match("/^Status: (\d+)/m", $out, $m) ? $m[1] : 200;
     printf("%.4f %d\n", (($ttfb ?? hrtime(true)) - $t0) / 1e9, $code);
 }'
-        res=$(in_container "$PHP_CONTAINER" "$PHPBIN" "${PHP_FLAGS[@]}" -r "$FCGI_PHP" "$DOCROOT" "$DOMAIN" "$URLPATH" "$RUNS" 2>/dev/null | median)
+        res=$(in_container "$PHP_CONTAINER" "$PHPBIN" "${PHP_FLAGS[@]}" -r "$FCGI_PHP" "$DOCROOT" "$DOMAIN" "$URLPATH" "$RUNS" "$FPM_SOCK" 2>/dev/null | median)
         MS[fpm]="${res% *}"; CODE[fpm]="${res#* }"
-        show "php-fpm ($PHP_CONTAINER:9000)" fpm "FastCGI directly, skips the webserver"
+        show "php-fpm ($PHP_CONTAINER$([ -n "$FPM_SOCK" ] && echo " socket" || echo ":9000"))" fpm "FastCGI directly, skips the webserver"
     else
         printf "  %-36s %12s   %s\n" "php-fpm" "n/a" "$WEB_SERVER runs PHP inside the webserver"
     fi

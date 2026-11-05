@@ -103,10 +103,10 @@ podman_ctx_is_running() {
     [[ "$(podman_ctx "$1" inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" == true ]]
 }
 
-# same as podman_ctx_is_running but also wants a listening tcp socket inside, a php-fpm container is running a few seconds before fpm accepts connections, e.g. podman_ctx_is_listening <context> <container>
+# same as podman_ctx_is_running but also wants a listening tcp socket, or a php-fpm unix socket under /run/php, inside, a php-fpm container is running a few seconds before fpm accepts connections, e.g. podman_ctx_is_listening <context> <container>
 podman_ctx_is_listening() {
     podman_ctx_is_running "$1" "$2" \
-        && podman_ctx "$1" exec "$2" sh -c "awk '\$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ." >/dev/null 2>&1
+        && podman_ctx "$1" exec "$2" sh -c "awk '\$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q . || awk '\$4 == \"00010000\" && \$8 ~ /^\\/run\\/php\\//' /proc/net/unix 2>/dev/null | grep -q ." >/dev/null 2>&1
 }
 
 # reloads <context>'s webserver without dropping connections: config test, then a graceful signal to its pid 1, or lswsctrl restart on litespeed whose pid 1 is start.sh -- extra containers (e.g. the php-fpm a new vhost points to) are waited on for up to 60s until they listen, since nginx refuses a config whose upstream host doesn't resolve yet and 502s until fpm accepts; a stopped webserver gets started and a failed signal falls back to a restart -- e.g. podman_reload_webserver <context> <webserver> [container...]
@@ -114,6 +114,15 @@ podman_reload_webserver() {
     local context="$1" ws="$2"; shift 2
     local c ready tries=30 signal out
     local -a check
+
+    # caddy mode has no webserver container, the server's caddy talks to php-fpm itself
+    if [[ "$ws" == "caddy" || -z "$ws" ]] && [[ "$(grep -E '^WEB_SERVER=' "/home/$context/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"[:space:]')" == "caddy" ]]; then
+        for c in "$@"; do
+            while (( tries-- > 0 )) && ! podman_ctx_is_listening "$context" "$c"; do sleep 2; done
+        done
+        podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
+        return
+    fi
 
     if (( $# > 0 )); then
         while :; do
