@@ -76,7 +76,7 @@ create_user() {
         exit 1
     fi
 
-    EXISTING_GROUP=$(podman exec openadmin_ftp sh -c "getent group '$GID' | cut -d: -f1")
+    EXISTING_GROUP=$(podman exec openadmin_ftp getent group "$GID" | cut -d: -f1)
     if [[ -z "$EXISTING_GROUP" ]]; then
         podman exec openadmin_ftp addgroup -g "$GID" "$context"
     fi
@@ -110,7 +110,7 @@ print('\$6\$' + salt.hex() + '\$' + h)
 
     podman exec openadmin_ftp useradd -d "${new_directory}" -s /sbin/nologin -g "$context" -M "$username" --badname
 
-    if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
+    if podman exec openadmin_ftp usermod -p "$HASHED_PASS" "$username"; then
         tenant_chown_r "${real_path%/}" "$new_directory" "$GID:$GID"
         tenant_chmod_r "${real_path%/}" "$new_directory" 2775
         chmod +rx "/home/$context"
@@ -193,6 +193,11 @@ validate_data() {
 
 	if [[ "$directory" =~ [*?\[\]] ]]; then
 	    echo "ERROR: Path cannot contain glob characters."
+	    exit 1
+	fi
+
+	if [[ ! "$directory" =~ ^/var/www/html/[A-Za-z0-9._/-]*$ ]]; then
+	    echo "ERROR: The path can only contain letters, numbers, dots, dashes, underscores and slashes."
 	    exit 1
 	fi
 

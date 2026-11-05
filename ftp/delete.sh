@@ -75,7 +75,7 @@ get_docker_context_for_user
 mkdir -p /etc/openpanel/ftp/users/"${context}"
 touch /etc/openpanel/ftp/users/"${context}"/users.list
 
-if podman exec openadmin_ftp sh -c "deluser $username"; then
+if podman exec openadmin_ftp deluser "$username"; then
     sed -i "/^$username|/d" /etc/openpanel/ftp/users/"${context}"/users.list
     # clears a leftover upload block in case the same username is added again
     podman exec openadmin_ftp /bin/start_vsftpd.sh --check-quotas >/dev/null 2>&1

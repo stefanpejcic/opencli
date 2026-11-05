@@ -98,6 +98,12 @@ validate_path() {
         echo "ERROR: The path cannot contain the '|' character."
         exit 1
     fi
+
+    # the path also goes into users.list through sed, so keep it to plain path characters
+    if [[ ! "$path" =~ ^/var/www/html/[A-Za-z0-9._/-]*$ ]]; then
+        echo "ERROR: The path can only contain letters, numbers, dots, dashes, underscores and slashes."
+        exit 1
+    fi
 }
 
 
@@ -114,13 +120,14 @@ change_path() {
         exit 1
     fi
 
-    if podman exec openadmin_ftp sh -c "usermod -d '${container_path}' '${username}'"; then
+    # argv only, the path never goes through a shell
+    if podman exec openadmin_ftp usermod -d "${container_path}" "${username}"; then
         sed -i "/^${username}|/s|/var/www/html/[^|]*|${path}|" /etc/openpanel/ftp/users/"$context"/users.list
         echo "Success: FTP path for user '$username' changed successfully."
     else
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to change FTP path with usermod command:"
-            echo "podman exec openadmin_ftp sh -c 'usermod -d ${container_path} ${username}'"
+            echo "podman exec openadmin_ftp usermod -d ${container_path} ${username}"
         else
             echo "ERROR: Failed to change FTP path. To debug, run this command on terminal: opencli ftp-path $username $path $openpanel_username --debug"
         fi

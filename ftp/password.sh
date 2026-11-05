@@ -89,7 +89,7 @@ print(crypt.crypt(os.environ["PASSWORD"], "$6$" + salt))
     '
     )
 
-    if podman exec openadmin_ftp sh -c "usermod -p '$HASHED_PASS' '$username'"; then
+    if podman exec openadmin_ftp usermod -p "$HASHED_PASS" "$username"; then
 # Update users.list with new hashed password
 awk -F'|' -v OFS='|' -v user="$username" -v newpass="$HASHED_PASS" '
     $1 == user { $2 = newpass }
@@ -105,7 +105,7 @@ mv /tmp/"$context".ftp_users.list.tmp /etc/openpanel/ftp/users/"$context"/users.
         if [ "$DEBUG" = true ]; then
             echo "ERROR: Failed to update FTP user password with command:"
             echo ""
-            echo "podman exec openadmin_ftp sh -c 'usermod -p <hash> $username'"
+            echo "podman exec openadmin_ftp usermod -p <hash> $username"
             echo ""
             echo "Run the command manually to check for errors."
         else
