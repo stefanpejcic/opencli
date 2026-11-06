@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 26.10.2026
+# Last Modified: 06.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -509,14 +509,38 @@ process_all_domains_and_start(){
 	#	echo "WARNING: $STORE_EMAILS_IN is invalid."
 	fi
   
-cd $DIR && timeout 60 podman-compose up -d mailserver >/dev/null 2>&1
-echo "MailServer started successfully."
+	local state services=(mailserver)
+	state=$(podman inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null)
+	# compose up leaves a container stuck like this alone
+	if [[ -n "$state" && "$state" != "exited" && "$state" != "stopped" ]] && ! podman_can_exec "$CONTAINER"; then
+		podman_force_remove "$CONTAINER" openadmin_roundcube
+	fi
+	# a stuck mailserver can only be removed together with roundcube
+	podman container exists openadmin_roundcube || services+=(roundcube)
+
+	(cd "$DIR" && timeout 120 podman-compose up -d "${services[@]}") >/dev/null 2>&1
+	if ! podman_is_running "$CONTAINER"; then
+		echo "Error: MailServer did not start, check: opencli email-server logs" >&2
+		return 1
+	fi
+	echo "MailServer started successfully."
 }
 
 # STOP
 stop_mailserver_if_running(){
 	section "STOP MAILSERVER"
-	run bash -c "cd $DIR && timeout 30 podman-compose down mailserver"
+	# has to outlast stop_grace_period in compose.yml (1m), killing compose mid stop can leave the container stuck stopping
+	run bash -c "cd $DIR && timeout 90 podman-compose down mailserver"
+
+	local state
+	state=$(podman inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null)
+	if [[ -n "$state" && "$state" != "exited" && "$state" != "stopped" ]]; then
+		dbg "Container is still '$state' after compose down, removing it."
+		if ! podman_force_remove "$CONTAINER" openadmin_roundcube; then
+			echo "Error: MailServer is stuck in state '$state' and could not be removed." >&2
+			return 1
+		fi
+	fi
 	[ "$DEBUG" = true ] || echo "MailServer stopped successfully."
 }
 
@@ -582,7 +606,7 @@ case "${1:-}" in
         pflogsumm_get_data
 		;;
 	status) 	# Show status
-		if podman_is_running "$CONTAINER"; then
+		if podman_can_exec "$CONTAINER"; then
 			# uptime
 			execute_cmd_and_print "Container" "$(podman ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
 			echo
@@ -613,7 +637,8 @@ case "${1:-}" in
 			# Supervisor
 			execute_cmd_and_print "Supervisor" "$(execute_cmd_in_container supervisorctl status | sort -b -k2,2)"
 		else
-			echo "Container: down"
+			# podman can say running here too, with nothing left to exec into
+			echo "Container: $(podman inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null || echo down) (not responding)"
 		fi
 		;;
 
@@ -623,18 +648,18 @@ case "${1:-}" in
 
 	start)		# Start
         echo "Starting mailserver..."
-        process_all_domains_and_start
+        process_all_domains_and_start || exit 1
 		;;
 
 	stop)		# Stop
         echo "Stopping the mailserver..."
-        stop_mailserver_if_running
+        stop_mailserver_if_running || exit 1
 		;;
 
 	restart)	#  Restart
         echo "Restarting the mailserver..."
-        stop_mailserver_if_running
-        process_all_domains_and_start
+        stop_mailserver_if_running || exit 1
+        process_all_domains_and_start || exit 1
 		;;
   
 	uninstall)	#  Uninstall

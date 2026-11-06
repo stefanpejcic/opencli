@@ -76,6 +76,22 @@ podman_is_running() {
     [[ "$(podman inspect "$1" --format '{{.State.Status}}' 2>/dev/null)" == "running" ]]
 }
 
+# a dead container can keep reporting running while every exec fails with an oci error, so this one actually tries, e.g. podman_can_exec <container>
+podman_can_exec() {
+    podman_is_running "$1" && timeout 10 podman exec "$1" true &>/dev/null
+}
+
+# removes a container stuck in a state start and stop refuse (stopping, running with a dead pid), rm refuses while something requires it so those go first, e.g. podman_force_remove <container> [dependent...]
+podman_force_remove() {
+    local container="$1" c; shift
+    for c in "$@" "$container"; do
+        podman kill "$c" &>/dev/null
+        podman rm -f "$c" &>/dev/null
+        podman rm -f --storage "$c" &>/dev/null
+    done
+    ! podman container exists "$container"
+}
+
 # recovers <container> via podman-compose if exited/absent, or force-removes it first if wedged in a state a plain restart won't clear; returns 0 once running, 1 otherwise -- e.g. podman_ensure_running <container> <compose_dir> <compose_service> [timeout_secs]
 podman_ensure_running() {
     local container="$1" compose_dir="$2" service="$3" timeout_secs="${4:-30}"

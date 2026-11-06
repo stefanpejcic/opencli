@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 18.10.2026
+# Last Modified: 06.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -109,7 +109,8 @@ reload_emails_data_file_for_user() {
     local file_to_refresh="/etc/openpanel/openpanel/core/users/$owner/emails.yml"
     local all_domains all_emails
     all_domains=$(opencli domains-user "$owner")
-    all_emails=$(opencli email-setup email list 2>/dev/null)
+    # a failed list must not wipe the file
+    all_emails=$(opencli email-setup email list 2>/dev/null) || return
     : > "$file_to_refresh"
     while IFS= read -r domain; do
         grep "@${domain}" <<< "$all_emails" >> "$file_to_refresh"
@@ -233,17 +234,20 @@ offline_quota_del() {
     [[ -f "$QUOTAS_FILE" ]] && sed -i "/^${key}:/Id" "$QUOTAS_FILE"
 }
 
-# best-effort: account exists on disk now, so try bringing the container up in the background so it stops hitting the "no accounts" shutdown on next boot, not awaited
+# account is on disk now and dms finds it by itself if it's only in its no-accounts restart loop, still no exec after that means the container is dead so it gets recreated
 try_start_mailserver_in_background() {
-    nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_ensure_running "$1" "$2" "$3" "$4"' \
-        _ "$CONTAINER" "$MAIL_DIR" mailserver 60 >/dev/null 2>&1 &
+    nohup bash -c '. /usr/local/opencli/lib/podman.sh; sleep 15; podman_can_exec "$1" && exit 0; podman_force_remove "$1" openadmin_roundcube; cd "$2" && timeout 120 podman-compose up -d mailserver roundcube' \
+        _ "$CONTAINER" "$MAIL_DIR" </dev/null >/dev/null 2>&1 &
 }
 
 # runs the setup command against the running container, or straight against the config files (offline_* above) if it's not up
 run_setup_command() {
-    if podman_is_running "$CONTAINER"; then
+    if podman_can_exec "$CONTAINER"; then
+        local rc
         podman exec "$CONTAINER" setup "$@"
-        return $?
+        rc=$?
+        # 125 and up is podman failing to run it (container died mid exec), not setup saying no
+        (( rc < 125 )) && return "$rc"
     fi
 
     echo "Warning: '$CONTAINER' is not running - writing directly to mailserver config files instead." >&2
@@ -286,7 +290,7 @@ send_welcome_message() {
     [[ -f "$template" ]] || return 1
 
     # wait for dovecot to pick up the account with the right uid, otherwise the mailbox gets created as the wrong owner
-    for i in $(seq 1 45); do
+    for i in $(seq 1 90); do
         uid=$(podman exec "$CONTAINER" doveadm user -f uid "$email" 2>/dev/null) || uid=""
         [[ -n "$uid" && ( -z "$OP_UID" || "$uid" == "$OP_UID" ) ]] && break
         sleep 2
@@ -345,7 +349,12 @@ else
     setup_rc=$?
 fi
 
-if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; then
+if [[ "$1 $2" == "email add" && "$setup_rc" -eq 0 ]] && ! grep -qi "^$(escape_key "${3,,}")|" "$ACCOUNTS_FILE" 2>/dev/null; then
+    echo "Error: '$3' was not saved to the mailserver accounts file." >&2
+    setup_rc=1
+fi
+
+if [[ "$setup_rc" -eq 0 ]] && { [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && "$2" =~ ^(set|del)$ ]]; }; then
     target_email="$3"
     # 'email del -y|-n <email>': the address comes after the flag
     [[ "$1 $2" == "email del" && "$3" =~ ^-[yYnN]$ ]] && target_email="$4"
@@ -356,7 +365,7 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
         get_openpanel_username_and_uid_for_domain "$target_email"
         if [[ "$2" =~ ^(add|update)$ && -n "$OP_UID" && "$OP_UID" =~ ^[0-9]+$ ]]; then
             sed -i "/^$(escape_key "$target_email")|/ { s/^\([^|]*|[^|]*\).*/\1|$OP_UID/}" "$ACCOUNTS_FILE"
-            nohup timeout 300 podman exec "$CONTAINER" bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" &
+            nohup timeout 300 podman exec "$CONTAINER" bash -c "chown -R \"${OP_UID}:${OP_UID}\" \"/var/mail/${domain}/${user}\"" </dev/null >/dev/null 2>&1 &
         fi
 
         # reload the cached user file so the OpenPanel UI picks up email/quota add/del changes
@@ -367,12 +376,15 @@ if [[ "$1" == "email" && "$2" =~ ^(add|update|del)$ ]] || [[ "$1" == "quota" && 
 fi
 
 # catch-all rules leave out every mailbox and alias, so they follow those
-if [[ "$1" =~ ^(email|alias)$ && "$2" =~ ^(add|del)$ ]]; then
+if [[ "$setup_rc" -eq 0 && "$1" =~ ^(email|alias)$ && "$2" =~ ^(add|del)$ ]]; then
     opencli email-default_sync
 fi
 
-if [[ "$SEND_WELCOME" == true && "$1" == "email" && "$2" == "add" && "$setup_rc" -eq 0 ]] && is_valid_email "$3" && podman_is_running "$CONTAINER"; then
+if [[ "$SEND_WELCOME" == true && "$1" == "email" && "$2" == "add" && "$setup_rc" -eq 0 ]] && is_valid_email "$3"; then
     # panel treats any stdout as failure, so this runs detached and silent
     send_welcome_message "$3" </dev/null >/dev/null 2>&1 &
     disown
 fi
+
+# the panels only know a mailbox wasn't created from this
+exit "$setup_rc"
