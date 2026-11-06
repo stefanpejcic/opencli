@@ -298,7 +298,7 @@ send_welcome_message() {
     [[ -n "$uid" ]] || return 1
 
     # same host and ports as /emails/info in the panel
-    local imap_port=143 smtp_port=587 security="STARTTLS"
+    local imap_port=143 smtp_port=587 security="No encryption"
     mail_host=$(opencli domain 2>/dev/null)
     if [[ -f "/etc/openpanel/caddy/ssl/acme-v02.api.letsencrypt.org-directory/${mail_host}/${mail_host}.crt" || -f "/etc/openpanel/caddy/ssl/custom/${mail_host}/${mail_host}.crt" ]]; then
         imap_port=993 smtp_port=465 security="SSL/TLS"
