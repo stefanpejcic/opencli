@@ -5,7 +5,7 @@
 # Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer]
 # Author: Stefan Pejcic
 # Created: 28.06.2025
-# Last Modified: 21.08.2026
+# Last Modified: 06.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -228,6 +228,11 @@ PANEL_CONFIG_FILE="/etc/openpanel/openpanel/conf/openpanel.config"
 key_value=$(grep "^key=" $PANEL_CONFIG_FILE | cut -d'=' -f2-)
 
 get_users_count_on_destination() {
+    if ! remote_key=$("${SSH_CMD[@]}" "grep '^key=' $PANEL_CONFIG_FILE | cut -d'=' -f2-" < /dev/null); then
+        log "[✘] ERROR: Unable to read the license from remote server."
+        exit 1
+    fi
+
 	user_count_query="SELECT COUNT(*) FROM users"
     # shellcheck disable=SC2154 # config_file/mysql_database are set by sourced db.sh (see DB_CONFIG_FILE below)
     if ! user_count=$("${SSH_CMD[@]}" "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$user_count_query\" -sN"); then
@@ -235,7 +240,8 @@ get_users_count_on_destination() {
         exit 1
     fi
 
-    if [ -n "$key_value" ]; then
+    # limit is skipped only when both servers have a key
+    if [[ -n "$key_value" && -n "$remote_key" ]]; then
     :
     else
         if [ "$user_count" -gt 2 ]; then
@@ -243,6 +249,28 @@ get_users_count_on_destination() {
 	          log "If you require more than 3 accounts, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
             exit 1
         fi
+    fi
+}
+
+# destination's license decides here, --force drops the account's domains there first
+check_domains_limit_on_destination() {
+    local other_domains local_domains other_count new_count
+    [[ -n "$remote_key" ]] && return 0
+
+    local other_query="SELECT d.domain_url FROM domains d JOIN users u ON d.user_id = u.id WHERE u.username <> '$USERNAME'"
+    if ! other_domains=$("${SSH_CMD[@]}" "mariadb --defaults-extra-file=$config_file -D $mysql_database -e \"$other_query\" -sN" < /dev/null); then
+        log "[✘] ERROR: Unable to check domains on remote server. Is mariadb running?"
+        exit 1
+    fi
+
+    local_domains=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -s -e "SELECT d.domain_url FROM domains d JOIN users u ON d.user_id = u.id WHERE u.username = '$USERNAME';")
+    other_count=$(grep -c . <<< "$other_domains")
+    new_count=$(grep -vxFf <(printf '%s\n' "$other_domains") <<< "$local_domains" | grep -c .)
+
+    if (( other_count + new_count > 50 )); then
+        log "[✘] ERROR: OpenPanel Community edition on the destination has a limit of 50 domains, this transfer would bring it to $((other_count + new_count))."
+        log "If you require more than 50 domains, please consider purchasing the Enterprise version that allows unlimited number of users and domains/websites."
+        exit 1
     fi
 }
 
@@ -1006,6 +1034,7 @@ if [ "$username_exists_count" -gt 0 ]; then\
     fi
 fi
 
+check_domains_limit_on_destination
 
 resolve_context   # sets $CONTEXT from users.server
 

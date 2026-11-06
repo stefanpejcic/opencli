@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 01.10.2023
-# Last Modified: 26.10.2026
+# Last Modified: 06.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -200,6 +200,14 @@ fi
 if [[ -z "$edition_key" ]]; then
     user_count=$(mysql_q "SELECT COUNT(*) FROM users;")
     [[ "${user_count:-0}" -ge 3 && "${username_exists:-0}" -eq 0 ]] && die "Community edition limit: 3 accounts. Upgrade to Enterprise for more."
+
+    # --force drops this account's domains first, and domains owned by someone else get skipped later
+    if [[ -f "$WORK/db/domains.list" ]]; then
+        other_domains=$(mysql_q "SELECT d.domain_url FROM domains d JOIN users u ON d.user_id = u.id WHERE u.username <> '$(mysql_escape "$USERNAME")';")
+        other_count=$(grep -c . <<< "$other_domains")
+        new_count=$(awk '{print $1}' "$WORK/db/domains.list" | grep -vxFf <(printf '%s\n' "$other_domains") | grep -c .)
+        (( other_count + new_count > 50 )) && die "Community edition limit: 50 domains. This restore would bring the server to $((other_count + new_count)). Upgrade to Enterprise for more."
+    fi
 fi
 
 # a reseller restore has to fit the reseller's limits before anything is created

@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 28.10.2026
+# Last Modified: 06.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -350,6 +350,19 @@ check_domains_limit() {
 
     if (( current_count >= limit )); then
         err "Domain limit reached. Plan allows $limit domain(s), user currently has $current_count."
+    fi
+}
+
+# counts every domain on the server, same as the OpenAdmin dashboard
+check_community_domains_limit() {
+    [[ -n "$ENTERPRISE" ]] && return 0
+
+    local total
+    total=$(mariadb -sN -e "SELECT COUNT(*) FROM domains;" 2>/dev/null)
+    log "Community edition: $total of 50 domains used"
+
+    if (( ${total:-0} >= 50 )); then
+        err "Community edition is limited to 50 domains. Upgrade to Enterprise for unlimited domains."
     fi
 }
 
@@ -1062,6 +1075,7 @@ main() {
     check_system_domains
     check_apex_ownership
     get_docker_context
+	check_community_domains_limit
 	check_domains_limit
     get_php_version
     validate_docroot
