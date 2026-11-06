@@ -377,7 +377,8 @@ fi
 
 # catch-all rules leave out every mailbox and alias, so they follow those
 if [[ "$setup_rc" -eq 0 && "$1" =~ ^(email|alias)$ && "$2" =~ ^(add|del)$ ]]; then
-    opencli email-default_sync
+    # the account is saved by now and the panels read any stdout as a failed add
+    opencli email-default_sync >/dev/null
 fi
 
 if [[ "$SEND_WELCOME" == true && "$1" == "email" && "$2" == "add" && "$setup_rc" -eq 0 ]] && is_valid_email "$3"; then
