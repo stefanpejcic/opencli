@@ -631,11 +631,41 @@ restart_dead_user_containers() {
   RESTART_ELAPSED=$((END_TIME - START_TIME))
 }
 
+# FTP passive mode hands clients FTP_PASV_ADDRESS from /root/.env, so after a reboot on a new IP it's
+# rewritten and openadmin_ftp recreated (env is fixed at container create, a restart keeps the old one)
+update_ftp_pasv_address() {
+  local env_file=/root/.env ip current
+  [[ -f "$env_file" ]] || return
+  rm -f "$IP_CACHE_FILE"  # a cached IP may be from before the change
+  ip=$(get_public_ip)
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "[!] FTP passive address: no valid public IPv4, left as is"; return; }
+  # get_public_ip falls back to the interface IP, which behind NAT is private and useless to FTP clients
+  [[ "$ip" =~ ^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.) ]] && { echo "[!] FTP passive address: $ip is private, left as is"; return; }
+
+  current=$(grep -oP '^FTP_PASV_ADDRESS="?\K[^"]*' "$env_file" | head -1)
+  [[ "$current" == "$ip" ]] && return
+
+  if grep -q '^FTP_PASV_ADDRESS=' "$env_file"; then
+    sed -i "s/^FTP_PASV_ADDRESS=.*/FTP_PASV_ADDRESS=\"$ip\"/" "$env_file"
+  else
+    printf '\n# public IPv4 for FTP passive mode, rewritten by sentinel on boot if the IP changes\nFTP_PASV_ADDRESS="%s"\n' "$ip" >> "$env_file"
+  fi
+  echo "[*] FTP passive address: ${current:-unset} -> $ip"
+
+  # only when the compose file passes it to the container, otherwise recreating changes nothing
+  grep -q 'PASV_ADDRESS=\${FTP_PASV_ADDRESS' /root/docker-compose.yml 2>/dev/null || return
+  timeout 30 podman container exists openadmin_ftp || return
+  # --no-deps: without it podman-compose 1.0.6 can remove other services of the stack
+  (cd /root && timeout 120 podman-compose up -d --no-deps --force-recreate openadmin_ftp) &>/dev/null \
+    || echo "[!] Could not recreate openadmin_ftp, run: cd /root && podman-compose up -d --force-recreate openadmin_ftp"
+}
+
 perform_startup_actions() {
   mkdir -p /tmp/redis ; chmod 777 /tmp/redis    # for redis
   mkdir -p /tmp/ssh_cm ; chmod 700 /tmp/ssh_cm  # for ssh connections to slave servers
   IP=$(hostname -I | awk '{print $1}')
   sed -i -E 's#^( *- *")([0-9.]+:)?(53:53/(tcp|udp)")#\1'"$IP"':\3#' /root/docker-compose.yml
+  update_ftp_pasv_address
 
   touch "$LOCK_FILE_FOR_USER_CONTAINERS"  # so a cron run during the staged start doesn't sweep all users at once
   restart_dead_user_containers staged
