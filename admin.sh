@@ -74,8 +74,9 @@ usage() {
     echo "  password <user> <pass>                        Reset the password for the specified admin user."
     echo "  update <user> --plan=<name> --allowed_plans=[] --max_accounts=<int> --max_disk_blocks=1000000 --logo_url=<url> Assign a reseller plan, limits, and branding for reseller."
 	echo "  rename <old> <new>                            Change the admin username."
-    echo "  suspend <user>                                Suspend admin user."
-    echo "  unsuspend <user>                              Unsuspend admin user."
+    echo "  suspend <user>                                Suspend admin user and the accounts a reseller owns."
+    echo "  unsuspend <user>                              Unsuspend admin user and the accounts suspended along with it."
+    echo "  delete <user> [--with-users]                  Delete admin user, a reseller's accounts move to admin unless --with-users deletes them too."
     echo "  notifications <command> <param> [value]       Control notification preferences."
     echo ""
     echo "  Notifications Commands:"
@@ -204,6 +205,7 @@ get_public_ip() {
 
 delete_existing_users() {
     local username="$1"
+    local with_users="$2"
     local user_exists is_admin escaped_username
     escaped_username=$(sqlite_escape "$username")
     user_exists=$(sqlite3 "$db_file_path" "SELECT COUNT(*) FROM user WHERE username='$escaped_username';")
@@ -212,8 +214,12 @@ delete_existing_users() {
     if [ "$user_exists" -gt 0 ]; then
         if [ "$is_admin" -gt 0 ]; then
             echo -e "${RED}Error${RESET}: Cannot delete user '$username' with 'admin' role."
+            return 1
         else
-        
+            if ! handle_owned_users_on_delete "$username" "$with_users"; then
+                return 1
+            fi
+
             local reseller_limits_file="/etc/openpanel/openadmin/resellers/$username.json"
 			rm "$reseller_limits_file"  > /dev/null 2>&1
 
@@ -229,7 +235,43 @@ delete_existing_users() {
         fi
     else
         echo -e "${RED}Error${RESET}: User '$username' does not exist."
+        return 1
     fi
+}
+
+# owned accounts would keep running with an owner that no longer exists, so they move to admin or get deleted with --with-users
+handle_owned_users_on_delete() {
+    local username="$1" with_users="$2"
+    source /usr/local/opencli/db.sh
+    local owner usernames user failed=()
+    owner=$(mysql_escape "$username")
+    usernames=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT username FROM users WHERE owner='$owner';") || {
+        echo -e "${RED}Error${RESET}: Could not list the accounts owned by '$username'."
+        return 1
+    }
+    [[ -z "$usernames" ]] && return 0
+
+    if [[ "$with_users" != "--with-users" ]]; then
+        mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -e "UPDATE users SET owner=NULL WHERE owner='$owner';" || {
+            echo -e "${RED}Error${RESET}: Could not move the accounts owned by '$username' to admin."
+            return 1
+        }
+        echo "Accounts owned by '$username' now belong to admin: $(tr '\n' ' ' <<< "$usernames")"
+        return 0
+    fi
+
+    while IFS= read -r user; do
+        [[ -z "$user" ]] && continue
+        # user-delete takes the original name, also for suspended accounts
+        user="$(sed -E 's/^SUSPENDED_[0-9]{14}_//' <<< "$user")"
+        opencli user-delete "$user" -y </dev/null >/dev/null 2>&1 || failed+=("$user")
+    done <<< "$usernames"
+
+    if (( ${#failed[@]} )); then
+        echo -e "${RED}Error${RESET}: Could not delete these accounts owned by '$username': ${failed[*]}. The reseller was not deleted."
+        return 1
+    fi
+    echo "Deleted all accounts owned by '$username'."
 }
 
 get_config() {
@@ -668,10 +710,10 @@ manage_user() {
             return 1
         fi
         local is_active=0 label="suspended"     sentinel_action="admin_suspend"
-        local cli_action="user-suspend"         sentinel_title="Administrator suspended"
+        local sentinel_title="Administrator suspended"
     else
         local is_active=1 label="unsuspended"   sentinel_action="admin_unsuspend"
-        local cli_action="user-unsuspend"       sentinel_title="Administrator unsuspended"
+        local sentinel_title="Administrator unsuspended"
     fi
 
     sqlite3 "$db_file_path" "UPDATE user SET is_active='$is_active' WHERE username='$escaped_username';"
@@ -680,15 +722,50 @@ manage_user() {
     nohup opencli sentinel --action="$sentinel_action" --title="$sentinel_title" --message="Administrator account '$username' has been $label." >/dev/null 2>&1 &
     disown
 
-	source /usr/local/opencli/db.sh
-    local mysql_escaped_username
-    mysql_escaped_username=$(mysql_escape "$username")
-    local query="SELECT username FROM users WHERE owner='$mysql_escaped_username';"
-    if usernames=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -se "$query"); then
-        while IFS= read -r user; do
-            [[ -n "$user" ]] && opencli "$cli_action" "$user"
-        done <<< "$usernames"
+    sqlite3 "$db_file_path" "SELECT 1 FROM user WHERE username='$escaped_username' AND role='reseller';" | grep -q 1 || return 0
+    if [ "$action" = "suspend" ]; then
+        suspend_owned_users "$username"
+    else
+        unsuspend_owned_users "$username"
     fi
+}
+
+# suspends the reseller's active accounts and remembers them, so unsuspend doesn't wake ones the reseller suspended themselves
+suspend_owned_users() {
+    local username="$1"
+    source /usr/local/opencli/db.sh
+    source /usr/local/opencli/lib/reseller.sh
+    local usernames user suspended=() limits_file
+    usernames=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT username FROM users WHERE owner='$(mysql_escape "$username")' AND username NOT LIKE 'SUSPENDED\_%';") || return 0
+    while IFS= read -r user; do
+        [[ -z "$user" ]] && continue
+        # stdin is the loop's list, so user-suspend must not read from it
+        if opencli user-suspend "$user" -y </dev/null >/dev/null 2>&1; then
+            suspended+=("$user")
+        else
+            echo "Warning: could not suspend account '$user'."
+        fi
+    done <<< "$usernames"
+
+    limits_file="$(reseller_limits_file "$username")"
+    jq --args '.suspended_with_reseller = (((.suspended_with_reseller // []) + $ARGS.positional) | unique)' "${suspended[@]}" < "$limits_file" > "$limits_file.tmp" && mv "$limits_file.tmp" "$limits_file"
+    echo "Suspended ${#suspended[@]} account(s) owned by '$username'."
+}
+
+unsuspend_owned_users() {
+    local username="$1"
+    source /usr/local/opencli/lib/reseller.sh
+    local limits_file user failed=()
+    limits_file="$(reseller_limits_file "$username")"
+    while IFS= read -r user; do
+        [[ -z "$user" ]] && continue
+        opencli user-unsuspend "$user" </dev/null >/dev/null 2>&1 || failed+=("$user")
+    done < <(jq -r '(.suspended_with_reseller // [])[]' "$limits_file" 2>/dev/null)
+
+    # failed ones stay listed so the next unsuspend retries them
+    jq --args '.suspended_with_reseller = $ARGS.positional | if (.suspended_with_reseller | length) == 0 then del(.suspended_with_reseller) else . end' "${failed[@]}" < "$limits_file" > "$limits_file.tmp" && mv "$limits_file.tmp" "$limits_file"
+    (( ${#failed[@]} )) && echo "Warning: could not unsuspend these accounts: ${failed[*]}"
+    return 0
 }
 
 # ---------------------- opencli admin logs ---------------------- #
@@ -905,7 +982,7 @@ case "$1" in
 
     "delete")
         username="$2"
-        delete_existing_users "$username"
+        delete_existing_users "$username" "$3" || exit 1
         ;;
     *)
     if [ -z "$1" ]; then
