@@ -74,8 +74,9 @@ reseller_env_set_logo() {
         f="$1"; v="$2"
         [[ -f "$f" ]] || exit 1
         t=$(mktemp "$f.XXXXXX") || exit 1
-        if { grep -v "^RESELLER_LOGO_URL=" "$f"; printf "RESELLER_LOGO_URL=\"%s\"\n" "$v"; } > "$t" && chmod 600 "$t" && mv -f "$t" "$f"; then
-            exit 0
+        # written back in place instead of mv, so .env keeps its 640 and group 33 (www-data, for phpmyadmin autologin), this uid is not allowed to chgrp to 33 itself
+        if { grep -v "^RESELLER_LOGO_URL=" "$f"; printf "RESELLER_LOGO_URL=\"%s\"\n" "$v"; } > "$t" && cat "$t" > "$f"; then
+            rm -f "$t"; exit 0
         fi
         rm -f "$t"; exit 1
     ' _ "$env_file" "$logo_url"

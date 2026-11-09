@@ -756,6 +756,9 @@ configure_environment
 for secret_file in my.cnf .env backup.env; do
     [ -f "/home/${USERNAME}/${secret_file}" ] && chmod 600 "/home/${USERNAME}/${secret_file}"
 done
+# pma.php runs as www-data (uid/gid 33) in the shared phpmyadmin container and reads MYSQL_ROOT_PASSWORD from .env for autologin,
+# with 600 it gets an empty password and loops between pma.php and index.php, so .env is 640 with group 33, still not readable by other accounts
+[ -f "/home/${USERNAME}/.env" ] && chgrp 33 "/home/${USERNAME}/.env" && chmod 640 "/home/${USERNAME}/.env"
 
 ########################################################################
 # 6. validate podman service is started for user (socket exists), compose command and context are working
