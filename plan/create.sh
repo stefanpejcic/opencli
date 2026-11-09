@@ -6,7 +6,7 @@
 # Example: opencli plan-create name="New Plan" description="This is a new plan" emails=100 ftp=50 domains=20 websites=30 disk=100 inodes=100000 databases=10 cpu=4 ram=8 bandwidth=100 feature_set=default max_email_quota=2G max_hourly_email=1000
 # Author: Radovan Jecmenica
 # Created: 06.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 09.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -198,8 +198,12 @@ insert_plan() {
         if [[ "$CHECK_PLAN_ID" == true ]]; then
             plan_id=$(mariadb --defaults-extra-file="$config_file" -D "$mysql_database" -N -B -e "SELECT id FROM plans WHERE name='${escaped_name}' LIMIT 1;" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)
             if [ -n "$plan_id" ]; then
+                # own_plans is what keeps the plan allowed when a reseller plan gets reapplied
+                source /usr/local/opencli/lib/reseller.sh
+                local own_plans
+                own_plans="$(reseller_own_plans "$reseller_file")"
                 tmpfile=$(mktemp)
-                jq --argjson plan "$plan_id" '.allowed_plans |= ((. // []) | map(tonumber? // empty) | if index($plan) then . else . + [$plan] end)' "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
+                jq --argjson plan "$plan_id" --argjson own "${own_plans:-[]}" '.allowed_plans |= ((. // []) | map(tonumber? // empty) | if index($plan) then . else . + [$plan] end) | .own_plans = ($own | if index($plan) then . else . + [$plan] end)' "$reseller_file" > "$tmpfile" && mv "$tmpfile" "$reseller_file"
             else
                 echo "Warning: failed to retrieve plan ID from the database and assign it to the reseller user."
             fi

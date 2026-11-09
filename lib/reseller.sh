@@ -55,6 +55,22 @@ reseller_plan_file() {
     echo "$file"
 }
 
+# prints the plan ids the reseller created themselves as a JSON array, they're kept when a reseller plan is (re)applied
+reseller_own_plans() {
+    local file="$1" current pkg_file
+    if jq -e 'has("own_plans")' "$file" >/dev/null 2>&1; then
+        jq -c '(.own_plans // []) | map(tonumber? // empty)' "$file"
+        return
+    fi
+    # older files don't track it, so anything allowed beyond the current reseller plan counts as their own
+    current="$(jq -r '.reseller_plan // empty' "$file" 2>/dev/null)"
+    if [[ -n "$current" ]] && pkg_file="$(reseller_plan_file "$current")"; then
+        jq -c --slurpfile pkg "$pkg_file" '((.allowed_plans // []) | map(tonumber? // empty)) - (($pkg[0].allowed_plans // []) | map(tonumber? // empty))' "$file"
+    else
+        echo "[]"
+    fi
+}
+
 # reseller logo URLs end up in every owned account's .env, so only plain http(s) URLs: no quotes, $, backticks, backslashes or spaces
 reseller_logo_url_valid() {
     local url="$1"

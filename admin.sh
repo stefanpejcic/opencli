@@ -5,7 +5,7 @@
 # Usage: opencli admin <command> [options]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 30.10.2026
+# Last Modified: 09.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -467,8 +467,11 @@ update_reseller_account() {
     local reseller_file
     reseller_file="$(reseller_limits_file "$username")"
 
+    local own_plans=""
     if [[ -n "$allowed_plans" ]]; then
         allowed_plans="$(reseller_plans_json "$allowed_plans")"
+        # plans the admin removed by hand stop being the reseller's own
+        own_plans="$(jq -c --argjson allowed "$allowed_plans" 'map(select(. as $p | $allowed | index($p)))' <<< "$(reseller_own_plans "$reseller_file")")"
     fi
 
     local plan_file=""
@@ -480,7 +483,11 @@ update_reseller_account() {
         # explicit flags win over the plan's values
         [[ -n "$max_accounts" ]] || max_accounts="$(jq -r '.max_accounts // 0' "$plan_file")"
         [[ -n "$max_disk_blocks" ]] || max_disk_blocks="$(jq -r '.max_disk_blocks // 0' "$plan_file")"
-        [[ -n "$allowed_plans" ]] || allowed_plans="$(jq -c '(.allowed_plans // []) | map(tonumber? // empty)' "$plan_file")"
+        # keep the plans the reseller created, the plan file only lists the admin's ones
+        if [[ -z "$allowed_plans" ]]; then
+            own_plans="$(reseller_own_plans "$reseller_file")"
+            allowed_plans="$(jq -c --argjson own "${own_plans:-[]}" '((.allowed_plans // []) | map(tonumber? // empty)) + $own | unique' "$plan_file")"
+        fi
 
         # refuse a downgrade below what the reseller already uses
         source /usr/local/opencli/db.sh
@@ -511,6 +518,10 @@ update_reseller_account() {
     if [[ -n "$allowed_plans" ]]; then
         jq_filter+=' | .allowed_plans = ($plans_json | fromjson)'
         jq_args+=(--arg plans_json "$allowed_plans")
+    fi
+    if [[ -n "$own_plans" ]]; then
+        jq_filter+=' | .own_plans = ($own_json | fromjson)'
+        jq_args+=(--arg own_json "$own_plans")
     fi
     if [[ -n "$reseller_plan" ]]; then
         jq_filter+=' | .reseller_plan = $reseller_plan'
