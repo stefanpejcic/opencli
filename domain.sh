@@ -228,6 +228,40 @@ update_redirects() {
     fi
     
     sed -i -E "s|(redir @openpanel )https?://[^:]+:|\1${redirect_url}:|; s|(redir @openadmin )https?://[^:]+:|\1${redirect_url}:|" "$REDIRECTS_CONF"
+    update_mcp_proxy
+}
+
+# panel only serves tls when it has a cert for its domain, so the /mcp upstream scheme follows the domain
+update_mcp_proxy() {
+    local port tmp
+    port=$(grep -oP 'reverse_proxy @mcp https?://127\.0\.0\.1:\K[0-9]+' "$REDIRECTS_CONF" | head -n 1)
+    port=${port:-2083}
+
+    if ! grep -q '^# START MCP #' "$REDIRECTS_CONF"; then
+        printf '\n# MCP: every domain'"'"'s /mcp is proxied to the panel, opencli domain/port keep this block in sync\n# START MCP #\n# END MCP #\n' >> "$REDIRECTS_CONF"
+    fi
+
+    tmp=$(mktemp) || return 1
+    awk -v host="$new_hostname" -v def="$DEFAULT_DOMAIN" -v port="$port" '
+        /^# START MCP #/ {
+            print
+            print "@mcp path /mcp /mcp/*"
+            if (host == def) {
+                print "reverse_proxy @mcp http://127.0.0.1:" port
+            } else {
+                print "reverse_proxy @mcp https://127.0.0.1:" port " {"
+                print "    transport http {"
+                print "        tls_server_name " host
+                print "    }"
+                print "}"
+            }
+            skip = 1
+            next
+        }
+        /^# END MCP #/ { skip = 0 }
+        !skip
+    ' "$REDIRECTS_CONF" > "$tmp" && cat "$tmp" > "$REDIRECTS_CONF"
+    rm -f "$tmp"
 }
 
 configure_mailserver() {

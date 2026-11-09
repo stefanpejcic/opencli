@@ -95,7 +95,7 @@ do_reload() {
 
 
 update_redirects() {
-  sed -i "/redir @openpanel/s/:[0-9]\+/:$new_port/g" $REDIRECTS_FILE
+  sed -i "/redir @openpanel/s/:[0-9]\+/:$new_port/g; /reverse_proxy @mcp/s/:[0-9]\+/:$new_port/" $REDIRECTS_FILE
 }
 
 update_proxy_file() {
