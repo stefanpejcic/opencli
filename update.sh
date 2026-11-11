@@ -938,8 +938,8 @@ run_update_immediately() {
     touch "$log_file"
     
     log() {
-        echo "" >> "$log_file"
-        echo -e "${CYAN}---- ${1} ----${NC}" | tee -a "$log_file"
+        printf '\n---- %s ----\n' "$1" >> "$log_file"
+        echo -e "${CYAN}---- ${1} ----${NC}"
     }
 
     # ---------------------- 2. START PROCESS, WRITE NOTIFICATION
