@@ -56,6 +56,7 @@ readonly LOCK_FILE_FOR_SWAP_CLEANUP="/tmp/sentinel.swap"
 readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 readonly LOCK_FILE_FOR_RATELIMIT="/tmp/sentinel.ratelimit"
+readonly LOCK_FILE_FOR_MAIL_REPORT="/var/lib/openpanel/sentinel.mail_report"
 readonly RATELIMIT_CHECK_HOURS=6
 readonly STARTUP_STAGGER=2  # seconds between user starts on boot
 readonly MYSQL_IDLE_GRACE=7200  # mysql of an account this old with no databases gets stopped
@@ -94,6 +95,11 @@ RATELIMIT=$([[ "$(ini_get ratelimit)" == "yes" ]] && echo yes || echo no)
 ATTACK=$(validate_yes_no "$(ini_get attack)")
 MAX_TOTAL_CONN=$(validate_count "$(ini_get max_total_conn)"   5000)
 MAX_CONN_PER_IP=$(validate_count "$(ini_get max_conn_per_ip)" 500)
+# yesterday's mail report, only alerts when delivery looks wrong, bounce/defer are % of the mail that went out
+# new and off by default like ratelimit, OpenAdmin only shows the switch on when the key says yes
+MAIL_REPORT=$([[ "$(ini_get mail)" == "yes" ]] && echo yes || echo no)
+MAIL_BOUNCE_PCT=$(validate_number "$(ini_get mail_bounce)" 20)
+MAIL_DEFER_PCT=$(validate_number  "$(ini_get mail_defer)"  20)
 # hardcoded until they get settings in OpenAdmin, 0 turns the mail queue check off
 readonly MAIL_QUEUE=500
 readonly HOLD_SPAM=yes
@@ -1658,6 +1664,57 @@ check_mail_queue() {
     "$(jq -nc --argjson t "$total" --arg s "$lines" --arg h "${held:+$top_sender}" '{kind: "mail_queue", total: $t, top_senders: $s, held_sender: $h}')"
 }
 
+# once a day: yesterday's totals from pflogsumm (what the Summary reports show), alert only when bounces, deferrals or rejects are high or the mailserver is down
+check_mail_report() {
+  local title="Mail delivery problems" container="openadmin_mailserver"
+  if [[ "$MAIL_REPORT" == "no" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Mail report checks are disabled."; return
+  fi
+  [[ -f /usr/local/mail/openmail/compose.yml ]] || { ((PASS++)); echo -e "\e[32m[✔]\e[0m Mail server is not installed, skipping mail report check."; return; }
+  local today; today=$(date +%F)
+  if [[ "$(cat "$LOCK_FILE_FOR_MAIL_REPORT" 2>/dev/null)" == "$today" ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Mail report already checked today."; return
+  fi
+  mkdir -p "$(dirname "$LOCK_FILE_FOR_MAIL_REPORT")"
+  echo "$today" > "$LOCK_FILE_FOR_MAIL_REPORT"
+
+  if [[ "$(timeout 20 podman inspect -f '{{.State.Running}}' "$container" 2>/dev/null)" != "true" ]]; then
+    ((FAIL++)); STATUS=2
+    echo -e "\e[31m[✘]\e[0m Mail server is not running."
+    write_notification warning email "$title" "The mail server (${container}) is not running, mail is not being sent or received. Start it from OpenAdmin > Services or with: cd /usr/local/mail/openmail && podman-compose up -d mailserver" \
+      "$(jq -nc '{kind: "mail_report", down: true}')"
+    return
+  fi
+
+  local totals
+  totals=$(timeout 300 podman exec "$container" pflogsumm -d yesterday --zero_fill /var/log/mail/mail.log 2>/dev/null | sed -n '/^Grand Totals/,/^Per-Hour/p')
+  if [[ -z "$totals" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Could not read yesterday's mail log."; return
+  fi
+  local received delivered deferred deferrals bounced rejected reject_pct
+  num() { awk -v k="$1" '$2 == k {print $1; exit}' <<< "$totals"; }
+  received=$(num received); delivered=$(num delivered); deferred=$(num deferred); bounced=$(num bounced); rejected=$(num rejected)
+  deferrals=$(grep -oE 'deferred +\( *[0-9]+' <<< "$totals" | grep -oE '[0-9]+$')
+  reject_pct=$(grep -oE 'rejected \([0-9]+%' <<< "$totals" | grep -oE '[0-9]+')
+  received=${received:-0}; delivered=${delivered:-0}; deferred=${deferred:-0}; bounced=${bounced:-0}; rejected=${rejected:-0}
+
+  local bounce_pct=0 defer_pct=0 problems=""
+  (( delivered + bounced > 0 )) && bounce_pct=$(( bounced * 100 / (delivered + bounced) ))
+  (( delivered + deferred > 0 )) && defer_pct=$(( deferred * 100 / (delivered + deferred) ))
+  (( bounce_pct >= MAIL_BOUNCE_PCT && bounced >= 10 )) && problems+="- ${bounced} bounced (${bounce_pct}% of outgoing, threshold ${MAIL_BOUNCE_PCT}%): check for spam from a hacked mailbox or website, or a blacklisted server IP"$'\n'
+  (( defer_pct >= MAIL_DEFER_PCT && deferred >= 10 )) && problems+="- ${deferred} deferred (${defer_pct}%, ${deferrals:-?} retries, threshold ${MAIL_DEFER_PCT}%): receiving servers are refusing or rate limiting mail from this server"$'\n'
+
+  local day; day=$(date -d yesterday '+%b %-d')
+  if [[ -z "$problems" ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Mail report for ${day}: ${delivered} delivered, ${bounce_pct}% bounced, ${defer_pct}% deferred."
+    resolve_notification "$title"; return
+  fi
+  ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Mail report for ${day} has problems."
+  write_notification warning email "$title" "Mail log for ${day}: ${received} received, ${delivered} delivered, ${rejected} rejected${reject_pct:+ (${reject_pct}%)}."$'\n'"${problems}Details in OpenAdmin > Emails > Summary reports and > Queue." \
+    "$(jq -nc --arg day "$day" --argjson r "$received" --argjson d "$delivered" --argjson df "$deferred" --argjson b "$bounced" --argjson rj "$rejected" --argjson bp "$bounce_pct" --argjson dp "$defer_pct" \
+      '{kind: "mail_report", day: $day, received: $r, delivered: $d, deferred: $df, bounced: $b, rejected: $rj, bounce_pct: $bp, defer_pct: $dp}')"
+}
+
 check_ratelimit_hits() {
   if [[ "$RATELIMIT" == "no" ]]; then
     ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limit checks are disabled."; return
@@ -2296,6 +2353,7 @@ _parallel_tasks=(
   check_user_containers
   check_ratelimit_hits
   check_mail_queue
+  check_mail_report
   check_license_expiry
 )
 
