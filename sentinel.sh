@@ -392,6 +392,7 @@ start_containers_for_socket() {
         echo "$label: starting $name (was: $state)"
         if CONTAINER_HOST="unix://$socket" timeout 30 podman start "$id" &>/dev/null || CONTAINER_HOST="unix://$socket" timeout 30 podman restart "$id" &>/dev/null; then
             ((count++)); result="restarted"
+            { flock -x 201; printf '%s\t%s\n' "$label" "$name" >> "$results_file.names"; } 201>>"$results_file.lock"
         else
             echo -e "\e[31m[✘]\e[0m $label: FAILED to start $name"; result="failed"
         fi
@@ -501,6 +502,7 @@ start_conditional_containers_for_user() {
         echo "$user: starting required container $svc"
         if CONTAINER_HOST="unix://$user_sock" podman_ensure_running "$svc" "$home" "$svc" 20; then
             ((count++))
+            { flock -x 201; printf '%s\t%s\n' "$user" "$svc" >> "$results_file.names"; } 201>>"$results_file.lock"
         else
             echo -e "\e[31m[✘]\e[0m $user: FAILED to start required container $svc"
         fi
@@ -626,15 +628,38 @@ restart_dead_user_containers() {
           (( per_user[$label] += count ))
       fi
   done < "$RESULTS_FILE"
-  # a user can have a line from the sweep and one from the required containers, so sum them
+  # names of what was started, per user (a user can have some from the sweep and some from the required containers)
+  local -A names=()
+  local name
+  RESTART_ROOT_NAMES=""
+  while IFS=$'\t' read -r label name; do
+      [[ -z "$label" || -z "$name" ]] && continue
+      if [[ "$label" == "root" ]]; then
+          RESTART_ROOT_NAMES+="${RESTART_ROOT_NAMES:+, }$name"
+      else
+          names[$label]+="${names[$label]:+, }$name"
+      fi
+  done < "$RESULTS_FILE.names" 2>/dev/null
   for label in "${user_order[@]}"; do
-      (( per_user[$label] > 0 )) && RESTART_USER_LINES+=("${label}: ${per_user[$label]}")
+      (( per_user[$label] > 0 )) && RESTART_USER_LINES+=("${label}: ${names[$label]:-${per_user[$label]} container(s)}")
   done
   RESTART_EVENTS=$(cat "$RESULTS_FILE.events" 2>/dev/null)
-  rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock" "$RESULTS_FILE.events"
+  rm -f "$RESULTS_FILE" "$RESULTS_FILE.lock" "$RESULTS_FILE.events" "$RESULTS_FILE.names"
 
   local END_TIME; END_TIME=$(date +%s)
   RESTART_ELAPSED=$((END_TIME - START_TIME))
+}
+
+# "Started php-fpm-8.3 for 2 users in 5s" with one line per user naming what was started, root only when something of it was
+restart_summary() {
+  local verb="$1" parts=() line
+  (( RESTART_ROOT_COUNT > 0 )) && parts+=("${RESTART_ROOT_COUNT} system container(s) (${RESTART_ROOT_NAMES:-names unknown})")
+  (( RESTART_USER_TOTAL > 0 )) && parts+=("${RESTART_USER_TOTAL} container(s) of ${#RESTART_USER_LINES[@]} user(s)")
+  local msg="${verb} ${parts[0]}${parts[1]:+ and ${parts[1]}} in ${RESTART_ELAPSED}s."
+  for line in "${RESTART_USER_LINES[@]}"; do
+    msg+=$'\n'"- ${line}"
+  done
+  printf '%s' "$msg"
 }
 
 # FTP passive mode hands clients FTP_PASV_ADDRESS from /root/.env, so after a reboot on a new IP it's
@@ -677,11 +702,8 @@ perform_startup_actions() {
   restart_dead_user_containers staged
   touch "$LOCK_FILE_FOR_USER_CONTAINERS"  # starts the hourly window from reboot, so the next cron tick doesn't re-sweep immediately
 
-  local summary_msg="Started ${RESTART_ROOT_COUNT} container(s) for root and ${RESTART_USER_TOTAL} container(s) across ${#RESTART_USER_LINES[@]} user(s) in ${RESTART_ELAPSED}s."
-  if (( ${#RESTART_USER_LINES[@]} > 0 )); then
-      local IFS=', '
-      summary_msg+=" Per user: ${RESTART_USER_LINES[*]}."
-  fi
+  local summary_msg=""
+  (( RESTART_ROOT_COUNT > 0 || RESTART_USER_TOTAL > 0 )) && summary_msg=$(restart_summary "Started")
 
   if [[ "$REBOOT" == "no" ]]; then
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
@@ -720,11 +742,7 @@ check_user_containers() {
   fi
 
   ((WARN++))
-  local summary_msg="Started/restarted ${RESTART_ROOT_COUNT} container(s) for root and ${RESTART_USER_TOTAL} container(s) across ${#RESTART_USER_LINES[@]} user(s) in ${RESTART_ELAPSED}s."
-  if (( ${#RESTART_USER_LINES[@]} > 0 )); then
-    local IFS=', '
-    summary_msg+=" Per user: ${RESTART_USER_LINES[*]}."
-  fi
+  local summary_msg; summary_msg=$(restart_summary "Started/restarted")
   echo -e "\e[38;5;214m[!]\e[0m $summary_msg"
   write_info_notification service "Dead/required user containers started" "$summary_msg"
   notify_users_of_failed_services

@@ -112,14 +112,16 @@ is_valid_domain() {
     [[ "$input" =~ $domain_regex || "$input" =~ $ipv4_regex ]]
 }
 
-# https://docs.podman.io/en/latest/markdown/podman-run.1.html#add-host-hostname-hostname-ip
+# the hostname used to be pinned to 169.254.1.2 (the host as rootless containers see it) in the host's own /etc/hosts,
+# which the host itself can't reach, so curl to the panel from the server hung, e.g. sentinel's emails. Containers reach
+# the public IP fine, so drop that line and leave container-only names to opencli docker-hosts when it's installed.
 update_container_hosts_entry() {
     local domain="$1"
     [[ -z "$domain" ]] && return 0
-    sed -i "/[[:space:]]${domain}\$/d" /etc/hosts
-    sed -i "/[[:space:]]${domain}[[:space:]]/d" /etc/hosts
-    echo "169.254.1.2   ${domain}" >> /etc/hosts
-    # todo: loop for existing containers to apply it
+    sed -i -E "/^169\.254\.1\.2[[:space:]]+(.*[[:space:]])?${domain//./\\.}([[:space:]]|\$)/d" /etc/hosts
+    if [[ -f /usr/local/opencli/docker/hosts.sh ]]; then
+        opencli docker-hosts >/dev/null 2>&1 || true
+    fi
 }
 
 # reads the current domain from the Caddyfile
@@ -264,7 +266,7 @@ update_mcp_proxy() {
     rm -f "$tmp"
 }
 
-# roundcube connects to ssl://<hostname>, but update_container_hosts_entry maps the hostname to 169.254.1.2 in /etc/hosts
+# roundcube connects to ssl://<hostname>, older versions mapped the hostname to 169.254.1.2 in the host's /etc/hosts
 # (the host as seen from rootless user containers), which roundcube on the rootful network can't reach: pin it to the public IP
 set_roundcube_extra_host() {
     local host="$1"
@@ -363,6 +365,21 @@ configure_mailserver() {
 }
 
 
+# OpenAdmin's SMTP follows the hostname only when it was pointing at the old one (or the IP), a custom relay or an empty
+# setting (OpenAdmin then sends through the local mailserver itself) is left alone
+update_admin_smtp_server() {
+    local conf="/etc/openpanel/openpanel/conf/openpanel.config" new cur
+    [[ -f "$conf" ]] || return 0
+    new="$new_hostname"
+    [[ "$new_hostname" == "$DEFAULT_DOMAIN" ]] && new="$server_ip"
+    cur=$(awk -F= '/^\[SMTP\]/{f=1; next} /^\[/{f=0} f && $1 == "mail_server" {print $2; exit}' "$conf")
+    [[ -z "$cur" || "$cur" == "$new" ]] && return 0
+    if { [[ "$cur" == "$current_domain" && "$current_domain" != "$DEFAULT_DOMAIN" ]] || [[ -n "$server_ip" && "$cur" == "$server_ip" ]]; }; then
+        sed -i "/^\[SMTP\]/,/^\[/ s|^mail_server=.*|mail_server=${new}|" "$conf"
+        log_debug "OpenAdmin SMTP server changed from $cur to $new"
+    fi
+}
+
 restart_services() {
 
 	caddy_reload
@@ -413,6 +430,7 @@ update_domain() {
     redis_drop_key openpanel_cache_app.get_openpanel_domain
     restart_services "$@" || return 1
     configure_mailserver || return 1
+    update_admin_smtp_server
     show_success_message
 }
 
