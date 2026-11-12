@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: imunify.sh
 # Description: Install and manage ImunifyAV service.
-# Usage: opencli imunify [status|start|stop|install|update|uninstall]
+# Usage: opencli imunify [status|start|stop|install|update|uninstall|hook]
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
@@ -620,6 +620,16 @@ update_av() {
       echo "Unsupported package manager. Only apt-get and yum are supported."
       exit 1
   fi
+  # servers installed before the spool hook still have the old email-only one, which never reaches Sentinel
+  setup_av_hook
+}
+
+# opencli imunify hook: (re)installs the scan event hook, safe to run any time
+setup_av_hook() {
+  command -v imunify-antivirus >/dev/null 2>&1 || { echo "ImunifyAV is not installed."; return 1; }
+  echo "Configuring ImunifyAV scan notifications for OpenPanel Sentinel..."
+  configure_av_hook
+  echo "Done: scan events go to $IAV_SPOOL and '$IAV_UNIT' passes them to Sentinel."
 }
 
 
@@ -659,8 +669,12 @@ case "$1" in
         notify_av
         exit 0
         ;;
+    hook)
+        setup_av_hook
+        exit $?
+        ;;
     *)
-        echo "Usage: opencli imunify {status|install|update|uninstall|start|stop}"
+        echo "Usage: opencli imunify {status|install|update|uninstall|start|stop|hook}"
         exit 1
         ;;
 esac
