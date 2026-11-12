@@ -811,10 +811,12 @@ get_slave_dns_option() {
 }
 
 run_dns_setup() {
-    $SKIP_DNS_ZONE && { log "Skipping DNS zone creation (--skip_dns)"; return; }
-    is_module_enabled "dns" || { log "DNS module disabled — skipping"; return; }
+    $SKIP_DNS_ZONE && { log "Skipping DNS zone creation (--skip_dns)"; generate_dkim_key; return; }
+    is_module_enabled "dns" || { log "DNS module disabled — skipping"; generate_dkim_key; return; }
 
     create_zone_file
+    # after the zone exists, create_zone_file overwrites it so this can't run alongside
+    generate_dkim_key && add_dkim_to_zone
     # own zone only, subdomains just add records to the apex one
     if ! $USE_PARENT_DNS_ZONE && [[ -f "$ZONE_FILE_DIR${domain_name}.zone" ]]; then
         backup_mount_add "$context" "$ZONE_FILE_DIR${domain_name}.zone" "/backup/dns/${domain_name}.zone" && backup_service_reload "$user" "$context"
@@ -916,30 +918,37 @@ postfwd_setup() {
     disown
 }
 
-generate_dkim() {
-    [[ -n "$ENTERPRISE" ]] || return
-    local compose_file="/usr/local/mail/openmail/compose.yml"
-    [[ -f "$compose_file" ]] || return
+# the key is needed for signing even when this server doesn't host the zone
+generate_dkim_key() {
+    [[ -n "$ENTERPRISE" ]] || return 1
+    [[ -f "/usr/local/mail/openmail/compose.yml" ]] || return 1
     log "Generating DKIM for the domain"
     opencli email-setup config dkim domain "$domain_name" >/dev/null 2>&1
+    [[ -f "/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt" ]]
+}
 
+# only into a zone run_dns_setup just made, never creates one
+add_dkim_to_zone() {
+    local zone_file dkim_file="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt"
     if $USE_PARENT_DNS_ZONE; then
         zone_file="$ZONE_FILE_DIR${apex_domain}.zone"
-	else
-		zone_file="$ZONE_FILE_DIR${domain_name}.zone"
-	fi
-
-	dkim_file="/usr/local/mail/openmail/docker-data/dms/config/opendkim/keys/${domain_name}/mail.txt"
-	if [[ -f "$dkim_file" ]] && ! grep -q "mail\._domainkey" "$zone_file"; then
-	    {
-	        printf '\n'
-	        sed -E "s/^mail\._domainkey[[:space:]]+IN/mail._domainkey\t14400\tIN/" "$dkim_file"
-	        printf '\n'
-	    } >> "$zone_file"
-	    log "DKIM was successfully generated and added in the local DNS zone for domain"
-	else
-	    log "DKIM was not configured: generation failed or the DNS zone already includes a mail._domainkey record"
-	fi
+    else
+        zone_file="$ZONE_FILE_DIR${domain_name}.zone"
+    fi
+    if [[ ! -s "$zone_file" ]]; then
+        log "No local DNS zone for the domain, DKIM record not added"
+        return
+    fi
+    if grep -q "mail\._domainkey" "$zone_file"; then
+        log "DNS zone already includes a mail._domainkey record"
+        return
+    fi
+    {
+        printf '\n'
+        sed -E "s/^mail\._domainkey[[:space:]]+IN/mail._domainkey\t14400\tIN/" "$dkim_file"
+        printf '\n'
+    } >> "$zone_file"
+    log "DKIM was successfully generated and added in the local DNS zone for domain"
 }
 
 create_mail_mountpoint() {
@@ -1035,7 +1044,7 @@ run_parallel_async() {
         _bg "tor-start"  start_tor_for_user
     else
         _bg "caddy"  create_caddy_domain_file
-        _bg "dns"    run_dns_setup
+        _bg "dns"    run_dns_setup   # also does the DKIM key and record
     fi
 
     _bg "vhost"   create_vhost_file
@@ -1044,7 +1053,6 @@ run_parallel_async() {
 
     if [[ "$onion_domain" == false ]]; then
         _bg "mail"     create_mail_mountpoint
-		_bg "dkim"     generate_dkim
         _bg "postfwd"  postfwd_setup
     fi
 
