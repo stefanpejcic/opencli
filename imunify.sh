@@ -269,6 +269,21 @@ mount_socket_in_panel() {
   sed -i "\#- /run/podman/podman.sock:/run/podman/podman.sock#a\\
 $line" "$compose"
   cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
+  PANEL_RECREATED=1
+}
+
+# a fresh install turns the user panel page on, admins can still turn it off in OpenAdmin > Settings > Modules
+enable_panel_module() {
+  local conf="/etc/openpanel/openpanel/conf/openpanel.config"
+  [ -f "$conf" ] && grep -q '^enabled_modules=' "$conf" || return 1
+  panel_module_enabled && return 1
+  echo "Enabling the imunifyav module for the user panel.."
+  if grep -q '^enabled_modules=".*"' "$conf"; then
+    sed -i 's/^enabled_modules="\(.*\)"/enabled_modules="\1,imunifyav"/; s/^enabled_modules=",imunifyav"/enabled_modules="imunifyav"/' "$conf"
+  else
+    sed -i 's/^enabled_modules=\(.*\)$/enabled_modules=\1,imunifyav/; s/^enabled_modules=,imunifyav$/enabled_modules=imunifyav/' "$conf"
+  fi
+  panel_module_enabled
 }
 
 PANEL_GUI_UNIT="/etc/systemd/system/imunify-gui-panel.service"
@@ -502,8 +517,15 @@ NEW_SERVICE='    {
       echo "Invalid JSON format in $FILE"
   fi
 
+  local module_enabled=""
+  enable_panel_module && module_enabled=1
+  PANEL_RECREATED=""
   mount_socket_in_panel
   setup_panel_gui
+  # openpanel reads enabled_modules on start, a recreate for the mount already covered it
+  if [ -n "$module_enabled" ] && [ -z "$PANEL_RECREATED" ] && podman ps --format '{{.Names}}' | grep -qx openpanel; then
+    podman restart -t 10 openpanel >/dev/null 2>&1
+  fi
 
   echo "Install completed!"
 }
