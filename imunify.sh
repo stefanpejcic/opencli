@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 04.08.2025
-# Last Modified: 15.10.2026
+# Last Modified: 10.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -250,6 +250,110 @@ EOT
   imunify360-agent malware rebuild patterns
 }
 
+# the user panel's ImunifyAV page talks to the agent socket, servers installed before it don't mount it yet
+mount_socket_in_panel() {
+  local compose="/root/docker-compose.yml"
+  local line='      - /run/defence360agent/:/run/defence360agent/:ro                                   # imunifyav rpc socket'
+
+  install -d -m 755 /run/defence360agent
+  echo "d /run/defence360agent 0755 root root -" > /etc/tmpfiles.d/openpanel-imunify.conf
+
+  [ -f "$compose" ] || return 0
+  grep -q "/run/defence360agent" "$compose" && return 0
+  if [ "$(grep -c -- '- /run/podman/podman.sock:/run/podman/podman.sock' "$compose")" != "1" ]; then
+    echo "[!] Couldn't add the ImunifyAV socket to $compose, mount /run/defence360agent/ into the openpanel service for the user panel's ImunifyAV page."
+    return 0
+  fi
+
+  echo "Mounting the ImunifyAV socket into the OpenPanel container.."
+  sed -i "\#- /run/podman/podman.sock:/run/podman/podman.sock#a\\
+$line" "$compose"
+  cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
+  PANEL_RECREATED=1
+}
+
+# a fresh install turns the user panel page on, admins can still turn it off in OpenAdmin > Settings > Modules
+enable_panel_module() {
+  local conf="/etc/openpanel/openpanel/conf/openpanel.config"
+  [ -f "$conf" ] && grep -q '^enabled_modules=' "$conf" || return 1
+  panel_module_enabled && return 1
+  echo "Enabling the imunifyav module for the user panel.."
+  if grep -q '^enabled_modules=".*"' "$conf"; then
+    sed -i 's/^enabled_modules="\(.*\)"/enabled_modules="\1,imunifyav"/; s/^enabled_modules=",imunifyav"/enabled_modules="imunifyav"/' "$conf"
+  else
+    sed -i 's/^enabled_modules=\(.*\)$/enabled_modules=\1,imunifyav/; s/^enabled_modules=,imunifyav$/enabled_modules=imunifyav/' "$conf"
+  fi
+  panel_module_enabled
+}
+
+PANEL_GUI_UNIT="/etc/systemd/system/imunify-gui-panel.service"
+PANEL_GUI_DIR="/etc/openpanel/imunify"
+
+# OpenAdmin > Settings > Modules turns the gui on and off with this module, like clamav with malware_scan
+panel_module_enabled() {
+  grep -Eq '^enabled_modules="?([^"]*,)?imunifyav(,|"|$)' /etc/openpanel/openpanel/conf/openpanel.config 2>/dev/null
+}
+
+# the user panel container can't reach 127.0.0.1 on the host, so it gets a second gui on its network's gateway
+panel_gui_address() {
+  local gw
+  gw=$(podman network inspect root_openpanel_network --format '{{range .Subnets}}{{.Gateway}}{{end}}' 2>/dev/null | head -n 1)
+  echo "${gw:-172.20.0.1}"
+}
+
+# a real unit, not systemd-run, so the user panel's gui comes back after a reboot without anyone opening OpenAdmin
+setup_panel_gui() {
+  local php gw
+  php=$(command -v php) || { echo "[!] PHP not found, skipping the ImunifyAV UI for the user panel."; return 0; }
+  gw=$(panel_gui_address)
+
+  # user containers can reach the gateway too, so the router only answers /imav/ with the key the panel sends
+  install -d -m 750 -o root -g _imunify "$PANEL_GUI_DIR"
+  if [ ! -s "$PANEL_GUI_DIR/panel.key" ]; then
+    (umask 027; openssl rand -hex 32 > "$PANEL_GUI_DIR/panel.key")
+  fi
+  cat > "$PANEL_GUI_DIR/router.php" <<'EOF'
+<?php
+$key = trim((string) @file_get_contents('/etc/openpanel/imunify/panel.key'));
+$got = isset($_SERVER['HTTP_X_OPENPANEL_KEY']) ? $_SERVER['HTTP_X_OPENPANEL_KEY'] : '';
+$path = (string) parse_url(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', PHP_URL_PATH);
+if ($key === '' || !hash_equals($key, $got) || strpos($path, '/imav/') !== 0) {
+    http_response_code(403);
+    exit;
+}
+return false;
+EOF
+  chown root:_imunify "$PANEL_GUI_DIR/panel.key" "$PANEL_GUI_DIR/router.php"
+  chmod 640 "$PANEL_GUI_DIR/panel.key" "$PANEL_GUI_DIR/router.php"
+
+  cat > "$PANEL_GUI_UNIT" <<EOF
+[Unit]
+Description=ImunifyAV UI for the OpenPanel user panel
+After=network-online.target
+
+[Service]
+User=_imunify
+ExecStart=$php -S $gw:9000 -t /etc/sysconfig/imunify360/ $PANEL_GUI_DIR/router.php
+# the gateway only exists once podman brings the network up
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/imunify-php-server.log
+StandardError=append:/var/log/imunify-php-server.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  if panel_module_enabled; then
+    # --now so an install from OpenAdmin, which never calls start, still brings it up
+    systemctl enable --now imunify-gui-panel >/dev/null 2>&1
+    echo "ImunifyAV UI for the user panel listens on $gw:9000."
+  else
+    systemctl disable --now imunify-gui-panel >/dev/null 2>&1
+    echo "Enable the imunifyav module in OpenAdmin > Settings > Modules to give users the ImunifyAV page."
+  fi
+}
+
 
 
 
@@ -261,6 +365,11 @@ status_av() {
     pgrep -u _imunify -fa "php -S 127.0.0.1:9000"
   else
     echo "Imunify GUI is not running."
+  fi
+  if systemctl is-active --quiet imunify-gui-panel 2>/dev/null; then
+    echo "Imunify GUI for the user panel is running."
+  else
+    echo "Imunify GUI for the user panel is not running."
   fi
 }
 
@@ -332,6 +441,26 @@ EOF
     echo "Deploy script already executed or invalid, skipping..."
   fi
 
+  # uninstall removes the ui files but keeps the packages, so the deploy script won't put them back
+  if [ -z "$(ls -A /etc/sysconfig/imunify360/imav 2>/dev/null)" ]; then
+    echo "Reinstalling the ImunifyAV UI..."
+    mkdir -p /etc/sysconfig/imunify360/imav
+    if command -v dnf >/dev/null 2>&1; then
+      dnf reinstall -y imunify-ui-generic
+    elif command -v apt-get >/dev/null 2>&1; then
+      apt-get install -y --reinstall imunify-ui-generic
+    fi
+  fi
+
+  # same for the config layers, without 90-local.config imunify ignores every setting below
+  local layers="/etc/sysconfig/imunify360/imunify360.config.d"
+  if [ ! -e "$layers/90-local.config" ]; then
+    echo "Restoring the ImunifyAV config layers..."
+    install -d -m 700 -o _imunify -g root "$layers"
+    ln -sfn ../imunify360.config "$layers/90-local.config"
+    chown -h _imunify:root "$layers/90-local.config"
+  fi
+
   configure_av_limits_and_email
   
   echo "Allowing users to initiate a scan.."
@@ -388,7 +517,15 @@ NEW_SERVICE='    {
       echo "Invalid JSON format in $FILE"
   fi
 
-
+  local module_enabled=""
+  enable_panel_module && module_enabled=1
+  PANEL_RECREATED=""
+  mount_socket_in_panel
+  setup_panel_gui
+  # openpanel reads enabled_modules on start, a recreate for the mount already covered it
+  if [ -n "$module_enabled" ] && [ -z "$PANEL_RECREATED" ] && podman ps --format '{{.Names}}' | grep -qx openpanel; then
+    podman restart -t 10 openpanel >/dev/null 2>&1
+  fi
 
   echo "Install completed!"
 }
@@ -403,6 +540,10 @@ uninstall_av() {
   rm -f /etc/pam.d/imunify360-deny
   rm -f imav-deploy.sh
   rm -f /var/log/imunify-php-server.log
+  systemctl disable imunify-gui-panel >/dev/null 2>&1 || true
+  rm -f "$PANEL_GUI_UNIT"
+  rm -rf "$PANEL_GUI_DIR"
+  systemctl daemon-reload
 
   echo "Checking for _imunify user..."
   if id "_imunify" >/dev/null 2>&1; then
@@ -442,12 +583,20 @@ start_av() {
   else
     echo "ImunifyAV GUI already running."
   fi
+
+  # servers that installed imunify before the user panel page get the mount when the module is turned on
+  panel_module_enabled && mount_socket_in_panel
+  setup_panel_gui
+  if [ -f "$PANEL_GUI_UNIT" ] && panel_module_enabled; then
+    systemctl restart imunify-gui-panel
+  fi
 }
 
 # ======================================================================
 # opencli imunify stop
 stop_av() {
   systemctl stop imunify-gui 2>/dev/null || true
+  systemctl stop imunify-gui-panel 2>/dev/null || true
   pkill -f "php -S 127.0.0.1:9000"
   if ! pgrep -f "php -S 127.0.0.1:9000" >/dev/null; then
     echo "ImunifyAV GUI disabled."
