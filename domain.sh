@@ -35,7 +35,7 @@
 readonly CADDY_FILE="/etc/openpanel/caddy/Caddyfile"
 readonly DOMAINS_DIR="/etc/openpanel/caddy/domains/"
 readonly MAILSERVER_ENV="/usr/local/mail/openmail/mailserver.env"
-readonly FTP_COMPOSE_FILE="/etc/openpanel/ftp/compose.yml"
+readonly MAILSERVER_COMPOSE_FILE="/usr/local/mail/openmail/compose.yml"
 readonly REDIRECTS_CONF="/etc/openpanel/caddy/redirects.conf"
 readonly DEFAULT_DOMAIN="example.net"
 
@@ -282,11 +282,11 @@ configure_mailserver() {
         sed -i '/^SRS_DOMAINNAME=/d' "$MAILSERVER_ENV"
 
         # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
-        if [[ -f "$FTP_COMPOSE_FILE" ]]; then
-            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=mailserver|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=mailserver|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|" "$FTP_COMPOSE_FILE"
+        if [[ -f "$MAILSERVER_COMPOSE_FILE" ]]; then
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=mailserver|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=mailserver|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|" "$MAILSERVER_COMPOSE_FILE"
         fi
     else
         log_debug "Configuring mailserver for TLS/SSL authentication with domain"
@@ -338,11 +338,11 @@ configure_mailserver() {
         fi
 
         # podman-compose doesn't interpolate ${VAR:+alt} conditionals like docker compose does, so hardcode the resolved roundcube values in the compose file too
-        if [[ -f "$FTP_COMPOSE_FILE" ]]; then
-            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$FTP_COMPOSE_FILE"
-            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$FTP_COMPOSE_FILE"
+        if [[ -f "$MAILSERVER_COMPOSE_FILE" ]]; then
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_HOST=.*|ROUNDCUBEMAIL_DEFAULT_HOST=ssl://$new_hostname|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$MAILSERVER_COMPOSE_FILE"
+            sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$MAILSERVER_COMPOSE_FILE"
         fi
 
     fi
