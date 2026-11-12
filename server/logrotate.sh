@@ -130,31 +130,23 @@ cat > /etc/logrotate.d/openpanel <<EOF
     maxage $logrotate_keep_days
 }
 
-# delete update logs older than 3m
-/var/log/openpanel/updates/*.log {
-    missingok
-    notifempty
-    rotate 0
-    sharedscripts
-    prerotate
-        find /var/log/openpanel/updates/ -type f -mtime +90 -delete 2>/dev/null || true
-    endscript
-}
-
-# delete reports older than 7d
-/var/log/openpanel/admin/reports/*.txt {
+# update logs and reports are never rotated, this stamp file only runs the daily age cleanup:
+# update logs older than 3m, reports older than 7d
+/var/log/openpanel/.cleanup {
     daily
     rotate 0
     missingok
-    notifempty
-    sharedscripts
+    ifempty
+    create 600 root root
     prerotate
+        find /var/log/openpanel/updates/ -type f -name "*.log" -mtime +90 -delete 2>/dev/null || true
         find /var/log/openpanel/admin/reports/ -type f -name "*.txt" -mtime +7 -delete 2>/dev/null || true
     endscript
 }
 
 EOF
 
+touch /var/log/openpanel/.cleanup
 logrotate -f /etc/logrotate.d/openpanel
 
 echo "OpenPanel log rotation configured."
