@@ -264,6 +264,15 @@ update_mcp_proxy() {
     rm -f "$tmp"
 }
 
+# roundcube connects to ssl://<hostname>, but update_container_hosts_entry maps the hostname to 169.254.1.2 in /etc/hosts
+# (the host as seen from rootless user containers), which roundcube on the rootful network can't reach: pin it to the public IP
+set_roundcube_extra_host() {
+    local host="$1"
+    sed -i '/extra_hosts: # opencli domain$/,+1d' "$MAILSERVER_COMPOSE_FILE"
+    [[ -z "$host" || -z "$server_ip" ]] && return 0
+    sed -i "/container_name: openadmin_roundcube/a\\    extra_hosts: # opencli domain\\n      - \"${host}:${server_ip}\"" "$MAILSERVER_COMPOSE_FILE"
+}
+
 configure_mailserver() {
     [[ ! -f "$MAILSERVER_ENV" ]] && return 0
 	
@@ -287,6 +296,7 @@ configure_mailserver() {
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=mailserver|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=|" "$MAILSERVER_COMPOSE_FILE"
+            set_roundcube_extra_host ""
         fi
     else
         log_debug "Configuring mailserver for TLS/SSL authentication with domain"
@@ -343,6 +353,7 @@ configure_mailserver() {
             sed -i "s|ROUNDCUBEMAIL_DEFAULT_PORT=.*|ROUNDCUBEMAIL_DEFAULT_PORT=993|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_SMTP_SERVER=.*|ROUNDCUBEMAIL_SMTP_SERVER=ssl://$new_hostname|" "$MAILSERVER_COMPOSE_FILE"
             sed -i "s|ROUNDCUBEMAIL_SMTP_PORT=.*|ROUNDCUBEMAIL_SMTP_PORT=465|" "$MAILSERVER_COMPOSE_FILE"
+            set_roundcube_extra_host "$new_hostname"
         fi
 
     fi
