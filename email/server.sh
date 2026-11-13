@@ -6,7 +6,7 @@
 # Docs: https://docs.openpanel.com
 # Author: Stefan Pejcic
 # Created: 18.08.2024
-# Last Modified: 06.11.2026
+# Last Modified: 13.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -333,6 +333,9 @@ set_ssl_for_mailserver() {
 
 confirm_and_clean_existing_dir() {
 	local target="/usr/local/mail/openmail"
+
+	# openpanel install leaves it empty, nothing to ask about
+	rmdir "$target" 2>/dev/null
 
 	if [ -d "$target" ]; then
 		echo "Warning: $target already exists (leftover from a previous install attempt)."

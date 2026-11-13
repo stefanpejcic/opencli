@@ -5,7 +5,7 @@
 # Usage: opencli domain [set <domain_name> | ip] [--debug] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 09.02.2025
-# Last Modified: 05.11.2026
+# Last Modified: 13.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -230,7 +230,30 @@ update_redirects() {
     fi
     
     sed -i -E "s|(redir @openpanel )https?://[^:]+:|\1${redirect_url}:|; s|(redir @openadmin )https?://[^:]+:|\1${redirect_url}:|" "$REDIRECTS_CONF"
+    update_webmail_redirect
     update_mcp_proxy
+}
+
+# /webmail follows the hostname only while it's on the default (ip:8080 or webmail.<old hostname>), a custom one from opencli email-webmail stays
+update_webmail_redirect() {
+    local cur new
+    cur=$(grep -oP '^redir @webmail \Khttps?://[^ ]+' "$REDIRECTS_CONF" | head -n 1)
+    [[ -z "$cur" ]] && return 0
+    cur="${cur%/}"
+    if [[ "$cur" != "http://${server_ip}:8080" && "$cur" != "https://webmail.${current_domain}" && "$cur" != "https://webmail.${DEFAULT_DOMAIN}" ]]; then
+        log_debug "Webmail redirect $cur is custom, leaving it"
+        return 0
+    fi
+    if [[ "$new_hostname" == "$DEFAULT_DOMAIN" ]]; then
+        new="http://${server_ip}:8080/"
+    elif grep -q "^webmail\.${new_hostname//./\\.} {" "$CADDY_FILE"; then
+        new="https://webmail.${new_hostname}/"
+    else
+        return 0
+    fi
+    sed -i -E "s|^(redir @webmail )https?://[^ ]+|\1${new}|" "$REDIRECTS_CONF"
+    redis_drop_pattern "openpanel_cache_get_webmail_domain:*"
+    log_debug "Webmail redirect changed from $cur to $new"
 }
 
 # panel only serves tls when it has a cert for its domain, so the /mcp upstream scheme follows the domain
@@ -275,6 +298,18 @@ set_roundcube_extra_host() {
     sed -i "/container_name: openadmin_roundcube/a\\    extra_hosts: # opencli domain\\n      - \"${host}:${server_ip}\"" "$MAILSERVER_COMPOSE_FILE"
 }
 
+# caddy requests the cert right after the reload, it usually lands within seconds
+wait_for_hostname_cert() {
+    local crt="$1" key="$2" i
+    log_debug "Waiting up to 60s for Caddy to issue SSL certificate for $new_hostname"
+    curl -sk --max-time 5 --resolve "${new_hostname}:443:127.0.0.1" "https://${new_hostname}/" -o /dev/null 2>&1 || true
+    for i in $(seq 30); do
+        [[ -f "$crt" && -f "$key" ]] && return 0
+        sleep 2
+    done
+    return 1
+}
+
 configure_mailserver() {
     [[ ! -f "$MAILSERVER_ENV" ]] && return 0
 	
@@ -316,8 +351,12 @@ configure_mailserver() {
             log_debug "Using custom certs for $new_hostname"
             cert_path_on_hosts="$fallback_cert_path"
             key_path_on_hosts="$fallback_key_path"
+        elif wait_for_hostname_cert "$cert_path_on_hosts" "$key_path_on_hosts"; then
+            log_debug "Let's Encrypt certs for $new_hostname issued"
         else
-            log_debug "WARNING: SSL files don’t exist for domain $new_hostname, will not be configured for mailserver!"
+            # caddy may still get it later (dns propagation, rate limits), so finish the mail setup once it does
+            log_info "SSL certificate for $new_hostname is not issued yet, mailserver will switch to it once Caddy gets one."
+            nohup bash -c "for i in \$(seq 60); do sleep 10; [ -f '$cert_path_on_hosts' ] && [ -f '$key_path_on_hosts' ] && exec opencli domain set '$new_hostname' --no-restart; done" </dev/null >/dev/null 2>&1 &
             return 0
         fi
 
