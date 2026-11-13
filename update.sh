@@ -2,7 +2,7 @@
 ################################################################################
 # Script Name: update.sh
 # Description: Check if update is available, install updates.
-# Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --litespeed | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron]
+# Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --litespeed | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron | --caddy]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
 # Last Modified: 28.10.2026
