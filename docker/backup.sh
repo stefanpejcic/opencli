@@ -116,6 +116,7 @@ ensure_docker_proxy_running() {
 
     if ! is_proxy_running "$context"; then
         log "docker-proxy not running for context: $context — starting it"
+        PROXY_STARTED=1
 
         local start_output start_exit
         start_output=$(podman_compose_ctx "$context" up -d docker-proxy 2>&1)
@@ -187,8 +188,17 @@ with_account_lock() {
     return "$status"
 }
 
+# docker-proxy we started only for this backup goes back down unless the user's cron jobs need it
+stop_unneeded_proxy() {
+    local context="$1"
+    (( PROXY_STARTED )) || return 0
+    grep -qE '^[[:space:]]*\[job-' "/home/$context/crons.ini" 2>/dev/null && return 0
+    podman_ctx "$context" stop docker-proxy >/dev/null 2>&1
+}
+
 run_for_user() {
     local username="$1"
+    PROXY_STARTED=0
     context=$(get_context "$username")
 
     cd /home/"$context"/ || { log "ERROR: Cannot cd into /home/$context/"; return 1; }
@@ -201,7 +211,7 @@ run_for_user() {
     # a leftover backup container has the same archive-pre labels, files-list.sh would run in both and race on backup_meta
     if podman_ctx "$context" container exists backup 2>/dev/null; then
         log "Removing leftover backup container for context: $context"
-        podman_compose_ctx "$context" down backup >/dev/null 2>&1
+        podman_ctx "$context" rm -f backup >/dev/null 2>&1
     fi
     start_user_time=$(date +%s)
     # todo: switch to podman run so backups can use admin-set cpu/ram instead of the user's own
@@ -215,13 +225,9 @@ run_for_user() {
     echo "$backup_output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
     log "--- end of backup container output for user: $username ---"
 
-    local down_output down_exit
-    down_output=$(podman_compose_ctx "$context" down backup 2>&1)
-    down_exit=$?
-    if [ $down_exit -ne 0 ]; then
-        log "WARNING: failed to bring down backup service for user: $username (context: $context) | exit code: $down_exit"
-        echo "$down_output" | tee -a "${USER_LOG_FILE:-$LOG_FILE}"
-    fi
+    # the run container is --rm, compose down backup would also take docker-proxy down and break the user's cron jobs until sentinel restarts it
+    podman_ctx "$context" rm -f backup >/dev/null 2>&1
+    stop_unneeded_proxy "$context"
 
     if [ $backup_exit -ne 0 ]; then
         log "ERROR: Backup FAILED for user: $username (context: $context) | exit code: $backup_exit | Time taken: ${duration}s"
