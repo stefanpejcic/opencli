@@ -187,7 +187,17 @@ notify_av() {
         list=$(jq -r '.malicious_files // [] | .[:5] | join(", ")' <<< "$ev")
         (( malicious > 5 )) && list+=" and $((malicious - 5)) more"
         message="$kind ($path) checked $files_count files in $duration and found: $list. Review them in OpenAdmin > ImunifyAV."
-        [[ -n "$user" ]] && notify_av_user "$user" "$malicious" "$path" "$(jq -c '.malicious_files // []' <<< "$ev")"
+        if [[ -n "$user" ]]; then
+          notify_av_user "$user" "$malicious" "$path" "$(jq -c '.malicious_files // []' <<< "$ev")"
+        else
+          # a scan of all of /home, each account gets an email about its own files only
+          local ctx ctx_files
+          while IFS= read -r ctx; do
+            [[ -n "$ctx" ]] || continue
+            ctx_files=$(jq -c --arg c "$ctx" '[.malicious_files // [] | .[] | select(startswith("/home/\($c)/"))]' <<< "$ev")
+            notify_av_user "$ctx" "$(jq 'length' <<< "$ctx_files")" "/home/$ctx" "$ctx_files"
+          done < <(jq -r '[.malicious_files // [] | .[] | capture("^/home/(?<c>[^/]+)/").c] | unique[]' <<< "$ev")
+        fi
       else
         title="ImunifyAV scan clean${user:+: $user}"
         message="$kind ($path) checked $files_count files in $duration, no malware found."
