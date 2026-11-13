@@ -108,6 +108,7 @@ Options:
     --ssh               Update SSH files in /etc/openpanel/ssh/
     --varnish           Update Varnish files in /etc/openpanel/varnish/
     --cron              Update /etc/openpanel/cron and /etc/cron.d/openpanel
+    --caddy             Pull a new image for the running caddy container, validate the Caddyfile with it and recreate caddy
     -h, --help          Show this help message
 
 Examples:
@@ -122,6 +123,7 @@ Examples:
     opencli update --php           # Add new PHP versions to all users
     opencli update --wp --cron     # Update WP-CLI and cron jobs
     opencli update --phpmyadmin    # Update phpMyAdmin files and image
+    opencli update --caddy         # Update the caddy image (e.g. openpanel/caddy-coraza)
 
 Multiple options can be combined and run in the order given.
 EOF
@@ -1006,6 +1008,8 @@ run_update_immediately() {
     new_major=$(echo "$version" | cut -d. -f1)
     if [[ "$current_major" -lt "$new_major" ]]; then
 		update_system "-y"
+        log "Updating caddy image"
+        update_caddy >> "$log_file" 2>&1 || update_error "Failed to update the caddy image, run: opencli update --caddy"
     else
         log "[✔] Minor update - skipping system updates"
     fi
@@ -1383,6 +1387,64 @@ update_phpmyadmin() {
     refresh_running_container phpmyadmin
 }
 
+# pulls a new image for the running caddy (same tag, e.g. caddy-coraza:latest), validates the current Caddyfile with it and only then recreates caddy,
+# so a failed pull or a config the new caddy rejects leaves the old one running
+update_caddy() {
+    local image old_id new_id i vlog
+    if ! podman ps --format '{{.Names}}' | grep -qx caddy; then
+        log_info "caddy container is not running, skipping caddy image update"
+        return 0
+    fi
+    image=$(podman inspect --format '{{.ImageName}}' caddy 2>/dev/null)
+    old_id=$(podman inspect --format '{{.Image}}' caddy 2>/dev/null)
+    [[ -n "$image" ]] || { log_error "Could not read the caddy container's image"; return 1; }
+
+    log_info "Downloading new caddy image $image"
+    if ! timeout 300 podman pull -q "$image" >/dev/null; then
+        log_error "Failed to pull $image, caddy keeps running the old image"
+        return 1
+    fi
+    new_id=$(podman image inspect --format '{{.Id}}' "$image" 2>/dev/null)
+    if [[ -n "$old_id" && "$old_id" == "$new_id" ]]; then
+        log_info "[✔] caddy already runs the newest $image"
+        return 0
+    fi
+
+    # same mounts as the caddy service in /root/docker-compose.yml, so waf rules and imports resolve like in the real container
+    vlog=$(mktemp)
+    if ! timeout 120 podman run --rm --network none \
+            -v /etc/openpanel/caddy/Caddyfile:/etc/caddy/Caddyfile:ro \
+            -v /etc/openpanel/caddy/:/etc/openpanel/caddy:ro \
+            -v /var/log/caddy/:/var/log/caddy/ \
+            "$image" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >"$vlog" 2>&1; then
+        log_error "The new $image does not accept /etc/openpanel/caddy/Caddyfile, caddy keeps running the old image:"
+        tail -5 "$vlog" >&2
+        rm -f "$vlog"
+        return 1
+    fi
+    rm -f "$vlog"
+
+    log_info "Recreating caddy with the new image"
+    cd /root || return 1
+    podman-compose down caddy >/dev/null 2>&1
+    if ! podman-compose up -d caddy >/dev/null 2>&1; then
+        log_error "Failed to start caddy with the new image - check: cd /root && podman-compose up -d caddy"
+        return 1
+    fi
+    # caddy needs a few seconds to load the waf rules
+    for i in $(seq 1 15); do
+        if [[ "$(podman inspect --format '{{.State.Running}}' caddy 2>/dev/null)" == "true" ]] && podman exec caddy caddy version >/dev/null 2>&1; then
+            log_info "[✔] caddy now runs $(podman exec caddy caddy version | awk '{print $1}') from $image"
+            # drop the old image so its CVEs don't stay on disk, ignored when something else still uses it
+            [[ -n "$old_id" ]] && podman rmi "$old_id" >/dev/null 2>&1
+            return 0
+        fi
+        sleep 2
+    done
+    log_error "caddy did not come up after the image update - check: podman logs caddy"
+    return 1
+}
+
 update_cron() {
     update_config_path "cron" || return 1
     # same as the installer: root-owned 0600, cron picks up the change on its own
@@ -1397,7 +1459,7 @@ main() {
     local modes=()
     for arg in "$@"; do
         case "$arg" in
-            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php|--wp|--ols|--litespeed|--apache|--clamav|--phpmyadmin|--postgres|--skeleton|--ssh|--varnish|--cron)
+            --check|--force|--admin|--panel|--cli|--translations|--system|--modules|--compose|--env|--php|--wp|--ols|--litespeed|--apache|--clamav|--phpmyadmin|--postgres|--skeleton|--ssh|--varnish|--cron|--caddy)
                 # skip duplicates so each mode runs once
                 [[ " ${modes[*]} " == *" ${arg#--} "* ]] || modes+=("${arg#--}") ;;
             beta)    BETA=true    ;;
@@ -1433,6 +1495,7 @@ main() {
             ssh) update_config_path ssh ;;
             varnish) update_config_path varnish ;;
             cron) update_cron ;;
+            caddy) update_caddy ;;
         esac
     done
 
