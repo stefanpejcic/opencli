@@ -431,6 +431,8 @@ update_domain() {
     restart_services "$@" || return 1
     configure_mailserver || return 1
     update_admin_smtp_server
+    # users with base_hosts_file get the new domain from here, the rest still from /etc/hosts
+    opencli docker-hosts >/dev/null 2>&1
     show_success_message
 }
 

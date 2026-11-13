@@ -323,6 +323,9 @@ set_ssl_for_mailserver() {
 
     fi
 
+    # new containers resolve the mail hostname through this file
+    opencli docker-hosts >/dev/null 2>&1
+
     #echo "Restarting mailserver and webmail to apply new configuration"
     #nohup sh -c "cd /usr/local/mail/openmail/ && podman-compose down ; cd /usr/local/mail/openmail/ && podman-compose up -d mailserver roundcube" </dev/null >nohup.out 2>nohup.err &
  }

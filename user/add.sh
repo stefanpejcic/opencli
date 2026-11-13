@@ -387,6 +387,14 @@ no_new_privileges = true
 dns_servers = ["1.1.1.1", "1.0.0.1"]
 EOF
 
+    # containers start with the panel and mail hostnames pointing at the server, so apps reach its mail over tls without extra_hosts
+    local container_hosts="/etc/openpanel/docker/container_hosts"
+    [[ -f "$container_hosts" ]] || opencli docker-hosts >/dev/null 2>&1
+    # podman won't create containers when base_hosts_file is missing, so it's only set when the file is there
+    if [[ -f "$container_hosts" ]]; then
+        sed -i "/^\[containers\]/a base_hosts_file = \"${container_hosts}\"" "${config_dir}/containers.conf"
+    fi
+
     chmod 755 -R "${home_dir}"
     chown -R "${USERNAME}:${USERNAME}" "${home_dir}"
 
