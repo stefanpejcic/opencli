@@ -1129,14 +1129,15 @@ update_openadmin() {
             fi
             return
         else
+			# systemd expands ${VAR} in the command line before bash sees it, so the script below uses $VAR only, never ${VAR}
 			systemd-run --collect --unit="openadmin-selfupdate-$$" --no-block bash -c '
 			    admin_binary="'"$admin_binary"'"
 			    url="'"$url"'"
 			    target_log="'"$target_log"'"
 			    was_active=false
 			
-			    curl -sSL "$url" -o "/usr/local/admin/${admin_binary}.new" || exit 1
-			    chmod +x "/usr/local/admin/${admin_binary}.new"
+			    curl -sSL "$url" -o "/usr/local/admin/$admin_binary.new" || exit 1
+			    chmod +x "/usr/local/admin/$admin_binary.new"
 			
 			    if systemctl is-active --quiet admin; then
 			        was_active=true
@@ -1146,7 +1147,7 @@ update_openadmin() {
 			        fi
 			    fi
 			
-			    mv -f "/usr/local/admin/${admin_binary}.new" "/usr/local/admin/$admin_binary"
+			    mv -f "/usr/local/admin/$admin_binary.new" "/usr/local/admin/$admin_binary"
 			
 			    [[ -f "/tmp/report.html.backup" ]] && cp /tmp/report.html.backup /usr/local/admin/templates/emails/reports.html
 			
