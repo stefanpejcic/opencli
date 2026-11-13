@@ -168,4 +168,8 @@ chmod 644 "$tmp"
 mv -f "$tmp" "$HOSTS_FILE"
 echo "Updated $HOSTS_FILE, new containers will use it."
 
-[[ -n "$APPLY" ]] && apply "$APPLY_USER"
+# an if, not &&, so the script doesn't exit 1 when --apply wasn't passed
+if [[ -n "$APPLY" ]]; then
+    apply "$APPLY_USER"
+fi
+exit 0
