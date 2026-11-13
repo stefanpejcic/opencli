@@ -791,7 +791,8 @@ notify_sentinel
 update_reseller_account_count # must run after saving user to db
 
 # backup.env holds remote backup credentials, compose reads it as root so it stays root:root 0600 after the chown
-nohup sh -c "chown -R '${USERNAME}:${USERNAME}' '/home/${USERNAME}/'; [ -f '/home/${USERNAME}/backup.env' ] && chown -h root:root '/home/${USERNAME}/backup.env' && chmod 600 '/home/${USERNAME}/backup.env'" >/dev/null 2>&1 &
+# the chown -R also resets .env back to the user's group, so give it group 33 again or phpmyadmin autologin loops
+nohup sh -c "chown -R '${USERNAME}:${USERNAME}' '/home/${USERNAME}/'; [ -f '/home/${USERNAME}/backup.env' ] && chown -h root:root '/home/${USERNAME}/backup.env' && chmod 600 '/home/${USERNAME}/backup.env'; [ -f '/home/${USERNAME}/.env' ] && chgrp -h 33 '/home/${USERNAME}/.env' && chmod 640 '/home/${USERNAME}/.env'" >/dev/null 2>&1 &
 
 exit 0
 ) 200>"$LOCK_FILE"
