@@ -5,7 +5,7 @@
 # Usage: opencli user-rename <old_username> <new_username>
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 26.10.2026
+# Last Modified: 16.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -173,13 +173,31 @@ fi
 # are keyed by the context, which stays the same on rename
 mv_user_data() {
 	local dir
-	for dir in /etc/openpanel/openpanel/core/users /var/log/caddy/stats; do
+	local core_users="/etc/openpanel/openpanel/core/users"
+	for dir in "$core_users" /var/log/caddy/stats; do
 		[[ -d "$dir/$old_username" ]] || continue
 		if [[ -e "$dir/$new_username" ]]; then
+			# renaming back to the context, its core dir is still there so merge into it
+			if [[ "$dir" == "$core_users" && "$new_username" == "$context" && -d "$dir/$new_username" ]]; then
+				cp -a -n "$dir/$old_username/." "$dir/$new_username/" && rm -rf "${dir:?}/${old_username:?}"
+				continue
+			fi
 			echo "WARNING: $dir/$new_username already exists, keeping $dir/$old_username"
 			continue
 		fi
 		mv -T "$dir/$old_username" "$dir/$new_username"
+	done
+	keep_context_files "$core_users"
+}
+
+# admin.backups is looked up by context everywhere, so it stays in the context dir
+keep_context_files() {
+	local core_users="$1" f
+	[[ "$context" == "$new_username" ]] && return
+	for f in admin.backups; do
+		[[ -e "$core_users/$new_username/$f" ]] || continue
+		mkdir -p "$core_users/$context"
+		mv -n "$core_users/$new_username/$f" "$core_users/$context/$f"
 	done
 }
 
