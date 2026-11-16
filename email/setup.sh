@@ -375,6 +375,17 @@ if [[ "$setup_rc" -eq 0 ]] && { [[ "$1" == "email" && "$2" =~ ^(add|update|del)$
     fi
 fi
 
+# dms copies the dkim keys into /etc/opendkim only when the container starts, so new keys signed nothing until a mailserver restart
+if [[ "$setup_rc" -eq 0 && "$1 $2" == "config dkim" ]] && podman_can_exec "$CONTAINER"; then
+    podman exec "$CONTAINER" bash -c '
+        [[ -d /tmp/docker-mailserver/opendkim/keys ]] || exit 0
+        cp -a /tmp/docker-mailserver/opendkim/* /etc/opendkim/ \
+            && chown -R opendkim:opendkim /etc/opendkim/ \
+            && chmod -R 0700 /etc/opendkim/keys/ \
+            && { ! supervisorctl status opendkim 2>/dev/null | grep -q RUNNING || supervisorctl restart opendkim; }' >/dev/null 2>&1 \
+        || echo "Warning: the DKIM key was saved, but the running mailserver did not load it. Restart the mailserver to start signing with it." >&2
+fi
+
 # catch-all rules leave out every mailbox and alias, so they follow those
 if [[ "$setup_rc" -eq 0 && "$1" =~ ^(email|alias)$ && "$2" =~ ^(add|del)$ ]]; then
     # the account is saved by now and the panels read any stdout as a failed add
