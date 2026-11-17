@@ -878,15 +878,26 @@ _docker_rm_storage_leftover() {
 
 _openpanel_http_ok() {
   local code
-  code=$(curl -sko /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "https://localhost:2083/")
-  [[ "$code" == "000" ]] && code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 "http://localhost:2083/")
+  code=$(curl -sko /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 10 "https://localhost:2083/")
+  [[ "$code" == "000" ]] && code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 10 "http://localhost:2083/")
   [[ "$code" =~ ^(200|301|302|401)$ ]]
 }
 
 _caddy_http_ok() {
   local code
-  code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 1 --max-time 1 "http://localhost/check")
+  code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 "http://localhost/check")
   [[ "$code" == "200" || "$code" == "404" ]]
+}
+
+# a busy server can miss one probe (a heavy request, a php install, a big import), and recreating the
+# container then logs every user out, so it only counts as unresponsive when it keeps failing for about a minute
+_http_ok_retry() {
+  local check=$1 tries=${2:-6} pause=${3:-10} i
+  for ((i = 1; i <= tries; i++)); do
+    "$check" && return 0
+    ((i < tries)) && sleep "$pause"
+  done
+  return 1
 }
 
 # reason says why sentinel (re)started the container, used in both the info entry and the alert
@@ -911,7 +922,7 @@ docker_containers_status() {
   if _docker_ps | grep -wq "$svc"; then
     if [[ "$svc" == "caddy" ]]; then
       CADDY_IS_ACTIVE=true
-      if _caddy_http_ok; then
+      if _http_ok_retry _caddy_http_ok; then
         ((PASS++)); echo -e "\e[32m[✔]\e[0m caddy is active and responding."
         resolve_notification "$title"
       else
@@ -921,7 +932,7 @@ docker_containers_status() {
         cd /root && timeout 120 podman-compose up -d caddy &>/dev/null
         sleep 2
         _docker_ps_refresh
-        if _caddy_http_ok; then
+        if _http_ok_retry _caddy_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m caddy recovered."
           resolve_notification "$title"
           write_info_notification service "Caddy restarted and websites are up!" "Caddy was running but not responding on http://localhost/check. Sentinel recreated the container and it responds again."
@@ -932,7 +943,7 @@ docker_containers_status() {
         fi
       fi
     elif [[ "$svc" == "openpanel" ]]; then
-      if _openpanel_http_ok; then
+      if _http_ok_retry _openpanel_http_ok; then
         ((PASS++)); echo -e "\e[32m[✔]\e[0m openpanel is active and responding."
         resolve_notification "$title"
       else
@@ -945,7 +956,7 @@ docker_containers_status() {
         sleep 2
         _docker_ps_refresh
         sleep 2
-        if _openpanel_http_ok; then
+        if _http_ok_retry _openpanel_http_ok; then
           ((PASS++)); ((WARN--)); echo -e "\e[32m[✔]\e[0m openpanel recovered."
           resolve_notification "$title"
           write_info_notification service "OpenPanel restarted and responding!" "OpenPanel was running but not responding on port 2083. Sentinel recreated the container and it responds again."
