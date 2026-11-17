@@ -116,10 +116,10 @@ MOUNT = "./sockets/php:/run/php"
 ENV = "PHPFPM_LISTEN=${PHP_FPM_LISTEN:-port}"
 webservers = {"nginx", "apache", "openresty"}
 out, svc, section, changed = [], None, None, False
-def block_has(start, text):
+def block_has(start, text, regex=False):
     j = start + 1
     while j < len(lines) and not re.match(r"^  \S", lines[j]):
-        if text in lines[j]: return True
+        if (re.match(text, lines[j]) if regex else text in lines[j]): return True
         j += 1
     return False
 svc_start = {}
@@ -134,6 +134,9 @@ for idx, l in enumerate(lines):
     if svc is None: continue
     is_php = svc.startswith("php-fpm-")
     if not (is_php or svc in webservers): continue
+    # php services without an environment: block (openpanel/php-fpm needs none) get one, right before volumes:
+    if is_php and re.match(r"^    volumes:\s*$", l) and not block_has(svc_start[svc], r"^    environment:", True):
+        out[-1:] = ["    environment:", "      - " + ENV, l]; changed = True
     if re.match(r"^    volumes:\s*$", l) and not block_has(svc_start[svc], MOUNT):
         out.append("      - " + MOUNT); changed = True
     if is_php and re.match(r"^    environment:\s*$", l) and not block_has(svc_start[svc], "PHPFPM_LISTEN="):
