@@ -186,7 +186,9 @@ fi
 
 for f in "$vhost_dir"/*.conf; do
     [[ -f "$f" ]] || continue
-    tenant_cat "$webserver_volume" "$f" | php_vhost_transport "$target" | tenant_write "$webserver_volume" "$f" 644
+    # read first and never write an empty result, a failed read must not wipe the vhost
+    vhost=$(tenant_read "$webserver_volume" "$f") && [[ -n "$vhost" ]] || { echo "  $(basename "$f" .conf): could not read the vhost, left unchanged"; continue; }
+    printf '%s\n' "$vhost" | php_vhost_transport "$target" | tenant_write "$webserver_volume" "$f" 644
     echo "  $(basename "$f" .conf): $web_server -> php-fpm over $target"
 done
 
