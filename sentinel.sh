@@ -900,6 +900,20 @@ _http_ok_retry() {
   return 1
 }
 
+# recreating openpanel needs clamav and phpmyadmin removed, but nothing started them again, so the malware
+# scanner and phpMyAdmin stayed down until someone noticed; only the ones that were running come back
+_openpanel_recreate() {
+  local svc running=()
+  for svc in clamav phpmyadmin; do
+    [[ "$(podman inspect --format '{{.State.Running}}' "$svc" 2>/dev/null)" == "true" ]] && running+=("$svc")
+    timeout 30 podman rm -f "$svc" &>/dev/null
+  done
+  cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
+  for svc in "${running[@]}"; do
+    timeout 180 podman-compose up -d "$svc" &>/dev/null
+  done
+}
+
 # reason says why sentinel (re)started the container, used in both the info entry and the alert
 _docker_check_after_restart() {
   local svc=$1 title=$2 reason=${3:-"was not running"}
@@ -950,9 +964,7 @@ docker_containers_status() {
         ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m openpanel running but unresponsive — restarting."
         timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
         _docker_rm_storage_leftover openpanel; _docker_rm_storage_leftover openpanel_redis
-        timeout 30 podman rm -f clamav &>/dev/null
-        timeout 30 podman rm -f phpmyadmin &>/dev/null
-        cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
+        _openpanel_recreate
         sleep 2
         _docker_ps_refresh
         sleep 2
@@ -982,9 +994,7 @@ docker_containers_status() {
       else
         timeout 30 podman rm -f openpanel &>/dev/null; timeout 30 podman rm -f --storage openpanel &>/dev/null
         _docker_rm_storage_leftover openpanel; _docker_rm_storage_leftover openpanel_redis
-        timeout 30 podman rm -f clamav &>/dev/null
-        timeout 30 podman rm -f phpmyadmin &>/dev/null
-        cd /root && timeout 120 podman-compose up -d openpanel &>/dev/null
+        _openpanel_recreate
         _docker_check_after_restart "$svc" "$title"
       fi ;;
     openpanel_dns)
