@@ -125,17 +125,29 @@ podman_ctx_is_listening() {
         && podman_ctx "$1" exec "$2" sh -c "awk '\$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q . || awk '\$4 == \"00010000\" && \$8 ~ /^\\/run\\/php\\//' /proc/net/unix 2>/dev/null | grep -q ." >/dev/null 2>&1
 }
 
-# varnish bakes the webserver IP into its vcl when it starts and podman gives a container a new IP on every start, so a stale varnish gets restarted or uncached pages 503, e.g. podman_sync_varnish <context>
+# varnish bakes the webserver IP into its vcl when it starts and podman gives a container a new IP on every start, so a stale vcl gets reloaded with the new IP (keeps the cache, restart only if that fails) or uncached pages 503, e.g. podman_sync_varnish <context>
 podman_sync_varnish() {
     local context="$1" ws_ip vcl_ip
     podman_ctx_is_running "$context" varnish || return 0
     ws_ip=$(podman_ctx "$context" exec varnish sh -c 'getent ahostsv4 "$WEB_SERVER"' 2>/dev/null | awk 'NR==1{print $1}')
     vcl_ip=$(podman_ctx "$context" exec varnish sed -n 's/^[[:space:]]*\.host[[:space:]]*=[[:space:]]*"\([0-9.]*\)".*/\1/p' /etc/varnish/default.vcl 2>/dev/null | head -n1)
     [[ -n "$ws_ip" && "$ws_ip" == "$vcl_ip" ]] && return 0
-    podman_ctx "$context" restart varnish >/dev/null 2>&1
+    # same render as the varnish entrypoint, then load it next to the old vcl and drop the unused ones
+    # shellcheck disable=SC2016
+    podman_ctx "$context" exec varnish sh -c '
+        set -e
+        b=$(getent ahostsv4 "$WEB_SERVER" | awk "NR==1{print \$1}")
+        [ -n "$b" ]
+        sed "s|VARNISH_BACKEND_HOST|$b|g" /etc/varnish/default.vcl.template > /tmp/opencli.vcl
+        cat /tmp/opencli.vcl > /etc/varnish/default.vcl
+        n="opencli_$(date +%s)_$$"
+        varnishadm vcl.load "$n" /etc/varnish/default.vcl
+        varnishadm vcl.use "$n"
+        for v in $(varnishadm vcl.list | awk "\$1 == \"available\" {print \$NF}"); do varnishadm vcl.discard "$v" || true; done
+    ' >/dev/null 2>&1 || podman_ctx "$context" restart varnish >/dev/null 2>&1
 }
 
-# restarts <context>'s webserver container and then varnish if it still points at the old IP, e.g. podman_restart_webserver <context> <webserver>
+# restarts <context>'s webserver container and then points varnish at its new IP, e.g. podman_restart_webserver <context> <webserver>
 podman_restart_webserver() {
     podman_ctx "$1" restart "$2" >/dev/null 2>&1
     local rc=$?
