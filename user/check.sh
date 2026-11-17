@@ -341,6 +341,7 @@ attempt_container_recovery() {
         new_status=$(get_container_property "$container" '{{.State.Status}}')
         if [[ "$new_status" == "running" ]]; then
             print_result "PASS" "$name: Recovery successful via podman restart"
+            podman_sync_varnish "$context"
             return 0
         fi
     fi
@@ -372,6 +373,7 @@ attempt_container_recovery() {
             new_status=$(get_container_property "$new_container" '{{.State.Status}}')
             if [[ "$new_status" == "running" ]]; then
                 print_result "PASS" "$name: Recovery successful via compose down/up"
+                podman_sync_varnish "$context"
                 return 0
             fi
         fi

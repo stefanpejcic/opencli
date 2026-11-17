@@ -523,6 +523,7 @@ for entry in "${PLAN_RECREATE[@]}"; do
         failed=$((failed + 1))
         continue
     fi
+    podman_sync_varnish "$context"
     expected=$(image_id "$store" "$image")
     current=$(podman_ctx "$context" inspect -f '{{.Image}}' "$cname" 2>/dev/null)
     if [[ -n "$expected" && "$current" != "$expected" ]]; then

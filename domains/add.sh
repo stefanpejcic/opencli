@@ -551,15 +551,15 @@ create_vhost_file() {
     if ! $SKIP_STARTING_CONTAINERS; then
         # litespeed only registers new vhosts in its start.sh, so it still needs a real restart
         if [[ "$WEB_SERVER" == *litespeed* ]]; then
-            local sock; sock="unix:///hostfs/run/user/$(stat -c '%u' "/home/$context")/podman/podman.sock"
-            nohup sh -c "cd /home/$context/ && CONTAINER_HOST=$sock podman --remote restart $WEB_SERVER" </dev/null >/dev/null 2>&1 &
+            # shellcheck disable=SC2016
+            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_restart_webserver "$@"' _ "$context" "$WEB_SERVER" </dev/null >/dev/null 2>&1 &
             disown
         else
             # waits for the webserver and php-fpm being started in parallel before reloading
             local php_container=""
             is_module_enabled "php" && php_container="php-fpm-$php_version"
             # shellcheck disable=SC2016
-            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"' _ "$context" "$WEB_SERVER" $php_container </dev/null >/dev/null 2>&1 &
+            nohup bash -c '. /usr/local/opencli/lib/podman.sh; podman_reload_webserver "$@"; podman_sync_varnish "$1"' _ "$context" "$WEB_SERVER" $php_container </dev/null >/dev/null 2>&1 &
             disown
         fi
     fi

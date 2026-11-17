@@ -195,5 +195,6 @@ echo "- Recreating $running_php and $web_server"
 compose_up $running_php "$web_server"
 # shellcheck disable=SC2086
 podman_reload_webserver "$context" "$web_server" $running_php
+podman_sync_varnish "$context"
 [[ "$current" == "caddy" ]] && podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
 echo "Done, $web_server now reaches php-fpm over $target for $username"

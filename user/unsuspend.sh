@@ -114,6 +114,7 @@ start_user_containers() {
                 '"$DEBUG"' && echo "- Starting container: $0"
                 CONTAINER_HOST='"$sock"' podman --remote start "$0" > /dev/null 2>&1
             '
+        podman_sync_varnish "$context"
         return 0
     fi
 
@@ -133,6 +134,8 @@ start_user_containers() {
 
     rm -f "$names_file"
     if $DEBUG; then echo "Cleared $names_file"; fi
+    # containers come back in saved order, varnish may have started before the webserver got its new IP
+    podman_sync_varnish "$context"
 }
 
 

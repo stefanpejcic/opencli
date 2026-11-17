@@ -125,6 +125,24 @@ podman_ctx_is_listening() {
         && podman_ctx "$1" exec "$2" sh -c "awk '\$4 == \"0A\"' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q . || awk '\$4 == \"00010000\" && \$8 ~ /^\\/run\\/php\\//' /proc/net/unix 2>/dev/null | grep -q ." >/dev/null 2>&1
 }
 
+# varnish bakes the webserver IP into its vcl when it starts and podman gives a container a new IP on every start, so a stale varnish gets restarted or uncached pages 503, e.g. podman_sync_varnish <context>
+podman_sync_varnish() {
+    local context="$1" ws_ip vcl_ip
+    podman_ctx_is_running "$context" varnish || return 0
+    ws_ip=$(podman_ctx "$context" exec varnish sh -c 'getent ahostsv4 "$WEB_SERVER"' 2>/dev/null | awk 'NR==1{print $1}')
+    vcl_ip=$(podman_ctx "$context" exec varnish sed -n 's/^[[:space:]]*\.host[[:space:]]*=[[:space:]]*"\([0-9.]*\)".*/\1/p' /etc/varnish/default.vcl 2>/dev/null | head -n1)
+    [[ -n "$ws_ip" && "$ws_ip" == "$vcl_ip" ]] && return 0
+    podman_ctx "$context" restart varnish >/dev/null 2>&1
+}
+
+# restarts <context>'s webserver container and then varnish if it still points at the old IP, e.g. podman_restart_webserver <context> <webserver>
+podman_restart_webserver() {
+    podman_ctx "$1" restart "$2" >/dev/null 2>&1
+    local rc=$?
+    podman_sync_varnish "$1"
+    return $rc
+}
+
 # reloads <context>'s webserver without dropping connections: config test, then a graceful signal to its pid 1, or lswsctrl restart on litespeed whose pid 1 is start.sh -- extra containers (e.g. the php-fpm a new vhost points to) are waited on for up to 60s until they listen, since nginx refuses a config whose upstream host doesn't resolve yet and 502s until fpm accepts; a stopped webserver gets started and a failed signal falls back to a restart -- e.g. podman_reload_webserver <context> <webserver> [container...]
 podman_reload_webserver() {
     local context="$1" ws="$2"; shift 2
@@ -153,7 +171,7 @@ podman_reload_webserver() {
     fi
 
     if ! podman_ctx_is_running "$context" "$ws"; then
-        podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+        podman_restart_webserver "$context" "$ws"
         return
     fi
 
@@ -162,10 +180,10 @@ podman_reload_webserver() {
         apache)          check=(apachectl configtest); signal=USR1 ;;
         *litespeed)
             podman_ctx "$context" exec "$ws" /usr/local/lsws/bin/lswsctrl restart >/dev/null 2>&1 \
-                || podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+                || podman_restart_webserver "$context" "$ws"
             return ;;
         *)
-            podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+            podman_restart_webserver "$context" "$ws"
             return ;;
     esac
 
@@ -181,7 +199,7 @@ podman_reload_webserver() {
         return 1
     fi
     podman_ctx "$context" kill --signal "$signal" "$ws" >/dev/null 2>&1 \
-        || podman_ctx "$context" restart "$ws" >/dev/null 2>&1
+        || podman_restart_webserver "$context" "$ws"
 }
 
 # sed for a file another container sees through a single-file bind mount: sed -i swaps the inode and the container keeps reading the old file until it restarts, e.g. sed_in_place <file> <sed-args...>

@@ -110,6 +110,7 @@ restart_user_containers() {
             echo "  failed to restart $c, check it with: opencli docker-logs $user"
         fi
     done
+    podman_sync_varnish "$user"
 }
 
 apply() {

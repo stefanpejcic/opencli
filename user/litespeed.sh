@@ -80,7 +80,7 @@ ensure_running() {
     (cd "/home/$CONTEXT" && podman_compose_user "$CONTEXT" up -d litespeed >/dev/null 2>&1)
     local i
     for i in $(seq 1 30); do
-        podman_ctx_is_running "$CONTEXT" litespeed && return
+        podman_ctx_is_running "$CONTEXT" litespeed && { podman_sync_varnish "$CONTEXT"; return; }
         sleep 2
     done
     die "LiteSpeed container of $USERNAME is not running."
