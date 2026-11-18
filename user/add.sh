@@ -217,7 +217,9 @@ validate_username() {
     [[ "$USERNAME" =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]] || die "Username must start with a letter and contain only letters and numbers."
 
     if [[ -f "$FORBIDDEN_USERNAMES_FILE" ]]; then
-        while IFS= read -r forbidden; do
+        # the last line has no newline when saved from OpenAdmin, and a browser form sends \r\n
+        while IFS= read -r forbidden || [[ -n "$forbidden" ]]; do
+            forbidden="${forbidden%$'\r'}"
             [[ "${USERNAME,,}" == "${forbidden,,}" ]] && die "Username '$USERNAME' is not allowed. See https://openpanel.com/docs/articles/accounts/forbidden-usernames/#reserved-usernames"
         done < "$FORBIDDEN_USERNAMES_FILE"
     fi

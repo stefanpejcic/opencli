@@ -70,6 +70,7 @@ check_username_is_valid() {
 
         # Check against forbidden usernames
         for forbidden_username in "${forbidden_usernames[@]}"; do
+            forbidden_username="${forbidden_username%$'\r'}"
             if [[ "${check_username,,}" == "${forbidden_username,,}" ]]; then
                 return 0
             fi

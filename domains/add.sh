@@ -203,7 +203,8 @@ idn_encode() { # any form -> punycode
 check_forbidden_domains() {
     [[ -f "$FORBIDDEN_DOMAINS_FILE" ]] || return 0
     log "Checking domain against forbidden list"
-    if grep -qxF "$domain_name" "$FORBIDDEN_DOMAINS_FILE"; then
+    # \r from a browser form would stop the exact match
+    if tr -d '\r' < "$FORBIDDEN_DOMAINS_FILE" | grep -qxiF "$domain_name"; then
         err "$domain_name is a forbidden domain."
     fi
 }
