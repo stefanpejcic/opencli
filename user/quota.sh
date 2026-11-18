@@ -182,7 +182,7 @@ process_user() {
 
 get_active_users() {
     local users
-    users=$(opencli user-list --json 2>/dev/null | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+    users=$(opencli user-list --local --json 2>/dev/null | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 
     if [[ -z "$users" ]] || [[ "$users" == "No users." ]]; then
         log_error "No active users found in the database"

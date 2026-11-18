@@ -106,7 +106,7 @@ usage() {
 
 # no registered docker context list anymore, so enumerate users from the db instead
 list_user_contexts() {
-    opencli user-list --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'
+    opencli user-list --local --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context'
 }
 
 # Main logic

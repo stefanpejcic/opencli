@@ -570,7 +570,7 @@ restart_dead_user_containers() {
 
   # try opencli user-list --json to get suspended users that we will exclude
   local USERLIST_JSON SUSPENDED_CONTEXTS="" VALID_JSON=false
-  USERLIST_JSON=$(timeout 15 opencli user-list --json 2>/dev/null)
+  USERLIST_JSON=$(timeout 15 opencli user-list --local --json 2>/dev/null)
 
   if [ -n "$USERLIST_JSON" ]; then
       if command -v jq &>/dev/null; then
@@ -1010,7 +1010,7 @@ docker_containers_status() {
   ((WARN++))
   case "$svc" in
     openpanel)
-      local users; users=$(timeout 15 opencli user-list --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
+      local users; users=$(timeout 15 opencli user-list --local --json 2>/dev/null | awk -F'"' '/username/{print $4}' | grep -v SUSPENDED)
       if [[ -z "$users" || "$users" == "No users." ]]; then
         ((WARN--)); echo "  - No users found; $svc not needed."; resolve_notification "$title"
       else

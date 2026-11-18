@@ -393,7 +393,7 @@ if [ $# -eq 0 ]; then
 elif [[ "$1" == "-all" ]]; then
 # all users
 
-  users=$(opencli user-list --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
+  users=$(opencli user-list --local --json | grep -v 'SUSPENDED' | awk -F'"' '/username/ {print $4}')
 
   if [[ -z "$users" || "$users" == "No users." ]]; then
     echo "No users found in the database."

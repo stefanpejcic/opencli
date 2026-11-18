@@ -314,7 +314,7 @@ PY
 declare -a CONTEXTS=("root")
 declare -A CONTEXT_LABEL=([root]="root")
 
-mapfile -t USER_CONTEXTS < <(opencli user-list --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
+mapfile -t USER_CONTEXTS < <(opencli user-list --local --json 2>/dev/null | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .context')
 for context in "${USER_CONTEXTS[@]}"; do
     [[ -z "$context" ]] && continue
     CONTEXTS+=("$context")

@@ -205,7 +205,7 @@ collect_logs() {
 collect_users_overview() {
   local tmp="$1"
   section "Users" "$tmp"
-  run_command "opencli user-list --total"                 "Number of users"                           "$tmp"
+  run_command "opencli user-list --local --total"                 "Number of users"                           "$tmp"
   {
     echo "# Containers per user (running/total):"
     local dir user uid sock
@@ -232,7 +232,7 @@ collect_user_details() {
   local uid; uid=$(stat -c '%u' "/home/$user" 2>/dev/null)
   local host="CONTAINER_HOST=unix:///hostfs/run/user/${uid}/podman/podman.sock"
   section "User: $user" "$tmp"
-  run_command "opencli user-list --json | jq '.data[] | select(.username==\"$user\")'" "Account info" "$tmp"
+  run_command "opencli user-list --local --json | jq '.data[] | select(.username==\"$user\")'" "Account info" "$tmp"
   run_command "opencli domains-user $user --docroot"      "Domains"                                   "$tmp"
   run_command "id $user; loginctl show-user $user -p State -p Linger"  "System user and linger"       "$tmp"
   run_command "systemctl status user@$uid --no-pager -n 10" "User systemd instance"                  "$tmp"

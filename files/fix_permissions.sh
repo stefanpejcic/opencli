@@ -187,7 +187,7 @@ if [ "${args[0]}" == "--all" ]; then
   require_command jq
   # keep going through all accounts, but exit 1 if any of them failed
   failed=0
-  for username in $(opencli user-list --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .username'); do
+  for username in $(opencli user-list --local --json | jq -r '.data[] | select(.username | startswith("SUSPENDED_") | not) | .username'); do
     apply_permissions_in_container "$username" || failed=1
   done
   exit $failed
