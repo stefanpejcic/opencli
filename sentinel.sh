@@ -5,7 +5,7 @@
 # Usage: opencli sentinel [--startup] [--report] [--action=<name> --title=<title> --message=<msg> [--severity=<level>] [--details=<json> [--merge-key=<key>]] [--no-send]]
 # Author: Stefan Pejcic
 # Created: 01.11.2023
-# Last Modified: 30.10.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -537,14 +537,36 @@ wait_for_io_to_settle() {
 }
 
 # loops root then every non-suspended user starting/recovering dead containers, sets RESTART_ROOT_COUNT/RESTART_USER_TOTAL/RESTART_USER_LINES[]/RESTART_ELAPSED for the caller to build a summary from
+# true if any account has an FTP user, one per line in users.list
+ftp_accounts_exist() {
+  local f
+  for f in /etc/openpanel/ftp/users/*/users.list; do
+    [[ -f "$f" ]] && grep -q '[^[:space:]]' "$f" && return 0
+  done
+  return 1
+}
+
+# openadmin_ftp only runs while there's an FTP account, ftp-add starts it again for the first one
+stop_ftp_if_unneeded() {
+  ftp_accounts_exist && return 1
+  # ftp-add starts the container before it writes users.list
+  pgrep -f '/usr/local/opencli/ftp/[a]dd\.sh' >/dev/null && return 1
+  if podman_is_running openadmin_ftp; then
+    echo "root: stopping openadmin_ftp (no FTP accounts)"
+    timeout 60 podman stop -t 10 openadmin_ftp &>/dev/null || echo -e "\e[31m[✘]\e[0m root: FAILED to stop openadmin_ftp"
+  fi
+  return 0
+}
+
 restart_dead_user_containers() {
   local mode="$1"
   local START_TIME; START_TIME=$(date +%s)
   local RESULTS_FILE; RESULTS_FILE=$(mktemp /tmp/sentinel.container_restart_results.XXXXXX)
 
   # root first
-  local ROOT_SOCK="/run/podman/podman.sock"
-  start_containers_for_socket "$ROOT_SOCK" "root" "$RESULTS_FILE"
+  local ROOT_SOCK="/run/podman/podman.sock" root_skip=""
+  stop_ftp_if_unneeded && root_skip="openadmin_ftp"
+  start_containers_for_socket "$ROOT_SOCK" "root" "$RESULTS_FILE" "$root_skip"
 
   # try opencli user-list --json to get suspended users that we will exclude
   local USERLIST_JSON SUSPENDED_CONTEXTS="" VALID_JSON=false
