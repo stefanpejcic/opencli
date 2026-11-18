@@ -713,7 +713,68 @@ update_ftp_pasv_address() {
     || echo "[!] Could not recreate openadmin_ftp, run: cd /root && podman-compose up -d --force-recreate openadmin_ftp"
 }
 
+# marker lines of the boot before this one: journal of the previous boot, plus auth/kern/syslog lines older than this boot (ISO timestamps only), rotated .gz copies too since logrotate runs daily
+reboot_marker_lines() {
+  local boot_iso="$1" re='Power key pressed|Power button|System is rebooting|System is powering down|The system will (reboot|power off)|Shutdown scheduled|unattended-upgrade.*[Rr]eboot|COMMAND=.*(reboot|shutdown|poweroff|halt|init [06])|Kernel panic|Out of memory: Killed|watchdog: .*(hard|soft) LOCKUP|Linux version [0-9]|Stopped target multi-user\.target'
+  {
+    timeout 20 journalctl -b -1 --no-pager -o short-iso 2>/dev/null | grep -E "$re"
+    local f
+    for f in /var/log/auth.log.2.gz /var/log/auth.log.1.gz /var/log/auth.log.1 /var/log/auth.log \
+             /var/log/kern.log.1.gz /var/log/kern.log.1 /var/log/kern.log /var/log/syslog.1 /var/log/syslog; do
+      [[ -f "$f" ]] && timeout 30 zgrep -aE "$re" "$f" 2>/dev/null
+    done
+  } | awk -v b="$boot_iso" '$1 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}T/ && substr($1,1,19) < b' | sort -u -k1,1
+}
+
+# last log line written before this boot, to tell how long the server was down
+last_log_before_boot() {
+  local boot_iso="$1" ts f
+  ts=$(timeout 10 journalctl -b -1 -n 1 --no-pager -o short-iso 2>/dev/null | awk '$1 ~ /^[0-9]{4}-/ {print $1}' | tail -1)
+  for f in /var/log/syslog /var/log/syslog.1; do
+    [[ -n "$ts" || ! -f "$f" ]] && continue
+    ts=$(tac "$f" 2>/dev/null | awk -v b="$boot_iso" '$1 ~ /^[0-9]{4}-/ && substr($1,1,19) < b {print $1; exit}')
+  done
+  echo "$ts"
+}
+
+# one or two lines on why the server went down, from the logs of the previous boot
+detect_reboot_cause() {
+  local boot_iso lines last cause who down_since down_secs hit
+  boot_iso=$(date -d "$(uptime -s)" +%Y-%m-%dT%H:%M:%S 2>/dev/null) || return
+  # only what happened after the previous boot started
+  lines=$(reboot_marker_lines "$boot_iso" | awk '/Linux version [0-9]/ {buf=""; next} {buf = buf $0 "\n"} END {printf "%s", buf}')
+  last=$(last_log_before_boot "$boot_iso")
+  hit() { grep -E "$1" <<< "$lines" | tail -1; }
+  who=$(grep -oE 'sudo: +[^ ]+ : .*COMMAND=[^ ]+' <<< "$lines" | tail -1 | sed -E 's/sudo: +([^ ]+) : .*COMMAND=(.*)/\1 ran \2/')
+  if [[ -n "$(hit 'Power key pressed|Power button')" ]]; then
+    cause="Cause: the power button was pressed (ACPI power key) from outside the server, usually the hosting provider's panel or the host node in the data center, nothing on this server shut it down."
+  elif [[ -n "$(hit 'unattended-upgrade.*[Rr]eboot')" ]]; then
+    cause="Cause: automatic reboot by unattended-upgrades after installing updates."
+  elif hit=$(hit 'Kernel panic') && [[ -n "$hit" ]]; then
+    cause="Cause: kernel panic, the server crashed: ${hit#* }"
+  elif hit=$(hit 'Out of memory: Killed|LOCKUP') && [[ -n "$hit" ]] && [[ -z "$(hit 'System is (rebooting|powering down)|Stopped target')" ]]; then
+    cause="Cause: the server froze (out of memory or CPU lockup) and was reset, last kernel message: ${hit#* }"
+  elif [[ -n "$(hit 'System is rebooting|will reboot|COMMAND=.*(reboot|init 6)')" ]]; then
+    cause="Cause: restarted from inside the server (reboot command or OpenAdmin${who:+, $who})."
+  elif [[ -n "$(hit 'System is powering down|will power off|COMMAND=.*(shutdown|poweroff|halt|init 0)')" ]]; then
+    cause="Cause: powered off from inside the server (shutdown/poweroff command${who:+, $who})."
+  elif [[ -n "$(hit 'Stopped target multi-user')" ]]; then
+    cause="Cause: the server was shut down cleanly, the logs don't say who started it."
+  elif [[ -n "$last" ]]; then
+    cause="Cause: no clean shutdown in the logs, the server lost power or was hard reset (crash, host node failure or a forced reset from the provider's panel)."
+  else
+    cause="Cause: unknown, the logs from before the reboot are not available."
+  fi
+  if [[ -n "$last" ]]; then
+    down_since=$(date -d "$last" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+    down_secs=$(( $(date -d "$boot_iso" +%s) - $(date -d "$last" +%s 2>/dev/null || echo 0) ))
+    (( down_secs > 0 && down_secs < 31536000 )) && cause+=$'\n'"Down from ${down_since} until $(date -d "$boot_iso" '+%Y-%m-%d %H:%M:%S') ($(( down_secs / 60 ))m $(( down_secs % 60 ))s)."
+  fi
+  printf '%s' "$cause"
+}
+
 perform_startup_actions() {
+  local reboot_cause; reboot_cause=$(detect_reboot_cause)
   mkdir -p /tmp/redis ; chmod 777 /tmp/redis    # for redis
   mkdir -p /tmp/ssh_cm ; chmod 700 /tmp/ssh_cm  # for ssh connections to slave servers
   IP=$(hostname -I | awk '{print $1}')
@@ -731,7 +792,7 @@ perform_startup_actions() {
     ((WARN++)); echo "[!] Reboot notifications are disabled."; return
   fi
   local title="SYSTEM REBOOT!"
-  local message; message="System was rebooted. $(uptime)"$'\n'"$summary_msg"
+  local message; message="System was rebooted. $(uptime)"$'\n'"${reboot_cause:+$reboot_cause$'\n'}$summary_msg"
   write_notification warning system "$title" "$message"
 }
 
