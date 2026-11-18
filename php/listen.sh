@@ -5,7 +5,7 @@
 # Usage: opencli php-listen <USERNAME> [port|socket|caddy] [--webserver nginx|apache|openresty]
 # Author: Stefan Pejcic
 # Created: 01.11.2026
-# Last Modified: 01.11.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -122,8 +122,20 @@ listen_value="socket"; [[ "$target" == "port" ]] && listen_value="port"
 set_env PHP_FPM_LISTEN "$listen_value"
 
 compose_up() {
-    # shellcheck disable=SC2086
-    (cd "/home/$context" && podman_compose_user_retry "$context" -f "$compose_file" up -d --no-deps "$@" >/dev/null 2>&1)
+    # podman-compose 1.0.6 "up -d" just starts an existing container again with its old env (PHPFPM_LISTEN) and mounts,
+    # so they're removed first; --depend also takes the containers created depending on them (webserver, varnish),
+    # those come back with them (container names are the compose service names)
+    local before after c
+    local -a again=("$@")
+    before=$(podman_ctx "$context" ps --format '{{.Names}}' 2>/dev/null)
+    for c in "$@"; do
+        podman_ctx "$context" rm -f -t 10 --depend "$c" >/dev/null 2>&1
+    done
+    after=$(podman_ctx "$context" ps --format '{{.Names}}' 2>/dev/null)
+    for c in $before; do
+        grep -qx "$c" <<< "$after" || [[ " ${again[*]} " == *" $c "* ]] || again+=("$c")
+    done
+    (cd "/home/$context" && podman_compose_user_retry "$context" -f "$compose_file" up -d --no-deps "${again[@]}" >/dev/null 2>&1)
 }
 
 if [[ "$target" == "caddy" ]]; then
