@@ -156,26 +156,47 @@ mariadb -e "$update_query"
 docroot=$(mariadb -sN -e "SELECT docroot FROM domains WHERE domain_url='$(mysql_escape "$domain")'" 2>/dev/null)
 crons_file="/home/$context/crons.ini"
 if [[ -f "$crons_file" ]]; then
-    moved=$(python3 - "$crons_file" "$domain" "$docroot" "php-fpm-$old_php_version" "php-fpm-$new_php_version" <<'PY'
-import re, sys
-path, domain, docroot, old, new = sys.argv[1:6]
-# the domain in a Host header or url, or a path in its docroot, a longer docroot like a.com2 doesn't count
-pats = [re.compile(r"(?i)(Host:\s*|://)" + re.escape(domain) + r"([/:\s'\"]|$)")]
-if docroot and docroot != "/":
-    pats.append(re.compile(r"(^|[\s'\"=:])" + re.escape(docroot.rstrip("/")) + r"(/|[\s'\"]|$)"))
-blocks, moved = open(path).read().split("\n\n"), 0
-for i, b in enumerate(blocks):
-    lines = b.split("\n")
-    cont = [n for n, l in enumerate(lines) if re.match(r"^#?\s*container\s*=\s*" + re.escape(old) + r"\s*$", l)]
-    cmd = next((l.split("=", 1)[1] for l in lines if re.match(r"^#?\s*command\s*=", l)), "")
-    if cont and any(p.search(cmd) for p in pats):
-        lines[cont[0]] = re.sub(re.escape(old) + r"\s*$", new, lines[cont[0]])
-        blocks[i], moved = "\n".join(lines), moved + 1
-if moved:
-    open(path, "w").write("\n\n".join(blocks))
-print(moved)
-PY
-)
+    # first pass marks the blocks (separated by blank lines) of this domain in the old container, the second rewrites their container line
+    # plain awk string matching since the opencli in the openpanel container has no python, a longer docroot like a.com2 doesn't count
+    tmp_crons=$(mktemp)
+    awk -v dom="$domain" -v root="${docroot%/}" -v old="php-fpm-$old_php_version" -v new="php-fpm-$new_php_version" '
+        function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+        # true if needle is in s with an allowed char before and after it
+        function has(s, needle, before, after, hostonly,    i, p, b, a, pre) {
+            if (needle == "") return 0
+            p = 0
+            while ((i = index(substr(s, p + 1), needle)) > 0) {
+                p += i
+                b = (p > 1) ? substr(s, p - 1, 1) : ""
+                a = substr(s, p + length(needle), 1)
+                if ((b == "" || index(before, b)) && (a == "" || index(after, a))) {
+                    if (!hostonly) return 1
+                    # the domain counts after "host:" or "://" only
+                    pre = tolower(substr(s, 1, p - 1)); sub(/[ \t]+$/, "", pre)
+                    if (pre ~ /host:$/ || pre ~ /:\/\/$/) return 1
+                }
+            }
+            return 0
+        }
+        BEGIN { blk = 0 }
+        NR == FNR {
+            if ($0 ~ /^[ \t]*$/) { blk++; next }
+            line = $0; sub(/^#[ \t]*/, "", line)
+            if (line ~ /^container[ \t]*=/) { v = line; sub(/^container[ \t]*=/, "", v); cont[blk] = trim(v) }
+            if (line ~ /^command[ \t]*=/) { v = line; sub(/^command[ \t]*=/, "", v); cmd[blk] = v }
+            next
+        }
+        FNR == 1 { b = 0; for (k in cont) if (cont[k] == old && (has(cmd[k], dom, ":/ \t", "/: \t\047\"", 1) || has(cmd[k], root, " \t\047\"=:", "/ \t\047\"", 0))) move[k] = 1 }
+        {
+            if ($0 ~ /^[ \t]*$/) b++
+            else if (move[b] && $0 ~ /^#?[ \t]*container[ \t]*=/) { sub(old "[ \t]*$", new); moved++ }
+            print
+        }
+        END { print moved + 0 > "/dev/stderr" }
+    ' "$crons_file" "$crons_file" > "$tmp_crons" 2> "$tmp_crons.n"
+    moved=$(cat "$tmp_crons.n" 2>/dev/null)
+    [[ "${moved:-0}" -gt 0 ]] && cat "$tmp_crons" > "$crons_file"
+    rm -f "$tmp_crons" "$tmp_crons.n"
     if [[ "${moved:-0}" -gt 0 ]]; then
         podman_ctx_is_running "$owner" cron && podman_ctx "$owner" restart cron >/dev/null 2>&1
         echo "Moved $moved cron job(s) of $domain from php-fpm-$old_php_version to php-fpm-$new_php_version"
