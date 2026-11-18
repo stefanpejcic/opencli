@@ -61,10 +61,11 @@ done
 
 # shellcheck source=/usr/local/opencli/db.sh
 source /usr/local/opencli/db.sh
-user_id=$(mariadb -D "$mysql_database" -sN -e "SELECT id FROM users WHERE username = '$(mysql_escape "$username")'")
+# a suspended account is renamed to SUSPENDED_<time>_<username>, it's found by its own name too
+esc_username=$(mysql_escape "$username")
+read -r user_id context < <(mariadb -D "$mysql_database" -sN -e "SELECT id, server FROM users WHERE username = '$esc_username' OR (username REGEXP '^SUSPENDED_[0-9]{14}_' AND SUBSTRING(username, 26) = '$esc_username') ORDER BY username = '$esc_username' DESC LIMIT 1")
 [[ -z "$user_id" ]] && { echo "ERROR: user $username does not exist."; exit 1; }
-context=$(mariadb -D "$mysql_database" -sN -e "SELECT server FROM users WHERE id = '$user_id'")
-[[ -z "$context" || "$context" == "default" ]] && context="$username"
+[[ -z "$context" || "$context" == "default" || "$context" == "NULL" ]] && context="${username#SUSPENDED_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_}"
 
 env_file="/home/$context/.env"
 compose_file="/home/$context/docker-compose.yml"
@@ -103,9 +104,10 @@ set_env() {
 uid=$(stat -c '%u' "/home/$context")
 vhost_dir="/home/$context/docker-data/volumes/${context}_webserver_data/_data"
 webserver_volume=$(tenant_volume "$context" webserver_data)
-running_php=$(podman_ctx "$context" ps --format '{{.Names}}' 2>/dev/null | grep -E '^php-fpm-[0-9.]+$' | xargs)
+running=$(podman_ctx "$context" ps --format '{{.Names}}' 2>/dev/null)
+# only containers that already run are recreated, stopped ones pick the change up when they start next time
+running_php=$(grep -E '^php-fpm-[0-9.]+$' <<< "$running" | xargs)
 default_php=$(php_listen_env_value "$context" DEFAULT_PHP_VERSION)
-[[ -z "$running_php" && -n "$default_php" ]] && running_php="php-fpm-$default_php"
 
 # domain <tab> docroot <tab> php version
 domains=$(mariadb -D "$mysql_database" -sN -e "SELECT domain_url, docroot, php_version FROM domains WHERE user_id = '$user_id'")
@@ -149,7 +151,9 @@ if [[ "$target" == "caddy" ]]; then
             || { echo "ERROR: caddy still doesn't mount /home, check /root/docker-compose.yml"; exit 1; }
     fi
 
-    echo "- Recreating php-fpm on the socket: $running_php"
+    # caddy talks to php-fpm itself, so websites need one running, an account without domains doesn't
+    [[ -z "$running_php" && -n "$domains" && -n "$default_php" ]] && running_php="php-fpm-$default_php"
+    echo "- Recreating php-fpm on the socket: ${running_php:-none, no domains}"
     # shellcheck disable=SC2086
     compose_up $running_php
     for c in $running_php; do
@@ -204,11 +208,20 @@ for f in "$vhost_dir"/*.conf; do
     echo "  $(basename "$f" .conf): $web_server -> php-fpm over $target"
 done
 
-echo "- Recreating $running_php and $web_server"
-# shellcheck disable=SC2086
-compose_up $running_php "$web_server"
-# shellcheck disable=SC2086
-podman_reload_webserver "$context" "$web_server" $running_php
-podman_sync_varnish "$context"
+# the webserver is recreated only when it runs, or when it comes back from caddy mode where it was stopped
+recreate_ws=""
+if [[ -n "$web_server" ]] && { grep -qx "$web_server" <<< "$running" || [[ "$current" == "caddy" ]]; }; then
+    recreate_ws="$web_server"
+fi
+if [[ -z "$running_php" && -z "$recreate_ws" ]]; then
+    echo "- Neither php-fpm nor $web_server is running, nothing recreated, they use $target when they start"
+else
+    echo "- Recreating ${running_php:+$running_php }${recreate_ws:-(${web_server:-webserver} not running, left alone)}"
+    # shellcheck disable=SC2086
+    compose_up $running_php $recreate_ws
+    # shellcheck disable=SC2086
+    [[ -n "$recreate_ws" ]] && podman_reload_webserver "$context" "$recreate_ws" $running_php
+    podman_sync_varnish "$context"
+fi
 [[ "$current" == "caddy" ]] && podman exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1
 echo "Done, $web_server now reaches php-fpm over $target for $username"
