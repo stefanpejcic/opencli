@@ -5,7 +5,7 @@
 # Usage: opencli user-ip <USERNAME> <IP | DELETE> [-y] [--debug]
 # Author: Radovan Jecmenica
 # Created: 23.11.2023
-# Last Modified: 21.08.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -126,6 +126,12 @@ update_bind_in_block() {
   fi
 }
 
+remove_bind_in_block() {
+  local esc_block_header
+  esc_block_header=$(escape_sed_regex "$2")
+  sed -i "/^$esc_block_header/{n;/^[[:space:]]*bind /d}" "$1"
+}
+
 edit_domain_files() {
     local ip=$1
     local domains
@@ -140,8 +146,14 @@ edit_domain_files() {
     for domain in $domains; do
         local caddy_conf="$CADDY_CONF_PATH/$domain.conf"
         if [ -f "$caddy_conf" ]; then
-            update_bind_in_block "$caddy_conf" "http://$domain, http://*.$domain {" "$ip"
-            update_bind_in_block "$caddy_conf" "https://$domain, https://*.$domain {" "$ip"
+            if [ "$ip" = "$SERVER_IP" ]; then
+                # caddy binding the main ip opens a second listener that takes every connection to it, so other domains get an empty 200
+                remove_bind_in_block "$caddy_conf" "http://$domain, http://*.$domain {"
+                remove_bind_in_block "$caddy_conf" "https://$domain, https://*.$domain {"
+            else
+                update_bind_in_block "$caddy_conf" "http://$domain, http://*.$domain {" "$ip"
+                update_bind_in_block "$caddy_conf" "https://$domain, https://*.$domain {" "$ip"
+            fi
 
             $DEBUG && echo "- Updated Caddy configuration for $domain to $ip"
             caddy_changed=true
@@ -194,7 +206,13 @@ else
     fi
 
     check_ip_validity "$IP"
-    check_ip_usage "$IP"
+    if [ "$IP" = "$SERVER_IP" ]; then
+        # the main ip is the shared one, not a dedicated ip
+        ACTION="delete"
+        delete_ip_config
+    else
+        check_ip_usage "$IP"
+    fi
     ip_to_use="$IP"
 fi
 

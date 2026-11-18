@@ -5,7 +5,7 @@
 # Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 # Author: Stefan Pejcic
 # Created: 20.08.2024
-# Last Modified: 06.11.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -611,8 +611,8 @@ create_caddy_domain_file() {
 	# a template saved through a browser has CRLF, which breaks the $-anchored edits other scripts make to this file
 	sed -e 's/\r$//' -e "s|<DOMAIN_NAME>|$domain_name|g" -e "s|127.0.0.1:||g" -e "s|<SSL_PORT>|${host}${ssl_port}|g" -e "s|<NON_SSL_PORT>|${host}${non_ssl_port}|g" "$conf_template" > "$domains_file"
 
-    # Dedicated IP bind directives
-    if [[ -n "$dedicated_ip" ]]; then
+    # binding the main ip would take every connection to it away from the other domains
+    if [[ -n "$dedicated_ip" && "$dedicated_ip" != "$current_ip" && "$dedicated_ip" != "$(hostname -I 2>/dev/null | awk '{print $1}')" ]]; then
         update_bind_in_block "$domains_file" "http://$domain_name, http://*.$domain_name {" "$dedicated_ip"
         update_bind_in_block "$domains_file" "https://$domain_name, https://*.$domain_name {" "$dedicated_ip"
     fi
