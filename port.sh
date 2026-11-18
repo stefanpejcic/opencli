@@ -76,23 +76,23 @@ update_env() {
 
 # for redirects!
 do_reload() {
+  # firewall and caddy apply without a restart, OpenAdmin passes --no-restart and recreates the container itself
+  open_firewall_port
+  caddy_reload
   if [[ "$NO_RESTART" != true ]]; then
-    # restart caddy and openpanel
     cd $COMPOSE_DIR || exit
-    caddy_reload
     nohup bash -c "podman-compose down openpanel && podman-compose up -d openpanel" > /dev/null 2>&1 &
-
-    # open port on csf
-    local csf_conf="/etc/csf/csf.conf"
-    [ -f "$csf_conf" ] || return 0
-    port_opened=$(grep "TCP_IN = .*${new_port}" "$csf_conf")
-    if [ -z "$port_opened" ]; then
-        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
-        nohup csf -r > /dev/null 2>&1 < /dev/null &
-    fi
-   fi
+  fi
 }
 
+open_firewall_port() {
+  local csf_conf="/etc/csf/csf.conf"
+  [ -f "$csf_conf" ] || return 0
+  if ! grep -q "TCP_IN = .*${new_port}" "$csf_conf"; then
+    sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
+    nohup csf -r > /dev/null 2>&1 < /dev/null &
+  fi
+}
 
 update_redirects() {
   sed -i "/redir @openpanel/s/:[0-9]\+/:$new_port/g; /reverse_proxy @mcp/s/:[0-9]\+/:$new_port/" $REDIRECTS_FILE

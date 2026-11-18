@@ -890,24 +890,20 @@ case "$1" in
 			sed -i "/redir @openadmin/s/:[0-9]\+/:$new_port/g" "/etc/openpanel/caddy/redirects.conf"
 			sed -i "/redir @openadmin/s/:[0-9]\+/:$new_port/g" "/etc/openpanel/caddy/redirects.conf"
 			sed -i "/# openadmin/,/# roundcube/ s/:[0-9]\+/:$new_port/g" "/etc/openpanel/nginx/vhosts/openpanel_proxy.conf"
+			# opening the port and reloading caddy aren't restarts, OpenAdmin passes --no-restart and still needs both
+			csf_conf="/etc/csf/csf.conf"
+			if [[ -f "$csf_conf" ]] && ! grep -q "TCP_IN = .*${new_port}" "$csf_conf"; then
+				echo "Opening port on firewall.."
+				sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
+				nohup csf -r > /dev/null 2>&1 < /dev/null &
+			fi
+			echo "Reloading Caddy.."
+			caddy_reload
 			if [[ "$optional_flag" != '--no-restart' ]]; then
-			    csf_conf="/etc/csf/csf.conf"
-				echo "Opening port on firewall.."			
-			    port_opened=$(grep "TCP_IN = .*${new_port}" "$csf_conf")
-			    if [ -z "$port_opened" ]; then
-			        sed -i "s/TCP_IN = \"\(.*\)\"/TCP_IN = \"\1,${new_port}\"/" "$csf_conf"
-			        nohup csf -r > /dev/null 2>&1 < /dev/null &
-			    fi
-	            echo "Restarting OpenAdmin.."
+				echo "Restarting OpenAdmin.."
 				systemctl restart admin
-				echo "Reloading Caddy.."
-				caddy_reload
 			else
-				if [[ "$new_port" == "443" ]]; then
-					echo "Restart OpenAdmin service and Caddy container to apply new port."
-				else
-	            	echo "Make sure to open the new port on Firewall and restart OpenAdmin service to apply new port."
-				fi
+				echo "Restart OpenAdmin service to apply new port."
 			fi
 			nohup opencli sentinel --action=admin_port --title="OpenAdmin port changed" --message="Port for administrator-level panel has been changed to '$new_port'." >/dev/null 2>&1 &
 			disown

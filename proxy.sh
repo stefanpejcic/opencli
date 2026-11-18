@@ -5,7 +5,7 @@
 # Usage: opencli proxy [set <path>|default] [--no-restart]
 # Author: Stefan Pejcic
 # Created: 17.02.2025
-# Last Modified: 26.10.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -30,6 +30,7 @@
 
 
 COMPOSE_DIR="/root"
+. /usr/local/opencli/lib/podman.sh
 REDIRECTS_FILE="/etc/openpanel/caddy/redirects.conf"
 
 get_current_path() {
@@ -74,6 +75,8 @@ update_path() {
   current_path=$(get_current_path)
       if [ "$current_path" != "$new_path" ]; then
         update_redirects
+        # the redirect lives in caddy, a reload applies it without dropping connections
+        caddy_reload
         do_reload
         success_msg
       else
