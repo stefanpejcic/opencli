@@ -13,10 +13,12 @@
 #              Given an image, only that image is pulled and only the running
 #              containers that use it are recreated, php-fpm ones also get
 #              their user's webserver reloaded.
+#              php-fpm services still on shinsenter/php get the openpanel/php-fpm
+#              block from the compose template and are recreated on it.
 # Usage: opencli docker-update [IMAGE] [-y|--yes] [--dry-run]
 # Author: Stefan Pejcic
 # Created: 20.08.2026
-# Last Modified: 21.10.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -75,6 +77,12 @@ usage() {
     echo "taken down. With IMAGE (e.g. shinsenter/php:7.4-fpm) only that image is checked."
     echo "After a php-fpm container is recreated the user's webserver is reloaded so it"
     echo "connects to the new container."
+    echo ""
+    echo "php-fpm services that still use shinsenter/php get the openpanel/php-fpm block"
+    echo "from the compose template (/etc/openpanel/docker/compose/1.0/docker-compose.yml)"
+    echo "and running ones are recreated on it. Users without PHP_FPM_LISTEN in .env get"
+    echo "PHP_FPM_LISTEN=\"port\" so their vhosts keep working, switch with opencli php-listen."
+    echo "This is skipped when IMAGE is given, unless it's an openpanel/php-fpm image."
     exit 1
 }
 
@@ -223,6 +231,83 @@ normalize_image() {
     echo "$image"
 }
 
+# php-fpm blocks from the compose template replace the ones still on shinsenter/php
+readonly PHP_TEMPLATE="/etc/openpanel/docker/compose/1.0/docker-compose.yml"
+PHP_SWAP_ENABLED=true
+if [[ -n "$TARGET_IMAGE" && "$(normalize_image "$TARGET_IMAGE")" != openpanel/php-fpm:* ]]; then
+    PHP_SWAP_ENABLED=false
+fi
+
+# list <template> <compose>: prints "service old_image new_image" for php-fpm services that can move to openpanel/php-fpm
+# apply <template> <compose> <service>...: swaps those service blocks for the template's
+php_image_swap() {
+    python3 - "$@" <<'PY'
+import os, re, sys
+mode, tpl, path, wanted = sys.argv[1], sys.argv[2], sys.argv[3], set(sys.argv[4:])
+def lead(l): return len(l) - len(l.lstrip(' '))
+def unit(lines):
+    # indent of the first key under services:, files rewritten by a yaml dumper use 4
+    for i, l in enumerate(lines):
+        if re.match(r'^services:\s*$', l):
+            for n in lines[i+1:]:
+                if n.strip() and not n.lstrip().startswith('#'): return lead(n)
+    return 2
+def blocks(lines, u):
+    out, i = {}, 0
+    while i < len(lines):
+        m = re.match(r'^' + ' ' * u + r'(php-fpm-[0-9.]+):\s*$', lines[i])
+        if not m:
+            i += 1; continue
+        j = i + 1
+        while j < len(lines) and not (lines[j].strip() and lead(lines[j]) <= u): j += 1
+        k = j
+        while k > i + 1 and lines[k-1].strip() == '': k -= 1  # blank lines after a block stay where they are
+        out[m.group(1)] = (i, k)
+        i = j
+    return out
+def keys(lines, b, u):
+    # top level keys of a service block -> their lines
+    out, cur = {}, None
+    for l in lines[b[0]+1:b[1]]:
+        if l.strip() and lead(l) == 2 * u and not l.lstrip().startswith('#'):
+            cur = l.strip().split(':')[0]; out[cur] = []
+        if cur: out[cur].append(l)
+    return out
+def image(lines, b, u):
+    l = keys(lines, b, u).get('image', [''])[0]
+    m = re.match(r'^\s*image:\s*["\']?([^"\'\s]+)', l)
+    return m.group(1) if m else ''
+src = open(tpl).read().split('\n')
+dst = open(path).read().split('\n')
+su, du = unit(src), unit(dst)
+sb, db = blocks(src, su), blocks(dst, du)
+todo = []
+for name, b in db.items():
+    old = image(dst, b, du)
+    if 'shinsenter/php' not in old or name not in sb: continue
+    new = image(src, sb[name], su)
+    if not new.startswith('openpanel/php-fpm:'): continue
+    # a missing bind source (e.g. an ioncube loader the server doesn't have yet) would stop the container from starting
+    missing = [m.group(1) for l in src[sb[name][0]:sb[name][1]] for m in [re.match(r'^\s*- (/[^:]+):', l)] if m and not os.path.exists(m.group(1))]
+    if missing:
+        print(f"{name} {old} - missing {' '.join(missing)}", file=sys.stderr); continue
+    todo.append((name, old, new))
+if mode == 'list':
+    for t in todo: print(*t)
+    sys.exit(0)
+for name, _, _ in sorted((t for t in todo if t[0] in wanted), key=lambda t: -db[t[0]][0]):
+    a, b = db[name]
+    s, e = sb[name]
+    block = [' ' * (lead(l) * du // su) + l.lstrip(' ') if l.strip() else l for l in src[s:e]]
+    # keys the admin added (extra_hosts, labels...) are kept, command is shinsenter's and not needed anymore
+    have = keys(src, (s, e), su)
+    for k, ls in keys(dst, (a, b), du).items():
+        if k not in have and k != 'command': block += ls
+    dst[a:b] = block
+open(path, 'w').write('\n'.join(dst))
+PY
+}
+
 # --- A: enumerate every image in use, root first then non-suspended users --
 
 # ordered list of contexts ("root", then each username/context)
@@ -242,6 +327,9 @@ declare -A ALL_IMAGES=()
 declare -A IMAGE_USERS=()
 # "context/container" -> state and image id, one podman ps per context
 declare -A CONTAINER_STATE=() CONTAINER_IMAGE=()
+# context -> php-fpm services that move to openpanel/php-fpm, "context/service" -> their new image
+declare -A PHP_SWAP_SERVICES=() PHP_SWAP_IMAGE=()
+declare -a PHP_SWAP_LINES=()
 
 for context in "${CONTEXTS[@]}"; do
     compose_file=$(podman_compose_file "$context")
@@ -250,6 +338,14 @@ for context in "${CONTEXTS[@]}"; do
 
     pairs=$(cd "$compose_dir" && get_context_images "$context" "$compose_file")
     [[ -z "$pairs" ]] && continue
+    if [[ "$PHP_SWAP_ENABLED" == true && "$context" != root && -f "$PHP_TEMPLATE" ]]; then
+        while read -r svc old new; do
+            [[ -z "$svc" ]] && continue
+            PHP_SWAP_SERVICES["$context"]+="$svc "
+            PHP_SWAP_IMAGE["$context/$svc"]="$new"
+            PHP_SWAP_LINES+=("  ${CONTEXT_LABEL[$context]}: $svc $old -> $new")
+        done < <(php_image_swap list "$PHP_TEMPLATE" "$compose_file" 2> >(while read -r svc old _ rest; do log "WARNING: ${CONTEXT_LABEL[$context]}: $svc stays on $old, $rest"; done))
+    fi
     while read -r cname state image_id; do
         CONTAINER_STATE["$context/$cname"]="$state"
         CONTAINER_IMAGE["$context/$cname"]="$image_id"
@@ -258,6 +354,7 @@ for context in "${CONTEXTS[@]}"; do
         # skip images with a literal ${, a compose variable that never got resolved
         # shellcheck disable=SC2016
         [[ -z "$img" || "$img" == *'${'* ]] && continue
+        img="${PHP_SWAP_IMAGE[$context/$svc]:-$img}"
         key=$(normalize_image "$img")
         ALL_IMAGES["$key"]="$img"
         IMAGE_USERS["$key"]+="$context $svc $cname"$'\n'
@@ -369,6 +466,11 @@ plan_image() {
     echo
 }
 
+if [[ ${#PHP_SWAP_LINES[@]} -gt 0 ]]; then
+    echo "php-fpm moving from shinsenter/php to openpanel/php-fpm:"
+    printf '%s\n' "${PHP_SWAP_LINES[@]}"
+    echo
+fi
 if [[ -z "$TARGET_IMAGE" ]]; then
     echo "Checking ${#TARGETS[@]} unique image(s)..."
     echo
@@ -377,11 +479,11 @@ for key in "${!TARGETS[@]}"; do
     plan_image "$key" "${TARGETS[$key]}"
 done
 
-if [[ ${#PLAN_PULL[@]} -eq 0 && ${#PLAN_RECREATE[@]} -eq 0 ]]; then
+if [[ ${#PLAN_PULL[@]} -eq 0 && ${#PLAN_RECREATE[@]} -eq 0 && ${#PHP_SWAP_LINES[@]} -eq 0 ]]; then
     echo "Nothing to do, every running container already uses the current image."
     exit 0
 fi
-echo "${#PLAN_PULL[@]} pull(s), ${#PLAN_RECREATE[@]} container(s) to recreate."
+echo "${#PLAN_PULL[@]} pull(s), ${#PLAN_RECREATE[@]} container(s) to recreate, ${#PHP_SWAP_LINES[@]} php-fpm service(s) to move to openpanel/php-fpm."
 
 if [[ "$DRY_RUN" == true ]]; then
     echo "Dry run - not pulling or recreating anything."
@@ -462,8 +564,31 @@ dependent_services() {
 }
 
 log "=== Update run started ==="
-declare -A FAILED_PULL=() PHP_CHECKED=()
+declare -A FAILED_PULL=() PHP_CHECKED=() FAILED_SWAP=()
 failed=0
+
+for context in "${!PHP_SWAP_SERVICES[@]}"; do
+    compose_file=$(podman_compose_file "$context")
+    env_file="$(dirname "$compose_file")/.env"
+    label="${CONTEXT_LABEL[$context]}"
+    cp -a "$compose_file" "$compose_file.bak-php-image-$(date +%Y%m%d%H%M%S)"
+    # shellcheck disable=SC2086
+    if ! php_image_swap apply "$PHP_TEMPLATE" "$compose_file" ${PHP_SWAP_SERVICES[$context]} >>"$LOG_FILE" 2>&1; then
+        log "ERROR: could not move php-fpm to openpanel/php-fpm for $label, its docker-compose.yml is unchanged"
+        for svc in ${PHP_SWAP_SERVICES[$context]}; do FAILED_SWAP["$context/$svc"]=1; done
+        failed=$((failed + 1))
+        continue
+    fi
+    # the template falls back to the socket, accounts made before PHP_FPM_LISTEN existed have vhosts on port 9000
+    if ! grep -qE "^PHP_FPM_LISTEN=" "$env_file" 2>/dev/null; then
+        echo 'PHP_FPM_LISTEN="port"' >> "$env_file"
+        log "  PHP_FPM_LISTEN=\"port\" added to .env for $label, its vhosts use port 9000"
+    fi
+    uid=$(stat -c '%u' "$(dirname "$compose_file")")
+    mkdir -p "$(dirname "$compose_file")/sockets/php"
+    chown "$uid:$uid" "$(dirname "$compose_file")/sockets/php"
+    log "moved ${PHP_SWAP_SERVICES[$context]% } to openpanel/php-fpm for $label"
+done
 
 for entry in "${PLAN_PULL[@]}"; do
     read -r store image <<< "$entry"
@@ -496,6 +621,10 @@ for entry in "${PLAN_RECREATE[@]}"; do
     label="${CONTEXT_LABEL[$context]}"
     if [[ -n "${FAILED_PULL[$store $image]:-}" ]]; then
         log "skipping $svc for $label, $image failed to pull"
+        continue
+    fi
+    if [[ -n "${FAILED_SWAP[$context/$svc]:-}" ]]; then
+        log "skipping $svc for $label, its compose block still uses shinsenter/php"
         continue
     fi
     # an image pulled before its upstream rebuilt for a php security release still has the old php, recreating on it would only look like a fix

@@ -5,7 +5,7 @@
 # Docs: https://openpanel.com/docs/articles/opencli/php/
 # Author: Stefan Pejcic
 # Created: 01.11.2026
-# Last Modified: 01.11.2026
+# Last Modified: 18.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -115,32 +115,42 @@ lines = open(path).read().split("\n")
 MOUNT = "./sockets/php:/run/php"
 ENV = "PHPFPM_LISTEN=${PHP_FPM_LISTEN:-port}"
 webservers = {"nginx", "apache", "openresty"}
-out, svc, section, changed = [], None, None, False
+# indent of the first key under services:, files rewritten by a yaml dumper use 4 instead of 2
+u = 2
+for i, l in enumerate(lines):
+    if re.match(r"^services:\s*$", l):
+        u = next((len(n) - len(n.lstrip(" ")) for n in lines[i+1:] if n.strip() and not n.lstrip().startswith("#")), 2)
+        break
+SVC = re.compile(r"^" + " " * u + r"([A-Za-z0-9_.-]+):\s*$")
+END = re.compile(r"^ {0," + str(u) + r"}\S")
+KEY = " " * (2 * u)
+ITEM = " " * (3 * u) + "- "
+out, svc, changed = [], None, False
 def block_has(start, text, regex=False):
     j = start + 1
-    while j < len(lines) and not re.match(r"^  \S", lines[j]):
+    while j < len(lines) and not END.match(lines[j]):
         if (re.match(text, lines[j]) if regex else text in lines[j]): return True
         j += 1
     return False
 svc_start = {}
 for idx, l in enumerate(lines):
-    m = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", l)
+    m = SVC.match(l)
     if m: svc_start[m.group(1)] = idx
 for idx, l in enumerate(lines):
-    m = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", l)
+    m = SVC.match(l)
     if m: svc = m.group(1)
-    if re.match(r"^\S", l): svc = None
+    elif re.match(r"^\S", l): svc = None
     out.append(l)
     if svc is None: continue
     is_php = svc.startswith("php-fpm-")
     if not (is_php or svc in webservers): continue
     # php services without an environment: block (openpanel/php-fpm needs none) get one, right before volumes:
-    if is_php and re.match(r"^    volumes:\s*$", l) and not block_has(svc_start[svc], r"^    environment:", True):
-        out[-1:] = ["    environment:", "      - " + ENV, l]; changed = True
-    if re.match(r"^    volumes:\s*$", l) and not block_has(svc_start[svc], MOUNT):
-        out.append("      - " + MOUNT); changed = True
-    if is_php and re.match(r"^    environment:\s*$", l) and not block_has(svc_start[svc], "PHPFPM_LISTEN="):
-        out.append("      - " + ENV); changed = True
+    if is_php and l == KEY + "volumes:" and not block_has(svc_start[svc], "^" + KEY + r"environment:", True):
+        out[-1:] = [KEY + "environment:", ITEM + ENV, l]; changed = True
+    if l.rstrip() == KEY + "volumes:" and not block_has(svc_start[svc], MOUNT):
+        out.append(ITEM + MOUNT); changed = True
+    if is_php and l.rstrip() == KEY + "environment:" and not block_has(svc_start[svc], "PHPFPM_LISTEN="):
+        out.append(ITEM + ENV); changed = True
 if changed:
     open(path, "w").write("\n".join(out))
 print("patched" if changed else "unchanged")
