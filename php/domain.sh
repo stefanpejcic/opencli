@@ -6,7 +6,7 @@
 #        opencli php-domain <domain_name> --update <new_php_version>
 # Author: Stefan Pejcic
 # Created: 07.10.2023
-# Last Modified: 26.10.2026
+# Last Modified: 19.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -152,7 +152,37 @@ disown
 update_query="UPDATE domains SET php_version='$(mysql_escape "$new_php_version")' WHERE domain_url='$(mysql_escape "$domain")';"
 mariadb -e "$update_query"
 
-# 6. notify
+# 6. jobs of this domain that ran in the old php-fpm move to the new one, same as the PHP version switch in the user panel
+docroot=$(mariadb -sN -e "SELECT docroot FROM domains WHERE domain_url='$(mysql_escape "$domain")'" 2>/dev/null)
+crons_file="/home/$context/crons.ini"
+if [[ -f "$crons_file" ]]; then
+    moved=$(python3 - "$crons_file" "$domain" "$docroot" "php-fpm-$old_php_version" "php-fpm-$new_php_version" <<'PY'
+import re, sys
+path, domain, docroot, old, new = sys.argv[1:6]
+# the domain in a Host header or url, or a path in its docroot, a longer docroot like a.com2 doesn't count
+pats = [re.compile(r"(?i)(Host:\s*|://)" + re.escape(domain) + r"([/:\s'\"]|$)")]
+if docroot and docroot != "/":
+    pats.append(re.compile(r"(^|[\s'\"=:])" + re.escape(docroot.rstrip("/")) + r"(/|[\s'\"]|$)"))
+blocks, moved = open(path).read().split("\n\n"), 0
+for i, b in enumerate(blocks):
+    lines = b.split("\n")
+    cont = [n for n, l in enumerate(lines) if re.match(r"^#?\s*container\s*=\s*" + re.escape(old) + r"\s*$", l)]
+    cmd = next((l.split("=", 1)[1] for l in lines if re.match(r"^#?\s*command\s*=", l)), "")
+    if cont and any(p.search(cmd) for p in pats):
+        lines[cont[0]] = re.sub(re.escape(old) + r"\s*$", new, lines[cont[0]])
+        blocks[i], moved = "\n".join(lines), moved + 1
+if moved:
+    open(path, "w").write("\n\n".join(blocks))
+print(moved)
+PY
+)
+    if [[ "${moved:-0}" -gt 0 ]]; then
+        podman_ctx_is_running "$owner" cron && podman_ctx "$owner" restart cron >/dev/null 2>&1
+        echo "Moved $moved cron job(s) of $domain from php-fpm-$old_php_version to php-fpm-$new_php_version"
+    fi
+fi
+
+# 7. notify
 # todo: trigger user and admin notifications
 echo "Updated PHP version in the configuration file to $new_php_version"
 
