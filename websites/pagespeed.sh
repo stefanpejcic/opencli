@@ -5,7 +5,7 @@
 # Usage: opencli websites-pagespeed <DOMAIN | -all>
 # Author: Stefan Pejcic
 # Created: 27.06.2024
-# Last Modified: 21.08.2026
+# Last Modified: 19.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -128,6 +128,12 @@ generate_report() {
   "mobile_speed": $mobile_speed
 }
 EOF
+
+  # the report is overwritten every morning, OpenAdmin's daily summary reads the copy of the day it covers
+  local history_dir
+  history_dir="/etc/openpanel/openpanel/websites/history/${timestamp:0:10}"
+  mkdir -p "$history_dir" && cp -f "$filename" "$history_dir/"
+  find /etc/openpanel/openpanel/websites/history -mindepth 1 -maxdepth 1 -type d -mtime +35 -exec rm -rf {} + 2>/dev/null
 
   echo "Google PageSpeed data saved to $filename"
 }
