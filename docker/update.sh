@@ -15,10 +15,10 @@
 #              their user's webserver reloaded.
 #              php-fpm services still on shinsenter/php get the openpanel/php-fpm
 #              block from the compose template and are recreated on it.
-# Usage: opencli docker-update [IMAGE] [-y|--yes] [--dry-run]
+# Usage: opencli docker-update [IMAGE] [-y|--yes] [--dry-run] [--no-php-move]
 # Author: Stefan Pejcic
 # Created: 20.08.2026
-# Last Modified: 18.11.2026
+# Last Modified: 19.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 #
@@ -68,6 +68,7 @@ usage() {
     echo "Options:"
     echo "  -y, --yes       Apply updates without prompting for confirmation."
     echo "  --dry-run       Only check and print available updates, never prompt or apply."
+    echo "  --no-php-move   Keep php-fpm services on the image they use, only pull its new build."
     echo ""
     echo "With no options, available updates are printed and confirmation is asked"
     echo "for 10 seconds - if there's no answer in that time the script exits"
@@ -82,17 +83,20 @@ usage() {
     echo "from the compose template (/etc/openpanel/docker/compose/1.0/docker-compose.yml)"
     echo "and running ones are recreated on it. Users without PHP_FPM_LISTEN in .env get"
     echo "PHP_FPM_LISTEN=\"port\" so their vhosts keep working, switch with opencli php-listen."
-    echo "This is skipped when IMAGE is given, unless it's an openpanel/php-fpm image."
+    echo "This is skipped when IMAGE is given, unless it's an openpanel/php-fpm image, and"
+    echo "with --no-php-move."
     exit 1
 }
 
 AUTO_YES=false
 DRY_RUN=false
+NO_PHP_MOVE=false
 TARGET_IMAGE=""
 for arg in "$@"; do
     case "$arg" in
         -y|--yes) AUTO_YES=true ;;
         --dry-run) DRY_RUN=true ;;
+        --no-php-move) NO_PHP_MOVE=true ;;
         -h|--help) usage ;;
         -*) echo "Unknown option: $arg"; usage ;;
         *)
@@ -234,7 +238,7 @@ normalize_image() {
 # php-fpm blocks from the compose template replace the ones still on shinsenter/php
 readonly PHP_TEMPLATE="/etc/openpanel/docker/compose/1.0/docker-compose.yml"
 PHP_SWAP_ENABLED=true
-if [[ -n "$TARGET_IMAGE" && "$(normalize_image "$TARGET_IMAGE")" != openpanel/php-fpm:* ]]; then
+if [[ "$NO_PHP_MOVE" == true ]] || [[ -n "$TARGET_IMAGE" && "$(normalize_image "$TARGET_IMAGE")" != openpanel/php-fpm:* ]]; then
     PHP_SWAP_ENABLED=false
 fi
 
