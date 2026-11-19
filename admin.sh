@@ -299,7 +299,21 @@ update_config() {
         echo "Updated $param_name to $new_value"
         
     else
-        echo "Parameter $param_name not found in the configuration file. Docs: https://openpanel.com/docs/articles/opencli/admin"
+        # newer alerts aren't in older files, add them under the section OpenAdmin reads them from
+        [[ "$param_name" =~ ^[a-z_]+$ ]] || { echo "Invalid parameter name: $param_name"; return 1; }
+        local section="ACTIONS"
+        case "$param_name" in
+            reboot|attack|ratelimit|limit|backup|update|dns|login|ssh|services|load|cpu|ram|du|swap|mail|mail_bounce|mail_defer|webhook_url) section="DEFAULT" ;;
+            max_total_conn|max_conn_per_ip) section="HTTP" ;;
+        esac
+        local escaped_value
+        escaped_value=$(printf '%s' "$new_value" | sed -e 's/[\\&|]/\\&/g')
+        if grep -q "^\[$section\]" "$notifications_file"; then
+            sed -i "/^\[$section\]/a $param_name=$escaped_value" "$notifications_file"
+        else
+            printf '\n[%s]\n%s=%s\n' "$section" "$param_name" "$new_value" >> "$notifications_file"
+        fi
+        echo "Added $param_name=$new_value"
     fi
 }
 
