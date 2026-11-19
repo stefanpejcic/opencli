@@ -5,7 +5,7 @@
 # Usage: opencli update [--check | --force [--no-restart] | --admin | --panel | --cli | --translations | --system | --modules | --compose | --env | --php | --wp | --ols | --litespeed | --apache | --clamav | --phpmyadmin | --postgres | --skeleton | --ssh | --varnish | --cron | --caddy]
 # Author: Stefan Pejcic
 # Created: 10.10.2023
-# Last Modified: 28.10.2026
+# Last Modified: 19.11.2026
 # Company: OpenPanel, LLC.
 # Copyright (c) openpanel.com
 # 
@@ -311,6 +311,11 @@ detect_system() {
     fi
 }
 
+# without these a conffile or debconf prompt hangs an update that runs from openadmin or cron
+apt_noninteractive() {
+    DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold "$@"
+}
+
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
 # shellcheck disable=SC2329
 install_required_tools() {
@@ -320,41 +325,62 @@ install_required_tools() {
     case $distro in
         debian)
             if ! dpkg -s deborphan &>/dev/null; then
-                install_package deborphan true
+                apt_noninteractive install deborphan >> "$log_file" 2>&1
             fi
             ;;
         dnf|yum)
-            if ! command_exists package-cleanup || ! command_exists needs-restarting; then
+            if ! command_exists needs-restarting || { [[ "$distro" == "yum" ]] && ! command_exists package-cleanup; }; then
                 install_package yum-utils true
             fi
             ;;
     esac
 }
 
+# versions of the installed versioned kernel images, oldest first, meta packages like linux-generic are left out
+installed_kernel_versions_deb() {
+    dpkg-query -W -f='${Package} ${Status}\n' 'linux-image-[0-9]*' 'linux-image-unsigned-[0-9]*' 2>/dev/null \
+        | awk '$NF == "installed" {print $1}' \
+        | sed -E 's/^linux-image-(unsigned-)?//' | sort -uV
+}
+
+installed_kernel_versions_rpm() {
+    rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-core kernel 2>/dev/null | grep -v 'not installed' | sort -uV
+}
+
 # ---------------------- RUNS ONLY ON MAJOR ---------------------- #
 # shellcheck disable=SC2329
 remove_old_kernels() {
-    local distro
+    local distro current_kernel
     distro=$(detect_system)
+    current_kernel=$(uname -r)
     case $distro in
         debian)
-            log_info "Removing old kernels (Debian/Ubuntu)"
-            local current_kernel
-            current_kernel=$(uname -r)
-            
-            local kernels
-            mapfile -t kernels < <(dpkg --list | grep linux-image | awk '{print $2}' | grep -v "$current_kernel" | sort -V)
-            
-            if (( ${#kernels[@]} > KEEP_KERNELS )); then
-                local remove_count=$((${#kernels[@]} - KEEP_KERNELS))
-                local remove_kernels=("${kernels[@]:0:$remove_count}")
-                apt purge -y "${remove_kernels[@]}" >> "$log_file" 2>&1
-            fi
+            log_info "Removing old kernels (Debian/Ubuntu), keeping the running one ($current_kernel) and the $KEEP_KERNELS newest others"
+            local kernels=() remove=() ver pkg
+            mapfile -t kernels < <(installed_kernel_versions_deb | grep -vxF "$current_kernel")
+            (( ${#kernels[@]} > KEEP_KERNELS )) || { log_info "[✔] No old kernels to remove"; return 0; }
+
+            for ver in "${kernels[@]:0:${#kernels[@]}-KEEP_KERNELS}"; do
+                # image, modules and headers of that version, otherwise modules and headers stay behind forever
+                while read -r pkg; do
+                    [[ -n "$pkg" ]] && remove+=("$pkg")
+                done < <(dpkg-query -W -f='${Package} ${Status}\n' "linux-*-$ver" 2>/dev/null | awk '$NF == "installed" {print $1}')
+            done
+            (( ${#remove[@]} )) || return 0
+            log_info "Purging: ${remove[*]}"
+            apt_noninteractive purge "${remove[@]}" >> "$log_file" 2>&1 || log_warn "Failed to purge old kernels, see $log_file"
+            # ubuntu splits headers into a flavor package and a shared one, the shared one is only autoremovable now
+            apt_noninteractive autoremove --purge >> "$log_file" 2>&1
             ;;
-        dnf|yum)
-            log_info "Removing old kernels (RHEL/CentOS)"
+        dnf)
+            log_info "Removing old kernels (RHEL), keeping the running one ($current_kernel) and the $KEEP_KERNELS newest others"
+            # never removes the running kernel, exits 1 when there's nothing to remove
+            dnf remove -y --oldinstallonly --setopt installonly_limit=$((KEEP_KERNELS + 1)) >> "$log_file" 2>&1 || log_info "[✔] No old kernels to remove"
+            ;;
+        yum)
+            log_info "Removing old kernels (CentOS 7)"
             if command_exists package-cleanup; then
-                package-cleanup --oldkernels --count="$KEEP_KERNELS" -y >> "$log_file" 2>&1
+                package-cleanup --oldkernels --count=$((KEEP_KERNELS + 1)) -y >> "$log_file" 2>&1
             fi
             ;;
     esac
@@ -368,32 +394,33 @@ update_system_packages() {
     log_info "Updating system packages"
     case $distro in
         debian)
-            apt update >> "$log_file" 2>&1
-            apt upgrade -y >> "$log_file" 2>&1
-            apt full-upgrade -y >> "$log_file" 2>&1
-            
+            apt_noninteractive update >> "$log_file" 2>&1
+            apt_noninteractive upgrade >> "$log_file" 2>&1
+            apt_noninteractive full-upgrade >> "$log_file" 2>&1
+
             log_info "Cleaning up packages"
-            apt autoremove -y >> "$log_file" 2>&1
-            apt autoclean -y >> "$log_file" 2>&1
-            apt clean >> "$log_file" 2>&1
-            
+            apt_noninteractive autoremove >> "$log_file" 2>&1
+            apt_noninteractive autoclean >> "$log_file" 2>&1
+            apt-get clean >> "$log_file" 2>&1
+
+            local leftovers=()
+            # deborphan only lists orphaned libraries by default
             if command_exists deborphan; then
-                deborphan | xargs -r apt purge -y >> "$log_file" 2>&1
+                mapfile -t leftovers < <(deborphan)
+                (( ${#leftovers[@]} )) && apt_noninteractive purge "${leftovers[@]}" >> "$log_file" 2>&1
             fi
-            
-            dpkg -l | awk '/^rc/ { print $2 }' | xargs -r apt purge -y >> "$log_file" 2>&1
+
+            mapfile -t leftovers < <(dpkg -l | awk '/^rc/ { print $2 }')
+            (( ${#leftovers[@]} )) && apt_noninteractive purge "${leftovers[@]}" >> "$log_file" 2>&1
             ;;
         dnf|yum)
             local pkg_mgr="$distro"
             $pkg_mgr -y update >> "$log_file" 2>&1
-            
+
+            # only autoremove, package-cleanup --leaves --all also lists podman, sshd and anything else nothing depends on
             log_info "Cleaning up packages"
             $pkg_mgr -y autoremove >> "$log_file" 2>&1
             $pkg_mgr clean all >> "$log_file" 2>&1
-            
-            if command_exists package-cleanup; then
-                package-cleanup --leaves --all --quiet | xargs -r "$pkg_mgr" remove -y >> "$log_file" 2>&1
-            fi
             ;;
     esac
 }
@@ -402,22 +429,44 @@ update_system_packages() {
 # shellcheck disable=SC2329
 check_reboot_required() {
     log_info "Checking if reboot is required"
-    local distro
+    local distro running newest reason="" pkgs=""
     distro=$(detect_system)
+    running=$(uname -r)
     case $distro in
         debian)
+            newest=$(installed_kernel_versions_deb | tail -n 1)
             if [[ -f /var/run/reboot-required ]]; then
-                log_warn "[!]  Reboot required!"
-                [[ -f /var/run/reboot-required.pkgs ]] && cat /var/run/reboot-required.pkgs >> "$log_file"
+                reason="packages updated"
+                [[ -f /var/run/reboot-required.pkgs ]] && pkgs=$(sort -u /var/run/reboot-required.pkgs | paste -sd, - | sed 's/,/, /g')
             fi
             ;;
         dnf|yum)
+            newest=$(installed_kernel_versions_rpm | tail -n 1)
             if command_exists needs-restarting && ! needs-restarting -r &>/dev/null; then
-                log_warn "[!] Reboot required!"
-                needs-restarting >> "$log_file" 2>&1
+                reason="core libraries or kernel updated"
+                needs-restarting -r >> "$log_file" 2>&1
             fi
             ;;
     esac
+
+    # debian only writes /var/run/reboot-required when update-notifier or unattended-upgrades is installed
+    if [[ -n "$newest" && "$newest" != "$running" ]]; then
+        reason="new kernel $newest installed, running $running"
+    fi
+
+    if [[ -z "$reason" ]]; then
+        log_info "[✔] No reboot required"
+        return 0
+    fi
+
+    log_warn "[!] Reboot required: $reason"
+    [[ -n "$pkgs" ]] && echo "Packages that need a reboot: $pkgs" >> "$log_file"
+    echo "Reboot required: $reason" >> "$log_file"
+
+    # goes to OpenAdmin > Notifications and email/webhook, the admin can turn it off with the 'update' notification toggle
+    timeout 60 opencli sentinel --action=update --severity=warning --title="Reboot required" \
+        --message="Server $(hostname) needs a reboot to finish the system update: ${reason}${pkgs:+ (packages: $pkgs)}. Reboot from OpenAdmin > Server reboot or with the reboot command when it suits you." \
+        >> "$log_file" 2>&1 || true
 }
 
 # ---------------------- HELPER: RUNS AFTER DOWNLOADING NEW IMAGE ---------------------- #
