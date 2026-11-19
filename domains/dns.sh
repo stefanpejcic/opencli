@@ -349,6 +349,12 @@ create_dns_zone_for_domain(){
 
     echo "$zone_content" > "$ZONE_FILE_DIR$domain_name.zone"
 
+	# delete drops the zone from named.conf.local, without it back bind never loaded the new file
+	local ncl=/etc/bind/named.conf.local
+	if ! grep -qF "zone \"$domain_name\"" "$ncl" 2>/dev/null; then
+		echo "zone \"$domain_name\" IN { type master; file \"${ZONE_FILE_DIR}${domain_name}.zone\"; };" >> "$ncl"
+	fi
+	podman exec openpanel_dns rndc reconfig >/dev/null 2>&1
 	podman exec openpanel_dns rndc reload "$domain_name" >/dev/null 2>&1
     cd /root && podman-compose up -d bind9  >/dev/null 2>&1
 }
