@@ -349,6 +349,11 @@ else
     setup_rc=$?
 fi
 
+# the access maps are texthash so postfix only rereads them on reload, dms reloads just the first time and a lifted restriction stayed
+if [[ "$1 $2" == "email restrict" && "$3" =~ ^(add|del)$ && "$setup_rc" -eq 0 ]] && podman_can_exec "$CONTAINER"; then
+    podman exec "$CONTAINER" postfix reload >/dev/null 2>&1
+fi
+
 if [[ "$1 $2" == "email add" && "$setup_rc" -eq 0 ]] && ! grep -qi "^$(escape_key "${3,,}")|" "$ACCOUNTS_FILE" 2>/dev/null; then
     echo "Error: '$3' was not saved to the mailserver accounts file." >&2
     setup_rc=1
