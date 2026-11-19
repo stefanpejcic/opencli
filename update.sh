@@ -325,7 +325,7 @@ install_required_tools() {
     case $distro in
         debian)
             # newer ubuntu releases dropped deborphan
-            if ! dpkg -s deborphan &>/dev/null && apt-cache show deborphan &>/dev/null; then
+            if ! dpkg -s deborphan &>/dev/null && apt-cache policy deborphan 2>/dev/null | grep -q "Candidate: [^(]"; then
                 apt_noninteractive install deborphan >> "$log_file" 2>&1
             fi
             ;;
