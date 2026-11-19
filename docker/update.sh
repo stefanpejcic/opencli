@@ -205,7 +205,7 @@ remote_digest() {
 }
 
 # first release on each php branch with the latest php security fixes (CVE-2026-109618, CVE-2026-109619), bump on the next php security release
-readonly PHP_FIXED="8.2.35 8.3.36 8.4.27 8.5.12"
+readonly PHP_FIXED="8.2.36 8.3.37 8.4.28 8.5.13"
 
 # echoes the PHP_VERSION php reports inside <image> in <store>, empty if the image has no php (only images with PHP_VERSION in their env are run)
 image_php_version() {
