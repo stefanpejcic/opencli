@@ -324,7 +324,8 @@ install_required_tools() {
     log_info "Installing required system tools"
     case $distro in
         debian)
-            if ! dpkg -s deborphan &>/dev/null; then
+            # newer ubuntu releases dropped deborphan
+            if ! dpkg -s deborphan &>/dev/null && apt-cache show deborphan &>/dev/null; then
                 apt_noninteractive install deborphan >> "$log_file" 2>&1
             fi
             ;;
