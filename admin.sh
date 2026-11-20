@@ -303,7 +303,7 @@ update_config() {
         [[ "$param_name" =~ ^[a-z_]+$ ]] || { echo "Invalid parameter name: $param_name"; return 1; }
         local section="ACTIONS"
         case "$param_name" in
-            reboot|attack|ratelimit|limit|backup|update|dns|login|ssh|services|load|cpu|ram|du|swap|mail|mail_bounce|mail_defer|webhook_url) section="DEFAULT" ;;
+            reboot|attack|ratelimit|limit|backup|update|dns|login|ssh|services|load|cpu|ram|du|swap|mail|mail_bounce|mail_defer|rbl|webhook_url) section="DEFAULT" ;;
             max_total_conn|max_conn_per_ip) section="HTTP" ;;
         esac
         local escaped_value

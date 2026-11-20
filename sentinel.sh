@@ -57,6 +57,11 @@ readonly LOCK_FILE_FOR_REDIS_STUCK="/tmp/sentinel.redis_stuck"
 readonly LOCK_FILE_FOR_USER_CONTAINERS="/tmp/sentinel.user_containers"
 readonly LOCK_FILE_FOR_RATELIMIT="/tmp/sentinel.ratelimit"
 readonly LOCK_FILE_FOR_MAIL_REPORT="/var/lib/openpanel/sentinel.mail_report"
+readonly LOCK_FILE_FOR_RBL="/var/lib/openpanel/sentinel.rbl"
+# one blocklist zone per line, admins can add or drop lists here
+readonly RBL_LIST_FILE="/etc/openpanel/openadmin/config/rbl.txt"
+# one JSON per day with the result, OpenAdmin's daily summary reads these
+readonly RBL_DATA_DIR="/var/lib/openpanel/rbl"
 readonly RATELIMIT_CHECK_HOURS=6
 readonly STARTUP_STAGGER=2  # seconds between user starts on boot
 readonly MYSQL_IDLE_GRACE=7200  # mysql of an account this old with no databases gets stopped
@@ -100,6 +105,8 @@ MAX_CONN_PER_IP=$(validate_count "$(ini_get max_conn_per_ip)" 500)
 MAIL_REPORT=$([[ "$(ini_get mail)" == "yes" ]] && echo yes || echo no)
 MAIL_BOUNCE_PCT=$(validate_number "$(ini_get mail_bounce)" 20)
 MAIL_DEFER_PCT=$(validate_number  "$(ini_get mail_defer)"  20)
+# daily blocklist check of the server IP, only runs when this server sends its own mail
+RBL=$(validate_yes_no "$(ini_get rbl)")
 # hardcoded until they get settings in OpenAdmin, 0 turns the mail queue check off
 readonly MAIL_QUEUE=500
 readonly HOLD_SPAM=yes
@@ -1837,6 +1844,87 @@ check_mail_report() {
       '{kind: "mail_report", day: $day, received: $r, delivered: $d, deferred: $df, bounced: $b, rejected: $rj, bounce_pct: $bp, defer_pct: $dp}')"
 }
 
+# zones used when rbl.txt is missing
+RBL_DEFAULT_ZONES="zen.spamhaus.org bl.spamcop.net b.barracudacentral.org psbl.surriel.com bl.mailspike.net dnsbl-1.uceprotect.net ix.dnsbl.manitu.net dnsbl.dronebl.org all.s5h.net"
+
+# rbl_zones is the list from rbl.txt without comments and blank lines, the defaults when the file is missing or empty
+rbl_zones() {
+  local zones=""
+  [[ -f "$RBL_LIST_FILE" ]] && zones=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$RBL_LIST_FILE" | grep -E '^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' | sort -u)
+  [[ -n "$zones" ]] && echo "$zones" || tr ' ' '\n' <<< "$RBL_DEFAULT_ZONES"
+}
+
+# rbl_lookup is the first IPv4 answer for name, through dig when it's there and the system resolver otherwise
+rbl_lookup() {
+  if command -v dig >/dev/null 2>&1; then
+    dig +short +time=3 +tries=1 "$1" A 2>/dev/null | grep -E '^[0-9.]+$' | head -1
+  else
+    timeout 5 getent ahostsv4 "$1" 2>/dev/null | awk '{print $1; exit}'
+  fi
+}
+
+# mail_sent_by_this_server is true when the mailserver runs, has mailboxes and no relay host takes the outgoing mail
+mail_sent_by_this_server() {
+  local env=/usr/local/mail/openmail/mailserver.env accounts=/usr/local/mail/openmail/docker-data/dms/config/postfix-accounts.cf
+  [[ -f /usr/local/mail/openmail/compose.yml ]] || { RBL_SKIP="Mail server is not installed"; return 1; }
+  [[ "$(timeout 20 podman inspect -f '{{.State.Running}}' openadmin_mailserver 2>/dev/null)" == "true" ]] || { RBL_SKIP="Mail server is not running"; return 1; }
+  if grep -qE '^(DEFAULT_RELAY_HOST|RELAY_HOST)=[^[:space:]]' "$env" 2>/dev/null; then RBL_SKIP="Outgoing mail goes through a relay host"; return 1; fi
+  grep -q '|' "$accounts" 2>/dev/null || { RBL_SKIP="No email accounts"; return 1; }
+  return 0
+}
+
+# once a day: is the server's IPv4 on a mail blocklist, only when this server delivers its own mail
+check_rbl() {
+  local title="Server IP is on a mail blocklist"
+  if [[ "$RBL" == "no" ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Blocklist checks are disabled."; return
+  fi
+  local today; today=$(date +%F)
+  if [[ "$(cat "$LOCK_FILE_FOR_RBL" 2>/dev/null)" == "$today" ]]; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Blocklists already checked today."; return
+  fi
+  RBL_SKIP=""
+  if ! mail_sent_by_this_server; then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m ${RBL_SKIP}, skipping blocklist check."
+    resolve_notification "$title"; return
+  fi
+  local ip; ip=$(get_public_ip)
+  if [[ ! "$ip" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+    ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Could not get the server's IPv4 address for the blocklist check."; return
+  fi
+  local reversed="${BASH_REMATCH[4]}.${BASH_REMATCH[3]}.${BASH_REMATCH[2]}.${BASH_REMATCH[1]}"
+  mkdir -p "$(dirname "$LOCK_FILE_FOR_RBL")" "$RBL_DATA_DIR"
+  echo "$today" > "$LOCK_FILE_FOR_RBL"
+
+  local zone answer checked=0 listed_json="[]" refused_json="[]" lines=""
+  while read -r zone; do
+    [[ -n "$zone" ]] || continue
+    ((checked++))
+    answer=$(rbl_lookup "${reversed}.${zone}" | grep -E '^127\.')
+    case "$answer" in
+      "") ;;
+      # 127.255.255.x is the list refusing the query, usually because the server uses a public resolver
+      127.255.255.*) refused_json=$(jq -c --arg z "$zone" '. + [$z]' <<< "$refused_json") ;;
+      *) listed_json=$(jq -c --arg z "$zone" --arg a "$answer" '. + [{zone: $z, answer: $a}]' <<< "$listed_json")
+         lines+="- ${zone} (${answer})"$'\n' ;;
+    esac
+  done < <(rbl_zones)
+
+  jq -n --arg day "$today" --arg ip "$ip" --argjson checked "$checked" --argjson listed "$listed_json" --argjson refused "$refused_json" --arg at "$(date '+%F %T')" \
+    '{day: $day, ip: $ip, checked: $checked, listed: $listed, refused: $refused, checked_at: $at}' > "$RBL_DATA_DIR/$today.json"
+  find "$RBL_DATA_DIR" -name '*.json' -mtime +90 -delete 2>/dev/null
+
+  local count; count=$(jq length <<< "$listed_json")
+  if (( count == 0 )); then
+    ((PASS++)); echo -e "\e[32m[✔]\e[0m Server IP ${ip} is not on any of ${checked} mail blocklists."
+    resolve_notification "$title"; return
+  fi
+  ((WARN++))
+  echo -e "\e[38;5;214m[!]\e[0m Server IP ${ip} is on ${count} of ${checked} mail blocklists."
+  write_notification warning email "$title" "The server IP ${ip} is listed on ${count} of ${checked} mail blocklists, mail sent from this server may be rejected or go to spam:"$'\n'"${lines}Look up the reason and the removal form on each list's website, or at https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${ip} . Usually a hacked mailbox or website sent spam, check Emails > Queue first. The list of blocklists checked is in ${RBL_LIST_FILE}." \
+    "$(jq -nc --arg ip "$ip" --argjson l "$listed_json" --argjson c "$checked" '{kind: "rbl", ip: $ip, listed: $l, checked: $c}')"
+}
+
 check_ratelimit_hits() {
   if [[ "$RATELIMIT" == "no" ]]; then
     ((WARN++)); echo -e "\e[38;5;214m[!]\e[0m Rate limit checks are disabled."; return
@@ -2476,6 +2564,7 @@ _parallel_tasks=(
   check_ratelimit_hits
   check_mail_queue
   check_mail_report
+  check_rbl
   check_license_expiry
 )
 
