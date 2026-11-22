@@ -446,7 +446,6 @@ require {
 allow pasta_t unconfined_t:dir open;
 `
 
-// https://community.openpanel.org/d/302-user-add-pasta-failed-with-exit-code-1-netns-dir-open-permission-denied
 func (j *addJob) fixPastaSelinux() {
 	if !sh.Has("selinuxenabled") || !sh.C("selinuxenabled").Quiet().OK() || !sh.Has("pasta") {
 		return
@@ -1069,7 +1068,6 @@ func (j *addJob) autostartServices() {
 		return
 	}
 
-	// https://community.openpanel.org/d/239-no-such-container-openlitespeed
 	getEnv := func(key string) string {
 		var vals []string
 		for _, l := range conf.Lines(env) {
