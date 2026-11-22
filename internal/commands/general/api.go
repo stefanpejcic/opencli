@@ -55,7 +55,7 @@ const enterpriseLink = "https://my.openpanel.com/index.php?rp=/store/openpanel/e
 func apiUsage() {
 	fmt.Print(`
 Usage: opencli api {status|on|off|list}
-Docs:  https://openpanel.com/docs/articles/dev-experience/openadmin-api
+Docs:  https://openpanel.com/docs/admin/api/
 
 Examples:
   opencli api status              Display current OpenAdmin API status.
