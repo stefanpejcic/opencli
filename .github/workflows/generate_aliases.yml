@@ -13,14 +13,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up /usr/local/opencli
-        run: |
-          sudo mkdir -p /usr/local/opencli
-          sudo cp -r . /usr/local/opencli
-          sudo chmod +x /usr/local/opencli/opencli
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build opencli
+        run: CGO_ENABLED=0 go build -o opencli-bin ./cmd/opencli
 
       - name: Generate commands
-        run: sudo bash /usr/local/opencli/opencli --help
+        run: |
+          sudo mkdir -p /usr/local/opencli
+          sudo ./opencli-bin --help
 
       - name: Copy generated aliases back
         run: cp /usr/local/opencli/aliases.txt aliases.txt

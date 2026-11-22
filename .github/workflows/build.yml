@@ -1,0 +1,111 @@
+name: Build
+
+# every push builds amd64 and arm64, bumps the patch version and publishes a release plus the rolling "latest" one
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# two pushes at once would pick the same next version
+concurrency:
+  group: build-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Next version
+        id: next
+        run: |
+          # highest X.Y.Z tag, or the default from main.go when there are no tags yet
+          last=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          [ -n "$last" ] || last=$(grep -oP '^var version = "\K[0-9]+\.[0-9]+\.[0-9]+' cmd/opencli/main.go)
+          IFS=. read -r major minor patch <<< "$last"
+          # keep the zero padding the old versions used, 009 -> 010
+          width=${#patch}
+          next="$major.$minor.$(printf "%0${width}d" $((10#$patch + 1)))"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "Next version: $next"
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Check for known vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Build binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: go build -buildvcs=false -trimpath -ldflags="-s -w -X main.version=${{ needs.version.outputs.version }}" -o opencli-${{ matrix.arch }} ./cmd/opencli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencli-${{ matrix.arch }}
+          path: opencli-${{ matrix.arch }}
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd artifacts && sha256sum opencli-amd64 opencli-arm64 > SHA256SUMS
+
+      - name: Versioned release
+        run: |
+          gh release create "$VERSION" artifacts/opencli-amd64 artifacts/opencli-arm64 artifacts/SHA256SUMS \
+            --target "$GITHUB_SHA" --title "$VERSION" --notes "Build of ${GITHUB_REF_NAME}@${GITHUB_SHA::7}" --latest=false
+
+      - name: Rolling latest release
+        run: |
+          # latest always points at the newest build, install and update download from here
+          git tag -f latest "$GITHUB_SHA"
+          git push -f origin refs/tags/latest
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "latest" --notes "Newest build" --latest
+          gh release edit latest --title "latest ($VERSION)" --notes "Newest build: $VERSION from ${GITHUB_REF_NAME}@${GITHUB_SHA::7}"
+          gh release upload latest artifacts/opencli-amd64 artifacts/opencli-arm64 artifacts/SHA256SUMS --clobber
