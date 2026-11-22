@@ -4,7 +4,7 @@
 // Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--reseller=NAME] [--quiet] [--temp-dir=<PATH> ]
 // Author: Stefan Pejcic
 // Created: 01.10.2023
-// Last Modified: 20.11.2026
+// Last Modified: 22.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -1313,4 +1313,80 @@ func (r *restoreJob) restoreDocker() {
 	r.log(fmt.Sprintf("Starting %d container(s) for %s ...", len(names), ctx))
 	podman.ComposeUser(ctx, "-f", cf, "down").Quiet().Run()
 	podman.ComposeUser(ctx, append([]string{"-f", cf, "up", "-d"}, names...)...).Quiet().Run()
+
+	// compose up pulls missing images and skips a service quietly when it can't (no network, image gone), so check what actually runs
+	started := 0
+	for _, n := range names {
+		running := false
+		for w := 0; w < 10 && !running; w++ {
+			if running = podman.User(ctx, "inspect", "-f", "{{.State.Running}}", n).NoErr().Str() == "true"; !running {
+				time.Sleep(time.Second)
+			}
+		}
+		if running {
+			started++
+			continue
+		}
+		img := composeServiceImage(cf, "/home/"+ctx+"/.env", n)
+		why := "image " + img + " is not available, the backup doesn't include images and pulling it failed"
+		if img == "" {
+			why = "it did not start"
+		}
+		r.warn(fmt.Sprintf("Container '%s' is not running (%s). Once the image is available, start it with: cd /home/%s && opencli podman %s compose up -d %s", n, why, ctx, ctx, n))
+	}
+	r.log(fmt.Sprintf("Started %d of %d container(s) for %s.", started, len(names), ctx))
+}
+
+// composeServiceImage is the image of the service whose key or container_name is name, ${VAR} and ${VAR:-default} filled in from the account's .env
+func composeServiceImage(composeFile, envFile, name string) string {
+	env := map[string]string{}
+	for _, l := range conf.Lines(envFile) {
+		if k, v, ok := strings.Cut(strings.TrimSpace(l), "="); ok && !strings.HasPrefix(k, "#") {
+			env[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
+		}
+	}
+	expand := func(v string) string {
+		return regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`).ReplaceAllStringFunc(v, func(m string) string {
+			sm := regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`).FindStringSubmatch(m)
+			if val := env[sm[1]]; val != "" {
+				return val
+			}
+			return sm[3]
+		})
+	}
+	inServices, key, cname, image := false, "", "", ""
+	match := func() bool { return image != "" && (expand(key) == name || expand(cname) == name) }
+	for _, l := range conf.Lines(composeFile) {
+		trimmed := strings.TrimSpace(l)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		indent := len(l) - len(strings.TrimLeft(l, " "))
+		if indent == 0 {
+			if inServices && match() {
+				return expand(image)
+			}
+			inServices, key, cname, image = trimmed == "services:", "", "", ""
+			continue
+		}
+		if !inServices {
+			continue
+		}
+		if indent <= 4 && strings.HasSuffix(trimmed, ":") {
+			if match() {
+				return expand(image)
+			}
+			key, cname, image = strings.TrimSuffix(trimmed, ":"), "", ""
+			continue
+		}
+		if v, ok := strings.CutPrefix(trimmed, "container_name:"); ok {
+			cname = strings.Trim(strings.TrimSpace(v), `"'`)
+		} else if v, ok := strings.CutPrefix(trimmed, "image:"); ok && image == "" {
+			image = strings.Trim(strings.TrimSpace(v), `"'`)
+		}
+	}
+	if inServices && match() {
+		return expand(image)
+	}
+	return ""
 }
