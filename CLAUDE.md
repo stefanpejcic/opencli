@@ -80,4 +80,5 @@ Every fix or change you make to a script also gets a one-line entry in the lates
 - Put bug fixes under `### 🐛 Bug Fixes`, new commands/flags under `### 💡 New`, and small improvements under `### 💅 Polish`. Add the heading if the file doesn't have it yet.
 - One line per change, starting with the command in backticks and saying what now works, e.g. ``- `opencli plan-usage --json` now returns valid JSON.``
 - Don't edit changelog files of already released versions.
+- When a change is major (a new big feature, a rewrite, a new supported service or integration, something users would notice on their own), also add it to the top of the `HIGHLIGHTS` list in `/home/stefan/OpenPanel/website/src/components/changelog-overview.tsx`, which is shown on the changelog intro page (https://openpanel.com/docs/changelog/intro/). Each entry is `[version, short title, one sentence]`, newest first, keep the list to the last 6 or so. Bug fixes and small polish never go there.
 - `git add` the changelog in the OpenPanel repo together with the docs change.
