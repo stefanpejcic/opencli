@@ -1,6 +1,6 @@
 name: Build
 
-# every push builds amd64 and arm64, bumps the patch version and publishes a release plus the rolling "latest" one
+# every push builds amd64 and arm64 and publishes a release <openpanel version>-<build> (e.g. 2.0.28-3) plus the rolling "latest" one
 on:
   push:
     branches: ["**"]
@@ -28,13 +28,13 @@ jobs:
       - name: Next version
         id: next
         run: |
-          # highest X.Y.Z tag, or the default from main.go when there are no tags yet
-          last=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
-          [ -n "$last" ] || last=$(grep -oP '^var version = "\K[0-9]+\.[0-9]+\.[0-9]+' cmd/opencli/main.go)
-          IFS=. read -r major minor patch <<< "$last"
-          # keep the zero padding the old versions used, 009 -> 010
-          width=${#patch}
-          next="$major.$minor.$(printf "%0${width}d" $((10#$patch + 1)))"
+          # the OpenPanel version users get, from the configuration repo
+          panel=$(curl -fsSL --retry 3 https://raw.githubusercontent.com/stefanpejcic/openpanel-configuration/main/docker/compose/.env \
+            | grep -oP '^VERSION="?\K[0-9]+\.[0-9]+\.[0-9]+')
+          [ -n "$panel" ] || { echo "Can't read VERSION from openpanel-configuration"; exit 1; }
+          # next build number for that version, starts at 1 on every new OpenPanel version
+          last=$(git tag -l "$panel-*" | sed "s/^$panel-//" | grep -E '^[0-9]+$' | sort -n | tail -n1)
+          next="$panel-$(( ${last:-0} + 1 ))"
           echo "version=$next" >> "$GITHUB_OUTPUT"
           echo "Next version: $next"
 

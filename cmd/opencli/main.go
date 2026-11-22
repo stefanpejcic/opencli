@@ -48,8 +48,8 @@ import (
 	"opencli/internal/sh"
 )
 
-// version is set at build time with -ldflags "-X main.version=..."
-var version = "202.607.009"
+// version is <openpanel version>-<build>, set at build time with -ldflags "-X main.version=..."
+var version = "2.0.28-0"
 
 const (
 	logFile    = "/var/log/openpanel/admin/opencli.log"

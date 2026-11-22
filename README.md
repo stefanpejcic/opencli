@@ -17,7 +17,7 @@ CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o opencli ./cmd/opencli
 go test ./...
 ```
 
-Every push runs `.github/workflows/build.yml`. It builds `opencli-amd64` and `opencli-arm64`, bumps the patch version, publishes a release with that version and updates the rolling `latest` release.
+Every push runs `.github/workflows/build.yml`. It builds `opencli-amd64` and `opencli-arm64`, publishes a release named after the current OpenPanel version plus a build number (`2.0.28-1`, `2.0.28-2`, ...) and updates the rolling `latest` release.
 
 ## Tab completion
 
