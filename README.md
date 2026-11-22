@@ -31,4 +31,4 @@ OpenPanel is modular, so you can update just OpenCLI when needed:
 opencli update --cli
 ```
 
-This downloads `opencli-amd64` or `opencli-arm64` from the `latest` release, checks it against `SHA256SUMS` and that it runs, then swaps it in place of `/usr/local/opencli/opencli`.
+This downloads `opencli-amd64` or `opencli-arm64` from the `latest` release, checks it against `SHA256SUMS` and that it runs, then swaps it in place of `/usr/local/opencli/opencli` and removes anything else in that folder except `aliases.txt` and `lib/completion.bash` (the old bash scripts).

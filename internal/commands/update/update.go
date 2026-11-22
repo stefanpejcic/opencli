@@ -1055,6 +1055,7 @@ func (u *updater) updateOpencli(noLog bool) {
 		if code == 0 {
 			if os.Rename(tmp, dir+"/opencli") == nil {
 				u.info("[✔] Terminal commands updated successfully")
+				cleanOpencliDir(dir)
 			} else {
 				u.updateError("Failed to replace " + dir + "/opencli, kept the previous version, run: opencli update --cli")
 			}
@@ -1087,6 +1088,23 @@ func (u *updater) updateOpencli(noLog bool) {
 
 	if noLog {
 		sh.C("podman", "restart", "openpanel").Quiet().Run()
+	}
+}
+
+// cleanOpencliDir drops the old bash scripts, the binary only needs itself, aliases.txt and lib/completion.bash
+func cleanOpencliDir(dir string) {
+	keep := map[string]bool{"opencli": true, "aliases.txt": true, "lib": true}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if !keep[e.Name()] {
+			os.RemoveAll(filepath.Join(dir, e.Name()))
+		}
+	}
+	libs, _ := os.ReadDir(dir + "/lib")
+	for _, e := range libs {
+		if e.Name() != filepath.Base(completion.Path) {
+			os.RemoveAll(filepath.Join(dir, "lib", e.Name()))
+		}
 	}
 }
 
