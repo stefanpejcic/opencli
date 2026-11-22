@@ -142,7 +142,8 @@ func varnishContext(domain string) (owner, context string) {
 }
 
 func varnishStart(context string, short bool) {
-	if podman.User(context, "ps", "-q", "-f", "name=varnish").NoOut().Run() == nil {
+	// bash tested the exit code, which is 0 even with no match, so varnish was never started
+	if id, _ := podman.User(context, "ps", "-q", "-f", "name=varnish").NoErr().Out(); id != "" {
 		if !short {
 			fmt.Println("The Varnish container is running.")
 		}
