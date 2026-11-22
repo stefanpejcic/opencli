@@ -54,8 +54,11 @@ func setupBg(args []string) int {
 		sh.C("timeout", "120", "podman-compose", "up", "-d", "mailserver", "roundcube").Dir(mailDir).Run()
 	case "chown":
 		uid, domain, user := cli.Arg(args, 1), cli.Arg(args, 2), cli.Arg(args, 3)
-		script := fmt.Sprintf("chown -R \"%s:%s\" \"/var/mail/%s/%s\"", uid, uid, domain, user)
-		sh.C("podman", "exec", container, "bash", "-c", script).Timeout(300 * time.Second).Quiet().Run()
+		// a mailbox named ".." would turn this into chown -R of all of /var/mail
+		if !suDigitsRe.MatchString(uid) || !safeMailPathPart(domain) || !safeMailPathPart(user) {
+			return 1
+		}
+		sh.C("podman", "exec", container, "chown", "-R", uid+":"+uid, "/var/mail/"+domain+"/"+user).Timeout(300 * time.Second).Quiet().Run()
 	case "welcome":
 		suWelcome(cli.Arg(args, 1), cli.Arg(args, 2))
 	}
@@ -118,4 +121,17 @@ func suWelcome(email, opUID string) {
 	msg.WriteString("MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n")
 	msg.WriteString(body + "\r\n")
 	sh.C("podman", "exec", "-i", container, "doveadm", "save", "-u", email).Stdin(msg.String()).Quiet().Run()
+}
+
+// safeMailPathPart is one plain path segment under /var/mail, never "." or ".."
+func safeMailPathPart(s string) bool {
+	if s == "" || s == "." || s == ".." || strings.HasPrefix(s, "-") || strings.HasPrefix(s, ".") || strings.Contains(s, "..") {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._%+-", r)) {
+			return false
+		}
+	}
+	return true
 }
