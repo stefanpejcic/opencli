@@ -978,7 +978,8 @@ func (u *updater) updateOpenadmin(noLog bool) bool {
 	}
 
 	remote := latestFromCheck()
-	url := "https://github.com/stefanpejcic/openadmin/releases/download/" + remote + "/" + bin
+	base := "https://github.com/stefanpejcic/openadmin/releases/download/" + remote + "/"
+	url := base + bin
 	targetLog := u.logFile
 	if targetLog == "" {
 		targetLog = "/dev/null"
@@ -987,10 +988,21 @@ func (u *updater) updateOpenadmin(noLog bool) bool {
 	if curlHeadCode(url) != "200" {
 		u.updateError("No OpenAdmin release found at " + url + ", kept the previous OpenAdmin")
 		return false
-	} else if u.noRestart {
+	}
+	// download and check it before the service is stopped, a bad download keeps the running OpenAdmin
+	newBin := "/usr/local/admin/" + bin + ".new"
+	if code := u.fetchRelease(base, bin, newBin); code != 0 {
+		os.Remove(newBin)
+		if code == 124 {
+			u.updateError(fmt.Sprintf("Downloading %s timed out after %d seconds, kept the previous OpenAdmin binary", url, updateTimeout))
+		} else {
+			u.updateError("Downloaded " + url + " doesn't match SHA256SUMS or doesn't run, kept the previous OpenAdmin binary")
+		}
+		return false
+	}
+	if u.noRestart {
 		// mv over the running binary is safe, the old one keeps running until restarted
-		newBin := "/usr/local/admin/" + bin + ".new"
-		if curlSave(url, newBin) && os.Chmod(newBin, 0o755) == nil && os.Rename(newBin, "/usr/local/admin/"+bin) == nil {
+		if os.Rename(newBin, "/usr/local/admin/"+bin) == nil {
 			if isFile("/tmp/report.html.backup") {
 				copyFile("/tmp/report.html.backup", "/usr/local/admin/templates/emails/reports.html", false)
 			}
@@ -998,19 +1010,18 @@ func (u *updater) updateOpenadmin(noLog bool) bool {
 			u.say(noLog, "[!] OpenAdmin updated, restart the 'admin' service to apply it")
 		} else {
 			os.Remove(newBin)
-			u.updateError("Failed to download " + url + ", kept the previous OpenAdmin binary")
+			u.updateError("Failed to replace /usr/local/admin/" + bin + ", kept the previous OpenAdmin binary")
 		}
 		return true
 	}
 	// systemd expands ${VAR} in the command line before bash sees it, so the script below uses $VAR only, never ${VAR}
 	sh.C("systemd-run", "--collect", "--unit="+selfUpdateUnit(), "--no-block", "bash", "-c", `
 			    admin_binary="`+bin+`"
-			    url="`+url+`"
 			    target_log="`+targetLog+`"
 			    was_active=false
 			
-			    curl -sSL "$url" -o "/usr/local/admin/$admin_binary.new" || exit 1
-			    chmod +x "/usr/local/admin/$admin_binary.new"
+			    # downloaded and checked against SHA256SUMS before this runs
+			    [ -x "/usr/local/admin/$admin_binary.new" ] || exit 1
 			
 			    if systemctl is-active --quiet admin; then
 			        was_active=true
@@ -1110,6 +1121,11 @@ func cleanOpencliDir(dir string) {
 
 // fetchOpencli downloads the release binary within UPDATE_TIMEOUT, checks it against SHA256SUMS and that it runs, returns 124 on timeout
 func (u *updater) fetchOpencli(base, asset, dest string) int {
+	return u.fetchRelease(base, asset, dest)
+}
+
+// fetchRelease downloads base+asset to dest, checks it against the release SHA256SUMS and that `dest --version` runs, returns 124 on timeout
+func (u *updater) fetchRelease(base, asset, dest string) int {
 	ctx, cancel := ctxTimeout(updateTimeout * time.Second)
 	defer cancel()
 	sums := dest + ".sums"
