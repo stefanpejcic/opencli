@@ -520,7 +520,7 @@ func (u *updater) runUpdateImmediately(version string) int {
 	u.info("Update log: " + u.logFile)
 	u.writeNotification("info", "OpenPanel update started", "Started update to version "+version+".", u.logFile)
 
-	// ---------------------- 3. DOWNLOAD BASH SCRIPTS FROM GITHUB (must be befor openpanel image update)
+	// ---------------------- 3. DOWNLOAD THE OPENCLI BINARY FROM GITHUB, CHECKED AGAINST SHA256SUMS (must be before the openpanel image update)
 	u.updateOpencli(false)
 
 	// ---------------------- 4. DOWNLOAD NEW IMAGE FROM DOCKER HUB
