@@ -181,14 +181,14 @@ func migrateTee(logFile string) func() {
 		close(done)
 	}()
 	origErr, _ := syscall.Dup(2)
-	syscall.Dup2(int(w.Fd()), 1)
-	syscall.Dup2(int(w.Fd()), 2)
+	syscall.Dup3(int(w.Fd()), 1, 0)
+	syscall.Dup3(int(w.Fd()), 2, 0)
 	w.Close()
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			syscall.Dup2(orig, 1)
-			syscall.Dup2(origErr, 2)
+			syscall.Dup3(orig, 1, 0)
+			syscall.Dup3(origErr, 2, 0)
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
