@@ -1,6 +1,6 @@
 name: Build
 
-# every push builds amd64 and arm64 and publishes a release <openpanel version>-<build> (e.g. 2.0.28-3) plus the rolling "latest" one
+# every push builds and tests amd64 and arm64, only the go branch publishes a release <openpanel version>-<build> (e.g. 2.0.28-3) and moves "latest"
 on:
   push:
     branches: ["**"]
@@ -81,6 +81,8 @@ jobs:
 
   release:
     needs: [version, build]
+    # opencli update downloads "latest", so only the release branch may publish, other branches just build and test
+    if: github.ref == 'refs/heads/go'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
