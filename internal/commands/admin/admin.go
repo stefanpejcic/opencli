@@ -138,7 +138,7 @@ Examples:
   opencli admin notifications update du 95      - receive notification when server disk usage is over 95%.
   opencli admin notifications update webhook_url https://discord.com/api/webhooks/XXXX/YYYYYYY
 
-List of all available options: https://openpanel.com/docs/articles/opencli/admin
+List of all available options: https://openpanel.com/docs/opencli/admin/
 `)
 	cli.Exit(1)
 }
@@ -288,7 +288,7 @@ func getConfig(param string) {
 	case exists:
 		fmt.Printf("Parameter %s has no value.\n", param)
 	default:
-		fmt.Printf("Parameter %s does not exist. Docs: https://openpanel.com/docs/articles/opencli/admin\n", param)
+		fmt.Printf("Parameter %s does not exist. Docs: https://openpanel.com/docs/opencli/admin/\n", param)
 	}
 }
 

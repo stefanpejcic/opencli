@@ -63,7 +63,7 @@ func config(args []string) int {
 		if len(args) != 3 {
 			fmt.Printf("ERROR: New value is not provided for the parameter '%s'.\n\n", param)
 			fmt.Println("Usage: opencli config update <parameter_name> <new_value>")
-			fmt.Println("See the list of available parameters with examples here: https://openpanel.com/docs/articles/opencli/config#update")
+			fmt.Println("See the list of available parameters with examples here: https://openpanel.com/docs/opencli/config/#update")
 			return 1
 		}
 		value := args[2]
@@ -82,7 +82,7 @@ func config(args []string) int {
 	default:
 		fmt.Print("ERROR: Invalid command, only 'get' and 'update' are allowed.\n\n")
 		fmt.Println("Usage: opencli config [get|update] <parameter_name> [new_value]")
-		fmt.Println("See the list of available commands here: https://openpanel.com/docs/articles/opencli/config")
+		fmt.Println("See the list of available commands here: https://openpanel.com/docs/opencli/config/")
 		return 1
 	}
 	return 0
@@ -139,7 +139,7 @@ func configUpdate(param, value string) {
 	if !exists {
 		fmt.Printf("ERROR: Parameter '%s' was not found in the configuration file.\n\n", param)
 		fmt.Println("Usage: opencli config update <parameter_name> <new_value>")
-		fmt.Println("See the list of available parameters here: https://openpanel.com/docs/articles/opencli/config#available-options")
+		fmt.Println("See the list of available parameters here: https://openpanel.com/docs/opencli/config/#available-options")
 		cli.Exit(1)
 	}
 	p := re.String()[1 : len(re.String())-1]

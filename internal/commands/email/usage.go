@@ -61,7 +61,7 @@ var usageLineRe = regexp.MustCompile(`^\* ([^ ]+) \( ([^ ]+) / ([^ ]+) \) \[([0-
 
 func usageHelp() {
 	fmt.Println("Usage: opencli email-usage <USERNAME|--all>")
-	fmt.Println("Docs: https://openpanel.com/docs/articles/opencli/email")
+	fmt.Println("Docs: https://openpanel.com/docs/opencli/email/")
 	cli.Exit(1)
 }
 

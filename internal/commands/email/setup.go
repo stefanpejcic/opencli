@@ -234,7 +234,7 @@ func (s *suState) reloadEmailsFile() {
 func setup(args []string) int {
 	if len(args) < 1 {
 		fmt.Println("Usage: opencli email-setup <command> [<args>...]")
-		fmt.Println("Docs: https://openpanel.com/docs/articles/opencli/email")
+		fmt.Println("Docs: https://openpanel.com/docs/opencli/email/")
 		return 1
 	}
 	emailGate()

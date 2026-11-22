@@ -47,13 +47,13 @@ Exception is the multi-line comment at the beginning of the files, that one need
 
 # Docs
 
-Command docs live in `/home/stefan/OpenPanel/website/docs/articles/opencli/` (the OpenPanel repo, `../OpenPanel/website/docs/articles/opencli/` from here), published at https://openpanel.com/docs/articles/opencli/. They must always match the scripts exactly.
+Command docs live in `/home/stefan/OpenPanel/website/docs/opencli/` (the OpenPanel repo, `../OpenPanel/website/docs/opencli/` from here), published at https://openpanel.com/docs/opencli/. They must always match the scripts exactly.
 
 Whenever you change any script here, before finishing:
 
 1. Open the matching docs page and compare it against the script's actual argument parsing, not just its `usage()` text. Pages map by command group: `update.sh` -> `update.md`, `domains/*.sh` -> `domains.md`, `user/*.sh` -> `user.md`, `email/*.sh` -> `email.md`, `plan/*.sh` -> `plan.md`, `docker.sh` and `docker/*.sh` -> `docker.md`, `files/*.sh` -> `files.md`, `ftp/*.sh` -> `ftp.md`, `php/*.sh` -> `php.md`, `server/*.sh` -> `server.md`, `websites/*.sh` -> `websites.md`, otherwise `<script>.md`.
 2. Edit the page if anything is missing, wrong or outdated: new, renamed or removed commands, flags, arguments, defaults, behavior, output paths. Remove docs for anything the script no longer supports. Don't document things you haven't verified in the code.
-3. Keep the script's `# Usage:` header and `usage()` output in sync with the flags it actually parses. `opencli --help` prints the header, and the example help output in `opencli.md` is built from the headers, so update that entry too.
+3. Keep the script's `# Usage:` header and `usage()` output in sync with the flags it actually parses. `opencli --help` prints the header, and the example help output in `000_intro.md` is built from the headers, so update that entry too.
 4. Also check the pages that mirror or reference scripts: `faq.md` mirrors `faq.sh`, `config.md` documents every key in `/etc/openpanel/openpanel/conf/openpanel.config` (template in the openpanel-configuration repo) and which keys `config.sh` restarts OpenPanel for, and other docs may show the command in examples (`grep -rn "opencli <command>" /home/stefan/OpenPanel/website/docs`).
 5. Every command example in the docs has a collapsed "Example output" dropdown right after it, closed by default. When a script's output changes (messages, format, columns, JSON), update the matching dropdown, and add one for any new command or flag. Use exactly this format:
 

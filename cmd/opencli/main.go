@@ -62,7 +62,7 @@ var debug bool
 
 func showAbout() {
 	fmt.Printf(`About:
-  Documentation:                    https://openpanel.com/docs/category/opencli/
+  Documentation:                    https://openpanel.com/docs/opencli/intro/
   Version:                          %s
   Author:                           Stefan Pejcic <stefan@pejcic.rs>
   License:                          MIT

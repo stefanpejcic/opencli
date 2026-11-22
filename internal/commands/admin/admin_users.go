@@ -134,12 +134,12 @@ func validateName(input, field string) {
 func validatePassword(input string) {
 	if strings.HasPrefix(input, "$$") {
 		fmt.Println("ERROR: Password cannot start with '$$' as it may cause unintended behavior.")
-		fmt.Println("       docs: https://openpanel.com/docs/articles/opencli/admin/#create-new-admin")
+		fmt.Println("       docs: https://openpanel.com/docs/opencli/admin/#create-new-admin")
 		cli.Exit(1)
 	}
 	if !passRe.MatchString(input) {
 		fmt.Println("ERROR: Password is invalid. It must be between 6 and 30 characters and can't contain spaces.")
-		fmt.Println("       docs: https://openpanel.com/docs/articles/opencli/admin/#create-new-admin")
+		fmt.Println("       docs: https://openpanel.com/docs/opencli/admin/#create-new-admin")
 		cli.Exit(1)
 	}
 }
