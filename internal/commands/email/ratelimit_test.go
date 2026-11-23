@@ -52,13 +52,18 @@ func TestSrvStripPolicy(t *testing.T) {
 }
 
 func TestSrvPostfwdComposeEnv(t *testing.T) {
-	old := "services:\n  postfwd:\n    image: postfwd/postfwd:stable\n    environment:\n      - EXTRA=--keep_rates\n    container_name: postfwd\n  mailserver:\n    environment:\n      - EXTRA=keep\n"
+	old := "services:\n  mailserver:\n    image: dms\n    depends_on:\n      - postfwd\n    environment:\n      - EXTRA=keep\n  roundcube:\n    depends_on:\n      - mailserver\n  postfwd:\n    image: postfwd/postfwd:stable\n    environment:\n      - EXTRA=--keep_rates\n    container_name: postfwd\n"
 	got, changed := srvPostfwdComposeEnv(old)
-	want := "services:\n  postfwd:\n    image: postfwd/postfwd:stable\n" + srvPostfwdEnv + "    container_name: postfwd\n  mailserver:\n    environment:\n      - EXTRA=keep\n"
+	want := "services:\n  mailserver:\n    image: dms\n    environment:\n      - EXTRA=keep\n  roundcube:\n    depends_on:\n      - mailserver\n  postfwd:\n    image: postfwd/postfwd:stable\n" + srvPostfwdEnv + "    container_name: postfwd\n"
 	if !changed || got != want {
 		t.Fatalf("got:\n%s", got)
 	}
 	if again, changed := srvPostfwdComposeEnv(got); changed || again != got {
 		t.Fatalf("second run changed it:\n%s", again)
+	}
+	// other mailserver deps stay
+	two := "services:\n  mailserver:\n    depends_on:\n      - postfwd\n      - redis\n  postfwd:\n    image: postfwd/postfwd:stable\n" + srvPostfwdEnv
+	if got, changed := srvPostfwdComposeEnv(two); changed || !strings.Contains(got, "    depends_on:\n      - redis\n  postfwd:") {
+		t.Fatalf("got changed=%v:\n%s", changed, got)
 	}
 }

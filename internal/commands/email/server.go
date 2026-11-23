@@ -879,8 +879,6 @@ const srvPostfwdBlock = `  postfwd:
     image: postfwd/postfwd:stable
     container_name: postfwd
 ` + srvPostfwdEnv + `    restart: always
-    depends_on:
-      - mailserver
     networks:
       - network
     volumes:
@@ -949,28 +947,54 @@ func srvCFSet(file, key, val string) {
 	}
 }
 
-// srvPostfwdComposeEnv puts our env vars in the postfwd service, true when the compose changed
+// srvPostfwdComposeEnv puts our env vars in the postfwd service and drops the mailserver's depends_on postfwd, that one blocks recreating postfwd and postfix is fine without it (DUNNO)
+// returns the new compose and true when the postfwd env changed
 func srvPostfwdComposeEnv(c string) (string, bool) {
-	if strings.Contains(c, srvPostfwdEnv) {
-		return c, false
-	}
-	var out strings.Builder
-	inPostfwd, changed := false, false
-	for _, l := range recLines(c) {
-		if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") {
-			inPostfwd = strings.TrimSpace(l) == "postfwd:"
-		}
+	lines := recLines(c)
+	var out []string
+	svc, envChanged := "", false
+	for i := 0; i < len(lines); i++ {
+		l := lines[i]
 		t := strings.TrimSpace(l)
-		if inPostfwd && (t == "environment:" || strings.HasPrefix(t, "- EXTRA=") || strings.HasPrefix(t, "- CACHE=")) {
+		if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") {
+			svc = strings.TrimSuffix(t, ":")
+		}
+		if svc == "postfwd" && (t == "environment:" || strings.HasPrefix(t, "- EXTRA=") || strings.HasPrefix(t, "- CACHE=")) {
 			continue
 		}
-		out.WriteString(l + "\n")
-		if inPostfwd && t == "image: postfwd/postfwd:stable" {
-			out.WriteString(srvPostfwdEnv)
-			changed = true
+		if svc == "mailserver" && t == "depends_on:" {
+			var keep []string
+			for i+1 < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[i+1]), "- ") && strings.HasPrefix(lines[i+1], "      ") {
+				i++
+				if strings.TrimSpace(lines[i]) != "- postfwd" {
+					keep = append(keep, lines[i])
+				}
+			}
+			if len(keep) > 0 {
+				out = append(out, l)
+				out = append(out, keep...)
+			}
+			continue
+		}
+		out = append(out, l)
+		if svc == "postfwd" && t == "image: postfwd/postfwd:stable" {
+			out = append(out, strings.Split(strings.TrimSuffix(srvPostfwdEnv, "\n"), "\n")...)
 		}
 	}
-	return out.String(), changed
+	res := strings.Join(out, "\n") + "\n"
+	envChanged = !strings.Contains(c, srvPostfwdEnv) && strings.Contains(res, srvPostfwdEnv)
+	return res, envChanged
+}
+
+// srvPostfwdRecreate makes compose create postfwd again so env changes apply
+func srvPostfwdRecreate() {
+	sh.C("podman", "rm", "-f", "openadmin_postfwd").Quiet().Run()
+	if out, err := sh.C("podman", "rm", "-f", "postfwd").Combined(); err != nil && strings.Contains(out, "dependent containers") {
+		// the mailserver was created with depends_on postfwd, only removing them together drops that link, email is down for about a minute
+		fmt.Println("postfwd keeps its old settings, the mailserver was created depending on it. To recreate them: podman rm -f --depend postfwd && cd " + mailDir + " && podman-compose up -d")
+		return
+	}
+	sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
 }
 
 // srvPostfwd returns the exit code and true when the script ends there without the trailing blank line
@@ -1005,8 +1029,9 @@ func srvPostfwd(action string) (int, bool) {
 	}
 
 	// older compose files have postfwd without these env vars
-	c, recreate := srvPostfwdComposeEnv(conf.Read(srvCompose))
-	if recreate {
+	orig := conf.Read(srvCompose)
+	c, recreate := srvPostfwdComposeEnv(orig)
+	if c != orig {
 		tmp := srvCompose + ".tmp"
 		if os.WriteFile(tmp, []byte(c), 0o644) == nil {
 			os.Rename(tmp, srvCompose)
@@ -1017,8 +1042,7 @@ func srvPostfwd(action string) (int, bool) {
 	enabled := strings.Contains(conf.Read(activeCF), srvPostfwdPolicy)
 
 	if recreate && enabled && action != "disable" {
-		sh.C("podman", "rm", "-f", "postfwd", "openadmin_postfwd").Quiet().Run()
-		sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
+		srvPostfwdRecreate()
 		recreate = false
 	}
 
@@ -1054,9 +1078,10 @@ func srvPostfwd(action string) (int, bool) {
 		val := srvPostfwdPolicy + ", " + cur
 		if recreate {
 			// podman-compose doesn't recreate on changes
-			sh.C("podman", "rm", "-f", "postfwd", "openadmin_postfwd").Quiet().Run()
+			srvPostfwdRecreate()
+		} else {
+			sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
 		}
-		sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
 		srvCFSet(activeCF, "smtpd_policy_service_default_action", "DUNNO")
 		srvCFSet(activeCF, "smtpd_recipient_restrictions", val)
 		// apply live, a podman restart skips dms setup and the file is only read on recreate
