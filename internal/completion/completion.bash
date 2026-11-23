@@ -151,7 +151,7 @@ _opencli_command_names() {
 }
 
 # commands whose next positional argument is a username
-_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-password user-rename user-suspend user-unsuspend user-varnish user-litespeed user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
+_opencli_username_arg_commands="user-2fa user-check user-delete user-email user-ip user-login user-loginlog user-mcp user-password user-rename user-suspend user-unsuspend user-varnish user-litespeed user-block_ip user-change_plan domains-user php-default websites-user docker ftp-list"
 
 # commands whose next positional argument is a domain name
 _opencli_domain_arg_commands="domains-add domains-delete domains-dnssec domains-dns domains-docroot domains-edit domains-hsts domains-ssl domains-suspend domains-test domains-unsuspend domains-update_ns domains-varnish domains-whoowns php-domain websites-pagespeed websites-vulnerability"
@@ -501,6 +501,12 @@ _opencli_completions() {
             user-login)
                 # opencli user-login <username> [--open|--delete]
                 COMPREPLY=( $(compgen -W "--open --delete" -- "$cur") )
+                return 0
+                ;;
+            user-mcp)
+                # opencli user-mcp <username> [--name=|--readonly|--no-deletes|--features=|--expires=|--client=|--json|--list|--revoke=]
+                COMPREPLY=( $(compgen -W "--name= --readonly --no-deletes --features= --expires= --client= --json --list --revoke=" -- "$cur") )
+                [[ ${#COMPREPLY[@]} -eq 1 && "${COMPREPLY[0]}" == *= ]] && compopt -o nospace 2>/dev/null
                 return 0
                 ;;
             user-loginlog)
