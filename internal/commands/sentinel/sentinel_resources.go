@@ -206,11 +206,16 @@ func (r *run) checkHTTPSTraffic() {
 		if count < maxConnPerIP {
 			continue
 		}
+		reason := neverBlockReason(ip)
+		if reason != "" && reason != "IPv6" {
+			// admin already trusts this IP, nothing to act on
+			r.printf("%s High connections from %s on port %s: %d (%s, not reported)\n", cOK, ip, port, count, reason)
+			continue
+		}
 		r.printf("%s High connections from %s on port %s: %d\n", cFail, ip, port, count)
 		domains := domainsHit(ip)
 		note := ""
 		if blockIP == "yes" {
-			reason := neverBlockReason(ip)
 			switch {
 			case blocked[ip] != "":
 				note = blocked[ip]
