@@ -87,6 +87,7 @@ const (
 	runTimeoutTitle   = "Sentinel checks timed out!"
 	mailQueueMax      = 500 // hardcoded until they get settings in OpenAdmin, 0 turns the mail queue check off
 	holdSpam          = "yes"
+	mailHoldFile      = "/tmp/sentinel.mailhold" // sender sentinel last put on hold
 	blockIP           = "yes"
 	blockIPMinutes    = 60
 	streakRuns        = 2 // consecutive over-threshold runs needed before load/cpu/ram alert, so short spikes don't page the admin

@@ -124,16 +124,30 @@ func (r *run) checkMailQueue() {
 		return
 	}
 	var active []*ojson.Object
+	heldBy := map[string]int{}
 	for _, it := range items {
 		if it.Str("queue_name") != "hold" {
 			active = append(active, it)
+		} else {
+			heldBy[it.Str("sender")]++
 		}
 	}
 	total := len(active)
 	if total < mailQueueMax {
 		r.pass++
 		r.printf("%s Mail queue %d < threshold %d\n", cOK, total, mailQueueMax)
-		r.resolveNotification(title, false)
+		// the queue only shrank because sentinel held the mail, that's not resolved until the admin releases or deletes it
+		if sender := readTrim(mailHoldFile); sender != "" {
+			if n := heldBy[sender]; n > 0 {
+				r.printf("%s %d email(s) from %s are still on hold, waiting for the admin.\n", cWarn, n, sender)
+				return
+			}
+			os.Remove(mailHoldFile)
+		}
+		// a bit of slack so a queue hovering around the threshold doesn't resolve and re-alert every run
+		if total < mailQueueMax*8/10 {
+			r.resolveNotification(title, false)
+		}
 		return
 	}
 	r.fail++
@@ -205,6 +219,7 @@ func (r *run) checkMailQueue() {
 		}
 		held = strings.Join(nums, "\n")
 		if held != "" {
+			os.WriteFile(mailHoldFile, []byte(top+"\n"), 0o644)
 			note = fmt.Sprintf(" Sentinel put %s email(s) from %s on hold. Review them with: opencli email-server queue, then release them all with: opencli email-server unhold ALL or delete one with: opencli email-server delete QUEUE_ID.", held, top)
 		} else {
 			note = " Sentinel failed to put the emails from " + top + " on hold."
