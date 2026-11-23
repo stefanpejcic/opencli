@@ -253,7 +253,7 @@ func (s *statsServer) processUser(user string, delay float64) {
 		int64(buff), statsHuman(buff),
 		int64(avail), statsHuman(avail),
 		memPct,
-		cpuLimit, statsCores(float64(cpuLimit)),
+		cpuLimit, statsCores(float64(cpuUsage)),
 		cpuMaxPct, statsCores(float64(cpuMaxPct)),
 		cpuTotalServer, statsCores(float64(cpuTotalServer)),
 		int64(statsNum(pidsCurrent)), tasksLimit, tasksPct,
