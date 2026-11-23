@@ -193,3 +193,16 @@ func TestMCPRegistered(t *testing.T) {
 		t.Fatalf("flag first: exit %d", code)
 	}
 }
+
+func TestMCPMissingFeatures(t *testing.T) {
+	have := []string{"api", "mcp", "dns", "domains"}
+	if got := mcpMissingFeatures(have, "dns,domains"); len(got) != 0 {
+		t.Fatalf("all features are on the plan, got %v", got)
+	}
+	if got := mcpMissingFeatures(have, "dns,mysql"); len(got) != 1 || got[0] != "'mysql'" {
+		t.Fatalf("mysql isn't on the plan, got %v", got)
+	}
+	if got := mcpMissingFeatures([]string{"dns"}, ""); len(got) != 2 {
+		t.Fatalf("api and mcp are needed for any token, got %v", got)
+	}
+}

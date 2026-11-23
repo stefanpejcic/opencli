@@ -73,7 +73,7 @@ Create a token and print how to connect an MCP client with it:
   --name=NAME        Token name (default: "opencli YYYY-MM-DD").
   --readonly         The token can only look things up.
   --no-deletes       The token can create and change things, but not delete, restore or change passwords.
-  --features=a,b     Limit the token to these features, e.g. dns,domains.
+  --features=a,b     Limit the token to these features, e.g. dns,domains. The user must have them.
   --expires=DAYS     Expire the token after DAYS days (default: never).
   --client=NAME      Only print setup for one client: claude-code, claude-desktop, codex, cursor, vscode, gemini.
   --json             Print the token and MCP URL as JSON instead of setup instructions.
@@ -286,6 +286,25 @@ func mcpUserFeatures(context, userID string) []string {
 	return out
 }
 
+// mcpMissingFeatures is api, mcp and every --features name the user doesn't have
+func mcpMissingFeatures(have []string, features string) []string {
+	set := map[string]bool{}
+	for _, f := range have {
+		set[f] = true
+	}
+	needed := []string{"api", "mcp"}
+	if features != "" {
+		needed = append(needed, strings.Split(features, ",")...)
+	}
+	var missing []string
+	for _, f := range needed {
+		if !set[f] {
+			missing = append(missing, "'"+f+"'")
+		}
+	}
+	return missing
+}
+
 // same lookup as user-login, the MCP endpoint lives on the user panel
 func mcpPanelURL() string {
 	return strings.TrimSuffix(loginOpenPanelURL(), "/")
@@ -493,6 +512,15 @@ func mcp(args []string) int {
 		return 0
 	}
 
+	// same rule as the token page and the api, only features the user actually has
+	if missing := mcpMissingFeatures(mcpUserFeatures(context, userID), o.features); len(missing) > 0 {
+		word, them := "feature", "it"
+		if len(missing) > 1 {
+			word, them = "features", "them"
+		}
+		mcpDie(o.username + " doesn't have the " + strings.Join(missing, ", ") + " " + word + ", add " + them + " to their plan or feature set first")
+	}
+
 	if o.mode != "full" || o.features != "" {
 		if err := mcpEnsureScopeColumns(); err != nil {
 			mcpDie("could not add the mode and allowed_features columns to mcp_tokens, only plain full-access or read-only tokens can be made")
@@ -553,16 +581,6 @@ func mcp(args []string) int {
 		fmt.Print(mcpClientSetup(c, url, raw))
 	}
 
-	// warn instead of refusing, the admin may be about to change the plan
-	have := map[string]bool{}
-	for _, f := range mcpUserFeatures(context, userID) {
-		have[f] = true
-	}
-	for _, needed := range []string{"api", "mcp"} {
-		if !have[needed] {
-			fmt.Printf("Warning: the '%s' feature isn't enabled for %s, so this token won't work until it is (edit the user's feature set).\n", needed, o.username)
-		}
-	}
 	if v, _ := conf.Raw(conf.Panel, "enabled_modules"); conf.StripQuotes(v) != "" {
 		for _, needed := range []string{"api", "mcp"} {
 			if !conf.ModuleEnabled(needed) {
