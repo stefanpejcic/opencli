@@ -4,7 +4,7 @@
 // Usage: opencli email-server <status|config|install|uninstall|start|stop|restart|queue|flush|view|unhold|delete|fail2ban|ports|postconf|logs|login|supervisor|postfwd|pflogsumm|update-check|update-packages|versions> [args] [--debug]
 // Author: Stefan Pejcic
 // Created: 18.08.2024
-// Last Modified: 20.11.2026
+// Last Modified: 23.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -869,10 +869,16 @@ func srvUninstall() {
 	}
 }
 
+// the image ignores command and starts from these, keep_rates so a HUP doesn't reset the hourly counters and no request cache since cached answers aren't counted
+const srvPostfwdEnv = `    environment:
+      - CACHE=0
+      - EXTRA=--summary=600 --noidlestats --keep_rates
+`
+
 const srvPostfwdBlock = `  postfwd:
     image: postfwd/postfwd:stable
-    container_name: openadmin_postfwd
-    restart: always
+    container_name: postfwd
+` + srvPostfwdEnv + `    restart: always
     depends_on:
       - mailserver
     networks:
@@ -895,6 +901,76 @@ func srvFetch(url, dst string) {
 		io.Copy(f, resp.Body)
 		f.Close()
 	}
+}
+
+const (
+	srvPostfwdPolicy = "check_policy_service inet:postfwd:10040"
+	srvPostfwdMarker = "# added by: opencli email-server postfwd enable"
+)
+
+// srvCFKey is the parameter name of a "key = value" main.cf line
+func srvCFKey(l string) string {
+	if strings.HasPrefix(strings.TrimSpace(l), "#") {
+		return ""
+	}
+	if i := strings.Index(l, "="); i > 0 {
+		return strings.TrimSpace(l[:i])
+	}
+	return ""
+}
+
+// srvStripPolicy drops the postfwd check from a comma separated restriction list
+func srvStripPolicy(v string) string {
+	var keep []string
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.TrimSpace(p); p != "" && p != srvPostfwdPolicy {
+			keep = append(keep, p)
+		}
+	}
+	return strings.Join(keep, ", ")
+}
+
+// srvCFSet replaces a key in postfix-main.cf, or appends it under our marker
+func srvCFSet(file, key, val string) {
+	lines := recLines(conf.Read(file))
+	found := false
+	for i, l := range lines {
+		if srvCFKey(l) == key {
+			lines[i] = key + " = " + val
+			found = true
+		}
+	}
+	if !found {
+		lines = append(lines, srvPostfwdMarker, key+" = "+val)
+	}
+	out := strings.Join(lines, "\n") + "\n"
+	if conf.WriteFileKeep(file, out, true) != nil {
+		os.WriteFile(file, []byte(out), 0o644)
+	}
+}
+
+// srvPostfwdComposeEnv puts our env vars in the postfwd service, true when the compose changed
+func srvPostfwdComposeEnv(c string) (string, bool) {
+	if strings.Contains(c, srvPostfwdEnv) {
+		return c, false
+	}
+	var out strings.Builder
+	inPostfwd, changed := false, false
+	for _, l := range recLines(c) {
+		if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") {
+			inPostfwd = strings.TrimSpace(l) == "postfwd:"
+		}
+		t := strings.TrimSpace(l)
+		if inPostfwd && (t == "environment:" || strings.HasPrefix(t, "- EXTRA=") || strings.HasPrefix(t, "- CACHE=")) {
+			continue
+		}
+		out.WriteString(l + "\n")
+		if inPostfwd && t == "image: postfwd/postfwd:stable" {
+			out.WriteString(srvPostfwdEnv)
+			changed = true
+		}
+	}
+	return out.String(), changed
 }
 
 // srvPostfwd returns the exit code and true when the script ends there without the trailing blank line
@@ -928,8 +1004,26 @@ func srvPostfwd(action string) (int, bool) {
 		}
 	}
 
+	// older compose files have postfwd without these env vars
+	c, recreate := srvPostfwdComposeEnv(conf.Read(srvCompose))
+	if recreate {
+		tmp := srvCompose + ".tmp"
+		if os.WriteFile(tmp, []byte(c), 0o644) == nil {
+			os.Rename(tmp, srvCompose)
+		}
+	}
+
+	// postfix-main.cf also holds other overrides (message_size_limit..), so only the policy check means it's on
+	enabled := strings.Contains(conf.Read(activeCF), srvPostfwdPolicy)
+
+	if recreate && enabled && action != "disable" {
+		sh.C("podman", "rm", "-f", "postfwd", "openadmin_postfwd").Quiet().Run()
+		sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
+		recreate = false
+	}
+
 	if action == "" {
-		if conf.IsFile(activeCF) {
+		if enabled {
 			fmt.Println("Rate-limiting is currently ENABLED.")
 		} else {
 			fmt.Println("Rate-limiting is currently DISABLED.")
@@ -944,29 +1038,70 @@ func srvPostfwd(action string) (int, bool) {
 		}
 	case "edit":
 		sh.C("nano", rulesCF).StdinReader(os.Stdin).Run()
-		srvExec("sh", "-c", "postfix reload").Quiet().Background()
+		sh.C("podman", "kill", "--signal", "HUP", "postfwd").Quiet().Run()
 	case "enable":
-		if conf.IsFile(activeCF) {
+		if enabled {
 			fmt.Println("Rate-limiting is already enabled.")
-		} else {
-			if err := os.Rename(disabledCF, activeCF); err != nil {
-				cli.Errf("mv: cannot stat 'postfwd/postfix-main.cf': No such file or directory")
-			}
-			sh.C("podman-compose", "up", "-d", "postfwd").Dir(mailDir).Quiet().Background()
-			sh.C("podman", "restart", container).Quiet().Background()
-			fmt.Println("Rate-limiting has been ENABLED.")
+			break
 		}
+		// merge into the live value so dms defaults (policyd-spf, dovecot quota..) stay in
+		cur, _ := srvExec("postconf", "-h", "smtpd_recipient_restrictions").Out()
+		cur = strings.TrimSpace(cur)
+		if cur == "" {
+			cli.Errf("Error: '%s' is not running, start it with: opencli email-server start", container)
+			return 1, true
+		}
+		val := srvPostfwdPolicy + ", " + cur
+		if recreate {
+			// podman-compose doesn't recreate on changes
+			sh.C("podman", "rm", "-f", "postfwd", "openadmin_postfwd").Quiet().Run()
+		}
+		sh.C("podman-compose", "up", "-d", "--no-deps", "postfwd").Dir(mailDir).Quiet().Run()
+		srvCFSet(activeCF, "smtpd_policy_service_default_action", "DUNNO")
+		srvCFSet(activeCF, "smtpd_recipient_restrictions", val)
+		// apply live, a podman restart skips dms setup and the file is only read on recreate
+		srvExec("postconf", "-e", "smtpd_policy_service_default_action=DUNNO", "smtpd_recipient_restrictions="+val).Quiet().Run()
+		srvExec("postfix", "reload").Quiet().Run()
+		fmt.Println("Rate-limiting has been ENABLED.")
 	case "disable":
-		if !conf.IsFile(activeCF) {
+		if !enabled {
 			fmt.Println("Rate-limiting is already disabled.")
-		} else {
-			if err := os.Rename(activeCF, disabledCF); err != nil {
-				cli.Errf("mv: cannot stat 'docker-data/dms/config/postfix-main.cf': No such file or directory")
-			}
-			sh.C("podman-compose", "down", "postfwd").Dir(mailDir).Quiet().Background()
-			sh.C("podman", "restart", container).Quiet().Background()
-			fmt.Println("Rate-limiting has been DISABLED.")
+			break
 		}
+		var live []string
+		conf.SedFile(activeCF, func(lines []string) []string {
+			var out []string
+			for i := 0; i < len(lines); i++ {
+				l := lines[i]
+				owned := false
+				if l == srvPostfwdMarker && i+1 < len(lines) {
+					i++
+					l, owned = lines[i], true
+				}
+				k := srvCFKey(l)
+				if k == "smtpd_policy_service_default_action" || strings.HasPrefix(l, "postfwd:10040_time_limit") {
+					continue
+				}
+				if strings.Contains(l, srvPostfwdPolicy) {
+					v := srvStripPolicy(l[strings.Index(l, "=")+1:])
+					live = append(live, k+"="+v)
+					// a line we added goes away so dms keeps managing that setting
+					if owned {
+						continue
+					}
+					l = k + " = " + v
+				} else if owned {
+					out = append(out, srvPostfwdMarker)
+				}
+				out = append(out, l)
+			}
+			return out
+		})
+		srvExec(append([]string{"postconf", "-e"}, live...)...).Quiet().Run()
+		srvExec("postconf", "-X", "smtpd_policy_service_default_action").Quiet().Run()
+		srvExec("postfix", "reload").Quiet().Run()
+		sh.C("podman-compose", "down", "postfwd").Dir(mailDir).Quiet().Background()
+		fmt.Println("Rate-limiting has been DISABLED.")
 	default:
 		fmt.Printf("Error: Unknown action '%s'. Use 'enable' or 'disable'.\n", action)
 	}

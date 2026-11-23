@@ -4,7 +4,7 @@
 // Usage: opencli email-ratelimit [--username=<user>] [--domain=<domain>] [--all-users] [--delete-user=<user>] [--delete-domain=<domain>] [--skip-reload] [--notify]
 // Author: Stefan Pejcic
 // Created: 03.12.2025
-// Last Modified: 20.11.2026
+// Last Modified: 23.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -71,23 +71,28 @@ func rlUsage() {
 	cli.Exit(1)
 }
 
+// rate() counts per attribute value and per rule id, so the first rule tags the request with the account and every domain of it uses the same limit_<user>_rate id to share one counter
 func rlBuildRule(username, limit, domain string) string {
-	key := strings.ReplaceAll(domain, ".", "_")
-	return fmt.Sprintf("id=limit_%s_%s ; sender=~.+@%s ; protocol_state==RCPT\n                action=rate(%s_ratelimit/%s/3600/450 4.7.1 sorry, OpenPanel account reached limit of %s emails per hour)\n\n",
-		username, key, domain, username, limit, limit)
+	sender := "sender=~.+@" + domain + "$ ; protocol_state==RCPT"
+	return fmt.Sprintf("id=%s ; %s\n                action=set(op_account=%s)\nid=limit_%s_rate ; %s\n                action=rate(op_account/%s/3600/450 4.7.1 sorry, OpenPanel account reached limit of %s emails per hour)\n\n",
+		rlRuleID(username, domain), sender, username, username, sender, limit, limit)
 }
 
 func rlRuleID(username, domain string) string {
 	return "limit_" + username + "_" + strings.ReplaceAll(domain, ".", "_")
 }
 
-// rlRemove is the awk that drops a block from a matching id= line up to the next empty line
+// rlRemove drops the blocks whose id= line has the prefix, up to the next empty line or the next rule that doesn't match
 func rlRemove(file, prefix string) string {
+	return rlRemoveIf(file, func(l string) bool { return strings.HasPrefix(l, prefix) })
+}
+
+func rlRemoveIf(file string, match func(string) bool) string {
 	var out strings.Builder
 	skip := false
 	for _, l := range recLines(conf.Read(file)) {
-		if strings.HasPrefix(l, "id=") && strings.HasPrefix(l, prefix) {
-			skip = true
+		if strings.HasPrefix(l, "id=") {
+			skip = match(l)
 		}
 		if skip && l == "" {
 			skip = false
@@ -100,9 +105,11 @@ func rlRemove(file, prefix string) string {
 	return out.String()
 }
 
-// the awk in remove_rule_by_id compares against "id=" twice, so it never matches anything
-func rlRemoveByID(file, id string) string {
-	return rlRemove(file, "id=id="+id+" ")
+// rlRemoveDomain drops every rule for the domain, the rate rule id is shared by the account so it goes by the sender
+func rlRemoveDomain(file, domain string) string {
+	return rlRemoveIf(file, func(l string) bool {
+		return strings.Contains(l, " ; sender=~.+@"+domain+" ;") || strings.Contains(l, " ; sender=~.+@"+domain+"$ ;")
+	})
 }
 
 func rlTmp(content string) string {
@@ -262,7 +269,7 @@ func rlDomain(domain string) {
 	}
 	if exists {
 		fmt.Printf("Updating: %s\n", id)
-		tmp := rlTmp(rlRemoveByID(rlOutput, id) + rlBuildRule(user, limit, domain))
+		tmp := rlTmp(rlRemoveDomain(rlOutput, domain) + rlBuildRule(user, limit, domain))
 		mvFile(tmp, rlOutput)
 	} else {
 		fmt.Printf("Adding: %s\n", id)
@@ -321,7 +328,7 @@ func rlDeleteDomain(domain string) {
 		fmt.Printf("No rule found for domain '%s'. Nothing changed.\n", domain)
 		cli.Exit(0)
 	}
-	mvFile(rlTmp(rlRemoveByID(rlOutput, id)), rlOutput)
+	mvFile(rlTmp(rlRemoveDomain(rlOutput, domain)), rlOutput)
 	os.Chmod(rlOutput, 0o644)
 	fmt.Printf("Removed rule: %s\n", id)
 	fmt.Println("---")
