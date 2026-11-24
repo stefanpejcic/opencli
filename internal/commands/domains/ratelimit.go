@@ -1,10 +1,10 @@
 // ##############################################################################
 // Script Name: internal/commands/domains/ratelimit.go
 // Description: Set the per-ip and per-domain request rate limits in Caddy, server default or per domain.
-// Usage: opencli domains-ratelimit [status] [--json]
+// Usage: opencli domains-ratelimit [status|stats|default|trusted|<targets>] [--json]
 // Author: Stefan Pejcic
 // Created: 15.10.2026
-// Last Modified: 20.11.2026
+// Last Modified: 23.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -52,7 +52,7 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "domains-ratelimit",
 		Desc:  "Set the per-ip and per-domain request rate limits in Caddy, server default or per domain.",
-		Usage: "opencli domains-ratelimit [status] [--json]",
+		Usage: "opencli domains-ratelimit [status|stats|default|trusted|<targets>] [--json]",
 		Run:   ratelimit,
 	})
 }
@@ -91,9 +91,13 @@ func rlUsage() {
 	fmt.Println("  opencli domains-ratelimit <targets> <per_ip> <per_site>             custom limits")
 	fmt.Println("  opencli domains-ratelimit <targets> default|off                     use the server default, or no limits")
 	fmt.Println("  opencli domains-ratelimit stats [targets] [--hours 24] [--json]     requests, 429s and peaks from the access logs")
+	fmt.Println("  opencli domains-ratelimit trusted [--json]                          visitor IPs that skip the limits")
+	fmt.Println("  opencli domains-ratelimit trusted add|remove <ip|cidr>...           manage the manual trusted IPs")
+	fmt.Println("  opencli domains-ratelimit trusted sync [--quiet]                    re-read csf.allow and csf.ignore")
 	fmt.Println("")
 	fmt.Println("Targets: one or more domains, --all, or --user <username>, mixed freely.")
 	fmt.Println("Limits are requests per minute, per visitor IP and per domain; 0 turns that limit off.")
+	fmt.Println("IPs in csf.allow and csf.ignore, loopback and the manual trusted list skip both limits.")
 	fmt.Println("Example: opencli domains-ratelimit --user john shop.com 600 20000")
 	cli.Exit(1)
 }
@@ -156,8 +160,14 @@ func rlWriteConf(ip, site string) {
 	w("# zone names carry the domain because caddy-ratelimit shares a zone's state by name across all sites, so a per-domain override would change everyone's limit")
 	w("# and the limit, because raising a limit on a live zone keeps blocking until its oldest hit leaves the window (SetMaxEvents resets the cursor)")
 	w("")
+	w("# IPs in ratelimit_trusted.conf (csf.allow, csf.ignore and 'opencli domains-ratelimit trusted add') skip both limits")
 	w("(ratelimit_ip) {")
-	w("    rate_limit {")
+	w("    @ratelimit_ip_counted {")
+	w("        not {")
+	w("            import " + rlTrustedConf)
+	w("        }")
+	w("    }")
+	w("    rate_limit @ratelimit_ip_counted {")
 	w("        zone ip_{args[1]}_{args[0]} {")
 	w("            key {client_ip}")
 	w("            events {args[0]}")
@@ -167,7 +177,12 @@ func rlWriteConf(ip, site string) {
 	w("}")
 	w("")
 	w("(ratelimit_site) {")
-	w("    rate_limit {")
+	w("    @ratelimit_site_counted {")
+	w("        not {")
+	w("            import " + rlTrustedConf)
+	w("        }")
+	w("    }")
+	w("    rate_limit @ratelimit_site_counted {")
 	w("        zone site_{args[1]}_{args[0]} {")
 	w("            key {host}")
 	w("            events {args[0]}")
@@ -443,6 +458,9 @@ func rlBackup() {
 	if conf.IsFile(rlConf) {
 		rlCpA(rlConf, dir+"/ratelimit.conf")
 	}
+	if conf.IsFile(rlTrustedConf) {
+		rlCpA(rlTrustedConf, dir+"/ratelimit_trusted.conf")
+	}
 	os.MkdirAll(dir+"/domains", 0o755)
 	files, _ := filepath.Glob(rlDomainDir + "/*.conf")
 	for _, f := range files {
@@ -454,6 +472,11 @@ func rlRestore() {
 	rlCpA(rlBackupDir+"/Caddyfile", rlCaddyfile)
 	if conf.IsFile(rlBackupDir + "/ratelimit.conf") {
 		rlCpA(rlBackupDir+"/ratelimit.conf", rlConf)
+	}
+	if conf.IsFile(rlBackupDir + "/ratelimit_trusted.conf") {
+		rlCpA(rlBackupDir+"/ratelimit_trusted.conf", rlTrustedConf)
+	} else {
+		os.Remove(rlTrustedConf)
 	}
 	files, _ := filepath.Glob(rlBackupDir + "/domains/*.conf")
 	for _, f := range files {
@@ -502,15 +525,12 @@ func rlApply() {
 // every change needs the snippets file, the import and the module in place before caddy sees it
 func rlPrepare() {
 	rlBackup()
-	// the 2.0.16 update only writes an empty default, the per-domain snippets get added here
-	has := false
-	for _, l := range conf.Lines(rlConf) {
-		if strings.HasPrefix(l, "(ratelimit_ip)") {
-			has = true
-			break
-		}
+	// the snippets import the trusted list, so it has to exist first
+	if !conf.IsFile(rlTrustedConf) {
+		rlWriteTrusted(rlReadManual())
 	}
-	if !has {
+	// the 2.0.16 update only writes an empty default and snippets before 2.0.29 don't skip trusted IPs, both get rewritten here
+	if has, skips := rlConfReady(); !has || !skips {
 		ip, site := rlReadDefault()
 		rlWriteConf(ip, site)
 	}
@@ -798,13 +818,15 @@ func rlResolve(args []string) []string {
 }
 
 func ratelimit(args []string) int {
-	jsonOut := false
+	jsonOut, quiet := false, false
 	hours := 24
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--json":
 			jsonOut = true
+		case "--quiet":
+			quiet = true
 		case "--hours":
 			v := ""
 			if i+1 < len(args) {
@@ -831,6 +853,8 @@ func ratelimit(args []string) int {
 	case "status":
 		rlStatus(jsonOut)
 		return 0
+	case "trusted":
+		return rlTrusted(rest[1:], jsonOut, quiet)
 	case "stats":
 		targets := rest[1:]
 		if len(targets) == 0 {
