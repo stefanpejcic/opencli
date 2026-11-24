@@ -40,6 +40,7 @@ import (
 	"opencli/internal/cli"
 	"opencli/internal/conf"
 	"opencli/internal/db"
+	"opencli/internal/diskquota"
 	"opencli/internal/podman"
 	"opencli/internal/redis"
 	"opencli/internal/reseller"
@@ -191,12 +192,12 @@ func (c *cpCtx) updateDiskInodes() {
 		fmt.Printf("Changing disk limit from: %s (%d blocks), inodes: %s\n", c.newDisk, c.diskBlocks, c.newInodes)
 	}
 	blocks := strconv.Itoa(c.diskBlocks)
-	if sh.C("setquota", "-u", c.username, blocks, blocks, c.newInodes, c.newInodes, "/").Run() == nil {
+	if _, err := diskquota.Set(c.username, blocks, c.newInodes); err == nil {
 		fmt.Printf("[✔] Disk limit (%s) and inodes (%s) applied successfully.\n", c.newDisk, c.newInodes)
 	} else {
 		c.failures++
 		fmt.Println("[✘] Error setting disk/inodes limits.")
-		fmt.Printf("    Command: setquota -u %s %s %s %s %s /\n", c.username, blocks, blocks, c.newInodes, c.newInodes)
+		fmt.Printf("    %v\n", err)
 	}
 	sh.Opencli("user-quota").Quiet().Background()
 }

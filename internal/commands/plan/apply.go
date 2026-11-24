@@ -41,6 +41,7 @@ import (
 
 	"opencli/internal/cli"
 	"opencli/internal/db"
+	"opencli/internal/diskquota"
 	"opencli/internal/podman"
 	"opencli/internal/requirement"
 	"opencli/internal/sh"
@@ -245,12 +246,12 @@ func apply(args []string) int {
 		}
 
 		if !partial || dodsk {
-			out, err := sh.C("setquota", "-u", context, blocks, blocks, inodes, inodes, "/").Combined()
+			_, err := diskquota.Set(context, blocks, inodes)
 			if err == nil {
 				fmt.Println("- Disk        [OK]   " + diskText)
 				fmt.Println("- Inodes:     [OK]   " + inodesText)
 			} else {
-				fmt.Printf("- Disk       [WARN]   Disk quota not applied: %s (filesystem may not support quotas).\n", out)
+				fmt.Printf("- Disk       [WARN]   Disk quota not applied: %s (filesystem may not support quotas).\n", err)
 			}
 			if !bulk {
 				sh.Opencli("docker-collect_stats", username).Quiet().Background()

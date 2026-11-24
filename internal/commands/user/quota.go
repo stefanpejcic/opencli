@@ -1,10 +1,10 @@
 // ##############################################################################
 // Script Name: internal/commands/user/quota.go
 // Description: Report or set disk and inodes for users.
-// Usage: opencli user-quota [--update <username|--all>]
+// Usage: opencli user-quota [--update <username|--all>] [--enable-project]
 // Author: Stefan Pejcic
 // Created: 16.11.2023
-// Last Modified: 20.11.2026
+// Last Modified: 24.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -42,6 +42,7 @@ import (
 	"opencli/internal/cli"
 	"opencli/internal/conf"
 	"opencli/internal/db"
+	"opencli/internal/diskquota"
 	"opencli/internal/mail"
 	"opencli/internal/ojson"
 	"opencli/internal/redis"
@@ -52,7 +53,7 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "user-quota",
 		Desc:  "Report or set disk and inodes for users.",
-		Usage: "opencli user-quota [--update <username|--all>]",
+		Usage: "opencli user-quota [--update <username|--all>] [--enable-project]",
 		Run:   quota,
 	})
 }
@@ -69,6 +70,7 @@ func quotaUsage() {
     opencli user-quota                     Reloads cached data for UI
     opencli user-quota --update <username> Set quota for a specific user
     opencli user-quota --update --all      Set quota for all active users
+    opencli user-quota --enable-project    Count every file in a home against its limit (needs a reboot)
 
 Arguments:
     username    Set quota for specific user
@@ -79,6 +81,11 @@ Description:
     based on their plan limits stored in the database.
     - Running without arguments will reload cached data for UI.
     - Any quota-setting operation must start with the '--update' keyword.
+    - A user quota only counts files owned by the account's own uid, files its
+      containers write as subuids (databases, files made by PHP) don't count.
+      With project quotas on, the account's home is tagged with its uid as the
+      project id and the limit counts every file in it. --enable-project turns
+      them on: on ext4 at the next reboot, through the initramfs.
 
 Examples:
     opencli user-quota                      # reload cached information for UI 
@@ -136,12 +143,15 @@ func quotaProcessUser(username string) bool {
 	}
 	n, _ := strconv.Atoi(strings.ReplaceAll(p.disk, " GB", ""))
 	blocks := strconv.Itoa(n * quotaGBBlocks)
-	if sh.C("setquota", "-u", username, blocks, blocks, p.files, p.files, "/").Run() == nil {
-		quotaLog(fmt.Sprintf("Quota set for user %s: %s blocks (%s) and %s inodes", username, blocks, p.disk, p.files))
-		return true
+	how, err := diskquota.Set(username, blocks, p.files)
+	if how != "" {
+		quotaLog(fmt.Sprintf("Quota set for user %s: %s blocks (%s) and %s inodes (%s)", username, blocks, p.disk, p.files, how))
 	}
-	quotaLogErr("Failed to set quota for user: " + username)
-	return false
+	if err != nil {
+		quotaLogErr("Failed to set quota for user " + username + ": " + err.Error())
+		return false
+	}
+	return true
 }
 
 func quotaActiveUsers() (string, bool) {
@@ -201,6 +211,8 @@ func quotaGenerateReport() {
 	tmp := quotaReportFile + ".tmp"
 	stamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	repOut, repErr := sh.C("repquota", "-u", "/").NoErr().Out()
+	// with project quotas the home's project is what the limit is on, files owned by the container subuids included
+	projects := diskquota.ProjectRows()
 	uidMap := map[string]string{}
 	for _, l := range conf.Lines("/etc/passwd") {
 		f := strings.Split(l, ":")
@@ -211,27 +223,26 @@ func quotaGenerateReport() {
 	var b strings.Builder
 	fmt.Fprintf(&b, "{\n  \"timestamp\": \"%s\",\n  \"users\": [\n", stamp)
 	first := true
-	re := regexp.MustCompile(`^[-+][-+]$`)
 	for _, l := range strings.Split(repOut, "\n") {
-		if l == "" || l[0] == '#' {
+		user, row, ok := diskquota.ParseLine(l)
+		if !ok {
 			continue
 		}
-		f := strings.Fields(l)
-		if len(f) < 5 || !re.MatchString(f[1]) {
-			continue
-		}
-		user := f[0]
 		uid, ok := uidMap[user]
 		if !ok {
 			continue
 		}
-		nf := len(f)
+		if id, err := strconv.ParseUint(uid, 10, 32); err == nil {
+			if pr, ok := projects[uint32(id)]; ok {
+				row = pr
+			}
+		}
 		if !first {
 			b.WriteString(",\n")
 		}
 		first = false
 		fmt.Fprintf(&b, "    {\"username\":\"%s\",\"uid\":%s,\"home_path\":\"/home/%s/\",\"disk_used\":%s,\"disk_soft\":%s,\"disk_hard\":%s,\"inodes_used\":%s,\"inodes_soft\":%s,\"inodes_hard\":%s}",
-			user, uid, user, f[2], f[3], f[4], f[nf-3], f[nf-2], f[nf-1])
+			user, uid, user, row.DiskUsed, row.DiskSoft, row.DiskHard, row.InodesUsed, row.InodesSoft, row.InodesHard)
 	}
 	b.WriteString("\n  ]\n}\n")
 	os.WriteFile(tmp, []byte(b.String()), 0o644)
@@ -397,10 +408,14 @@ func quotaNotify() {
 
 func quota(args []string) int {
 	if len(args) == 0 {
+		quotaHealProjects()
 		quotaGenerateReport()
 		fmt.Print(conf.Read(quotaReportFile))
 		quotaNotify()
 		return 0
+	}
+	if args[0] == "--enable-project" {
+		return quotaEnableProject()
 	}
 	// a bare username used to only print the report
 	if args[0] != "--update" {
