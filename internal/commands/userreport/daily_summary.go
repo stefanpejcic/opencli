@@ -1,6 +1,6 @@
 // ##############################################################################
 // Script Name: internal/commands/userreport/daily_summary.go
-// Description: Save yesterday's summary for users with the Summary module and email it to those who turned it on.
+// Description: Save yesterday's summary for every user and email it to those with the Summary feature who turned it on.
 // Usage: opencli user-daily_summary <USERNAME> [--date YYYY-MM-DD] [--dry-run] OR opencli user-daily_summary --all [--date YYYY-MM-DD] [--dry-run]
 // Author: Stefan Pejcic
 // Created: 16.10.2026
@@ -45,7 +45,7 @@ import (
 func init() {
 	cli.Register(&cli.Command{
 		Name:  "user-daily_summary",
-		Desc:  "Save yesterday's summary for users with the Summary module and email it to those who turned it on.",
+		Desc:  "Save yesterday's summary for every user and email it to those with the Summary feature who turned it on.",
 		Usage: "opencli user-daily_summary <USERNAME> [--date YYYY-MM-DD] [--dry-run] OR opencli user-daily_summary --all [--date YYYY-MM-DD] [--dry-run]",
 		Run:   dailySummary,
 	})
@@ -54,8 +54,9 @@ func init() {
 func dailyUsage() {
 	fmt.Println("Usage: opencli user-daily_summary <USERNAME> [--date YYYY-MM-DD] [--dry-run] OR opencli user-daily_summary --all [--date YYYY-MM-DD] [--dry-run]")
 	fmt.Println("")
-	fmt.Println("Saves the day's summary (yesterday by default) for every user with the Summary module,")
-	fmt.Println("shown in OpenPanel > Statistics > Daily Summary, and emails it to users who turned on")
+	fmt.Println("Saves the day's summary (yesterday by default) for every user while the Summary module is on,")
+	fmt.Println("OpenAdmin's daily summary adds them up. Users with Summary in their plan see it in")
+	fmt.Println("OpenPanel > Statistics > Daily Summary, and get it by email if they turned on")
 	fmt.Println("'Daily summary' in Account > Notifications, at most once a day.")
 	fmt.Println("--dry-run prints the email instead of saving and sending it.")
 	cli.Exit(1)
@@ -140,7 +141,10 @@ func (d *daily) user(username string) int {
 		fmt.Printf("  Could not build the summary for %s.\n", username)
 		return 1
 	}
-	if jqStr(o, "allowed") != "true" {
+	// every account's summary is saved for OpenAdmin, allowed is whether the user sees it (Summary in the plan), so only those get the email
+	// an older panel leaves out generated and only builds for allowed users
+	allowed := jqStr(o, "allowed") == "true"
+	if jqStr(o, "generated") != "true" && !allowed {
 		fmt.Printf("  %s doesn't have the Summary module.\n", username)
 		return 0
 	}
@@ -150,6 +154,10 @@ func (d *daily) user(username string) int {
 	}
 	line := fmt.Sprintf("Summary for %s: %s need attention, %s worth a look", jqStr(o, "date"), jqStr(o, "attention"), jqStr(o, "look"))
 	fmt.Printf("  %s%s.\n", trimNL(line), saved)
+	if !allowed {
+		fmt.Printf("  %s's plan doesn't have the Summary feature, not emailed.\n", username)
+		return 0
+	}
 
 	if d.dryRun {
 		fmt.Println("  Subject: " + trimNL(jqStr(o, "subject")))
