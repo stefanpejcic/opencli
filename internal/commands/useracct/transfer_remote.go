@@ -4,7 +4,7 @@
 // Usage: imported by user-transfer
 // Author: Stefan Pejcic
 // Created: 28.06.2025
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -271,15 +271,17 @@ while IFS='|' read -r username hashed_pass directory uid gid; do
         continue
     fi
 
-    # Recreate the host directory and permissions
-    mkdir -p "\$new_directory"
+    # rsync already brought the folder with its modes, only a missing one gets the FTP defaults
+    if [[ ! -e "\$new_directory" ]]; then
+        mkdir -p "\$new_directory"
+        chown "\$GID:\$GID" "\$new_directory"
+        chmod 2775 "\$new_directory"
+    fi
     chmod +rx "/home/\$context" \\
               "/home/\$context/docker-data" \\
               "/home/\$context/docker-data/volumes" \\
               "/home/\$context/docker-data/volumes/\${context}_html_data" \\
               "/home/\$context/docker-data/volumes/\${context}_html_data/_data" 2>/dev/null || true
-    chown -R "\$GID:\$GID" "\$new_directory"
-    chmod -R 2775 "\$new_directory"
 
     # Recreate the container user with the SAME hashed password (no re-hashing)
     podman exec openadmin_ftp useradd -d "\$new_directory" -s /sbin/nologin \\
