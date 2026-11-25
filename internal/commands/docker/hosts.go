@@ -1,7 +1,7 @@
 // ##############################################################################
 // Script Name: internal/commands/docker/hosts.go
 // Description: Write the hosts file that users' new containers start with, so the panel and mail hostnames point at the server.
-// Usage: opencli docker-hosts [--show | --apply [USERNAME]]
+// Usage: opencli docker-hosts [--show | --apply [USERNAME] [--restart]]
 // Author: Stefan Pejcic
 // Created: 12.11.2026
 // Last Modified: 25.11.2026
@@ -48,7 +48,7 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "docker-hosts",
 		Desc:  "Write the hosts file that users' new containers start with, so the panel and mail hostnames point at the server.",
-		Usage: "opencli docker-hosts [--show | --apply [USERNAME]]",
+		Usage: "opencli docker-hosts [--show | --apply [USERNAME] [--restart]]",
 		Run:   hosts,
 	})
 }
@@ -72,11 +72,12 @@ var (
 )
 
 func hostsUsage() {
-	fmt.Println("Usage: opencli docker-hosts [--show | --apply [USERNAME]]")
+	fmt.Println("Usage: opencli docker-hosts [--show | --apply [USERNAME] [--restart]]")
 	fmt.Println("")
 	fmt.Println("  (no args)           Write " + hostsFile + " from the panel domain and the mail hostname")
 	fmt.Println("  --show              Print the file without writing it")
-	fmt.Println("  --apply [USERNAME]  Write the file, set it for all existing users (or one) and restart their running php-fpm and webserver containers")
+	fmt.Println("  --apply [USERNAME]  Write the file, set it for all existing users (or one) and update /etc/hosts inside their running containers, no restart")
+	fmt.Println("  --restart           With --apply, stop and start the php-fpm and webserver containers instead of editing them in place")
 }
 
 func hostsPanelDomain() string {
@@ -203,7 +204,8 @@ func hostsAddr() string {
 	return hostsHostAddr
 }
 
-func hostsBuild() string {
+// hostsNames are the panel and mail hostnames that point at the server
+func hostsNames() []string {
 	var names []string
 	for _, n := range []string{hostsPanelDomain(), hostsMailHostname()} {
 		if !hostnameRe.MatchString(n) {
@@ -219,12 +221,17 @@ func hostsBuild() string {
 			names = append(names, n)
 		}
 	}
+	return names
+}
+
+func hostsBuild(addr string) string {
+	names := hostsNames()
 	var b strings.Builder
 	b.WriteString("# written by opencli docker-hosts, put your own lines in " + hostsCustom + "\n")
 	b.WriteString("127.0.0.1\tlocalhost\n")
 	b.WriteString("::1\tlocalhost ip6-localhost ip6-loopback\n")
 	if len(names) > 0 {
-		b.WriteString(hostsAddr() + "\t" + strings.Join(names, " ") + "\n")
+		b.WriteString(addr + "\t" + strings.Join(names, " ") + "\n")
 	}
 	if conf.IsFile(hostsCustom) {
 		b.WriteString("\n")
@@ -306,7 +313,64 @@ func hostsRestart(user string) {
 	podman.SyncVarnish(user)
 }
 
-func hostsApply(only string) {
+// hostsLiveContent drops every line that names one of the hostnames (like cloud-init's 127.0.1.1 one) and adds the addr line
+func hostsLiveContent(cur, addr string, names []string) string {
+	want := map[string]bool{}
+	for _, n := range names {
+		want[n] = true
+	}
+	var out []string
+	for _, l := range strings.Split(strings.TrimRight(cur, "\n"), "\n") {
+		f := strings.Fields(l)
+		drop := false
+		if len(f) > 1 && !strings.HasPrefix(f[0], "#") {
+			for _, n := range f[1:] {
+				if want[n] {
+					drop = true
+				}
+			}
+		}
+		if !drop {
+			out = append(out, l)
+		}
+	}
+	out = append(out, addr+"\t"+strings.Join(names, " "))
+	return strings.Join(out, "\n") + "\n"
+}
+
+// hostsLive rewrites /etc/hosts inside the user's running containers, podman bind mounts it read-write so no restart is needed.
+// It's written with cat > since sed -i would replace the bind mounted file. The next start builds it from base_hosts_file anyway.
+func hostsLive(user, addr string, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	running := podman.User(user, "ps", "--format", "{{.Names}}").NoErr().Str()
+	v, _ := conf.Raw("/home/"+user+"/.env", "WEB_SERVER")
+	ws := strings.NewReplacer(`"`, "", `'`, "", " ", "").Replace(v)
+	for _, c := range strings.Fields(running) {
+		// php sends the mail, the rest only matters for apps that connect out, so only those report failures
+		important := strings.HasPrefix(c, "php-fpm-") || c == ws || c == "cron"
+		cur, err := podman.User(user, "exec", c, "cat", "/etc/hosts").NoErr().Raw()
+		if err != nil {
+			if important {
+				fmt.Printf("  failed to read /etc/hosts in %s\n", c)
+			}
+			continue
+		}
+		next := hostsLiveContent(cur, addr, names)
+		if next == cur {
+			fmt.Println("  " + c + " already up to date")
+			continue
+		}
+		if podman.User(user, "exec", "-i", "-u", "root", c, "sh", "-c", "cat > /etc/hosts").Stdin(next).Quiet().OK() {
+			fmt.Println("  updated " + c)
+		} else if important {
+			fmt.Printf("  failed to update /etc/hosts in %s, run: opencli docker-hosts --apply %s --restart\n", c, user)
+		}
+	}
+}
+
+func hostsApply(only, addr string, restart bool) {
 	var users []string
 	if only != "" {
 		if !conf.IsFile("/home/" + only + "/.env") {
@@ -332,16 +396,30 @@ func hostsApply(only string) {
 		}
 		// the podman service may still have the old config loaded, it only restarts if it's running
 		sh.C("systemctl", "--user", "-M", u+"@", "try-restart", "podman.service").Quiet().Run()
-		hostsRestart(u)
+		if restart {
+			hostsRestart(u)
+		} else {
+			hostsLive(u, addr, hostsNames())
+		}
 	}
 }
 
 func hosts(args []string) int {
 	apply := false
 	applyUser := ""
+	restart := false
+	var rest []string
+	for _, a := range args {
+		if a == "--restart" {
+			restart = true
+		} else {
+			rest = append(rest, a)
+		}
+	}
+	args = rest
 	switch cli.Arg(args, 0) {
 	case "--show":
-		fmt.Print(hostsBuild())
+		fmt.Print(hostsBuild(hostsAddr()))
 		return 0
 	case "--apply":
 		apply = true
@@ -360,7 +438,9 @@ func hosts(args []string) int {
 	if err != nil {
 		return 1
 	}
-	tmp.WriteString(hostsBuild())
+	// probed once, it can take a few seconds when 169.254.1.2 doesn't answer
+	addr := hostsAddr()
+	tmp.WriteString(hostsBuild(addr))
 	tmp.Close()
 	// users' podman reads it, so it has to stay world readable
 	os.Chmod(tmp.Name(), 0o644)
@@ -368,7 +448,7 @@ func hosts(args []string) int {
 	fmt.Println("Updated " + hostsFile + ", new containers will use it.")
 
 	if apply {
-		hostsApply(applyUser)
+		hostsApply(applyUser, addr, restart)
 	}
 	return 0
 }
