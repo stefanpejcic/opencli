@@ -1,10 +1,10 @@
 // ##############################################################################
 // Script Name: internal/commands/domainsadd/add.go
 // Description: Add a domain name for user.
-// Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
+// Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--keep-permissions] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]
 // Author: Stefan Pejcic
 // Created: 20.08.2024
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -53,7 +53,7 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "domains-add",
 		Desc:  "Add a domain name for user.",
-		Usage: "opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]",
+		Usage: "opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot DOCUMENT_ROOT] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_containers] [--skip_dns] [--skip-sentinel] [--keep-permissions] [--debug] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY]",
 		Run:   add,
 	})
 }
@@ -82,6 +82,7 @@ type addJob struct {
 
 	debug                                                   bool
 	skipVhost, skipCaddy, skipDNS, skipContainers, skipNote bool
+	keepPerms                                               bool
 }
 
 var addErrMu sync.Mutex
@@ -151,7 +152,7 @@ func add(args []string) int {
 
 func (j *addJob) parseArgs(args []string) {
 	if len(args) < 2 {
-		fmt.Println("Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot /var/www/html/...] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_dns] [--skip_containers] [--skip-sentinel] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY] [--debug]")
+		fmt.Println("Usage: opencli domains-add <DOMAIN_NAME> <USERNAME> [--docroot /var/www/html/...] [--php_version N.N] [--skip_caddy] [--skip_vhost] [--skip_dns] [--skip_containers] [--skip-sentinel] [--keep-permissions] [--hs_ed25519_public_key KEY --hs_ed25519_secret_key KEY] [--debug]")
 		cli.Exit(1)
 	}
 	j.domain, j.user = args[0], args[1]
@@ -171,6 +172,8 @@ func (j *addJob) parseArgs(args []string) {
 			j.skipNote = true
 		case "--skip_containers":
 			j.skipContainers = true
+		case "--keep-permissions":
+			j.keepPerms = true
 		case "--docroot", "--php_version", "--hs_ed25519_public_key", "--hs_ed25519_secret_key":
 			v := ""
 			if len(rest) > 1 {
@@ -573,29 +576,8 @@ func (j *addJob) makeDocrootDirs() {
 		"/home/" + j.ctx + "/docker-data/volumes/" + j.ctx + "_html_data",
 		htmlRoot,
 	}
-	for _, d := range dirs {
-		os.MkdirAll(d, 0o777)
-	}
-	// the docroot is picked by the user and may already exist, so it's created from a checked cwd inside the volume
-	if tenantfs.Mkdir(htmlRoot, siteDir) != nil {
-		j.warn("Docroot " + j.docroot + " is not a real folder inside /var/www/html/ — skipping")
-		return
-	}
-	// https://github.com/stefanpejcic/OpenPanel/discussions/1084
-	if strings.Contains(j.webServer, "litespeed") {
-		if b, err := os.ReadFile("/etc/openpanel/nginx/default_page.html"); err == nil {
-			tenantfs.Write(htmlRoot, siteDir+"/index.html", 0o644, b)
-		}
-	}
-	// only the volume dirs themselves, a recursive walk of the whole volume can hit huge or network-mounted folders
-	for _, d := range dirs {
-		os.Chown(d, uid, uid)
-		if st, err := os.Stat(d); err == nil {
-			os.Chmod(d, st.Mode().Perm()|0o020|(st.Mode() & ^fs.ModePerm))
-		}
-	}
-	owner := j.ctxUID + ":" + j.ctxUID
 	// parents of a nested docroot are created by root too
+	var parents []string
 	path := htmlRoot
 	for _, part := range strings.Split(stripped, "/") {
 		if part == "" {
@@ -605,7 +587,49 @@ func (j *addJob) makeDocrootDirs() {
 		if path == siteDir {
 			break
 		}
-		tenantfs.Chown(htmlRoot, path, owner)
+		parents = append(parents, path)
+	}
+	// restore and transfer bring the files with their own owner and modes, so with --keep-permissions only what this run creates gets fixed up
+	existed := map[string]bool{}
+	if j.keepPerms {
+		for _, p := range append(append([]string{siteDir}, dirs...), parents...) {
+			if _, err := os.Lstat(p); err == nil {
+				existed[p] = true
+			}
+		}
+	}
+	for _, d := range dirs {
+		os.MkdirAll(d, 0o777)
+	}
+	// the docroot is picked by the user and may already exist, so it's created from a checked cwd inside the volume
+	if tenantfs.Mkdir(htmlRoot, siteDir) != nil {
+		j.warn("Docroot " + j.docroot + " is not a real folder inside /var/www/html/ — skipping")
+		return
+	}
+	// https://github.com/stefanpejcic/OpenPanel/discussions/1084
+	if strings.Contains(j.webServer, "litespeed") && !existed[siteDir] {
+		if b, err := os.ReadFile("/etc/openpanel/nginx/default_page.html"); err == nil {
+			tenantfs.Write(htmlRoot, siteDir+"/index.html", 0o644, b)
+		}
+	}
+	// only the volume dirs themselves, a recursive walk of the whole volume can hit huge or network-mounted folders
+	for _, d := range dirs {
+		if existed[d] {
+			continue
+		}
+		os.Chown(d, uid, uid)
+		if st, err := os.Stat(d); err == nil {
+			os.Chmod(d, st.Mode().Perm()|0o020|(st.Mode() & ^fs.ModePerm))
+		}
+	}
+	owner := j.ctxUID + ":" + j.ctxUID
+	for _, p := range parents {
+		if !existed[p] {
+			tenantfs.Chown(htmlRoot, p, owner)
+		}
+	}
+	if existed[siteDir] {
+		return
 	}
 	tenantfs.ChownR(htmlRoot, siteDir, owner)
 	tenantfs.ChmodR(htmlRoot, siteDir, "g+w")

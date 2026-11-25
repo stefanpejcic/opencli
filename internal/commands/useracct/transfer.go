@@ -4,7 +4,7 @@
 // Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer]
 // Author: Stefan Pejcic
 // Created: 28.06.2025
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -669,7 +669,7 @@ func (t *transferJob) rsyncFiles() {
 		if owner == "" {
 			// add domain on remote
 			lf, _ := os.OpenFile(t.logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o666)
-			err := t.ssh("opencli domains-add " + domain + " " + t.username + " --docroot " + docroot + " --php_version " + php + " --skip_caddy --skip_vhost --skip_containers --skip_dns").Stdin("").Stdout(lf).Stderr(lf).Run()
+			err := t.ssh("opencli domains-add " + domain + " " + t.username + " --docroot " + docroot + " --php_version " + php + " --skip_caddy --skip_vhost --skip_containers --skip_dns --keep-permissions").Stdin("").Stdout(lf).Stderr(lf).Run()
 			lf.Close()
 			if err != nil {
 				t.log("[✘] ERROR: Failed to import domain " + domain)

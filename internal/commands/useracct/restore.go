@@ -4,7 +4,7 @@
 // Usage: opencli user-restore --file <ARCHIVE> [--force] [--new-username=NAME] [--reseller=NAME] [--quiet] [--temp-dir=<PATH> ]
 // Author: Stefan Pejcic
 // Created: 01.10.2023
-// Last Modified: 22.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -962,7 +962,7 @@ func (r *restoreJob) restoreDomains() {
 			continue
 		}
 		lf, _ := os.OpenFile(r.logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o666)
-		err := sh.Opencli("domains-add", domain, r.username, "--docroot", docroot, "--php_version", php, "--skip_caddy", "--skip_vhost", "--skip_containers", "--skip_dns", "--skip-sentinel").Stdout(lf).Stderr(lf).Run()
+		err := sh.Opencli("domains-add", domain, r.username, "--docroot", docroot, "--php_version", php, "--skip_caddy", "--skip_vhost", "--skip_containers", "--skip_dns", "--skip-sentinel", "--keep-permissions").Stdout(lf).Stderr(lf).Run()
 		lf.Close()
 		if err != nil {
 			r.warn("opencli domains-add failed for '" + domain + "' — skipping assets.")
@@ -1116,9 +1116,12 @@ func (r *restoreJob) restoreFTP() {
 		}
 		rp := "/home/" + r.context + "/docker-data/volumes/" + r.context + "_html_data/_data/"
 		nd := rp + strings.TrimPrefix(dir, "/var/www/html/")
-		os.MkdirAll(nd, 0o777)
-		lchownR(nd, text.Atoi(gid), text.Atoi(gid))
-		chmodR(nd, 0o775|fs.ModeSetgid)
+		// a folder that came back from the archive keeps its modes, only a missing one gets the FTP defaults
+		if _, err := os.Lstat(nd); os.IsNotExist(err) {
+			os.MkdirAll(nd, 0o777)
+			lchownR(nd, text.Atoi(gid), text.Atoi(gid))
+			chmodR(nd, 0o775|fs.ModeSetgid)
+		}
 		sh.C("podman", "exec", "openadmin_ftp", "useradd", "-d", nd, "-s", "/sbin/nologin", "-g", r.context, "-M", fu, "--badname").NoErr().Run()
 		sh.C("podman", "exec", "openadmin_ftp", "sh", "-c", "usermod -p '"+hp+"' '"+fu+"'").Run()
 		r.log("FTP user restored: " + fu)
