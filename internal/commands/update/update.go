@@ -582,7 +582,7 @@ func (u *updater) runUpdateImmediately(version string) int {
 	redis.DropKey("openpanel_cache_app.get_openpanel_version")
 
 	u.log("Cleaning up previous images")
-	u.purgePreviousImages()
+	u.purgePreviousImages(img)
 
 	// ---------------------- 5. UPDATE INSTALLED LOCALES
 	if !u.updateLocales(false) {
@@ -706,7 +706,8 @@ func (u *updater) verifyOpenadminRunning() {
 }
 
 // ---------------------- HELPER: RUNS AFTER DOWNLOADING NEW IMAGE ---------------------- #
-func (u *updater) purgePreviousImages() {
+// keep is the image just pulled: with --no-restart (OpenAdmin's Update now) no container runs it yet, so it would look unused and be removed
+func (u *updater) purgePreviousImages(keep string) {
 	u.info("Cleaning up old Podman images")
 	var all []string
 	prefix, err := regexp.Compile("^docker.io/" + u.imageName())
@@ -726,6 +727,9 @@ func (u *updater) purgePreviousImages() {
 		if id := sh.C("podman", "inspect", "--format", "{{.Id}}", img).NoErr().Str(); id != "" {
 			ids = append(ids, strings.Split(id, "\n")...)
 		}
+	}
+	if id := sh.C("podman", "inspect", "--format", "{{.Id}}", keep).NoErr().Str(); id != "" {
+		ids = append(ids, strings.Split(id, "\n")...)
 	}
 	sort.Strings(ids)
 	used := strings.Join(ids, "\n")
