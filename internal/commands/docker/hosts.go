@@ -4,7 +4,7 @@
 // Usage: opencli docker-hosts [--show | --apply [USERNAME]]
 // Author: Stefan Pejcic
 // Created: 12.11.2026
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -31,6 +31,7 @@ package docker
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,8 +59,12 @@ const (
 	hostsCustom   = "/etc/openpanel/docker/container_hosts.custom"
 	hostsCaddy    = "/etc/openpanel/caddy/Caddyfile"
 	hostsMailEnv  = "/usr/local/mail/openmail/mailserver.env"
-	hostsHostAddr = "169.254.1.2" // pasta maps this address to the host, the public ip isn't reachable from rootless containers
+	hostsHostAddr = "169.254.1.2" // pasta --map-guest-addr, reaches the host only when the rootless netns has a copy of the host ip
+	hostsNetConf  = "/etc/containers/containers.conf.d/99-openpanel-net.conf"
 )
+
+// hostsProbePorts are tried from inside a user container's netns, caddy first, then mail over tls
+var hostsProbePorts = []string{"443", "465"}
 
 var (
 	hostnameRe   = regexp.MustCompile(`^([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$`)
@@ -114,6 +119,90 @@ func hostsMailHostname() string {
 	return strings.NewReplacer(`"`, "", `'`, "", " ", "").Replace(v)
 }
 
+// hostsPublicIP is the source address the host uses to reach the internet, no packet is sent
+func hostsPublicIP() string {
+	c, err := net.Dial("udp4", "1.1.1.1:53")
+	if err != nil {
+		return ""
+	}
+	defer c.Close()
+	ip := c.LocalAddr().(*net.UDPAddr).IP
+	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+		return ""
+	}
+	return ip.String()
+}
+
+// hostsSampleNetns gives the network namespace of a few running user containers, that's where php connects from.
+// /proc/PID/ns/net works for podman 5 (pasta) and podman 4 (slirp4netns), whose netns files only exist in the user's mount namespace.
+func hostsSampleNetns(max int) []string {
+	dirs, _ := filepath.Glob("/home/*")
+	sort.Strings(dirs)
+	var out []string
+	for _, d := range dirs {
+		u := filepath.Base(d)
+		if !conf.IsFile("/home/" + u + "/.env") {
+			continue
+		}
+		pids := podman.User(u, "ps", "--format", "{{.Pid}}").NoErr().Str()
+		for _, pid := range strings.Fields(pids) {
+			if _, err := os.Stat("/proc/" + pid + "/ns/net"); pid != "0" && err == nil {
+				out = append(out, "/proc/"+pid+"/ns/net")
+				break
+			}
+		}
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
+}
+
+// hostsReachable tries addr on the probe ports from inside the netns, true on the first open port
+func hostsReachable(netns, addr string) bool {
+	for _, port := range hostsProbePorts {
+		if sh.C("nsenter", "--net="+netns, "timeout", "3", "bash", "-c", "</dev/tcp/"+addr+"/"+port).Quiet().OK() {
+			return true
+		}
+	}
+	return false
+}
+
+// hostsPinnedNetns is true when pasta_options give the rootless netns its own address (-a), then --map-guest-addr points at that private address and not at the host
+func hostsPinnedNetns() bool {
+	if !conf.IsFile(hostsNetConf) {
+		return false
+	}
+	for _, l := range conf.Lines(hostsNetConf) {
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(l, "pasta_options") && regexp.MustCompile(`"(-a|--address)"`).MatchString(l) {
+			return true
+		}
+	}
+	return false
+}
+
+// hostsAddr picks the address the hostnames point at: 169.254.1.2 when it works from the users' netns, else the public ip.
+// With no running netns to test from it goes by the pasta config.
+func hostsAddr() string {
+	pub := hostsPublicIP()
+	candidates := []string{hostsHostAddr}
+	if pub != "" {
+		candidates = append(candidates, pub)
+	}
+	for _, ns := range hostsSampleNetns(3) {
+		for _, a := range candidates {
+			if hostsReachable(ns, a) {
+				return a
+			}
+		}
+	}
+	if pub != "" && hostsPinnedNetns() {
+		return pub
+	}
+	return hostsHostAddr
+}
+
 func hostsBuild() string {
 	var names []string
 	for _, n := range []string{hostsPanelDomain(), hostsMailHostname()} {
@@ -135,7 +224,7 @@ func hostsBuild() string {
 	b.WriteString("127.0.0.1\tlocalhost\n")
 	b.WriteString("::1\tlocalhost ip6-localhost ip6-loopback\n")
 	if len(names) > 0 {
-		b.WriteString(hostsHostAddr + "\t" + strings.Join(names, " ") + "\n")
+		b.WriteString(hostsAddr() + "\t" + strings.Join(names, " ") + "\n")
 	}
 	if conf.IsFile(hostsCustom) {
 		b.WriteString("\n")
@@ -226,7 +315,7 @@ func hostsApply(only string) {
 		}
 		users = []string{only}
 	} else {
-		dirs, _ := filepath.Glob("/home/*/")
+		dirs, _ := filepath.Glob("/home/*")
 		sort.Strings(dirs)
 		for _, d := range dirs {
 			u := filepath.Base(d)
