@@ -4,7 +4,7 @@
 // Usage: opencli imunify [status|start|stop|install|update|uninstall|hook]
 // Author: Stefan Pejcic
 // Created: 04.08.2025
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -480,7 +480,11 @@ func imunify(args []string) int {
 	case "update":
 		update()
 	case "notify":
-		notify()
+		if cli.Arg(args, 1) == "--flush" {
+			flush()
+		} else {
+			notify()
+		}
 	case "hook":
 		return setupHook()
 	default:

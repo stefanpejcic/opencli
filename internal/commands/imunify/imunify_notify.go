@@ -4,7 +4,7 @@
 // Usage: opencli imunify [status|start|stop|install|update|uninstall|hook]
 // Author: Stefan Pejcic
 // Created: 04.08.2025
-// Last Modified: 20.11.2026
+// Last Modified: 25.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -239,6 +239,10 @@ func notify() {
 	for _, f := range files {
 		os.Remove(f)
 	}
+	unlock := lockBatch()
+	defer unlock()
+	b := loadBatch()
+	batched := false
 	for _, ev := range evs {
 		event := str(ev, "event_id")
 		path := ojson.Text(alt(ev, "path", ""))
@@ -259,6 +263,15 @@ func notify() {
 		kind := "Malware scan"
 		if strings.HasPrefix(event, "CUSTOM_") {
 			kind = "Custom malware scan"
+		}
+		// scheduled scans go through every account one by one, those are rolled into one combined notification
+		inBatch := strings.HasPrefix(event, "USER_SCAN_") && user != ""
+		if inBatch {
+			batched = true
+			b = b.track(ev, user, malicious > 0 || errMsg != "")
+			if strings.HasSuffix(event, "SCAN_STARTED") || (errMsg == "" && malicious == 0) {
+				continue
+			}
 		}
 		severity, noSend, title, message, duration := "info", "", "", "", ""
 		if strings.HasSuffix(event, "SCAN_STARTED") {
@@ -341,6 +354,13 @@ func notify() {
 			args = append(args, noSend)
 		}
 		sh.Opencli(args...).Run()
+	}
+	if batched {
+		saveBatch(b)
+		b.post(true)
+		if len(b.Running) == 0 {
+			scheduleFlush()
+		}
 	}
 }
 
