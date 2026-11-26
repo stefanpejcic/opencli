@@ -172,10 +172,13 @@ func TestMCPClientSetup(t *testing.T) {
 }
 
 func TestMCPNote(t *testing.T) {
-	if got := mcpNote(mcpOpts{mode: "modify", features: "dns,domains", expires: 30}); got != ", no deletes, features: dns domains, expires in 30d" {
+	if got := mcpNote(mcpOpts{mode: "modify", features: "dns,domains", expires: 30}, false); got != ", no deletes, features: dns domains, expires in 30d" {
 		t.Fatalf("got %q", got)
 	}
-	if got := mcpNote(mcpOpts{mode: "full"}); got != "" {
+	if got := mcpNote(mcpOpts{mode: "full", features: "dns,domains"}, true); got != ", all features except account, 2FA, passkeys and phpMyAdmin" {
+		t.Fatalf("got %q", got)
+	}
+	if got := mcpNote(mcpOpts{mode: "full"}, false); got != "" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -204,5 +207,35 @@ func TestMCPMissingFeatures(t *testing.T) {
 	}
 	if got := mcpMissingFeatures([]string{"dns"}, ""); len(got) != 2 {
 		t.Fatalf("api and mcp are needed for any token, got %v", got)
+	}
+}
+
+func TestMCPLiveAndDefaultFeatures(t *testing.T) {
+	// phpmyadmin is a module of its own, off when openpanel.config doesn't list it, which is the case here
+	live := mcpLiveFeatures([]string{"api", "mcp", "dns", "account", "twofa", "phpmyadmin"})
+	have := "," + strings.Join(live, ",") + ","
+	for _, want := range []string{",dns,", ",websites,", ",dashboard,", ",api,"} {
+		if !strings.Contains(have, want) {
+			t.Errorf("%s missing from %v", want, live)
+		}
+	}
+	if strings.Contains(have, ",phpmyadmin,") {
+		t.Error("a switched-off module stayed in the account's features")
+	}
+	// baseline features count as the user's, the panel grants them to everyone
+	if missing := mcpMissingFeatures(live, "websites,dns"); len(missing) != 0 {
+		t.Errorf("missing = %v", missing)
+	}
+	if missing := mcpMissingFeatures(live, "dns,mysql"); len(missing) != 1 || missing[0] != "'mysql'" {
+		t.Errorf("missing = %v", missing)
+	}
+	def := "," + mcpDefaultFeatures(live) + ","
+	for _, never := range []string{",api,", ",mcp,", ",account,", ",twofa,"} {
+		if strings.Contains(def, never) {
+			t.Errorf("%s got into the default list %s", never, def)
+		}
+	}
+	if !strings.Contains(def, ",dns,") || !strings.Contains(def, ",websites,") {
+		t.Errorf("default list %s", def)
 	}
 }
