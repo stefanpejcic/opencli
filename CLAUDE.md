@@ -82,3 +82,7 @@ Every fix or change you make to a script also gets a one-line entry in the lates
 - Don't edit changelog files of already released versions.
 - When a change is major (a new big feature, a rewrite, a new supported service or integration, something users would notice on their own), also add it to the top of the `HIGHLIGHTS` list in `/home/stefan/OpenPanel/website/src/components/changelog-overview.tsx`, which is shown on the changelog intro page (https://openpanel.com/docs/changelog/intro/). Each entry is `[version, short title, one sentence]`, newest first, keep the list to the last 6 or so. Bug fixes and small polish never go there.
 - `git add` the changelog in the OpenPanel repo together with the docs change.
+
+# Heavy commands
+
+Anything new that's disk or CPU heavy and nobody waits on (tar, compression, dumps, rsync, du/find over whole homes, log parsing) runs through `sh.LowPrio(name, args...)` from `internal/sh`, which puts `nice -n19 ionice -c3` in front. Don't hand-roll nice/ionice, and don't use `ionice -c2 -n7`, mq-deadline ignores best-effort levels so only the idle class does anything. For manual commands an admin might want done fast, add a `--no-throttle` flag like `user-backup`, `user-transfer` and `server-migrate` have.
