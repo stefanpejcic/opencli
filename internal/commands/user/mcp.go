@@ -286,6 +286,41 @@ func mcpUserFeatures(context, userID string) []string {
 	return out
 }
 
+// mcpBaselineFeatures every account has no matter the plan, same list as the panel's baselineFeatures
+var mcpBaselineFeatures = []string{"dashboard", "helpers", "websites", "databases_size_info", "screenshots", "favicons", "logout", "errors", "search", "app"}
+
+// mcpFeatureOnlyModules drop out of the account when they're off on Settings > Modules, same as the panel
+var mcpFeatureOnlyModules = map[string]bool{
+	"ssl": true, "redirects": true, "php_options": true, "php_ini": true, "php_extensions": true, "phpmyadmin": true,
+	"edit_vhost": true, "docroot": true, "domain_logs": true, "capitalize_domains": true, "domain_suspend": true, "temporary_links": true,
+}
+
+// mcpSensitiveFeatures can take over the account or hand out a database login, a token only gets them when they're named
+var mcpSensitiveFeatures = map[string]bool{"account": true, "passkeys": true, "phpmyadmin": true, "twofa": true}
+
+// mcpLiveFeatures is what the panel itself allows the account: the feature file, the baseline, minus switched-off modules
+func mcpLiveFeatures(fileFeatures []string) []string {
+	var out []string
+	for _, f := range append(append([]string{}, fileFeatures...), mcpBaselineFeatures...) {
+		if mcpFeatureOnlyModules[f] && !conf.ModuleEnabled(f) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// mcpDefaultFeatures is the list a token gets without --features: everything the account has except api, mcp and the sensitive ones
+func mcpDefaultFeatures(live []string) string {
+	var out []string
+	for _, f := range live {
+		if f != "api" && f != "mcp" && !mcpSensitiveFeatures[f] {
+			out = append(out, f)
+		}
+	}
+	return mcpCleanFeatures(strings.Join(out, ","))
+}
+
 // mcpMissingFeatures is api, mcp and every --features name the user doesn't have
 func mcpMissingFeatures(have []string, features string) []string {
 	set := map[string]bool{}
@@ -375,7 +410,7 @@ func mcpClientSetup(client, url, token string) string {
 }
 
 // mcpNote is the ", read-only, features: dns domains, expires in 30d" bit for the message and the activity log
-func mcpNote(o mcpOpts) string {
+func mcpNote(o mcpOpts, allDefault bool) string {
 	note := ""
 	switch o.mode {
 	case "readonly":
@@ -383,7 +418,10 @@ func mcpNote(o mcpOpts) string {
 	case "modify":
 		note = ", no deletes"
 	}
-	if o.features != "" {
+	switch {
+	case allDefault:
+		note += ", all features except account, 2FA, passkeys and phpMyAdmin"
+	case o.features != "":
 		note += ", features: " + strings.ReplaceAll(o.features, ",", " ")
 	}
 	if o.expires > 0 {
@@ -513,7 +551,8 @@ func mcp(args []string) int {
 	}
 
 	// same rule as the token page and the api, only features the user actually has
-	if missing := mcpMissingFeatures(mcpUserFeatures(context, userID), o.features); len(missing) > 0 {
+	live := mcpLiveFeatures(mcpUserFeatures(context, userID))
+	if missing := mcpMissingFeatures(live, o.features); len(missing) > 0 {
 		word, them := "feature", "it"
 		if len(missing) > 1 {
 			word, them = "features", "them"
@@ -521,10 +560,16 @@ func mcp(args []string) int {
 		mcpDie(o.username + " doesn't have the " + strings.Join(missing, ", ") + " " + word + ", add " + them + " to their plan or feature set first")
 	}
 
-	if o.mode != "full" || o.features != "" {
-		if err := mcpEnsureScopeColumns(); err != nil {
-			mcpDie("could not add the mode and allowed_features columns to mcp_tokens, only plain full-access or read-only tokens can be made")
+	// the token keeps this list, features the user gets later don't reach it on their own
+	allDefault := o.features == ""
+	if allDefault {
+		o.features = mcpDefaultFeatures(live)
+		if o.features == "" {
+			mcpDie(o.username + " has no features a token could use besides api and mcp")
 		}
+	}
+	if err := mcpEnsureScopeColumns(); err != nil {
+		mcpDie("could not add the mode and allowed_features columns to mcp_tokens, which every token needs now")
 	}
 
 	raw, prefix, hash, err := mcpNewToken()
@@ -539,19 +584,12 @@ func mcp(args []string) int {
 	if o.expires > 0 {
 		expiresSQL = fmt.Sprintf("DATE_ADD(NOW(), INTERVAL %d DAY)", o.expires)
 	}
-	featuresSQL := "NULL"
-	if o.features != "" {
-		featuresSQL = "'" + o.features + "'"
-	}
-	insert := "INSERT INTO mcp_tokens (user_id, name, token_prefix, token_hash, read_only, expires_at) VALUES (" + userID + ", '" + db.Escape(o.name) + "', '" + prefix + "', '" + hash + "', " + readOnly + ", " + expiresSQL + ");"
-	if mcpScopeColumnsPresent() {
-		insert = "INSERT INTO mcp_tokens (user_id, name, token_prefix, token_hash, read_only, expires_at, mode, allowed_features) VALUES (" + userID + ", '" + db.Escape(o.name) + "', '" + prefix + "', '" + hash + "', " + readOnly + ", " + expiresSQL + ", '" + o.mode + "', " + featuresSQL + ");"
-	}
+	insert := "INSERT INTO mcp_tokens (user_id, name, token_prefix, token_hash, read_only, expires_at, mode, allowed_features) VALUES (" + userID + ", '" + db.Escape(o.name) + "', '" + prefix + "', '" + hash + "', " + readOnly + ", " + expiresSQL + ", '" + o.mode + "', '" + o.features + "');"
 	if err := db.Exec(insert); err != nil {
 		mcpDie("could not save the token")
 	}
 
-	note := mcpNote(o)
+	note := mcpNote(o, allDefault)
 	mcpLogActivity(o.username, "created a new MCP token ("+o.name+note+") via opencli")
 
 	url := mcpPanelURL() + "/mcp"
