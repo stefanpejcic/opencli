@@ -188,7 +188,7 @@ func (b *backupRun) backup() {
 	logf, _ := os.OpenFile(backupLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
 	// --exclude stops tar from choking on its own archive when destination lives inside a backed-up path like /etc/openpanel/backups/
 	tarArgs := append([]string{"-czf", archivePath, "-C", "/", "--exclude=" + strings.TrimPrefix(destination, "/") + "/*"}, existing...)
-	err := sh.C("tar", tarArgs...).Stderr(logf).Run()
+	err := sh.LowPrio("tar", tarArgs...).Stderr(logf).Run()
 	if logf != nil {
 		logf.Close()
 	}

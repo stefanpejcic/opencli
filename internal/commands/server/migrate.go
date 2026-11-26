@@ -1,7 +1,7 @@
 // ##############################################################################
 // Script Name: internal/commands/server/migrate.go
 // Description: Migrates all data from this server to another.
-// Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--exclude-* options]
+// Usage: opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--no-throttle] [--exclude-* options]
 // Author: Stefan Pejcic
 // Created: 26.06.2025
 // Last Modified: 20.11.2026
@@ -59,7 +59,7 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "server-migrate",
 		Desc:  "Migrates all data from this server to another.",
-		Usage: "opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--exclude-* options]",
+		Usage: "opencli server-migrate -h <DESTINATION_IP> --user root --password <DESTINATION_PASSWORD> [--force] [--no-throttle] [--exclude-* options]",
 		Run:   migrate,
 	})
 }
@@ -69,6 +69,7 @@ type migration struct {
 	exHome, exLogs, exMail, exBind, exCSF        bool
 	exOpenpanel, exMysql, exStack, exPostupdate  bool
 	exUsers, exContexts, force, composeStartMail bool
+	noThrottle                                   bool
 
 	rsync     []string
 	currentIP string
@@ -124,6 +125,8 @@ func migrate(args []string) int {
 			m.exContexts = true
 		case "--force":
 			m.force = true
+		case "--no-throttle":
+			m.noThrottle = true
 		default:
 			fmt.Printf("Unknown option: %s\n", a)
 			return 1
@@ -206,9 +209,13 @@ func (m *migration) ssh(remote string) *sh.Cmd {
 	return sh.C("sshpass", "-e", "ssh", "-o", "StrictHostKeyChecking=no", m.dest(), remote)
 }
 
+// rsyncCmd runs at low priority so the copy doesn't slow this server down, --no-throttle skips that
 func (m *migration) rsyncCmd(args ...string) *sh.Cmd {
 	all := append(append([]string{}, m.rsync[1:]...), args...)
-	return sh.C(m.rsync[0], all...)
+	if m.noThrottle {
+		return sh.C(m.rsync[0], all...)
+	}
+	return sh.LowPrio(m.rsync[0], all...)
 }
 
 func (m *migration) checkInstallSshpass() {

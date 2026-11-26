@@ -209,7 +209,7 @@ func purgeLines(path string) []string {
 
 // purgeDu is du -sb | cut -f1
 func purgeDu(path string) string {
-	out := sh.C("du", "-sb", path).NoErr().Str()
+	out := sh.LowPrio("du", "-sb", path).NoErr().Str()
 	if i := strings.IndexByte(out, '\t'); i >= 0 {
 		out = out[:i]
 	}

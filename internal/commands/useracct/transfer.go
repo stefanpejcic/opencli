@@ -1,7 +1,7 @@
 // ##############################################################################
 // Script Name: internal/commands/useracct/transfer.go
 // Description: Transfers a single user account from this server to another.
-// Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer]
+// Usage: opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer] [--no-throttle]
 // Author: Stefan Pejcic
 // Created: 28.06.2025
 // Last Modified: 25.11.2026
@@ -54,14 +54,14 @@ func init() {
 	cli.Register(&cli.Command{
 		Name:  "user-transfer",
 		Desc:  "Transfers a single user account from this server to another.",
-		Usage: "opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer]",
+		Usage: "opencli user-transfer --account <OPENPANEL_USER> --host <DESTINATION_IP> --username <DESTINATION_SSH_USERNAME> --password <DESTINATION_SSH_PASSWORD> [--port <SSH_PORT>] [--force] [--live-transfer] [--no-throttle]",
 		Run:   transfer,
 	})
 }
 
 type transferJob struct {
 	username, host, user, port, pass, identity, knownHosts string
-	force, live                                            bool
+	force, live, noThrottle                                bool
 	start                                                  time.Time
 	logFile                                                string
 	rsyncCmd, sshCmd                                       []string
@@ -152,8 +152,13 @@ func (t *transferJob) ssh(args ...string) *sh.Cmd {
 	return sh.C(t.sshCmd[0], append(append([]string{}, t.sshCmd[1:]...), args...)...).StdinReader(os.Stdin)
 }
 
+// rsync runs at low priority so the copy doesn't slow the sites still on this server, --no-throttle skips that
 func (t *transferJob) rsync(args ...string) *sh.Cmd {
-	return sh.C(t.rsyncCmd[0], append(append([]string{}, t.rsyncCmd[1:]...), args...)...).StdinReader(os.Stdin)
+	all := append(append([]string{}, t.rsyncCmd[1:]...), args...)
+	if t.noThrottle {
+		return sh.C(t.rsyncCmd[0], all...).StdinReader(os.Stdin)
+	}
+	return sh.LowPrio(t.rsyncCmd[0], all...).StdinReader(os.Stdin)
 }
 
 func (t *transferJob) remote(path string) string { return t.user + "@" + t.host + ":" + path }
@@ -189,6 +194,10 @@ func transfer(args []string) int {
 			continue
 		case "--live-transfer":
 			t.live = true
+			i++
+			continue
+		case "--no-throttle":
+			t.noThrottle = true
 			i++
 			continue
 		default:

@@ -63,6 +63,24 @@ func C(name string, args ...string) *Cmd {
 	return &Cmd{name: name, args: args, stdout: os.Stdout, stderr: os.Stderr}
 }
 
+// LowPrio is C behind nice and the idle io class, for heavy work nobody is waiting on
+func LowPrio(name string, args ...string) *Cmd {
+	p := LowPrioArgs(name, args...)
+	return C(p[0], p[1:]...)
+}
+
+// LowPrioArgs puts nice -n19 ionice -c3 in front of the command, mq-deadline ignores -c2 levels so only the idle class does anything
+func LowPrioArgs(name string, args ...string) []string {
+	var p []string
+	if Has("nice") {
+		p = append(p, "nice", "-n19")
+	}
+	if Has("ionice") {
+		p = append(p, "ionice", "-c3")
+	}
+	return append(append(p, name), args...)
+}
+
 // Env adds KEY=VALUE pairs on top of the current environment
 func (c *Cmd) Env(kv ...string) *Cmd { c.env = append(c.env, kv...); return c }
 

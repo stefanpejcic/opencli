@@ -99,11 +99,7 @@ func (b *backupJob) lowprio(name string, args ...string) []string {
 	if !b.throttle {
 		return append([]string{name}, args...)
 	}
-	p := []string{"nice", "-n19"}
-	if sh.Has("ionice") {
-		p = append(p, "ionice", "-c2", "-n7")
-	}
-	return append(append(p, name), args...)
+	return sh.LowPrioArgs(name, args...)
 }
 
 func backupQ(q string) string {

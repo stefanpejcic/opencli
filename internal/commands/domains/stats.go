@@ -157,7 +157,8 @@ func statsProcess(username string, debug bool) {
 		if st, err := os.Stat(logFile); err == nil && st.Size() > 0 {
 			f, err := os.Create(htmlOutput)
 			if err == nil {
-				sh.C("podman", "run", "--memory=256m", "--cpus=0.5",
+				// nice and the io class carry through conmon into the goaccess container
+				sh.LowPrio("podman", "run", "--memory=256m", "--cpus=0.5",
 					"-v", "/usr/local/share/GeoIP/GeoLite2-City_20231219/GeoLite2-City.mmdb:/GeoLite2-City.mmdb",
 					"-v", logFile+":/var/log/caddy/access.log",
 					"-v", outputDir+":"+outputDir,
