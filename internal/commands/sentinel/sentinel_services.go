@@ -42,6 +42,7 @@ import (
 
 	"opencli/internal/conf"
 	"opencli/internal/db"
+	"opencli/internal/redis"
 	"opencli/internal/sh"
 )
 
@@ -518,6 +519,14 @@ func (r *run) mysqlDockerContainersStatus() {
 	}
 }
 
+// redisPong pings over the unix socket first, since 2.0.30 the panel Redis runs with --port 0 and a plain redis-cli PING to 127.0.0.1:6379 always fails
+func redisPong(c string) bool {
+	if strings.Contains(tmo(30, "podman", "exec", c, "redis-cli", "-s", redis.Socket, "PING").NoErr().Str(), "PONG") {
+		return true
+	}
+	return strings.Contains(tmo(30, "podman", "exec", c, "redis-cli", "PING").NoErr().Str(), "PONG")
+}
+
 func (r *run) redisDockerContainerStatus() {
 	title := "Redis service not active!"
 	const c = "openpanel_redis"
@@ -533,7 +542,7 @@ func (r *run) redisDockerContainerStatus() {
 	state := tmo(30, "podman", "inspect", c, "--format", "{{.State.Status}}").NoErr().Str()
 	switch state {
 	case "running":
-		if strings.Contains(tmo(30, "podman", "exec", c, "redis-cli", "PING").NoErr().Str(), "PONG") {
+		if redisPong(c) {
 			os.Remove(lockFileForRedisStuck)
 			r.pass++
 			r.printf("%s Redis container active and responding.\n", cOK)

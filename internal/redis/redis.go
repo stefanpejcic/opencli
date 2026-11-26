@@ -38,9 +38,12 @@ import (
 // Container is the redis container name
 const Container = "openpanel_redis"
 
-// CLI runs redis-cli inside the redis container
+// Socket is where the panel Redis listens, since 2.0.30 it has no TCP port
+const Socket = "/tmp/redis/redis.sock"
+
+// CLI runs redis-cli inside the redis container, over the unix socket
 func CLI(args ...string) *sh.Cmd {
-	return sh.C("podman", append([]string{"exec", Container, "redis-cli"}, args...)...)
+	return sh.C("podman", append([]string{"exec", Container, "redis-cli", "-s", Socket}, args...)...)
 }
 
 // DropKey deletes exact keys, no-op without keys
