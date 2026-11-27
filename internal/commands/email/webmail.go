@@ -189,9 +189,9 @@ func wmUpdate(newDomain string, debug bool) {
 		cli.Fail("Error: Caddy file not found at %s", wmProxyFile)
 	}
 	const caddyfile = "/etc/openpanel/caddy/Caddyfile"
-	re := regexp.MustCompile(newDomain)
-	// not used by system domains
-	if conf.IsFile(caddyfile) && re.MatchString(conf.Read(caddyfile)) {
+	re := wmHostRe(newDomain)
+	// not used by system domains, the webmail block itself doesn't count: the installer already writes webmail.<hostname> there
+	if conf.IsFile(caddyfile) && re.MatchString(wmStripBlock(conf.Read(caddyfile))) {
 		cli.Fail("Error: Rejecting to save domain '%s' as it is already used for another system service.", newDomain)
 	}
 	// and not in user domains
@@ -279,6 +279,28 @@ func wmCaddyBlock(cf, domain string) string {
 		if strings.Contains(t, "# END WEBMAIL DOMAIN #") {
 			in = false
 			out.WriteString(repl)
+		}
+	}
+	return out.String()
+}
+
+// wmHostRe matches domain as a whole hostname, so mail.example.com doesn't hit webmail.example.com and dots are literal
+func wmHostRe(domain string) *regexp.Regexp {
+	return regexp.MustCompile(`(^|[^A-Za-z0-9.-])` + regexp.QuoteMeta(domain) + `($|[^A-Za-z0-9.-])`)
+}
+
+// wmStripBlock drops the # START/END WEBMAIL DOMAIN # block
+func wmStripBlock(cf string) string {
+	var out strings.Builder
+	in := false
+	for _, l := range strings.SplitAfter(cf, "\n") {
+		switch {
+		case strings.Contains(l, "# START WEBMAIL DOMAIN #"):
+			in = true
+		case strings.Contains(l, "# END WEBMAIL DOMAIN #"):
+			in = false
+		case !in:
+			out.WriteString(l)
 		}
 	}
 	return out.String()
