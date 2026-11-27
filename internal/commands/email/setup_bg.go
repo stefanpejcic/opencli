@@ -40,6 +40,7 @@ import (
 	"opencli/internal/conf"
 	"opencli/internal/podman"
 	"opencli/internal/sh"
+	wm "opencli/internal/webmail"
 )
 
 // the bash script detached these steps with nohup so they outlive the command
@@ -50,8 +51,8 @@ func setupBg(args []string) int {
 		if podman.CanExec(container) {
 			return 0
 		}
-		podman.ForceRemove(container, "openadmin_roundcube")
-		sh.C("timeout", "120", "podman-compose", "up", "-d", "mailserver", "roundcube").Dir(mailDir).Run()
+		podman.ForceRemove(container, wm.Container())
+		sh.C("timeout", "120", "podman-compose", "up", "-d", "mailserver", wm.Service()).Dir(mailDir).Run()
 	case "chown":
 		uid, domain, user := cli.Arg(args, 1), cli.Arg(args, 2), cli.Arg(args, 3)
 		// a mailbox named ".." would turn this into chown -R of all of /var/mail

@@ -47,6 +47,7 @@ import (
 	"opencli/internal/requirement"
 	"opencli/internal/sh"
 	"opencli/internal/text"
+	wm "opencli/internal/webmail"
 )
 
 func init() {
@@ -507,6 +508,17 @@ func srvComposeKeys(host, port, smtpHost, smtpPort string) {
 	srvSedKey(srvCompose, "ROUNDCUBEMAIL_DEFAULT_PORT", port)
 	srvSedKey(srvCompose, "ROUNDCUBEMAIL_SMTP_SERVER", smtpHost)
 	srvSedKey(srvCompose, "ROUNDCUBEMAIL_SMTP_PORT", smtpPort)
+	// golub verifies the certificate, so with a hostname it connects to it over implicit TLS
+	golubHost, golubTLS := "mailserver", "none"
+	if h, ok := strings.CutPrefix(host, "ssl://"); ok {
+		golubHost, golubTLS = h, "implicit"
+	}
+	for _, k := range []string{"GOLUB_IMAP_HOST", "GOLUB_SMTP_HOST"} {
+		srvSedKey(srvCompose, k, golubHost)
+	}
+	for _, k := range []string{"GOLUB_IMAP_TLS", "GOLUB_SMTP_TLS"} {
+		srvSedKey(srvCompose, k, golubTLS)
+	}
 }
 
 func srvSetSSL() {
@@ -661,11 +673,11 @@ func srvInstall() {
 	os.MkdirAll("/etc/openpanel/email/snappymail", 0o755)
 	os.Remove(mailDir + "/.env")
 	os.Symlink(srvEnv, mailDir+"/.env")
-	srvRun(sh.C("podman-compose", "up", "-d", "mailserver", "roundcube").Dir(mailDir).Timeout(60 * time.Second))
+	srvRun(sh.C("podman-compose", "up", "-d", "mailserver", wm.Service()).Dir(mailDir).Timeout(60 * time.Second))
 
 	// https://github.com/stefanpejcic/OpenPanel/issues/1041#issuecomment-5123435885
 	srvService("add", "Dovecot & Postfix", "docker", "openadmin_mailserver")
-	srvService("add", "Roundcube (Webmail)", "docker", "openadmin_roundcube")
+	srvService("add", wm.Name(wm.Service()), "docker", wm.Container())
 
 	srvEnableEmails()
 	srvSection("CONFIGURING FIREWALL")
@@ -766,12 +778,12 @@ func srvStart() bool {
 	state := podman.State(container)
 	// compose up leaves a container stuck like this alone
 	if state != "" && state != "exited" && state != "stopped" && !podman.CanExec(container) {
-		podman.ForceRemove(container, "openadmin_roundcube")
+		podman.ForceRemove(container, wm.Container())
 	}
 	services := []string{"mailserver"}
-	// a stuck mailserver can only be removed together with roundcube
-	if !sh.C("podman", "container", "exists", "openadmin_roundcube").Quiet().OK() {
-		services = append(services, "roundcube")
+	// a stuck mailserver can only be removed together with the webmail
+	if !sh.C("podman", "container", "exists", wm.Container()).Quiet().OK() {
+		services = append(services, wm.Service())
 	}
 	sh.C("podman-compose", append([]string{"up", "-d"}, services...)...).Dir(mailDir).Timeout(120 * time.Second).Quiet().Run()
 	if !podman.IsRunning(container) {
@@ -833,7 +845,7 @@ func srvStop() bool {
 	state := podman.State(container)
 	if state != "" && state != "exited" && state != "stopped" {
 		srvDbg("Container is still '" + state + "' after compose down, removing it.")
-		if !podman.ForceRemove(container, "openadmin_roundcube") {
+		if !podman.ForceRemove(container, wm.Container()) {
 			cli.Errf("Error: MailServer is stuck in state '%s' and could not be removed.", state)
 			return false
 		}

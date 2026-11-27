@@ -35,6 +35,7 @@ import (
 	"opencli/internal/cli"
 	"opencli/internal/conf"
 	"opencli/internal/sh"
+	wm "opencli/internal/webmail"
 )
 
 // the bash script detached these steps with nohup so they outlive the command
@@ -52,7 +53,7 @@ func bgRun(args []string) int {
 	case "mail-restart":
 		dir := "/usr/local/mail/openmail/"
 		if conf.IsDir(dir) && sh.C("podman-compose", "down").Dir(dir).OK() {
-			sh.C("podman-compose", "up", "-d", "mailserver", "roundcube").Dir(dir).Run()
+			sh.C("podman-compose", "up", "-d", "mailserver", wm.Service()).Dir(dir).Run()
 		}
 	}
 	return 0

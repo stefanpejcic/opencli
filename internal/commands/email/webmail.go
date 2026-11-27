@@ -1,10 +1,10 @@
 // ##############################################################################
 // Script Name: internal/commands/email/webmail.go
-// Description: Display or update the domain used for accessing webmail.
-// Usage: opencli email-webmail [--debug] [domain <domain>]
+// Description: Display or update the domain used for accessing webmail, or switch the webmail client.
+// Usage: opencli email-webmail [--debug] [domain <domain>] [client [roundcube|golub]]
 // Author: Stefan Pejcic
 // Created: 18.08.2024
-// Last Modified: 20.11.2026
+// Last Modified: 27.11.2026
 // Company: openpanel.com
 // Copyright (c) openpanel.com
 //
@@ -46,8 +46,8 @@ import (
 func init() {
 	cli.Register(&cli.Command{
 		Name:  "email-webmail",
-		Desc:  "Display or update the domain used for accessing webmail.",
-		Usage: "opencli email-webmail [--debug] [domain <domain>]",
+		Desc:  "Display or update the domain used for accessing webmail, or switch the webmail client.",
+		Usage: "opencli email-webmail [--debug] [domain <domain>] [client [roundcube|golub]]",
 		Docs:  "https://docs.openpanel.com",
 		Run:   webmail,
 	})
@@ -67,11 +67,13 @@ var (
 )
 
 func wmUsage() {
-	fmt.Println("Usage: opencli email-webmail [--debug] [domain <domain>]")
+	fmt.Println("Usage: opencli email-webmail [--debug] [domain <domain>] [client [roundcube|golub]]")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  opencli email-webmail                            # Display webmail domain.")
 	fmt.Println("  opencli email-webmail domain webmail.example.com # Set webmail.example.com as domain.")
+	fmt.Println("  opencli email-webmail client                     # Display the webmail client: roundcube or golub.")
+	fmt.Println("  opencli email-webmail client golub               # Switch the webmail client to Golub.")
 	fmt.Println("")
 	cli.Exit(1)
 }
@@ -91,6 +93,8 @@ func webmail(args []string) int {
 			fmt.Println("----------------- DISPLAY DEBUG INFORMATION ------------------")
 			fmt.Println("")
 			debug = true
+		case "client":
+			return wmClient(args[1:])
 		case "domain":
 			args = args[1:]
 			if len(args) == 0 || args[0] == "" {

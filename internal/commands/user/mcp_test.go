@@ -211,7 +211,10 @@ func TestMCPMissingFeatures(t *testing.T) {
 }
 
 func TestMCPLiveAndDefaultFeatures(t *testing.T) {
-	// phpmyadmin is a module of its own, off when openpanel.config doesn't list it, which is the case here
+	// phpmyadmin is a module of its own, off when openpanel.config doesn't list it
+	orig := mcpModuleEnabled
+	mcpModuleEnabled = func(string) bool { return false }
+	t.Cleanup(func() { mcpModuleEnabled = orig })
 	live := mcpLiveFeatures([]string{"api", "mcp", "dns", "account", "twofa", "phpmyadmin"})
 	have := "," + strings.Join(live, ",") + ","
 	for _, want := range []string{",dns,", ",websites,", ",dashboard,", ",api,"} {

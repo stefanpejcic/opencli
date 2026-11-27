@@ -49,6 +49,7 @@ import (
 	"opencli/internal/reseller"
 	"opencli/internal/sh"
 	"opencli/internal/text"
+	wm "opencli/internal/webmail"
 )
 
 func init() {
@@ -1173,7 +1174,7 @@ func (r *restoreJob) restoreEmail() {
 			sh.Quiet("podman", "rm", "-f", "--storage", restoreMailContainer)
 		}
 		if conf.IsDir("/usr/local/mail/openmail") {
-			sh.C("podman-compose", "up", "-d", "mailserver", "roundcube").Dir("/usr/local/mail/openmail").Timeout(30 * time.Second).Quiet().Run()
+			sh.C("podman-compose", "up", "-d", "mailserver", wm.Service()).Dir("/usr/local/mail/openmail").Timeout(30 * time.Second).Quiet().Run()
 		}
 		time.Sleep(2 * time.Second)
 	}

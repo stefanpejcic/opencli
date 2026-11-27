@@ -299,10 +299,13 @@ var mcpFeatureOnlyModules = map[string]bool{
 var mcpSensitiveFeatures = map[string]bool{"account": true, "passkeys": true, "phpmyadmin": true, "twofa": true}
 
 // mcpLiveFeatures is what the panel itself allows the account: the feature file, the baseline, minus switched-off modules
+// mcpModuleEnabled is swapped in tests, which can't depend on the openpanel.config of the machine running them
+var mcpModuleEnabled = conf.ModuleEnabled
+
 func mcpLiveFeatures(fileFeatures []string) []string {
 	var out []string
 	for _, f := range append(append([]string{}, fileFeatures...), mcpBaselineFeatures...) {
-		if mcpFeatureOnlyModules[f] && !conf.ModuleEnabled(f) {
+		if mcpFeatureOnlyModules[f] && !mcpModuleEnabled(f) {
 			continue
 		}
 		out = append(out, f)

@@ -422,7 +422,17 @@ func (s *state) updateMcpProxy() {
 	conf.WriteInPlace(redirectsConf, b.String())
 }
 
-// roundcube connects to ssl://<hostname>, so it's pinned to the public IP in the compose file
+// golub verifies the certificate, so with a hostname it connects to it instead of to mailserver
+func golubComposeKeys(host, tls string) {
+	for _, k := range []string{"GOLUB_IMAP_HOST", "GOLUB_SMTP_HOST"} {
+		subKey(mailserverCompose, k, host)
+	}
+	for _, k := range []string{"GOLUB_IMAP_TLS", "GOLUB_SMTP_TLS"} {
+		subKey(mailserverCompose, k, tls)
+	}
+}
+
+// roundcube and golub connect to the hostname, so it's pinned to the public IP in the compose file
 func (s *state) setRoundcubeExtraHost(host string) {
 	conf.SedFile(mailserverCompose, func(lines []string) []string {
 		var out []string
@@ -447,7 +457,7 @@ func (s *state) setRoundcubeExtraHost(host string) {
 		var out []string
 		for _, l := range lines {
 			out = append(out, l)
-			if strings.Contains(l, "container_name: openadmin_roundcube") {
+			if strings.Contains(l, "container_name: openadmin_roundcube") || strings.Contains(l, "container_name: openadmin_golub") {
 				out = append(out, "    extra_hosts: # opencli domain", `      - "`+host+":"+s.serverIP+`"`)
 			}
 		}
@@ -503,6 +513,7 @@ func (s *state) configureMailserver() {
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_DEFAULT_PORT", "")
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_SMTP_SERVER", "mailserver")
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_SMTP_PORT", "")
+			golubComposeKeys("mailserver", "none")
 			s.setRoundcubeExtraHost("")
 		}
 	} else {
@@ -547,6 +558,7 @@ func (s *state) configureMailserver() {
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_DEFAULT_PORT", "993")
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_SMTP_SERVER", "ssl://"+h)
 			subKey(mailserverCompose, "ROUNDCUBEMAIL_SMTP_PORT", "465")
+			golubComposeKeys(h, "implicit")
 			s.setRoundcubeExtraHost(h)
 		}
 	}
